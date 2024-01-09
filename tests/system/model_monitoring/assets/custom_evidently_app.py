@@ -23,7 +23,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.model_monitoring.application import ApplicationResult
+from mlrun.model_monitoring.application import ModelMonitoringApplicationResult
 from mlrun.model_monitoring.evidently_application import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
@@ -171,7 +171,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
-    ) -> ApplicationResult:
+    ) -> ModelMonitoringApplicationResult:
         self.context.logger.info("Running evidently app")
 
         sample_df = sample_df[self.columns]
@@ -190,7 +190,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self.log_project_dashboard(None, end_infer_time + datetime.timedelta(minutes=1))
 
         self.context.logger.info("Logged evidently objects")
-        return ApplicationResult(
+        return ModelMonitoringApplicationResult(
             name="data_drift_test",
             value=0.5,
             kind=ResultKindApp.data_drift,

@@ -32,7 +32,7 @@ from mlrun.utils import logger
 
 
 @dataclasses.dataclass
-class ApplicationResult:
+class ModelMonitoringApplicationResult:
     """
     Class representing the result of a custom model monitoring application.
 
@@ -83,9 +83,9 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
                 output_stream_uri: str,
-            ) -> ApplicationResult:
+            ) -> ModelMonitoringApplicationResult:
                 self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
-                return ApplicationResult(
+                return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
                     kind=mm_constant.ResultKindApp.data_drift,
@@ -97,12 +97,14 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
 
     kind = "monitoring_application"
 
-    def do(self, event: dict[str, Any]) -> Tuple[list[ApplicationResult], dict]:
+    def do(
+        self, event: dict[str, Any]
+    ) -> Tuple[list[ModelMonitoringApplicationResult], dict]:
         """
         Process the monitoring event and return application results.
 
         :param event:   (dict) The monitoring event to process.
-        :returns:       (list[ApplicationResult], dict) The application results
+        :returns:       (list[ModelMonitoringApplicationResult], dict) The application results
                         and the original event for the application.
         """
         resolved_event = self._resolve_event(event)
@@ -129,7 +131,9 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
-    ) -> Union[ApplicationResult, list[ApplicationResult]]:
+    ) -> Union[
+        ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
+    ]:
         """
         Implement this method with your custom monitoring logic.
 
@@ -143,8 +147,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         :param endpoint_id:             (str) ID of the monitored model endpoint
         :param output_stream_uri:       (str) URI of the output stream for results
 
-        :returns:                       (ApplicationResult) or
-                                        (list[ApplicationResult]) of the application results.
+        :returns:                       (ModelMonitoringApplicationResult) or
+                                        (list[ModelMonitoringApplicationResult]) of the application results.
         """
         raise NotImplementedError
 
@@ -259,7 +263,7 @@ class PushToMonitoringWriter(StepToDict):
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"
 
-    def do(self, event: Tuple[list[ApplicationResult], dict]) -> None:
+    def do(self, event: Tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
         """
         Push application results to the monitoring writer stream.
 

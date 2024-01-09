@@ -1116,7 +1116,7 @@ def test_set_workflow_local_engine():
         proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
 
 
-def test_run_non_existing_workflow():
+def test_run_non_existing_workflow(rundb_mock):
     proj = mlrun.new_project("proj", save=False)
     proj.set_function("hub://describe", "describe")
     proj.set_workflow("main", "workflow.py")

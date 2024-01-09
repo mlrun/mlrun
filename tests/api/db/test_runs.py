@@ -100,8 +100,6 @@ def test_list_runs_with_notifications_identical_run_names(
     db: DBInterface, db_session: Session
 ):
     project_name = "project"
-    run_uids = ["uid1", "uid2", "uid3"]
-    num_runs = len(run_uids)
 
     _create_new_run(db, db_session, project=project_name, name="test-run", uid="uid1")
     notification = mlrun.model.Notification(

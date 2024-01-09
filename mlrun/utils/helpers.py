@@ -14,7 +14,6 @@
 
 import enum
 import functools
-import getpass
 import hashlib
 import inspect
 import itertools
@@ -535,11 +534,6 @@ def match_labels(labels, conditions):
         else:
             match = match and (condition.strip() in labels)
     return match
-
-
-def enrich_owner_label(labels: dict, owner: str = None):
-    if "owner" not in labels:
-        labels["owner"] = owner or os.environ.get("V3IO_USERNAME") or getpass.getuser()
 
 
 def match_times(time_from, time_to, obj, key):

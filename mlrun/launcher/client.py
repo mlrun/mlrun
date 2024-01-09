@@ -70,8 +70,9 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         run.metadata.labels["kind"] = runtime.kind
-        if "owner" not in run.metadata.labels:
-            mlrun.utils.enrich_owner_label(run.metadata.labels)
+        mlrun.runtimes.utils.enrich_run_labels(
+            run.metadata.labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
                 "{{run.user}}", run.metadata.labels["owner"]

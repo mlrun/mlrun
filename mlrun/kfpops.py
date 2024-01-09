@@ -378,9 +378,7 @@ def mlrun_op(
     returns = returns or []
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
-        labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
-    mlrun.utils.enrich_owner_label(labels)
+    mlrun.runtimes.utils.enrich_run_labels(labels)
 
     if name:
         cmd += ["--name", name]

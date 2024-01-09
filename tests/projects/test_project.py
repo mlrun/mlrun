@@ -1119,7 +1119,6 @@ def test_set_workflow_local_engine():
 def test_run_non_existing_workflow(rundb_mock):
     proj = mlrun.new_project("proj", save=False)
     proj.set_function("hub://describe", "describe")
-    proj.set_workflow("main", "workflow.py")
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         proj.run("non-existing-workflow")
 

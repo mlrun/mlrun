@@ -1289,7 +1289,8 @@ class TestArtifacts:
         for model in artifacts:
             assert model["metadata"]["key"] == artifact_key
 
-        assert artifacts[1]["spec"]["model_file"] == "some/path"
+        latest_art = db.read_artifact(db_session, artifact_key, tag="latest")
+        assert latest_art["spec"]["model_file"] == "some/path"
 
     def _generate_artifact_with_iterations(
         self, db, db_session, key, tree, num_iters, best_iter, kind, project=""

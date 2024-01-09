@@ -125,8 +125,12 @@ class _BatchWindow:
             entered = False
             for timestamp in range(self._start, self._stop, self._step):
                 entered = True
-                start_time = datetime.datetime.utcfromtimestamp(timestamp)
-                end_time = datetime.datetime.utcfromtimestamp(timestamp + self._step)
+                start_time = datetime.datetime.fromtimestamp(
+                    timestamp, tz=datetime.timezone.utc
+                )
+                end_time = datetime.datetime.fromtimestamp(
+                    timestamp + self._step, tz=datetime.timezone.utc
+                )
                 yield start_time, end_time
                 self._update_last_analyzed(timestamp + self._step)
             if not entered:

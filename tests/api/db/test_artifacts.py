@@ -436,6 +436,26 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
         assert len(artifacts) == 3
 
+    def test_store_artifact_with_different_key(
+        self, db: DBInterface, db_session: Session
+    ):
+        artifact_key = "artifact_key"
+        artifact_different_key = "artifact_different_key"
+        artifact_tree = "artifact_tree"
+
+        artifact_body = self._generate_artifact(artifact_key, tree=artifact_tree)
+        db.store_artifact(
+            db_session,
+            artifact_different_key,
+            artifact_body,
+        )
+        artifact = db.read_artifact(db_session, artifact_different_key)
+        assert artifact
+        assert artifact["metadata"]["key"] == artifact_key
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key)
+
     def test_read_artifact_tag_resolution(self, db: DBInterface, db_session: Session):
         """
         We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of

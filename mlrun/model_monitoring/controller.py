@@ -57,9 +57,9 @@ class _BatchWindow:
         self._first_request = first_request
         self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
-        self._start = self._get_last_analyzed()
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._start = self._get_last_analyzed()
 
     def _get_last_analyzed(self) -> Optional[int]:
         try:
@@ -80,7 +80,13 @@ class _BatchWindow:
             )
 
             return max(
-                self._first_request, self._stop - cast(int, datetime.timedelta(days=1))
+                self._first_request,
+                int(
+                    (
+                        datetime.datetime.fromtimestamp(self._stop)
+                        - datetime.timedelta(days=1)
+                    ).timestamp()
+                ),
             )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]

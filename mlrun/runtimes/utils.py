@@ -27,14 +27,13 @@ import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
+from mlrun.artifacts import TableArtifact
+from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-
-from ..artifacts import TableArtifact
-from ..config import config
-from ..utils import get_in, helpers, logger, verify_field_regex
-from .constants import RunLabels
-from .generators import selector
+from mlrun.runtimes.constants import RunLabels
+from mlrun.runtimes.generators import selector
+from mlrun.utils import get_in, helpers, logger, verify_field_regex
 
 
 class RunError(Exception):

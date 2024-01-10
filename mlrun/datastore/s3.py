@@ -137,7 +137,7 @@ class S3Store(DataStore):
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
 
         if self._temp_credentials:
-            key = self._temp_credentials["AccessKeyId"]
+            key_id = self._temp_credentials["AccessKeyId"]
             secret = self._temp_credentials["SecretAccessKey"]
             token = self._temp_credentials["SessionToken"]
         else:

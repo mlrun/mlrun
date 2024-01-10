@@ -95,7 +95,7 @@ async def get_internal_background_task(
     "/background-tasks",
     response_model=mlrun.common.schemas.BackgroundTaskList,
 )
-async def get_delete_project_task(
+async def list_internal_background_tasks(
     request: fastapi.Request,
     name: typing.Optional[str] = None,
     kind: typing.Optional[str] = None,

@@ -56,6 +56,13 @@ async def delete_project(
         server.api.api.deps.get_db_session
     ),
 ):
+    # check if project exists
+    try:
+        get_project_member().get_project(db_session, name, auth_info.session)
+    except mlrun.errors.MLRunNotFoundError:
+        logger.info("Project not found, nothing to delete", project=name)
+        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
     if (
@@ -71,13 +78,6 @@ async def delete_project(
         return await chief_client.delete_project(
             name=name, request=request, api_version="v2"
         )
-
-    # check if project exists
-    try:
-        get_project_member().get_project(db_session, name, auth_info.session)
-    except mlrun.errors.MLRunNotFoundError:
-        logger.info("Project not found, nothing to delete", project=name)
-        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
     # as opposed to v1, we need to implement the `check` deletion strategy here, since we don't want
     # to spawn a background task for this, only to return a response
@@ -146,16 +146,21 @@ def _get_or_create_project_deletion_background_task(
             raise_on_not_found=True,
         )
     except mlrun.errors.MLRunNotFoundError:
-        return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-            background_tasks,
-            background_task_kind,
-            mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
-            _delete_project,
-            db_session=db_session,
-            project_name=project_name,
-            deletion_strategy=deletion_strategy,
-            auth_info=auth_info,
+        logger.debug(
+            "Existing background task not found, creating new one",
+            background_task_kind=background_task_kind,
         )
+
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_tasks,
+        background_task_kind,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+        _delete_project,
+        db_session=db_session,
+        project_name=project_name,
+        deletion_strategy=deletion_strategy,
+        auth_info=auth_info,
+    )
 
 
 async def _delete_project(

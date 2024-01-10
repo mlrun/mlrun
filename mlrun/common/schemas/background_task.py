@@ -58,3 +58,7 @@ class BackgroundTask(pydantic.BaseModel):
     metadata: BackgroundTaskMetadata
     spec: BackgroundTaskSpec
     status: BackgroundTaskStatus
+
+
+class BackgroundTaskList(pydantic.BaseModel):
+    background_tasks: typing.List[BackgroundTask]

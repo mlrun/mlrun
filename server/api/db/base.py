@@ -667,7 +667,7 @@ class DBInterface(ABC):
         pass
 
     def get_background_task(
-        self, session, name: str, project: str
+        self, session, name: str, project: str, background_task_exceeded_timeout_func
     ) -> mlrun.common.schemas.BackgroundTask:
         pass
 

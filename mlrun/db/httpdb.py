@@ -1311,11 +1311,11 @@ class HTTPRunDB(RunDBInterface):
     def remote_builder(
         self,
         func: BaseRuntime,
-        with_mlrun,
-        mlrun_version_specifier=None,
-        skip_deployed=False,
-        builder_env=None,
-        force_build=False,
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build

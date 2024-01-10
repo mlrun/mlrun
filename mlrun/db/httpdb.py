@@ -1337,8 +1337,8 @@ class HTTPRunDB(RunDBInterface):
         if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
             logger.warning(
                 "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
-                "keys. Only the permissions attached to the platform's configured secret will take affect "
-                "(see mlrun.mlconf..httpdb.builder.docker_registry_secret). "
+                "keys. Only the permissions granted to the platform's configured secret will take affect "
+                "(see mlrun.mlconf.httpdb.builder.docker_registry_secret). "
                 "It is recommended to pull the source at runtime instead",
                 source=func.spec.build.source,
                 load_source_on_run=func.spec.build.load_source_on_run,

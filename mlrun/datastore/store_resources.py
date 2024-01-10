@@ -15,7 +15,7 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 import mlrun
-from mlrun.artifacts import dict_to_artifact
+import mlrun.artifacts
 from mlrun.config import config
 from mlrun.utils.helpers import is_legacy_artifact, parse_artifact_uri
 
@@ -180,7 +180,7 @@ def get_store_resource(
                 project=project,
             )
         if resource:
-            return dict_to_artifact(resource)
+            return mlrun.artifacts.dict_to_artifact(resource)
 
     else:
         stores = mlrun.store_manager.set(secrets, db=db)

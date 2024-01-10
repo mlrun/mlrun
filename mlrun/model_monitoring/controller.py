@@ -509,9 +509,11 @@ class MonitoringApplicationController:
             fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
-            time_to_keep = float(
-                (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
-            )
+            time_to_keep = (
+                datetime.datetime.now(tz=datetime.timezone.utc)
+                - datetime.timedelta(days=days)
+            ).timestamp()
+
             for endpoint in endpoints:
                 try:
                     apps_parquet_directories = fs.listdir(

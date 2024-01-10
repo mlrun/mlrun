@@ -215,7 +215,8 @@ class MLRunPatcher(object):
         logger.info("Replace mlrun-api-chief")
         if self._config.get("OVERWRITE_IMAGE_REGISTRY"):
             built_image = built_image.replace(
-                self._config["DOCKER_REGISTRY"], self._config["OVERWRITE_IMAGE_REGISTRY"]
+                self._config["DOCKER_REGISTRY"],
+                self._config["OVERWRITE_IMAGE_REGISTRY"],
             )
 
         self._exec_remote(

@@ -533,7 +533,7 @@ def build_image(
             label_prefix + "name": name,
             label_prefix + "function": runtime.metadata.name,
             label_prefix + "tag": runtime.metadata.tag or "latest",
-        }
+        },
     )
 
     if to_mount:

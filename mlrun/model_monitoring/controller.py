@@ -632,7 +632,7 @@ class MonitoringApplicationController:
             timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,
             target=ParquetTarget(
                 path=parquet_directory
-                + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
+                + f"/key={endpoint_id}/{int(start_infer_time.timestamp())}/{application_name}.parquet",
                 storage_options=storage_options,
             ),
         )

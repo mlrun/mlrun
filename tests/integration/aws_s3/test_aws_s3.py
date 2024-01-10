@@ -96,7 +96,7 @@ class TestAwsS3:
         )
         profile = DatastoreProfileS3(
             name="s3ds_profile",
-            access_key=self._access_key_id,
+            access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(profile)

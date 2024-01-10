@@ -240,6 +240,7 @@ The equivalent to this parameter in environment authentication is "GOOGLE_APPLIC
 - `gcp_credentials` &mdash; A JSON in a string format representing the authentication parameters required by GCS API. 
 For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
 The equivalent to this parameter in environment authentication is "GCP_CREDENTIALS".
+
 The code prioritizes `gcp_credentials` over `credentials_path`.
 
 

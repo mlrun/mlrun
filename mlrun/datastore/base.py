@@ -80,10 +80,6 @@ class DataStore:
         if not url:
             raise mlrun.errors.MLRunInvalidArgumentError("Cannot parse an empty URL")
         parsed_url = urllib.parse.urlparse(url)
-        if not parsed_url.scheme:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Failed to parse '{url}' as it is not a valid URL"
-            )
         netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else "//"
         return f"{parsed_url.scheme}:{netloc}{parsed_url.path}"
 

@@ -343,19 +343,6 @@ def test_object_from_empty_url():
         data_item.as_df()
 
 
-def test_object_from_invalid_url():
-    user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
-    store = mlrun.datastore.datastore.StoreManager(
-        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
-    )
-    data_item = store.object(url="abc", secrets=user1_secrets)
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="Failed to parse 'abc' as it is not a valid URL",
-    ):
-        data_item.as_df()
-
-
 def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)

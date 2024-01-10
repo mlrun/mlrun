@@ -72,21 +72,17 @@ class _BatchWindow:
             logger.warn(
                 "Failed to get the last analyzed time for this endpoint and application, "
                 "as this is probably the first time this application is running. ",
-                "Using the latest between first request time or last update time instead.",
+                "Using the latest between first request time or last update time minus one day instead.",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
+                last_update=self._stop,
                 error=err,
             )
 
             return max(
                 self._first_request,
-                int(
-                    (
-                        datetime.datetime.fromtimestamp(self._stop)
-                        - datetime.timedelta(days=1)
-                    ).timestamp()
-                ),
+                self._stop - int(datetime.timedelta(days=1).total_seconds()),
             )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]

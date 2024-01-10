@@ -201,7 +201,7 @@ class ServingSpec(NuclioSpec):
         self.function_refs = function_refs or []
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
-        self.track_models = track_models or False
+        self.track_models = track_models
         self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type

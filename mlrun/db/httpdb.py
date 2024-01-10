@@ -18,6 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
+import warnings
 from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
@@ -280,9 +281,12 @@ class HTTPRunDB(RunDBInterface):
             retry_on_post=retry_on_post,
         )
 
-    def _path_of(self, prefix, project, uid):
+    def _path_of(self, resource, project, uid=None):
         project = project or config.default_project
-        return f"{prefix}/{project}/{uid}"
+        _path = f"projects/{project}/{resource}"
+        if uid:
+            _path += f"/{uid}"
+        return _path
 
     def _is_retry_on_post_allowed(self, method, path: str):
         """
@@ -477,28 +481,40 @@ class HTTPRunDB(RunDBInterface):
         if not body:
             return
 
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         params = {"append": bool2str(append)}
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def get_log(self, uid, project="", offset=0, size=-1):
-        """Retrieve a log.
+    def get_log(self, uid, project="", offset=0, size=None):
+        """Retrieve 1 MB data of log.
 
         :param uid: Log unique ID
         :param project: Project name for which the log belongs
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
-            from beginning of log
-        :param size: See ``offset``. If set to ``-1`` (the default) will retrieve all data to end of log.
+            from beginning of log (must be >= 0)
+        :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
               exists, this will be ``unknown``.
             - content - The actual log content.
+
+            * in case size = -1, return the state and the final offset
         """
+        if offset < 0:
+            raise MLRunInvalidArgumentError("Offset cannot be negative")
+        if size is None:
+            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
+        elif size == -1:
+            logger.warning(
+                "Retrieving all logs. This may be inefficient and can result in a large log."
+            )
+            state, offset = self.watch_log(uid, project, watch=False, offset=offset)
+            return state, offset
 
         params = {"offset": offset, "size": size}
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         if resp.headers:
@@ -507,47 +523,69 @@ class HTTPRunDB(RunDBInterface):
 
         return "unknown", resp.content
 
+    def get_log_size(self, uid, project=""):
+        """Retrieve log size in bytes.
+
+        :param uid: Run UID
+        :param project: Project name for which the log belongs
+        :returns: The log file size in bytes for the given run UID.
+        """
+        path = self._path_of("logs", project, uid)
+        path += "/size"
+        error = f"get log size {project}/{uid}"
+        resp = self.api_call("GET", path, error)
+        return resp.json()["size"]
+
     def watch_log(self, uid, project="", watch=True, offset=0):
-        """Retrieve logs of a running process, and watch the progress of the execution until it completes. This
-        method will print out the logs and continue to periodically poll for, and print, new logs as long as the
-        state of the runtime which generates this log is either ``pending`` or ``running``.
+        """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
+        completes. This method will print out the logs and continue to periodically poll for, and print,
+        new logs as long as the state of the runtime which generates this log is either ``pending`` or ``running``.
 
         :param uid: The uid of the log object to watch.
         :param project: Project that the log belongs to.
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
-        :returns: The final state of the log being watched.
+        :returns: The final state of the log being watched and the final offset.
         """
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
             print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
-        if watch:
-            nil_resp = 0
-            while state in ["pending", "running"]:
-                offset += len(text)
-                # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
-                # TODO: refactor this to use a conditional backoff mechanism
-                if nil_resp < 3:
-                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
-                else:
-                    time.sleep(
-                        int(
-                            mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
-                        )
-                    )
-                state, text = self.get_log(uid, project, offset=offset)
-                if text:
-                    nil_resp = 0
-                    print(
-                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
-                        end="",
-                    )
-                else:
-                    nil_resp += 1
-        else:
+        nil_resp = 0
+        while True:
             offset += len(text)
+            # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
+            # TODO: refactor this to use a conditional backoff mechanism
+            if nil_resp < 3:
+                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
+            else:
+                time.sleep(
+                    int(
+                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                    )
+                )
+            state, text = self.get_log(uid, project, offset=offset)
+            if text:
+                nil_resp = 0
+                print(
+                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                    end="",
+                )
+            else:
+                nil_resp += 1
+
+            if watch and state in [
+                mlrun.runtimes.constants.RunStates.pending,
+                mlrun.runtimes.constants.RunStates.running,
+                mlrun.runtimes.constants.RunStates.created,
+                mlrun.runtimes.constants.RunStates.aborting,
+            ]:
+                continue
+            else:
+                # the whole log was retrieved
+                if len(text) == 0:
+                    break
 
         return state, offset
 
@@ -555,7 +593,7 @@ class HTTPRunDB(RunDBInterface):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
         and not called directly by the user."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
         body = _as_json(struct)
@@ -564,7 +602,7 @@ class HTTPRunDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
@@ -605,7 +643,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific execution.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"get run {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -619,7 +657,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific task.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"del run {project}/{uid}"
         self.api_call("DELETE", path, error, params=params)
@@ -663,8 +701,9 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
-            applied.
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value
+            of a label (i.e. list("key=value")) or by looking for the existence of a given
+            key (i.e. "key").
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -688,6 +727,11 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+        if with_notifications:
+            logger.warning(
+                "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
+                "using the `with_notifications` flag."
+            )
 
         if (
             not name
@@ -711,7 +755,6 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "uid": uid,
-            "project": project,
             "label": labels or [],
             "state": state,
             "sort": bool2str(sort),
@@ -735,7 +778,8 @@ class HTTPRunDB(RunDBInterface):
                 )
             )
         error = "list runs"
-        resp = self.api_call("GET", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        resp = self.api_call("GET", _path, error, params=params)
         return RunList(resp.json()["runs"])
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -761,56 +805,113 @@ class HTTPRunDB(RunDBInterface):
             "days_ago": str(days_ago),
         }
         error = "del runs"
-        self.api_call("DELETE", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        self.api_call("DELETE", _path, error, params=params)
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
+    def store_artifact(
+        self,
+        key,
+        artifact,
+        # TODO: deprecated, remove in 1.8.0
+        uid=None,
+        iter=None,
+        tag=None,
+        project="",
+        tree=None,
+    ):
         """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.
-        :param artifact: The actual artifact to store.
-        :param uid: A unique ID for this specific version of the artifact.
+        :param artifact: The :py:class:`~mlrun.artifacts.Artifact` to store.
+        :param uid: A unique ID for this specific version of the artifact
+                    (deprecated, artifact uid is generated in the backend use `tree` instead)
         :param iter: The task iteration which generated this artifact. If ``iter`` is not ``None`` the iteration will
             be added to the key provided to generate a unique key for the artifact of the specific iteration.
         :param tag: Tag of the artifact.
         :param project: Project that the artifact belongs to.
+        :param tree: The tree (producer id) which generated this artifact.
         """
+        if uid:
+            warnings.warn(
+                "'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
+                # TODO: Remove this in 1.8.0
+                FutureWarning,
+            )
 
-        endpoint_path = f"projects/{project}/artifacts/{uid}/{key}"
-        params = {
-            "tag": tag,
-        }
+        # we do this because previously the 'uid' name was used for the 'tree' parameter
+        tree = tree or uid
+
+        endpoint_path = f"projects/{project}/artifacts/{key}"
+
+        error = f"store artifact {project}/{key}"
+
+        params = {}
         if iter:
             params["iter"] = str(iter)
-
-        error = f"store artifact {project}/{uid}/{key}"
+        if tag:
+            params["tag"] = tag
+        if tree:
+            params["tree"] = tree
 
         body = _as_json(artifact)
-        self.api_call("POST", endpoint_path, error, params=params, body=body)
+        self.api_call(
+            "PUT", endpoint_path, error, body=body, params=params, version="v2"
+        )
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
-        """Read an artifact, identified by its key, tag and iteration."""
+    def read_artifact(
+        self,
+        key,
+        tag=None,
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+    ):
+        """Read an artifact, identified by its key, tag, tree and iteration.
+
+        :param key: Identifying key of the artifact.
+        :param tag: Tag of the artifact.
+        :param iter: The iteration which generated this artifact (where ``iter=0`` means the root iteration).
+        :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
+        :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        """
 
         project = project or config.default_project
         tag = tag or "latest"
-        endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
+        endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
         # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
-        params = {"format": mlrun.common.schemas.ArtifactsFormat.full.value}
+        params = {
+            "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "tag": tag,
+            "tree": tree,
+            "uid": uid,
+        }
         if iter:
             params["iter"] = str(iter)
-        resp = self.api_call("GET", endpoint_path, error, params=params)
-        return resp.json()["data"]
+        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
+        return resp.json()
 
-    def del_artifact(self, key, tag=None, project=""):
-        """Delete an artifact."""
+    def del_artifact(self, key, tag=None, project="", tree=None, uid=None):
+        """Delete an artifact.
+
+        :param key: Identifying key of the artifact.
+        :param tag: Tag of the artifact.
+        :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
+        :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        """
 
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
             "tag": tag,
+            "tree": tree,
+            "uid": uid,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", endpoint_path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
 
     def list_artifacts(
         self,
@@ -824,6 +925,7 @@ class HTTPRunDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -852,6 +954,7 @@ class HTTPRunDB(RunDBInterface):
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
+        :param tree: Return artifacts of the requested tree.
         """
 
         project = project or config.default_project
@@ -868,16 +971,19 @@ class HTTPRunDB(RunDBInterface):
             "best-iteration": best_iteration,
             "kind": kind,
             "category": category,
+            "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        resp = self.api_call("GET", endpoint_path, error, params=params)
+        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         values = ArtifactList(resp.json()["artifacts"])
         values.tag = tag
         return values
 
-    def del_artifacts(self, name=None, project=None, tag=None, labels=None, days_ago=0):
+    def del_artifacts(
+        self, name=None, project=None, tag=None, labels=None, days_ago=0, tree=None
+    ):
         """Delete artifacts referenced by the parameters.
 
         :param name: Name of artifacts to delete. Note that this is a like query, and is case-insensitive. See
@@ -891,12 +997,13 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "tag": tag,
+            "tree": tree,
             "label": labels or [],
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        self.api_call("DELETE", endpoint_path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
 
     def list_artifact_tags(
         self,
@@ -2273,16 +2380,28 @@ class HTTPRunDB(RunDBInterface):
             - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
-        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
-        response = self.api_call("DELETE", path, error_message, headers=headers)
+        response = self.api_call(
+            "DELETE", f"projects/{name}", error_message, headers=headers, version="v2"
+        )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info("Project is being deleted", project_name=name)
-            self._wait_for_project_to_be_deleted(name)
-        logger.info("Project deleted", project_name=name)
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info("Project deleted", project_name=name)
+                return
+        elif response.status_code == http.HTTPStatus.NO_CONTENT:
+            logger.info("Project deleted", project_name=name)
+            return
 
     def store_project(
         self,
@@ -2398,22 +2517,6 @@ class HTTPRunDB(RunDBInterface):
             logger,
             False,
             _verify_background_task_in_terminal_state,
-        )
-
-    def _wait_for_project_to_be_deleted(self, project_name: str):
-        def _verify_project_deleted():
-            projects = self.list_projects(
-                format_=mlrun.common.schemas.ProjectsFormat.name_only
-            )
-            if project_name in projects:
-                raise Exception(f"Project {project_name} still exists")
-
-        return mlrun.utils.helpers.retry_until_successful(
-            self._wait_for_project_deletion_interval,
-            120,
-            logger,
-            False,
-            _verify_project_deleted,
         )
 
     def create_project_secrets(
@@ -2891,7 +2994,7 @@ class HTTPRunDB(RunDBInterface):
         :param with_schedule:       If true, submit the model monitoring scheduled job as well.
 
 
-        :return: model monitoring batch job as a dictionary. You can easily convert the resulted function into a
+        :returns: model monitoring batch job as a dictionary. You can easily convert the returned function into a
                  runtime object by calling ~mlrun.new_function.
         """
 
@@ -2915,14 +3018,15 @@ class HTTPRunDB(RunDBInterface):
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the
         databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+
         :param project:                  Project name.
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
         :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
                                          is running. By default, the base period is 5 minutes.
-        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
-                 runtime object by calling ~mlrun.new_function.
+        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
+                  runtime object by calling ~mlrun.new_function.
         """
 
         params = {
@@ -3414,9 +3518,9 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        _path = self._path_of("datastore-profiles", project, name)
 
-        res = self.api_call(method="GET", path=path)
+        res = self.api_call(method="GET", path=_path)
         if res:
             public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
@@ -3427,17 +3531,17 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_datastore_profile(self, name: str, project: str):
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
-        self.api_call(method="DELETE", path=path)
+        _path = self._path_of("datastore-profiles", project, name)
+        self.api_call(method="DELETE", path=_path)
         return None
 
     def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        res = self.api_call(method="GET", path=path)
+        res = self.api_call(method="GET", path=_path)
         if res:
             public_wrapper = res.json()
             datastores = [
@@ -3455,9 +3559,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: None
         """
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        self.api_call(method="PUT", path=path, json=profile.dict())
+        self.api_call(method="PUT", path=_path, json=profile.dict())
 
 
 def _as_json(obj):

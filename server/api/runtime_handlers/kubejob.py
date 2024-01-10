@@ -76,7 +76,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
                 namespace,
             ) = server.api.utils.singletons.k8s.get_k8s_helper().create_pod(pod)
         except ApiException as exc:
-            raise mlrun.runtimes.utils.RunError(str(exc)) from exc
+            raise mlrun.runtimes.utils.RunError(mlrun.errors.err_to_str(exc)) from exc
 
         txt = "Job is running in the background"
         logger.info(txt, pod_name=pod_name)
@@ -179,7 +179,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         return True
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod
@@ -194,7 +194,6 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
     kind = "databricks"
     class_modes = {RuntimeClassMode.run: "databricks"}
-    pod_grace_period_seconds = 60
 
     @staticmethod
     def _get_lifecycle():

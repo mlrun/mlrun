@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import pathlib
 import typing
 
 import sqlalchemy.orm
 from fastapi import Depends
 
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
@@ -31,11 +30,7 @@ from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.api import deps
-from server.api.crud.model_monitoring.helpers import (
-    Seconds,
-    add_minutes_offset,
-    seconds2minutes,
-)
+from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 
 _MODEL_MONITORING_COMMON_PATH = (
     pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
@@ -213,7 +208,6 @@ class MonitoringDeployment:
             db_session=db_session,
             auth_info=auth_info,
             tracking_policy=tracking_policy,
-            tracking_offset=Seconds(self._max_parquet_save_interval),
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
 
@@ -422,12 +416,15 @@ class MonitoringDeployment:
         )
 
         # Create a new serving function for the streaming process
-        function = mlrun.code_to_function(
-            name="model-monitoring-stream",
-            project=project,
-            filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
-            kind="serving",
-            image=tracking_policy.stream_image,
+        function = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name="model-monitoring-stream",
+                project=project,
+                filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=tracking_policy.stream_image,
+            ),
         )
 
         # Create monitoring serving graph
@@ -545,7 +542,7 @@ class MonitoringDeployment:
         )
 
         task.spec.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
         ] = batch_dict
 
         data = {
@@ -582,7 +579,7 @@ class MonitoringDeployment:
          [1] = Dictionary of the batch interval.
         """
 
-        if function_name == "model-monitoring-batch":
+        if function_name == mm_constants.MonitoringFunctionNames.BATCH:
             # Apply batching interval params
             interval_list = [
                 tracking_policy.default_batch_intervals.minute,
@@ -602,18 +599,14 @@ class MonitoringDeployment:
             )
         else:
             # Apply monitoring controller params
-            (
-                minutes,
-                hours,
-                days,
-            ) = (tracking_policy.base_period, 0, 0)
-            schedule = "1/{} * * * *".format(
-                add_minutes_offset(
-                    minute=tracking_policy.base_period,
-                    offset=seconds2minutes(tracking_offset),
-                )
-            )
-        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
+            minutes = tracking_policy.base_period
+            hours = days = 0
+            schedule = f"*/{tracking_policy.base_period} * * * *"
+        batch_dict = {
+            mm_constants.EventFieldType.MINUTES: minutes,
+            mm_constants.EventFieldType.HOURS: hours,
+            mm_constants.EventFieldType.DAYS: days,
+        }
         return schedule, batch_dict
 
     def _apply_stream_trigger(
@@ -706,13 +699,13 @@ class MonitoringDeployment:
         if function_name in mm_constants.MonitoringFunctionNames.all():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                     project
                 ),
                 server.api.crud.secrets.Secrets().generate_client_project_secret_key(
                     server.api.crud.secrets.SecretsClientType.model_monitoring,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                    mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 ),
             )
 

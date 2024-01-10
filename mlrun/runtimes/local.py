@@ -307,7 +307,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
-            except RunError as err:
+            except (RunError, mlrun.errors.MLRunTaskCancelledError) as err:
                 raise err
             # this exception handling is for the case where we fail on pre-loading or post-running the function
             # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
@@ -315,7 +315,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
                 # by the caller and will set the state to error ( in `update_run_state` )
                 context.set_state(error=err_to_str(exc), commit=True)
-                logger.error(f"run error, {traceback.format_exc()}")
+                logger.error(f"Run error, {traceback.format_exc()}")
                 raise RunError(
                     "Failed on pre-loading / post-running of the function"
                 ) from exc
@@ -380,7 +380,7 @@ def load_module(file_name, handler, context):
             mod_name = mod_name[: -len(path.suffix)]
         spec = imputil.spec_from_file_location(mod_name, file_name)
         if spec is None:
-            raise RunError(f"cannot import from {file_name!r}")
+            raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
         spec.loader.exec_module(module)
 
@@ -489,7 +489,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
-            logger.error(f"execution error, {traceback.format_exc()}")
+            logger.error(f"Execution error, {traceback.format_exc()}")
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 
@@ -516,9 +516,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         input_obj = context.get_input(input_key, inputs[input_key])
         # If there is no type hint annotation but there is a default value and its type is string, point the data
         # item to local downloaded file path (`local()` returns the downloaded temp path string):
-        if (
-            args[input_key].annotation is inspect.Parameter.empty
-            and type(args[input_key].default) is str
+        if args[input_key].annotation is inspect.Parameter.empty and isinstance(
+            args[input_key].default, str
         ):
             return input_obj.local()
         else:

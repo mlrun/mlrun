@@ -26,7 +26,6 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.datastore_profile import datastore_profile_embed_url_scheme
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
@@ -36,6 +35,7 @@ from ..datastore.targets import (
     kind_to_driver,
     validate_target_list,
     validate_target_paths_for_engine,
+    write_spark_dataframe_with_options,
 )
 from ..model import DataSource, DataTargetBase
 from ..runtimes import BaseRuntime, RuntimeKinds
@@ -91,7 +91,50 @@ def _features_to_vector_and_check_permissions(features, update_stats):
     return vector
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'get_offline_features' will be removed in 1.8.0, use 'FeatureVector.get_offline_features()' instead",
+    category=FutureWarning,
+)
 def get_offline_features(
+    feature_vector: Union[str, FeatureVector],
+    entity_rows=None,
+    entity_timestamp_column: str = None,
+    target: DataTargetBase = None,
+    run_config: RunConfig = None,
+    drop_columns: List[str] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
+    with_indexes: bool = False,
+    update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
+    query: str = None,
+    order_by: Union[str, List[str]] = None,
+    spark_service: str = None,
+    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+):
+    return _get_offline_features(
+        feature_vector,
+        entity_rows,
+        entity_timestamp_column,
+        target,
+        run_config,
+        drop_columns,
+        start_time,
+        end_time,
+        with_indexes,
+        update_stats,
+        engine,
+        engine_args,
+        query,
+        order_by,
+        spark_service,
+        timestamp_for_filtering,
+    )
+
+
+def _get_offline_features(
     feature_vector: Union[str, FeatureVector],
     entity_rows=None,
     entity_timestamp_column: str = None,
@@ -224,7 +267,31 @@ def get_offline_features(
     )
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'get_online_feature_service' will be removed in 1.8.0,"
+    "use 'FeatureVector.get_online_feature_service()' instead",
+    category=FutureWarning,
+)
 def get_online_feature_service(
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
+    update_stats: bool = False,
+    entity_keys: List[str] = None,
+):
+    return _get_online_feature_service(
+        feature_vector,
+        run_config,
+        fixed_window_type,
+        impute_policy,
+        update_stats,
+        entity_keys,
+    )
+
+
+def _get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
@@ -360,7 +427,38 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
         return get_caller_globals()
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'ingest' will be removed in 1.8.0, use 'FeatureSet.ingest()' instead",
+    category=FutureWarning,
+)
 def ingest(
+    featureset: Union[FeatureSet, str] = None,
+    source=None,
+    targets: List[DataTargetBase] = None,
+    namespace=None,
+    return_df: bool = True,
+    infer_options: InferOptions = InferOptions.default(),
+    run_config: RunConfig = None,
+    mlrun_context=None,
+    spark_context=None,
+    overwrite=None,
+) -> Optional[pd.DataFrame]:
+    return _ingest(
+        featureset,
+        source,
+        targets,
+        namespace,
+        return_df,
+        infer_options,
+        run_config,
+        mlrun_context,
+        spark_context,
+        overwrite,
+    )
+
+
+def _ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
     targets: List[DataTargetBase] = None,
@@ -542,21 +640,6 @@ def ingest(
     targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
-    if (
-        isinstance(source, DataSource)
-        and source.path
-        and source.path.startswith("ds://")
-    ):
-        source.path = datastore_profile_embed_url_scheme(source.path)
-
-    for target in targets_to_ingest:
-        if (
-            isinstance(target, DataTargetBase)
-            and target.path
-            and target.path.startswith("ds://")
-        ):
-            target.path = datastore_profile_embed_url_scheme(target.path)
-
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
@@ -626,7 +709,7 @@ def ingest(
         infer_options, InferOptions.schema()
     )
     if schema_options:
-        preview(
+        _preview(
             featureset,
             source,
             options=schema_options,
@@ -669,7 +752,32 @@ def ingest(
         return df
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'preview' will be removed in 1.8.0, use 'FeatureSet.preview()' instead",
+    category=FutureWarning,
+)
 def preview(
+    featureset: FeatureSet,
+    source,
+    entity_columns: list = None,
+    namespace=None,
+    options: InferOptions = None,
+    verbose: bool = False,
+    sample_size: int = None,
+) -> pd.DataFrame:
+    return _preview(
+        featureset,
+        source,
+        entity_columns,
+        namespace,
+        options,
+        verbose,
+        sample_size,
+    )
+
+
+def _preview(
     featureset: FeatureSet,
     source,
     entity_columns: list = None,
@@ -780,7 +888,31 @@ def _run_ingestion_job(
     return run_ingestion_job(name, featureset, run_config, source.schedule)
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'deploy_ingestion_service_v2' will be removed in 1.8.0,"
+    "use 'FeatureSet.deploy_ingestion_service()' instead",
+    category=FutureWarning,
+)
 def deploy_ingestion_service_v2(
+    featureset: Union[FeatureSet, str],
+    source: DataSource = None,
+    targets: List[DataTargetBase] = None,
+    name: str = None,
+    run_config: RunConfig = None,
+    verbose=False,
+) -> typing.Tuple[str, BaseRuntime]:
+    return _deploy_ingestion_service_v2(
+        featureset,
+        source,
+        targets,
+        name,
+        run_config,
+        verbose,
+    )
+
+
+def _deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
@@ -959,7 +1091,9 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
 
         if isinstance(df, Response) and df.status_code != 0:
-            mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
+            raise mlrun.errors.err_for_status_code(
+                df.status_code, df.body.split(": ")[1]
+            )
 
         df.persist()
 
@@ -980,22 +1114,23 @@ def _ingest_with_spark(
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
             )
-            logger.info(
-                f"writing to target {target.name}, spark options {spark_options}"
-            )
 
             df_to_write = df
             df_to_write = target.prepare_spark_df(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
             if overwrite:
-                df_to_write.write.mode("overwrite").save(**spark_options)
+                write_spark_dataframe_with_options(
+                    spark_options, df_to_write, "overwrite"
+                )
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
                 if df_to_write.count() > 0:
-                    df_to_write.write.mode("append").save(**spark_options)
+                    write_spark_dataframe_with_options(
+                        spark_options, df_to_write, "append"
+                    )
             target.update_resource_status("ready")
 
         if isinstance(source, BaseSourceDriver) and source.schedule:

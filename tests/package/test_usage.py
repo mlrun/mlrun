@@ -42,9 +42,9 @@ RETURNS_LOG_HINTS = [
 ]
 
 
-def log_artifacts_and_results() -> Tuple[
-    np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline
-]:
+def log_artifacts_and_results() -> (
+    Tuple[np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline]
+):
     encoder_to_imputer = Pipeline(
         steps=[
             (

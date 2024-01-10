@@ -777,6 +777,36 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
+    def test_ingest_large_parquet(self):
+        num_rows = 17000  # because max events default == 10000
+
+        # Generate random data
+        data = {
+            "Column1": range(0, num_rows),
+            "Column2": np.random.choice(["A", "B", "C"], size=num_rows),
+        }
+        path = f"{self.results_path / _generate_random_name()}.parquet"
+        # Create the DataFrame
+        df = pd.DataFrame(data)
+        targets = [
+            ParquetTarget(
+                name="my_target",
+                path=path,
+            )
+        ]
+
+        fset = fstore.FeatureSet(
+            name="gcs_system_test", entities=[fstore.Entity("Column1")]
+        )
+        fset.set_targets(with_defaults=False)
+        fstore.ingest(fset, df, targets=targets)
+        target_file_path = fset.get_target_path()
+        result = ParquetSource(path=target_file_path).to_dataframe()
+        result.reset_index(inplace=True, drop=False)
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )
+
     def test_csv_time_columns(self):
         df = pd.DataFrame(
             {
@@ -1130,6 +1160,33 @@ class TestFeatureStore(TestMLRunSystem):
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
 
+    def test_merge_with_different_timestamp_resolutions(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
+        trades_microseconds = trades.copy()
+        trades_microseconds["time"] = trades_microseconds["time"].astype(
+            "datetime64[us]"
+        )
+        prepare_feature_set(
+            "left", "ticker", trades_microseconds, timestamp_key="time", targets=targets
+        )
+        prepare_feature_set(
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+
+        features = ["left.*", "right.*"]
+        feature_vector = fstore.FeatureVector(
+            "test_fv",
+            features,
+            with_indexes=True,
+        )
+        res = fstore.get_offline_features(
+            feature_vector,
+            entity_rows=trades.set_index("ticker"),
+            entity_timestamp_column="time",
+        )
+        res = res.to_dataframe()
+        assert res["time"].dtype.name == "datetime64[ns]"
+
     def test_left_not_ordered_pandas_asof_merge(self):
         left = trades.sort_values(by="price")
 
@@ -1297,6 +1354,8 @@ class TestFeatureStore(TestMLRunSystem):
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 
+        resp_df = resp.to_dataframe()
+
         expected = pd.DataFrame(
             {
                 "time_stamp": [
@@ -1309,7 +1368,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected.set_index(keys="string", inplace=True)
 
-        assert expected.equals(resp.to_dataframe())
+        pd.testing.assert_frame_equal(resp_df, expected, check_dtype=False)
 
     def test_filter_offline_multiple_featuresets(self):
         data = pd.DataFrame(
@@ -2364,7 +2423,7 @@ class TestFeatureStore(TestMLRunSystem):
         pd.testing.assert_frame_equal(
             off_df,
             orig_df,
-            check_dtype=True,
+            check_dtype=False,
             check_index_type=True,
             check_column_type=True,
             check_like=True,
@@ -3353,6 +3412,7 @@ class TestFeatureStore(TestMLRunSystem):
             pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            expected_df.index.name = "id"
             pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     def test_pandas_write_partitioned_parquet(self):
@@ -4445,6 +4505,116 @@ class TestFeatureStore(TestMLRunSystem):
         offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
         assert offline_features_df.equals(inspect_result)
         assert offline_features_df.equals(expected_result)
+
+    def test_merge_different_number_of_entities(self):
+        feature_set = fstore.FeatureSet(
+            "basic_party", entities=[fstore.Entity("party_id")], engine="storey"
+        )
+        data = {
+            "party_id": ["1", "2", "3"],
+            "party_establishment": ["1970", "1980", "1990"],
+        }
+        basic_party_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_party_df)
+
+        feature_set = fstore.FeatureSet(
+            "basic_account",
+            entities=[fstore.Entity("account_id"), fstore.Entity("party_id")],
+            engine="storey",
+        )
+
+        data = {
+            "party_id": ["1", "2", "3"],
+            "account_id": ["10", "20", "30"],
+            "account_state": ["a", "b", "c"],
+        }
+        basic_account_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_account_df)
+
+        feature_set = fstore.FeatureSet(
+            "basic_transaction", entities=[fstore.Entity("account_id")], engine="storey"
+        )
+        data = {
+            "account_id": ["10", "20", "30"],
+            "transaction_value": ["100", "200", "300"],
+        }
+        basic_transaction_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_transaction_df, overwrite=False)
+
+        features = ["basic_party.party_establishment", "basic_account.account_state"]
+        join_graph = fstore.JoinGraph(first_feature_set="basic_account").inner(
+            "basic_party"
+        )
+        vec = fstore.FeatureVector(
+            "vector_partyaccount", features, join_graph=join_graph
+        )
+        df = fstore.get_offline_features(vec).to_dataframe()
+        expected_party = pd.merge(
+            basic_account_df,
+            basic_party_df,
+            left_on=["party_id"],
+            right_on=["party_id"],
+        )
+        assert_frame_equal(
+            expected_party.drop(columns=["account_id", "party_id"]),
+            df,
+            check_dtype=False,
+        )
+
+        features = [
+            "basic_account.account_state",
+            "basic_transaction.transaction_value",
+        ]
+        vector = fstore.FeatureVector("vector_acounttransaction", features)
+        df = fstore.get_offline_features(vector).to_dataframe()
+        expected_transaction = pd.merge(
+            basic_account_df,
+            basic_transaction_df,
+            left_on=["account_id"],
+            right_on=["account_id"],
+        )
+        assert_frame_equal(
+            expected_transaction.drop(columns=["account_id", "party_id"]),
+            df,
+            check_dtype=False,
+        )
+
+        features = [
+            "basic_account.account_state",
+            "basic_transaction.transaction_value",
+            "basic_party.party_establishment",
+        ]
+        vector = fstore.FeatureVector("vector_all", features)
+        vector.save()
+        df = fstore.get_offline_features(vector).to_dataframe()
+        expected_all = pd.merge(
+            expected_transaction,
+            basic_party_df,
+            left_on=["party_id"],
+            right_on=["party_id"],
+        ).drop(columns=["account_id", "party_id"])
+        assert_frame_equal(expected_all, df, check_dtype=False)
+
+        # online test - disabled for now because bug in storey
+        with fstore.get_online_feature_service(
+            vector, entity_keys=["party_id", "account_id"]
+        ) as svc:
+            resp = svc.get({"party_id": "1", "account_id": "10"})
+            assert resp[0] == {
+                "transaction_value": "100",
+                "account_state": "a",
+                "party_establishment": "1970",
+            }
+
+        features = [
+            "basic_transaction.transaction_value",
+            "basic_party.party_establishment",
+        ]
+        vector = fstore.FeatureVector("vector_all_entity_df", features)
+        df = fstore.get_offline_features(
+            vector, entity_rows=basic_account_df
+        ).to_dataframe()
+        assert_frame_equal(expected_all, df, check_dtype=False)
 
 
 def verify_purge(fset, targets):

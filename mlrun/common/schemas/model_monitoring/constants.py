@@ -51,7 +51,6 @@ class EventFieldType:
     LAST_REQUEST = "last_request"
     METRIC = "metric"
     METRICS = "metrics"
-    TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
     DEFAULT_BATCH_INTERVALS = "default_batch_intervals"
     MINUTES = "minutes"

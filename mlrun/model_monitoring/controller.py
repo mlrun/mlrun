@@ -17,8 +17,7 @@ import datetime
 import json
 import os
 import re
-import time
-from typing import Any, Callable, Iterator, Optional, Tuple, Union, cast
+from typing import Any, Iterator, Optional, Tuple, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -26,6 +25,7 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
@@ -43,7 +43,7 @@ class _BatchWindow:
         endpoint: str,
         application: str,
         timedelta_seconds: int,
-        last_updated: int,
+        last_updated: Optional[int],
         first_request: Optional[int],
     ) -> None:
         """
@@ -107,7 +107,7 @@ class _BatchWindow:
         self,
     ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
         """Generate the batch interval time ranges."""
-        if self._start is not None:
+        if self._start is not None and self._stop is not None:
             entered = False
             for timestamp in range(self._start, self._stop, self._step):
                 entered = True
@@ -176,24 +176,24 @@ class _BatchWindowGenerator:
             datetime.timedelta(minutes=minutes, hours=hours, days=days).total_seconds()
         )
 
-    @staticmethod
-    def _get_last_updated_time(now_func: Callable[[], float] = time.time) -> int:
+    @classmethod
+    def _get_last_updated_time(cls, last_request: Optional[str]) -> Optional[int]:
         """
         Get the last updated time of a model endpoint.
-        Note: this is an approximation of this time. Once we save it in the DB,
-        we will have the exact time and won't use now_func.
         """
+        if not last_request:
+            return None
         return int(
-            now_func()
+            cls._date_string2timestamp(last_request)
             - cast(
                 float,
                 mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             )
         )
 
-    @staticmethod
+    @classmethod
     def _normalize_first_request(
-        first_request: Optional[str], endpoint: str
+        cls, first_request: Optional[str], endpoint: str
     ) -> Optional[int]:
         if not first_request:
             logger.warn(
@@ -202,8 +202,11 @@ class _BatchWindowGenerator:
                 first_request=first_request,
             )
             return None
-        # See mm_constants.EventFieldType.TIME_FORMAT
-        return int(datetime.datetime.fromisoformat(first_request).timestamp())
+        return cls._date_string2timestamp(first_request)
+
+    @staticmethod
+    def _date_string2timestamp(date_string: str) -> int:
+        return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
     def get_batch_window(
         self,
@@ -211,6 +214,7 @@ class _BatchWindowGenerator:
         endpoint: str,
         application: str,
         first_request: Optional[str],
+        last_request: Optional[str],
     ) -> _BatchWindow:
         """
         Get the batch window for a specific endpoint and application.
@@ -222,7 +226,7 @@ class _BatchWindowGenerator:
             endpoint=endpoint,
             application=application,
             timedelta_seconds=self._timedelta,
-            last_updated=self._get_last_updated_time(),
+            last_updated=self._get_last_updated_time(last_request),
             first_request=self._normalize_first_request(first_request, endpoint),
         )
 
@@ -366,7 +370,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ):
+    ) -> Optional[Tuple[str, Exception]]:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -400,6 +404,7 @@ class MonitoringApplicationController:
                     endpoint=endpoint_id,
                     application=application,
                     first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
+                    last_request=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
@@ -427,7 +432,7 @@ class MonitoringApplicationController:
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,
                             )
-                            return
+                            continue
 
                     # Continue if not enough events provided since the deployment of the model endpoint
                     except FileNotFoundError:
@@ -436,7 +441,7 @@ class MonitoringApplicationController:
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
                             min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         )
-                        return
+                        continue
 
                     # Get the timestamp of the latest request:
                     latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
@@ -445,6 +450,10 @@ class MonitoringApplicationController:
                     feature_stats = json.loads(
                         endpoint[mm_constants.EventFieldType.FEATURE_STATS]
                     )
+
+                    # Pad the original feature stats to accommodate current
+                    # data out of the original range (unless already padded)
+                    pad_features_hist(FeatureStats(feature_stats))
 
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(
@@ -464,9 +473,10 @@ class MonitoringApplicationController:
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )
-        except FileNotFoundError as e:
+        except Exception as e:
             logger.error(
-                f"Exception for endpoint {endpoint[mm_constants.EventFieldType.UID]}"
+                "Encountered an exception",
+                endpoint_id=endpoint[mm_constants.EventFieldType.UID],
             )
             return endpoint_id, e
 
@@ -477,10 +487,11 @@ class MonitoringApplicationController:
         :param endpoints: A list of dictionaries of model endpoints records.
         """
         if self.parquet_directory.startswith("v3io:///"):
-            target = mlrun.datastore.targets.BaseStoreTarget(
-                path=self.parquet_directory
+            # create fs with access to the user side (under projects)
+            store, _ = mlrun.store_manager.get_or_create_store(
+                self.parquet_directory,
+                {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )
-            store, _ = target._get_store_and_path()
             fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
@@ -608,9 +619,6 @@ class MonitoringApplicationController:
             target=ParquetTarget(
                 path=parquet_directory
                 + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
-                partition_cols=[
-                    mm_constants.EventFieldType.ENDPOINT_ID,
-                ],
                 storage_options=storage_options,
             ),
         )

@@ -14,9 +14,12 @@
 import datetime
 import typing
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
+
+from deprecated import deprecated
 
 import mlrun.common.schemas
+import mlrun.lists
 import mlrun.model
 
 
@@ -85,18 +88,18 @@ class DBInterface(ABC):
     def list_runs(
         self,
         session,
-        name="",
-        uid: Optional[Union[str, List[str]]] = None,
-        project="",
-        labels=None,
-        states=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        name: typing.Optional[str] = None,
+        uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        states: typing.Optional[typing.List[str]] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -105,7 +108,7 @@ class DBInterface(ABC):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> mlrun.lists.RunList:
         pass
 
     @abstractmethod
@@ -149,15 +152,43 @@ class DBInterface(ABC):
         session,
         key,
         artifact,
-        uid,
+        uid=None,
         iter=None,
         tag="",
         project="",
+        producer_id=None,
+        best_iteration=False,
+        always_overwrite=False,
     ):
         pass
 
     @abstractmethod
-    def read_artifact(self, session, key, tag="", iter=None, project=""):
+    def create_artifact(
+        self,
+        session,
+        project,
+        artifact,
+        key,
+        tag="",
+        uid=None,
+        iteration=None,
+        producer_id="",
+        best_iteration=False,
+    ):
+        pass
+
+    @abstractmethod
+    def read_artifact(
+        self,
+        session,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        producer_id: str = None,
+        uid: str = None,
+        raise_on_not_found: bool = True,
+    ):
         pass
 
     @abstractmethod
@@ -175,16 +206,71 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        uid=None,
+        producer_id=None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, session, key, tag="", project=""):
+    def del_artifact(
+        self, session, key, tag="", project="", uid=None, producer_id=None
+    ):
         pass
 
     @abstractmethod
-    def del_artifacts(self, session, name="", project="", tag="", labels=None):
+    def del_artifacts(
+        self,
+        session,
+        name="",
+        project="",
+        tag="*",
+        labels=None,
+        ids=None,
+        producer_id=None,
+    ):
+        pass
+
+    def list_artifact_tags(
+        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
+    ):
+        return []
+
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'store_artifact' instead",
+        category=FutureWarning,
+    )
+    def store_artifact_v1(
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
+    ):
+        """
+        Store artifact v1 in the DB, this is the deprecated legacy artifact format
+        and is only left for testing purposes
+        """
+        pass
+
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'read_artifact' instead",
+        category=FutureWarning,
+    )
+    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+        """
+        Read artifact v1 from the DB, this is the deprecated legacy artifact format
+        and is only left for testing purposes
+        """
         pass
 
     @abstractmethod
@@ -545,14 +631,6 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(
-        self,
-        session,
-        project,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-    ):
-        return []
-
     def create_hub_source(
         self, session, ordered_source: mlrun.common.schemas.IndexedHubSource
     ):
@@ -589,7 +667,7 @@ class DBInterface(ABC):
         pass
 
     def get_background_task(
-        self, session, name: str, project: str
+        self, session, name: str, project: str, background_task_exceeded_timeout_func
     ) -> mlrun.common.schemas.BackgroundTask:
         pass
 

@@ -16,7 +16,7 @@ import typing
 from os.path import isdir
 
 import mlrun.config
-from mlrun.utils.helpers import fill_project_path_template
+from mlrun.utils.helpers import template_artifact_path
 
 from ..utils import (
     is_legacy_artifact,
@@ -102,9 +102,9 @@ def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
 
     if is_legacy_artifact(struct):
-        artifact_class = legacy_artifact_types[kind]
-    else:
-        artifact_class = artifact_types[kind]
+        return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
+
+    artifact_class = artifact_types[kind]
 
     return artifact_class.from_dict(struct)
 
@@ -249,9 +249,7 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = fill_project_path_template(
-            artifact_path=target_path, project=project
-        )
+        target_path = template_artifact_path(artifact_path=target_path, project=project)
         item.target_path = target_path
 
         item.before_log()
@@ -295,10 +293,10 @@ class ArtifactManager:
             self.artifact_db.store_artifact(
                 key,
                 item.to_dict(),
-                item.tree,
                 iter=item.iter,
                 tag=tag or item.tag,
                 project=project,
+                tree=item.tree,
             )
 
     def link_artifact(
@@ -329,7 +327,7 @@ class ArtifactManager:
             self.artifact_db.store_artifact(
                 item.db_key,
                 item.to_dict(),
-                item.tree,
+                tree=item.tree,
                 iter=iter,
                 tag=tag,
                 project=project,

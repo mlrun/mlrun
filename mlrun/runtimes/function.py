@@ -63,7 +63,6 @@ def validate_nuclio_version_compatibility(*min_versions):
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
-
         # only log when version is set but invalid
         if mlconf.nuclio_version:
             logger.warning(
@@ -166,7 +165,6 @@ class NuclioSpec(KubeResourceSpec):
         state_thresholds=None,
         disable_default_http_trigger=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -337,7 +335,7 @@ class RemoteRuntime(KubeResource):
         :param source: a full path to the nuclio function source (code entry) to load the function from
         :param handler: a path to the function's handler, including path inside archive/git repo
         :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        :param runtime: (optional) the runtime of the function (defaults to mlrun.mlconf.default_nuclio_runtime)
 
         :Examples:
 
@@ -550,6 +548,13 @@ class RemoteRuntime(KubeResource):
         """
         # todo: verify that the function name is normalized
 
+        old_http_session = getattr(self, "_http_session", None)
+        if old_http_session:
+            # ensure existing http session is terminated prior to (re)deploy to ensure that a connection to an old
+            # replica will not be reused
+            old_http_session.close()
+            self._http_session = None
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -625,7 +630,7 @@ class RemoteRuntime(KubeResource):
 
         if state != "ready":
             logger.error("Nuclio function failed to deploy", function_state=state)
-            raise RunError(f"function {self.metadata.name} deployment failed")
+            raise RunError(f"Function {self.metadata.name} deployment failed")
 
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
@@ -939,7 +944,11 @@ class RemoteRuntime(KubeResource):
                 http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
+            if not getattr(self, "_http_session", None):
+                self._http_session = requests.Session()
+            resp = self._http_session.request(
+                method, path, headers=headers, **http_client_kwargs
+            )
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"
@@ -973,7 +982,7 @@ class RemoteRuntime(KubeResource):
         state = self.status.state
         if state != "ready":
             if state:
-                raise RunError(f"cannot run, function in state {state}")
+                raise RunError(f"Cannot run, function in state {state}")
             state, _, _ = self._get_state(raise_on_exception=True)
             if state != "ready":
                 logger.info("starting nuclio build!")
@@ -1094,7 +1103,6 @@ class RemoteRuntime(KubeResource):
         return results
 
     def _resolve_invocation_url(self, path, force_external_address):
-
         if not path.startswith("/") and path != "":
             path = f"/{path}"
 

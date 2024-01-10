@@ -61,7 +61,6 @@ def toPandas(spark_df):
             require_minimum_pyarrow_version()
             to_arrow_schema(spark_df.schema)
         except Exception as e:
-
             if spark_df.sql_ctx._conf.arrowPySparkFallbackEnabled():
                 msg = (
                     "toPandas attempted Arrow optimization because "
@@ -234,7 +233,7 @@ def _to_corrected_pandas_type(dt):
     elif type(dt) == DoubleType:
         return np.float64
     elif type(dt) == BooleanType:
-        return np.bool  # type: ignore[attr-defined]
+        return bool
     elif type(dt) == TimestampType:
         return "datetime64[ns]"
     else:

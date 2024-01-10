@@ -30,9 +30,6 @@ V3IO_FRAMESD:
 # user used to add v3io mounts to pods - e.g. iguazio
 V3IO_USERNAME:
 
-# password used to generate control sessions (needed only in 2.8) - e.g. password
-V3IO_PASSWORD:
-
 # access key used to add v3io mounts to pods - e.g. 4c1c2011-618f-434a-abd6-d456770fd33c
 V3IO_ACCESS_KEY:
 
@@ -57,6 +54,7 @@ DATABRICKS_TOKEN:
 # - it is not for use)
 DATABRICKS_HOST:
 DATABRICKS_CLUSTER_ID:
+
 # AWS
 AWS_BUCKET_NAME:
 AWS_ACCESS_KEY_ID:
@@ -66,3 +64,7 @@ AWS_SECRET_ACCESS_KEY:
 # Path to Google credentials file (in JSON format)
 GOOGLE_APPLICATION_CREDENTIALS:
 GCS_BUCKET_NAME:
+
+# Azure
+AZURE_STORAGE_CONNECTION_STRING:
+AZURE_CONTAINER:

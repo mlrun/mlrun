@@ -77,10 +77,11 @@ class DataStore:
         Extract only the schema, netloc, and path from an input URL if they exist,
         excluding parameters, query, or fragments.
         """
+        if not url:
+            raise mlrun.errors.MLRunInvalidArgumentError("Cannot parse an empty URL")
         parsed_url = urllib.parse.urlparse(url)
-        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
         netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else "//"
-        return f"{scheme}{netloc}{parsed_url.path}"
+        return f"{parsed_url.scheme}:{netloc}{parsed_url.path}"
 
     @staticmethod
     def uri_to_kfp(endpoint, subpath):
@@ -153,6 +154,9 @@ class DataStore:
 
     def upload(self, key, src_path):
         pass
+
+    def get_spark_options(self):
+        return {}
 
     @staticmethod
     def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
@@ -314,7 +318,6 @@ class DataStore:
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:
-
                 file = url
                 # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
                 if file_system.protocol != "file":
@@ -649,7 +652,7 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}") from exc
 
     mlrun.errors.raise_for_status(response)
 

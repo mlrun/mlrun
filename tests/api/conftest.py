@@ -21,6 +21,7 @@ import deepdiff
 import httpx
 import kfp
 import pytest
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
 import mlrun.common.schemas
@@ -44,7 +45,7 @@ from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 from server.api.initial_data import init_data
-from server.api.main import BASE_VERSIONED_API_PREFIX, app
+from server.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 
 @pytest.fixture(autouse=True)
@@ -131,6 +132,24 @@ def client(db) -> Generator:
 
 
 @pytest.fixture()
+def unprefixed_client(db) -> Generator:
+    """
+    unprefixed_client is a test client that doesn't have the version prefix in the url.
+    When using this client, the version prefix must be added to the url manually.
+    This is useful when tests use several endpoints that are not under the same version prefix.
+    """
+    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+        mlconf.httpdb.logs_path = log_dir
+        mlconf.monitoring.runs.interval = 0
+        mlconf.runtimes_cleanup_interval = 0
+        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+        with TestClient(app) as test_client_v2:
+            set_base_url_for_test_client(test_client_v2, API_PREFIX)
+            yield test_client_v2
+
+
+@pytest.fixture()
 @pytest.mark.asyncio
 async def async_client(db) -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
@@ -142,6 +161,59 @@ async def async_client(db) -> Generator:
         async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
             set_base_url_for_test_client(async_client)
             yield async_client
+
+
+@pytest.fixture
+def kfp_client_mock(monkeypatch) -> kfp.Client:
+    server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
+    )
+    kfp_client_mock = unittest.mock.Mock()
+    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
+    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
+    return kfp_client_mock
+
+
+@pytest.fixture()
+async def api_url() -> str:
+    api_url = "http://iguazio-api-url:8080"
+    mlrun.config.config.iguazio_api_url = api_url
+    return api_url
+
+
+@pytest.fixture()
+async def iguazio_client(
+    api_url: str,
+    request: pytest.FixtureRequest,
+) -> server.api.utils.clients.iguazio.Client:
+    if request.param == "async":
+        client = server.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = server.api.utils.clients.iguazio.Client()
+
+    # force running init again so the configured api url will be used
+    client.__init__()
+    client._wait_for_job_completion_retry_interval = 0
+    client._wait_for_project_terminal_state_retry_interval = 0
+
+    # inject the request param into client, so we can use it in tests
+    setattr(client, "mode", request.param)
+    return client
+
+
+class MockedK8sHelper:
+    @pytest.fixture(autouse=True)
+    def mock_k8s_helper(self, db: sqlalchemy.orm.Session, client: TestClient):
+        # We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+        # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
+        server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
+            unittest.mock.Mock(return_value=[])
+        )
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+        server.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
+        server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
 
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
@@ -265,41 +337,3 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         server.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch
     )
     yield k8s_secrets_mock
-
-
-@pytest.fixture
-def kfp_client_mock(monkeypatch) -> kfp.Client:
-    server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
-    )
-    kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
-    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-    return kfp_client_mock
-
-
-@pytest.fixture()
-async def api_url() -> str:
-    api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config.iguazio_api_url = api_url
-    return api_url
-
-
-@pytest.fixture()
-async def iguazio_client(
-    api_url: str,
-    request: pytest.FixtureRequest,
-) -> server.api.utils.clients.iguazio.Client:
-    if request.param == "async":
-        client = server.api.utils.clients.iguazio.AsyncClient()
-    else:
-        client = server.api.utils.clients.iguazio.Client()
-
-    # force running init again so the configured api url will be used
-    client.__init__()
-    client._wait_for_job_completion_retry_interval = 0
-    client._wait_for_project_terminal_state_retry_interval = 0
-
-    # inject the request param into client, so we can use it in tests
-    setattr(client, "mode", request.param)
-    return client

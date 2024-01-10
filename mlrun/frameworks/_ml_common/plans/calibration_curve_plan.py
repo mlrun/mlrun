@@ -72,7 +72,7 @@ class CalibrationCurvePlan(MLPlotPlan):
         y_pred: MLTypes.DatasetType = None,
         model: MLTypes.ModelType = None,
         x: MLTypes.DatasetType = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Artifact]:
         """
         Produce the calibration curve according to the ground truth (y) and predictions (y_pred) values. If predictions

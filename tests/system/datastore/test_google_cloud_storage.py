@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
 import tempfile
 import uuid
@@ -45,6 +46,8 @@ test_environment = TestMLRunSystem._get_env_from_file()
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage(TestMLRunSystem):
+    project_name = "gcsfs-system-test"
+
     @classmethod
     def clean_test_directory(cls):
         test_dir = f"{cls._bucket_name}/{cls.test_dir}"
@@ -58,7 +61,12 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         cls.credentials_path = test_environment["GOOGLE_APPLICATION_CREDENTIALS"]
         cls.test_dir = "test_mlrun_gcs_system_objects"
         cls.profile_name = "gcs_system_profile"
-        cls._gcs_fs = fsspec.filesystem("gcs", token=cls.credentials_path)
+        try:
+            credentials = json.loads(cls.credentials_path)
+            token = credentials
+        except json.JSONDecodeError:
+            token = cls.credentials_path
+        cls._gcs_fs = fsspec.filesystem("gcs", token=token)
         cls.clean_test_directory()
 
     @classmethod

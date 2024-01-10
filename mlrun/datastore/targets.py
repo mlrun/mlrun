@@ -79,6 +79,35 @@ def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
 
+def write_spark_dataframe_with_options(spark_options, df, mode):
+    sc = df.sql_ctx.sparkSession.sparkContext
+
+    original_hadoop_conf = {}
+    non_hadoop_spark_options = {}
+
+    hadoop_conf = sc._jsc.hadoopConfiguration()
+
+    for key, value in spark_options.items():
+        if key.startswith("spark.hadoop."):
+            key = key[len("spark.hadoop.") :]
+            # Save the original configuration
+            original_value = hadoop_conf.get(key, None)
+            original_hadoop_conf[key] = original_value
+            hadoop_conf.set(key, value)
+        else:
+            non_hadoop_spark_options[key] = value
+    try:
+        df.write.mode(mode).save(**non_hadoop_spark_options)
+    except Exception as e:
+        raise e
+    finally:
+        for key, value in original_hadoop_conf.items():
+            if value:
+                hadoop_conf.set(key, value)
+            else:
+                hadoop_conf.unset(key)
+
+
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets
     return [target.strip() for target in targets.split(",")]
@@ -96,7 +125,7 @@ def get_default_targets(offline_only=False):
 def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
     run_id = generate_target_run_id()
     for target in targets:
-        if overwrite or not (target.name in targets_in_status.keys()):
+        if overwrite or target.name not in targets_in_status.keys():
             target.run_id = run_id
         else:
             target.run_id = targets_in_status[target.name].run_id
@@ -192,7 +221,7 @@ def validate_target_list(targets):
 
     if not targets:
         return
-    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
         [
             target.kind
@@ -498,7 +527,7 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
-            df.write.mode("overwrite").save(**options)
+            write_spark_dataframe_with_options(options, df, "overwrite")
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
             store, target_path = self._get_store_and_path()
@@ -877,7 +906,7 @@ class ParquetTarget(BaseStoreTarget):
         else:
             storage_options = storage_options or self.storage_options
 
-        graph.add_step(
+        step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
@@ -893,6 +922,16 @@ class ParquetTarget(BaseStoreTarget):
             update_last_written=featureset_status.update_last_written_for_target,
             **self.attributes,
         )
+
+        original_to_dict = step.to_dict
+
+        def delete_update_last_written(*arg, **kargs):
+            result = original_to_dict(*arg, **kargs)
+            result["class_args"].pop("update_last_written", None)
+            return result
+
+        # update_last_written is not serializable (ML-5108)
+        step.to_dict = delete_update_last_written
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []
@@ -911,10 +950,23 @@ class ParquetTarget(BaseStoreTarget):
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break
-        result = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "parquet",
-        }
+
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(
+                self.get_target_path()
+            )
+            storage_spark_options = store.get_spark_options()
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path, storage_spark_options),
+                "format": "parquet",
+            }
+            result = {**result, **storage_spark_options}
+        else:
+            result = {
+                "path": store_path_to_spark(self.get_target_path()),
+                "format": "parquet",
+            }
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
@@ -1041,11 +1093,24 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        return {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "csv",
-            "header": "true",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(
+                self.get_target_path()
+            )
+            storage_spark_options = store.get_spark_options()
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path, storage_spark_options),
+                "format": "csv",
+                "header": "true",
+            }
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.get_target_path()),
+                "format": "csv",
+                "header": "true",
+            }
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1160,7 +1225,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
-            df.write.mode("overwrite").save(**options)
+            write_spark_dataframe_with_options(options, df, "overwrite")
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
@@ -1250,7 +1315,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        if endpoint.startswith("ds"):
+        if endpoint.startswith("ds://"):
             datastore_profile = datastore_profile_read(endpoint)
             if not datastore_profile:
                 raise ValueError(f"Failed to load datastore profile '{endpoint}'")

@@ -51,6 +51,8 @@ test_environment = TestMLRunSystem._get_env_from_file()
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestDBFS(TestMLRunSystem):
+    project_name = "dbfs-system-test"
+
     @classmethod
     def setup_class(cls):
         super().setup_class()

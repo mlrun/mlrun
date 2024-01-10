@@ -15,7 +15,6 @@
 import os
 import random
 import subprocess
-import tempfile
 
 import pytest
 
@@ -30,11 +29,9 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _skip_set_environment():
         return True
 
-    def test_v3io_large_object_upload(self):
-
-        dir = tempfile.TemporaryDirectory()
-        tempfile_1_path = os.path.join(dir.name, "tempfile_1")
-        tempfile_2_path = os.path.join(dir.name, "tempfile_2")
+    def test_v3io_large_object_upload(self, tmp_path):
+        tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
+        tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
 
         with open(tempfile_1_path, "wb") as f:
@@ -51,7 +48,11 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item = mlrun.datastore.store_manager.object(v3io_object_url)
 
         try:
-            # Exercise the DataItem upload flow
+            self._logger.debug(
+                "Exercising the DataItem upload flow",
+                tempfile_1_path=tempfile_1_path,
+                tempfile_2_path=tempfile_2_path,
+            )
             data_item.upload(tempfile_1_path)
             data_item.download(tempfile_2_path)
 
@@ -62,6 +63,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
 
             # Do the test again, this time exercising the v3io datastore _upload() loop
+            self._logger.debug("Exercising the v3io _upload() loop")
             os.remove(tempfile_2_path)
 
             data_item.store._upload(

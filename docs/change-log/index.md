@@ -24,6 +24,7 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-4343|Datastore profiles (for managing datastore credentials) support Azure, DBFS, GCS, Kafka, and S2. [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
+|ML-4622|Feature set and feature vector APIs are now FeatureSet / FeatureVector class methods. See examples in [Feature store](./cheat-sheet.html#feature-store), 
 
 ### Model monitoring 
 | ID     |Description                                                                                         |
@@ -66,7 +67,14 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-4563|You can now abort local runtimes.  |
+|ML-3856|Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest). See [Ingest data locally](../data-prep/ingest-data-fs.html#ingest-data-locally).|
+|ML-4093|Documentation: improve description of [handlers](../runtimes/create-and-use-functions.html#using-set-function) and {ref}`functions`. |
+|ML-4563|A local runtime that consumed more memory that the Jupyter service pod and that caused a restart of the pod can now be deleted. |
+|ML-4920|Documentation: improve description of `log_artifact`. See {ref}`artifacts` and {py:meth}`~mlrun.projects.MlrunProject.log_artifact`.|
+|ML-4608|The artifact db_key does not forward when registering an artifact. | Do not use `db_key`. Artifact uniqueness is defined across the key, uid (producer), iter, etc.| v1.5.0 |
+|ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
+|ML-5089|When trying to delete a running job, an error opens that a running job cannot be deleted and it needs to be aborted first.|
+|ML-5091|Monitoring does not recreate a deleted run. |                                   |
 |ML-5146|The memory footprint when monitoring runs was reduced, solving OOM issues. |
 
 
@@ -90,8 +98,8 @@
 |----------|---------------------------------------------------------------------------|
 |ML-3480|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
 |ML-4839/4844|Running `project.build_image` now always reads the requirements.txt file. |
-|ML-4860  |Fixed creating and running functions with no parameters from the UI.      |
-|ML-4872 |Fixed synchronizing functions from project yaml.                          |
+|ML-4860|Fixed creating and running functions with no parameters from the UI.      |
+|ML-4872|Fixed synchronizing functions from project yaml.                          |
 
 ## v1.5.0 (23 October 2023)
 
@@ -796,41 +804,64 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID| Description|Workaround |Opened in |
 |--------|----------------------------------------------------------------|-----------------------------------------|-----------|
+|ML-76|In rare cases (after changing the HEAD git commit of the project between different log_artifact calls) artifacts submitted from a git based project can't be received. |NA|v0.5.5|
 |ML-1373|When attempting to ingest data with RemoteSpark using an incorrect service name, the pods get stuck during ContainerCreating. | Verify the correct service name. | v0.9.0 | 
 |ML-1835|The index record is duplicated in the datasets metadata. | NA | v1.0.0 |
+|ML-2052|mlrun service default limits are not applied to wait container on pipeline jobs.|NA|v1.0.0|
 |ML-2030|Need means of moving artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
+|ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. |NA|v1.0.0|
 |ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)| Do not use "." in notebook name|v1.0.0 |
+|ML-2293|
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.|v1.1.0    |
 |ML-2489|Cannot pickle a class inside an mlrun function.                       |Use cloudpickle instead of pickle.|v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error|Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                                    |v1.1.0    |
+|ML-3081|The Monitor Workflows page does not present logs from the correct (Nuclio) deployment.|NA |v1.2.1    |
 |ML-3294|Dask coredump during project deletion.|Before deleting a Dask project, verify that Dask was fully terminated.|v1.3.0 |
 |ML-3315|Spark ingestion does not support nested aggregations.                 |NA |v1.2.1    |
+|ML-3357|
 |ML-3386|Documentation is missing full details on the feature store sources and targets.| NA|v1.2.1    |
 |ML-3143/ML-3432|Cannot delete a remote function from the DB (neither with SDK nor UI).  |NA |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
 |ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.1    |
+|ML-3526|Aggregation column order is not always respected (storey engine).| NA | v1.3.0|
+|ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. |NA | v1.3.0|
+|ML-3627|The feature store allows ingestion of string type for the timestamp key resulting in errors when trying to query the offline store with time filtration.|Use only timestamp type.| v1.2.1    |
+|ML-3636|`get_online_feature_service` from redis target returns truncated values. | NA | v1.3.0|
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
+|ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
+|ML-3680|The function spec does not get updated after running a workflow. |NA  | v1.3.0|
 |ML-3714|It can happen that an MLrun pod succeeds but there's an error in Kubeflow. | NA | v1.3.0 |
 |ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. See [Create a single step](../serving/writing-custom-steps.html#create-a-single-step). | v1.3.1 |
 |ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all the source on each schedule iteration. | Use a different engine and/or source. | v1.4.0 |	
 |ML-4153|When creating a passthrough features-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
 |ML-4166|Project yaml file that is vrey large cannot be stored.    |Do not embed the artifact object in the project yaml. | v1.4.0 |
+|ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |  | v1.4.0|
+|ML-4235|**what is message?** |  | v1.5.0|
 |ML-4370|The same artifact was generated by 2 runs: one with multiple iterations (using hyper-params) and one with a single iteration. | Do not generate the same artifact name across hyper-param runs and single runs. For example, add a timestamp or other unique id to the name of the artifact.| v1.3.2 |
 |ML-4442|After a model is deployed without applying monitoring (`set_tracking()` was not set on the serving function), monitoring cannot be added.|Delete the existing model endpoint (`mlrun.get_run_db().delete_model_endpoint()`), then redeploy the model.| v1.5.0 |
+|ML-4539|**what is message?** |  | v1.5.0|
+|ML-4582|**what is message?** |  | v1.5.0|
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
-|ML-4608|The artifact db_key does not forward when registering an artifact. | Do not use `db_key`. Artifact uniqueness is defined across the key, uid (producer), iter, etc.| v1.5.0 |
 |ML-4613|UI: The Batch Inference Parameters has an incorrect hint on map type. The correct hint is "The 'dict' values should be in JSON key:value format, e.g. {"hello":"world"}" | NA | v1.5.0 |
 |ML-4617|Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
 |ML-4642|The UI can get stuck when query results are too large to display. |Add a filter (or narrow it) to retrieve fewer results.|                 v1.5.0|   
+|ML-4655|**in RN or not?**
 |ML-4678|When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|First add a tag, (`replace=False`), then delete the old tag: `mlrun.get_run_db().tag_artifacts(project=project.name,artifacts=model1, tag_name="newtag", replace=False)`,`mlrun.get_run_db().delete_artifacts_tags(project=project.name, artifacts=[model1], tag_name=model1.metadata.tag)`  | v1.5.0 |
+|NL-4685|When using columns with type float as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
+|ML-4690|**was it fixed?** Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) causes the job to fail. |Do not enable the log.| v1.5.0|
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation. | v1.5.0 |
-|ML-4714|Logs got truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  | NA | v1.5.0 |
+|ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
 |ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.| Delete again.| v1.5.0    |
 |ML-4767|Torch 2.1.0 is not compatible with mlrun-gpu image.              | NA | v1.5.0 |
+|ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA | v1.4.0 |
+|ML-4810|Cannot rerun a job when the "mlrun/client_version" label has "+" in its value. | Ensure the "mlrun/client_version" label does not include "+". | v1.6.0 |
 |ML-4821|Sometimes very big project deletions fail with a timeout due to deletion of project resources taking too long.|Delete the project again  | NA | v1.5.0 | 
+|ML-4846|With Docker Compose the V3IO_ACCESS_KEY is required for Parquet target. |replace this line: `feature_set.set_targets(targets=[mlrun.datastore.ParquetTarget()], with_defaults=False)` with a command that specifies the target path for the Parquet target. For example: `feature_set.set_targets(targets=[mlrun.datastore.ParquetTarget(path="/some/path/to/parquet/file")], with_defaults=False)`  | v1.5.0 |
+|ML-4857|Local runs can be aborted in the UI, though the actual execution continues.|NA | v1.5.0 |
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
+|NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4953|Cannot build image through the UI on external registry, as no credentials are passed.| NA | v1.5.0 |
 |ML-4967|The **Deploy** button in the **Project > Models** page does create a new endpoint/serving function, or add a model to any function, even though it responds "Model deployment initiated successfully". | NA | v1.5.1 |
@@ -841,6 +872,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5048|UI Edit function dialog: After selecting **Use an existing image**, when pressing **Deploy**, a new image is created.| NA | v1.5.1 |
 |ML-5078|Cannot only use `project.create_remote()` if `init_git=True` was set on project creation. | Set `init_git=True` on project creation.| v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
+
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

@@ -71,14 +71,17 @@ class _BatchWindow:
         except HttpResponseError as err:
             logger.warn(
                 "Failed to get the last analyzed time for this endpoint and application, "
-                "as this is probably the first time this application is running. "
-                "Using the first request time instead.",
+                "as this is probably the first time this application is running. ",
+                "Using the latest between first request time or last update time instead.",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
                 error=err,
             )
-            return self._first_request
+
+            return max(
+                self._first_request, self._stop - cast(int, datetime.timedelta(days=1))
+            )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(

@@ -80,6 +80,7 @@ class _BatchWindow:
                 error=err,
             )
 
+            # TODO : Change the timedelta according to the policy.
             return max(
                 self._first_request,
                 self._stop - int(datetime.timedelta(days=1).total_seconds()),

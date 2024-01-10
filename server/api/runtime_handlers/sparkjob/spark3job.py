@@ -196,9 +196,16 @@ with ctx:
         update_in(job, "spec.executor.volumeMounts", runtime.spec.volume_mounts)
         update_in(job, "spec.deps", runtime.spec.deps)
 
-        if runtime.spec.spark_conf:
+        spark_conf = runtime.spec.spark_conf
+        if spark_conf:
+            if (
+                spark_conf.get("spark.eventLog.enabled")
+                and "spark.eventLog.dir" not in spark_conf
+            ):
+                spark_conf["spark.eventLog.dir"] = "/tmp"
+
             job["spec"]["sparkConf"] = {}
-            for k, v in runtime.spec.spark_conf.items():
+            for k, v in spark_conf.items():
                 job["spec"]["sparkConf"][f"{k}"] = f"{v}"
 
         if runtime.spec.hadoop_conf:

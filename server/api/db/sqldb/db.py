@@ -4108,7 +4108,7 @@ class SQLDB(DBInterface):
             name=name,
             project=project,
         ).one_or_none()
-        now = datetime.now(timezone.utc)
+        now = mlrun.utils.now_date()
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (

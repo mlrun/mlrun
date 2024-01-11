@@ -18,7 +18,6 @@ import json
 import os
 import typing
 
-import pandas as pd
 import storey
 
 import mlrun
@@ -529,9 +528,8 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
 
         # Getting event timestamp and endpoint_id
         base_event = {k: event[k] for k in base_fields}
-        base_event[EventFieldType.TIMESTAMP] = pd.to_datetime(
-            base_event[EventFieldType.TIMESTAMP],
-            format=EventFieldType.TIME_FORMAT,
+        base_event[EventFieldType.TIMESTAMP] = datetime.datetime.fromisoformat(
+            base_event[EventFieldType.TIMESTAMP]
         )
 
         # base_metrics includes the stats about the average latency and the amount of predictions over time
@@ -743,8 +741,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
             return None
 
-        # Adjust timestamp format
-        timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
+        # Convert timestamp to a datetime object
+        timestamp = datetime.datetime.fromisoformat(timestamp)
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.

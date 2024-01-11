@@ -701,8 +701,9 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
-            applied.
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value
+            of a label (i.e. list("key=value")) or by looking for the existence of a given
+            key (i.e. "key").
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1309,12 +1310,12 @@ class HTTPRunDB(RunDBInterface):
 
     def remote_builder(
         self,
-        func,
-        with_mlrun,
-        mlrun_version_specifier=None,
-        skip_deployed=False,
-        builder_env=None,
-        force_build=False,
+        func: BaseRuntime,
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1329,6 +1330,20 @@ class HTTPRunDB(RunDBInterface):
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         :param force_build:   Force building the image, even when no changes were made
         """
+        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
+            "s3://"
+        )
+        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
+        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
+            logger.warning(
+                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
+                "keys. Only the permissions granted to the platform's configured secret will take affect "
+                "(see mlrun.mlconf.httpdb.builder.docker_registry_secret). "
+                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
+                source=func.spec.build.source,
+                load_source_on_run=func.spec.build.load_source_on_run,
+                default_docker_registry=config.httpdb.builder.docker_registry,
+            )
 
         try:
             req = {
@@ -2379,16 +2394,28 @@ class HTTPRunDB(RunDBInterface):
             - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
-        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
-        response = self.api_call("DELETE", path, error_message, headers=headers)
+        response = self.api_call(
+            "DELETE", f"projects/{name}", error_message, headers=headers, version="v2"
+        )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info("Project is being deleted", project_name=name)
-            self._wait_for_project_to_be_deleted(name)
-        logger.info("Project deleted", project_name=name)
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info("Project deleted", project_name=name)
+                return
+        elif response.status_code == http.HTTPStatus.NO_CONTENT:
+            logger.info("Project deleted", project_name=name)
+            return
 
     def store_project(
         self,
@@ -2504,22 +2531,6 @@ class HTTPRunDB(RunDBInterface):
             logger,
             False,
             _verify_background_task_in_terminal_state,
-        )
-
-    def _wait_for_project_to_be_deleted(self, project_name: str):
-        def _verify_project_deleted():
-            projects = self.list_projects(
-                format_=mlrun.common.schemas.ProjectsFormat.name_only
-            )
-            if project_name in projects:
-                raise Exception(f"Project {project_name} still exists")
-
-        return mlrun.utils.helpers.retry_until_successful(
-            self._wait_for_project_deletion_interval,
-            120,
-            logger,
-            False,
-            _verify_project_deleted,
         )
 
     def create_project_secrets(

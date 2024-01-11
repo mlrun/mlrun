@@ -1,6 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Patch remote" type="PythonConfigurationType" factoryName="Python">
     <module name="mlrun" />
+    <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
@@ -23,7 +24,7 @@
       </ENTRIES>
     </EXTENSION>
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/automation/patch_igz/patch_remote.py" />
-    <option name="PARAMETERS" value="-lc -v" />
+    <option name="PARAMETERS" value="-v" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

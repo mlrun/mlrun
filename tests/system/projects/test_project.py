@@ -1119,6 +1119,69 @@ class TestProject(TestMLRunSystem):
 
         shutil.rmtree(project_dir, ignore_errors=True)
 
+    def test_load_project_with_artifact_db_key(self):
+        project_1_name = "test-load-with-artifact"
+        project_2_name = project_1_name + "-2"
+        project_3_name = project_1_name + "-3"
+        self.custom_project_names_to_delete.extend(
+            [project_1_name, project_2_name, project_3_name]
+        )
+
+        context = "./load"
+        project = mlrun.get_or_create_project(project_1_name, context=context)
+
+        # create artifact with an explicit db_key
+        artifact_key = "artifact_key"
+        artifact_db_key = "artifact_db_key"
+        project.log_artifact(artifact_key, db_key=artifact_db_key, body="test")
+
+        # validate that the artifact is in the db
+        artifacts = project.list_artifacts(name=artifact_db_key)
+        print("TOMER - artifacts 1", artifacts)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # set the artifact on the project with a new key and save
+        artifact_new_key = "artifact_new_key"
+        project.set_artifact(
+            key=artifact_new_key, artifact=Artifact.from_dict(artifacts[0])
+        )
+        project.save()
+
+        # create a project from the same spec
+        project2 = mlrun.load_project(context=context, name=project_2_name)
+
+        # validate that the artifact was saved with the db_key
+        artifacts = project2.list_artifacts(name=artifact_db_key)
+        print("TOMER - artifacts 2", artifacts)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_new_key
+
+        # create another artifact with an explicit db_key
+        artifact_db_key_2 = f"{artifact_db_key}_2"
+        artifact_key_2 = f"{artifact_key}_2"
+        project.log_artifact(
+            f"{artifact_key_2}", db_key=artifact_db_key_2, body="test-again"
+        )
+
+        artifacts = project.list_artifacts(name=artifact_db_key_2)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key_2
+
+        # export the artifact and set it on the project with the export path
+        artifact_path = os.path.join(os.getcwd(), context, "test-artifact.yaml")
+        art = Artifact.from_dict(artifacts[0])
+        art.export(artifact_path)
+        another_artifact_key = "another_artifact_key"
+        project.set_artifact(another_artifact_key, artifact=artifact_path)
+        project.save()
+
+        # create a new project from the same spec, and validate the artifact was loaded properly
+        project3 = mlrun.load_project(context=context, name=project_3_name)
+        artifacts = project3.list_artifacts(name=artifact_db_key_2)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == another_artifact_key
+
     def _initialize_sleep_workflow(self, project: mlrun.projects.MlrunProject):
         code_path = str(self.assets_path / "sleep.py")
         workflow_path = str(self.assets_path / "workflow.py")

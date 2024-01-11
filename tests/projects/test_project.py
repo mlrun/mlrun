@@ -1599,30 +1599,3 @@ def test_project_build_image(
     # If no base image was used, then mlrun/mlrun is expected
     assert build_config.base_image == base_image or "mlrun/mlrun"
     assert project.default_image == image_name
-
-
-def test_load_project_with_artifact_db_key(context):
-    project_name = "project-name"
-    project = mlrun.new_project(project_name, context=str(context), save=False)
-
-    # create an artifact with an explicit db_key
-    artifact_key = "my-artifact"
-    artifact_db_key = "my-artifact-db-key"
-    artifact = project.log_artifact(
-        artifact_key,
-        db_key=artifact_db_key,
-        body="123",
-        target_path="store://something",
-    )
-
-    # set the artifact and save the project, so we can load it
-    artifact_new_key = "my-artifact-new-key"
-    project.set_artifact(key=artifact_new_key, artifact=artifact)
-    project.save()
-
-    # load the project and verify that the artifact was loaded with the db_key
-    loaded_project = mlrun.load_project(context=str(context))
-    loaded_artifacts = loaded_project.to_dict()["spec"]["artifacts"]
-    assert len(loaded_artifacts) == 1
-    assert loaded_artifacts[0]["metadata"]["key"] == artifact_new_key
-    assert loaded_artifacts[0]["spec"]["db_key"] == artifact_db_key

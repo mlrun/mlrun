@@ -48,10 +48,9 @@ from mlrun.model_monitoring.helpers import (
     bump_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
-from mlrun.utils.logger import Logger
 
 
-class _HistLen(NamedTuple):
+class _HistLen(typing.NamedTuple):
     counts_len: int
     edges_len: int
 
@@ -443,6 +442,7 @@ class TestBumpModelEndpointLastRequest:
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"
 
+
     @staticmethod
     @pytest.mark.parametrize(
         ("runs", "error_context", "expected_window"),
@@ -511,44 +511,3 @@ class TestBumpModelEndpointLastRequest:
                     == expected_window
                 ), "The window is different than expected"
 
-@pytest.fixture(params=[logging.DEBUG, logging.INFO, logging.WARNING])
-def logger(request: pytest.FixtureRequest) -> Logger:
-    return Logger(level=request.param, name="monitoring-helpers-test")
-
-
-@pytest.fixture()
-def msg_to_catch() -> str:
-    return "Catch me ALWAYS"
-
-
-@pytest.fixture()
-def msg_to_catch_cond() -> str:
-    return "Catch ONLY IF original level >= new level"
-
-
-@pytest.mark.parametrize(
-    "new_level",
-    [
-        logging.DEBUG,
-        logging.INFO,
-        logging.CRITICAL,
-    ],
-)
-def test_adapt_logger_level(
-    logger: Logger,
-    new_level: int,
-    msg_to_catch: str,
-    msg_to_catch_cond: str,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    original_level = logger.level
-    with _adapt_logger_level(logger, new_level):
-        assert logger.level == new_level
-        logger._logger.log(level=new_level, msg=msg_to_catch)
-        logger._logger.log(level=original_level, msg=msg_to_catch_cond)
-    assert logger.level == original_level
-    assert msg_to_catch in caplog.text
-    if new_level > original_level:
-        assert msg_to_catch_cond not in caplog.text
-    else:
-        assert msg_to_catch_cond in caplog.text

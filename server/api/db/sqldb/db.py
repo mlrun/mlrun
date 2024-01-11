@@ -4163,11 +4163,26 @@ class SQLDB(DBInterface):
         session,
         project: str,
         background_task_exceeded_timeout_func,
+        states: typing.Optional[typing.List[str]] = None,
+        created_from: datetime = None,
+        created_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
     ) -> list[mlrun.common.schemas.BackgroundTask]:
-        # TODO: delete background tasks over a week old
-        # TODO: pagination
         background_tasks = []
-        background_task_records = self._list_project_background_tasks(session, project)
+        query = self._list_project_background_tasks(session, project)
+        if states is not None:
+            query = query.filter(BackgroundTask.state.in_(states))
+        if created_from is not None:
+            query = query.filter(BackgroundTask.created >= created_from)
+        if created_to is not None:
+            query = query.filter(BackgroundTask.created <= created_to)
+        if last_update_time_from is not None:
+            query = query.filter(BackgroundTask.updated >= last_update_time_from)
+        if last_update_time_to is not None:
+            query = query.filter(BackgroundTask.updated <= last_update_time_to)
+
+        background_task_records = query.all()
         for background_task_record in background_task_records:
             background_task_record = self._apply_background_task_timeout(
                 session,
@@ -4239,10 +4254,8 @@ class SQLDB(DBInterface):
             ).all()
         ]
 
-    def _list_project_background_tasks(
-        self, session: Session, project: str
-    ) -> typing.List[BackgroundTask]:
-        return self._query(session, BackgroundTask, project=project).all()
+    def _list_project_background_tasks(self, session: Session, project: str):
+        return self._query(session, BackgroundTask, project=project)
 
     def _delete_background_tasks(self, session: Session, project: str):
         logger.debug("Removing background tasks from db", project=project)

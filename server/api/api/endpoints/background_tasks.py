@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 
 import fastapi
@@ -20,6 +21,7 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import mlrun.utils
 import server.api.api.deps
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
@@ -66,6 +68,11 @@ async def get_project_background_task(
 )
 async def list_project_background_tasks(
     project: str,
+    state: str = None,
+    created_from: str = None,
+    created_to: str = None,
+    last_update_time_from: str = None,
+    last_update_time_to: str = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         server.api.api.deps.authenticate_request
     ),
@@ -79,11 +86,27 @@ async def list_project_background_tasks(
         auth_info,
     )
 
-    # TODO: add state filter
+    if (
+        not state
+        and not created_from
+        and not created_to
+        and not last_update_time_from
+        and not last_update_time_to
+    ):
+        # default to last week on no filter
+        created_from = (
+            datetime.datetime.now() - datetime.timedelta(days=7)
+        ).isoformat()
+
     background_tasks = await run_in_threadpool(
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().list_background_tasks,
         db_session,
         project=project,
+        states=[state] if state is not None else None,
+        created_from=mlrun.utils.datetime_from_iso(created_from),
+        created_to=mlrun.utils.datetime_from_iso(created_to),
+        last_update_time_from=mlrun.utils.datetime_from_iso(last_update_time_from),
+        last_update_time_to=mlrun.utils.datetime_from_iso(last_update_time_to),
     )
 
     background_tasks = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

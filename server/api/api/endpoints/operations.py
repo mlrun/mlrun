@@ -93,6 +93,7 @@ def _get_or_create_migration_background_task(
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         background_tasks,
         server.api.utils.background_tasks.BackgroundTaskKinds.db_migrations,
+        None,
         _perform_migration,
     )
 

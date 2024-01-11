@@ -2625,6 +2625,8 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
+            if name not in self.spec._workflows.keys():
+                raise mlrun.errors.MLRunNotFoundError(f"Workflow {name} does not exist")
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
         workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
@@ -2753,6 +2755,11 @@ class MlrunProject(ModelObj):
             project_file_path = path.join(
                 self.spec.context, self.spec.subpath or "", "project.yaml"
             )
+        if filepath and "://" in str(filepath) and not archive_code:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "URLs are only applicable to archives"
+            )
+
         project_dir = pathlib.Path(project_file_path).parent
         project_dir.mkdir(parents=True, exist_ok=True)
         with open(project_file_path, "w") as fp:
@@ -3050,9 +3057,12 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        target_dir: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
+        If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
+        image built. The `target_dir` parameter allows specifying the target path where the code will be extracted.
 
         :param image: target image name/path. If not specified the project's existing `default_image` name will be
                         used. If not set, the `mlconf.default_project_image_name` value will be used
@@ -3074,6 +3084,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+        :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
             base_image = mlrun.mlconf.default_base_image
@@ -3116,6 +3127,13 @@ class MlrunProject(ModelObj):
             )
 
             function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+            if self.spec.source and not self.spec.load_source_on_run:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    target_dir=target_dir,
+                    pull_at_runtime=False,
+                )
 
             build = self.spec.build
             result = self.build_function(

@@ -37,7 +37,7 @@ def health():
 
     return {
         # for old `align_mlrun.sh` scripts expecting `version` in the response
-        # TODO: remove on mlrun >= 1.6.0
+        # TODO: Remove when Iguazio 3.5.3 is no longer supported
         "version": mlconfig.version,
         "status": "ok",
     }

@@ -73,6 +73,7 @@ def create_internal_background_task(
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         background_tasks,
         "bump_counter",
+        None,
         function,
     )
 
@@ -92,6 +93,7 @@ def create_long_internal_background_task(
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         background_tasks,
         "long_bump_counter",
+        None,
         _long_function,
     )
 

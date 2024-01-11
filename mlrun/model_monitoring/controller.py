@@ -202,12 +202,10 @@ class _BatchWindowGenerator:
                 first_request=first_request,
             )
             return None
-        # See mm_constants.EventFieldType.TIME_FORMAT
         return cls._date_string2timestamp(first_request)
 
     @staticmethod
     def _date_string2timestamp(date_string: str) -> int:
-        # See mm_constants.EventFieldType.TIME_FORMAT
         return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
     def get_batch_window(

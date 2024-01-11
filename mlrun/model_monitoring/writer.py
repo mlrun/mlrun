@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import json
 from http import HTTPStatus
 from typing import Any, NewType
@@ -25,7 +26,6 @@ from v3io_frames.frames_pb2 import IGNORE
 import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring import EventFieldType
 from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
@@ -178,9 +178,8 @@ class ModelMonitoringWriter(StepToDict):
 
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())
-        event[WriterEvent.END_INFER_TIME] = pd.to_datetime(
-            event[WriterEvent.END_INFER_TIME],
-            format=EventFieldType.TIME_FORMAT,
+        event[WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
+            event[WriterEvent.END_INFER_TIME]
         )
         del event[WriterEvent.RESULT_EXTRA_DATA]
         try:

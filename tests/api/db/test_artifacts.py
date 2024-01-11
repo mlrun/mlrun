@@ -307,7 +307,7 @@ class TestArtifacts:
 
         # ids are auto generated using this util function
         expected_uids = [
-            mlrun.utils.fill_artifact_object_hash(artifact_body)
+            mlrun.artifacts.base.fill_artifact_object_hash(artifact_body)
             for artifact_body in [artifact_1_body, artifact_2_body]
         ]
         uids = [artifact["metadata"]["uid"] for artifact in artifacts]
@@ -435,6 +435,26 @@ class TestArtifacts:
         # verify that the old artifact is still there, but without the tag
         artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
         assert len(artifacts) == 3
+
+    def test_store_artifact_with_different_key(
+        self, db: DBInterface, db_session: Session
+    ):
+        artifact_key = "artifact_key"
+        artifact_different_key = "artifact_different_key"
+        artifact_tree = "artifact_tree"
+
+        artifact_body = self._generate_artifact(artifact_key, tree=artifact_tree)
+        db.store_artifact(
+            db_session,
+            artifact_different_key,
+            artifact_body,
+        )
+        artifact = db.read_artifact(db_session, artifact_different_key)
+        assert artifact
+        assert artifact["metadata"]["key"] == artifact_key
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key)
 
     def test_read_artifact_tag_resolution(self, db: DBInterface, db_session: Session):
         """
@@ -1261,6 +1281,43 @@ class TestArtifacts:
             assert artifacts[0]["metadata"]["key"] == artifact_key
             assert artifacts[0]["metadata"]["project"] == project
             assert artifacts[0]["metadata"]["uid"] != artifact_uid
+
+    def test_update_model_spec(self, db: DBInterface, db_session: Session):
+        artifact_key = "model1"
+
+        # create a model
+        model_body = self._generate_artifact(artifact_key, kind="model")
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # update the model with spec that should be ignored in UID calc
+        model_body["spec"]["parameters"] = {"p1": 5}
+        model_body["spec"]["outputs"] = {"o1": 6}
+        model_body["spec"]["metrics"] = {"l1": "a"}
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # update spec that should not be ignored
+        model_body["spec"]["model_file"] = "some/path"
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 2
+
+        tags = [artifact["metadata"].get("tag", None) for artifact in artifacts]
+        assert len(tags) == 2
+        assert "latest" in tags
+        assert None in tags
+
+        for model in artifacts:
+            assert model["metadata"]["key"] == artifact_key
+            if model["metadata"].get("tag") == "latest":
+                assert model["spec"]["model_file"] == "some/path"
+            else:
+                assert model["spec"].get("model_file") is None
 
     def _generate_artifact_with_iterations(
         self, db, db_session, key, tree, num_iters, best_iter, kind, project=""

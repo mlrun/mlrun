@@ -34,12 +34,12 @@ import mlrun.errors
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
+from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    fill_artifact_object_hash,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -494,8 +494,7 @@ class SQLDB(DBInterface):
         else:
             artifact_dict = artifact.to_dict()
 
-        metadata_key = artifact_dict.get("metadata", {}).get("key")
-        if not metadata_key or metadata_key != key:
+        if not artifact_dict.get("metadata", {}).get("key"):
             artifact_dict.setdefault("metadata", {})["key"] = key
         if not artifact_dict.get("metadata", {}).get("project"):
             artifact_dict.setdefault("metadata", {})["project"] = project
@@ -524,6 +523,12 @@ class SQLDB(DBInterface):
                 self._should_update_artifact(existing_artifact, uid, iter)
                 or always_overwrite
             ):
+                logger.debug(
+                    "Updating an existing artifact",
+                    project=project,
+                    key=key,
+                    iteration=iter,
+                )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
                     db_artifact,
@@ -4136,12 +4141,19 @@ class SQLDB(DBInterface):
         self._upsert(session, [background_task_record])
 
     def get_background_task(
-        self, session, name: str, project: str
+        self, session, name: str, project: str, background_task_exceeded_timeout_func
     ) -> mlrun.common.schemas.BackgroundTask:
         background_task_record = self._get_background_task_record(
             session, name, project
         )
-        if self._is_background_task_timeout_exceeded(background_task_record):
+        if (
+            background_task_exceeded_timeout_func
+            and background_task_exceeded_timeout_func(
+                background_task_record.updated,
+                background_task_record.timeout,
+                background_task_record.state,
+            )
+        ):
             # lazy update of state, only if get background task was requested and the timeout for the update passed
             # and the task still in progress then we change to failed
             self.store_background_task(
@@ -4212,23 +4224,6 @@ class SQLDB(DBInterface):
                 f"Background task not found: name={name}, project={project}"
             )
         return background_task_record
-
-    @staticmethod
-    def _is_background_task_timeout_exceeded(background_task_record) -> bool:
-        # We don't verify if timeout_mode is enabled because if timeout is defined and
-        # mlrun.mlconf.background_tasks.timeout_mode == "disabled",
-        # it signifies that the background task was initiated while timeout mode was enabled,
-        # and we intend to verify it as if timeout mode was enabled
-        timeout = background_task_record.timeout
-        if (
-            timeout
-            and background_task_record.state
-            not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-            and datetime.utcnow()
-            > timedelta(seconds=int(timeout)) + background_task_record.updated
-        ):
-            return True
-        return False
 
     # ---- Run Notifications ----
     def store_run_notifications(

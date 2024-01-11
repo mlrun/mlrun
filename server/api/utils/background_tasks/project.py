@@ -23,6 +23,7 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+import server.api.utils.background_tasks.common
 import server.api.utils.helpers
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
@@ -73,7 +74,10 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         project: str,
     ) -> mlrun.common.schemas.BackgroundTask:
         return server.api.utils.singletons.db.get_db().get_background_task(
-            db_session, name, project
+            db_session,
+            name,
+            project,
+            server.api.utils.background_tasks.common.background_task_exceeded_timeout,
         )
 
     async def background_task_wrapper(

@@ -33,6 +33,7 @@ from .auth import (
 )
 from .background_task import (
     BackgroundTask,
+    BackgroundTaskList,
     BackgroundTaskMetadata,
     BackgroundTaskSpec,
     BackgroundTaskState,

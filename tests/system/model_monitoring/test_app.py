@@ -66,7 +66,6 @@ class _V3IORecordsChecker:
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
-    tsdb_query_end: str = "now"
 
     @classmethod
     def custom_setup_class(cls, project_name: str) -> None:
@@ -98,7 +97,7 @@ class _V3IORecordsChecker:
             backend=_TSDB_BE,
             table=_TSDB_TABLE,
             start=f"now-{5 * cls.app_interval}m",
-            end=cls.tsdb_query_end,
+            end="now",
         )
         assert not df.empty, "No TSDB data"
         assert (
@@ -269,9 +268,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-monitoring-record-results"
     name_prefix = "infer-monitoring"
-
-    # TODO - remove this when TSDB future time issue is resolved
-    tsdb_query_end = "now+3h"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -335,6 +333,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             application_class=self.app_data.class_.__name__,
             name=self.app_data.class_.name,
             requirements=self.app_data.requirements,
+            image="mlrun/mlrun" if self.image is None else self.image,
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
@@ -350,13 +349,12 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             endpoint_id=self.endpoint_id,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
-            trigger_monitoring_job=True,
-            last_in_batch_set=True,
         )
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
+            **({} if self.image is None else {"default_controller_image": self.image}),
         )
 
     def test_inference_feature_set(self) -> None:

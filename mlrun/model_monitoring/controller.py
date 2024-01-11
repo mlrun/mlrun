@@ -455,7 +455,7 @@ class MonitoringApplicationController:
 
                         if len(df) == 0:
                             logger.info(
-                                "Empty window",
+                                "During this time window, the endpoint has not received any data",
                                 endpoint=endpoint[mm_constants.EventFieldType.UID],
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,

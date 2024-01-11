@@ -255,7 +255,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)
         # mark the first window as "done" with another request
-        time.sleep(self.app_interval_seconds + 2)
+        time.sleep(
+            self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + 2
+        )
         self.serving_fn.invoke(self.infer_path, self.next_window_input)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)

@@ -27,7 +27,6 @@ import inflection
 import pytest
 
 import mlrun
-import mlrun.artifacts.base
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base

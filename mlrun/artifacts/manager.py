@@ -264,7 +264,7 @@ class ArtifactManager:
             else:
                 item.upload(artifact_path=artifact_path)
 
-        if item.db_key:
+        if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"

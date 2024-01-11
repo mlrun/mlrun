@@ -60,7 +60,7 @@ async def create_project_background_task(
     # add timeout to test failing the background task due to timeout
     elif timeout:
         function = long_function
-        # adds 10 seconds to the timeout to make sure that it sleeps longer than the timeout
+        # adds some time to make sure that it sleeps longer than the timeout
         args = [timeout + 3]
     return await fastapi.concurrency.run_in_threadpool(
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,

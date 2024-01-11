@@ -200,8 +200,8 @@ class ArtifactManager:
                 # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
-                db_key = key
-        item.db_key = item.db_key or db_key or ""
+                db_key = item.db_key or key
+        item.db_key = db_key or ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
         item.tag = tag or item.tag
@@ -264,7 +264,7 @@ class ArtifactManager:
             else:
                 item.upload(artifact_path=artifact_path)
 
-        if db_key:
+        if item.db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"

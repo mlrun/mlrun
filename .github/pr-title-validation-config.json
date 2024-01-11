@@ -4,7 +4,7 @@
     "color": "EEEEEE"
   },
   "CHECKS": {
-    "regexp": "^((\\[\\p{Lu}[^\\]]+\\])+|Revert) .*$",
+    "regexp": "^((\\[[[A-Z][^\\]]+\\]+)|Revert) .*$",
     "regexpFlags": "im",
     "ignoreLabels": []
   },

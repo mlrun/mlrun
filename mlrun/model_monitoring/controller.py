@@ -463,8 +463,8 @@ class MonitoringApplicationController:
                             continue
 
                     except FileNotFoundError:
-                        logger.info(
-                            "No parquets yet",
+                        logger.warn(
+                            "No parquets were written yet",
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
                         )
                         continue

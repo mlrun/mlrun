@@ -95,9 +95,9 @@ class _BatchWindow:
             )
         except HttpResponseError as err:
             logger.info(
-                "Failed to get the last analyzed time for this endpoint and application, "
+                "No last analyzed time for this endpoint and application, "
                 "as this is probably the first time this application is running. ",
-                "Using the latest between first request time or last update time minus one day instead.",
+                "Using the latest between first request time or last update time minus one day instead",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,

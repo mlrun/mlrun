@@ -1600,3 +1600,8 @@ def to_parquet(df, *args, **kwargs):
     if "version" not in kwargs:
         kwargs["version"] = "2.4"
     df.to_parquet(*args, **kwargs)
+
+
+def is_ecr_url(registry: str) -> bool:
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    return ".ecr." in registry and ".amazonaws.com" in registry

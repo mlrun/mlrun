@@ -476,13 +476,14 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
+                max_workers_default = None
 
                 engine = self.spec.graph.engine or "async"
                 if mlrun.mlconf.is_explicit_ack() and engine == "async":
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )
-                    trigger_args["max_workers"] = trigger_args.get("max_workers", 4)
+                    max_workers_default = 4
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
                     extra_attributes["workerAllocationMode"] = extra_attributes.get(
@@ -497,6 +498,10 @@ class ServingRuntime(RemoteRuntime):
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
+                    if max_workers_default:
+                        trigger_args["max_workers_default"] = trigger_args.get(
+                            "max_workers_default", max_workers_default
+                        )
                     trigger = KafkaTrigger(
                         brokers=brokers,
                         topics=[topic],
@@ -507,6 +512,11 @@ class ServingRuntime(RemoteRuntime):
                 else:
                     # V3IO doesn't allow hyphens in object names
                     group = group.replace("-", "_")
+                    if max_workers_default:
+                        # Deal with unconventional parameter naming in V3IOStreamTrigger specifically
+                        trigger_args["maxWorkers"] = trigger_args.get(
+                            "maxWorkers", max_workers_default
+                        )
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )

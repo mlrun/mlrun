@@ -4189,6 +4189,11 @@ class SQLDB(DBInterface):
                 background_task_exceeded_timeout_func,
                 background_task_record,
             )
+
+            # retest state after applying timeout
+            if states and background_task_record.state not in states:
+                continue
+
             background_tasks.append(
                 self._transform_background_task_record_to_schema(background_task_record)
             )

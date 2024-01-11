@@ -10,7 +10,7 @@
   },
   "MESSAGES": {
     "success": "All OK",
-    "failure": "PR title should be like this: '[Component] Brief summary'",
+    "failure": "PR title should be in the following format: '[Component] Brief summary'",
     "notice": ""
   }
 }

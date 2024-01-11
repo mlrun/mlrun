@@ -671,6 +671,17 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.BackgroundTask:
         pass
 
+    def list_background_tasks(
+        self,
+        session,
+        project: str,
+        background_task_exceeded_timeout_func,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        pass
+
+    def delete_background_task(self, session, name: str, project: str):
+        pass
+
     @abstractmethod
     def store_run_notifications(
         self,

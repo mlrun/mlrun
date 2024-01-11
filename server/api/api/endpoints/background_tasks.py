@@ -61,6 +61,45 @@ async def get_project_background_task(
 
 
 @router.get(
+    "/projects/{project}/background-tasks",
+    response_model=mlrun.common.schemas.BackgroundTaskList,
+)
+async def list_project_background_tasks(
+    project: str,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        server.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        server.api.api.deps.get_db_session
+    ),
+):
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+    # TODO: add state filter
+    background_tasks = await run_in_threadpool(
+        server.api.utils.background_tasks.ProjectBackgroundTasksHandler().list_background_tasks,
+        db_session,
+        project=project,
+    )
+
+    background_tasks = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.background_task,
+        background_tasks,
+        lambda background_task: (
+            background_tasks.metadata.project,
+            background_tasks.metadata.name,
+        ),
+        auth_info,
+    )
+
+    return mlrun.common.schemas.BackgroundTaskList(background_tasks=background_tasks)
+
+
+@router.get(
     "/background-tasks/{name}",
     response_model=mlrun.common.schemas.BackgroundTask,
 )
@@ -114,7 +153,7 @@ async def list_internal_background_tasks(
         chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.get_internal_background_tasks(request=request)
 
-    background_tasks = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_tasks(
+    background_tasks = server.api.utils.background_tasks.InternalBackgroundTasksHandler().list_background_tasks(
         name=name,
         kind=kind,
     )

@@ -80,6 +80,17 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             server.api.utils.background_tasks.common.background_task_exceeded_timeout,
         )
 
+    def list_background_tasks(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        return server.api.utils.singletons.db.get_db().list_background_tasks(
+            db_session,
+            project,
+            server.api.utils.background_tasks.common.background_task_exceeded_timeout,
+        )
+
     async def background_task_wrapper(
         self,
         db_session: sqlalchemy.orm.Session,

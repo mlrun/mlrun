@@ -429,6 +429,47 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
         assert response.content == expected_response.body
 
 
+def test_list_project_background_tasks(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    project = "project"
+    assert call_counter == 0
+
+    # list no background tasks
+    response = client.get(
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
+    assert len(background_tasks.background_tasks) == 0
+
+    # create 3 background tasks
+    for i in range(3):
+        response = client.post(f"/test/projects/{project}/background-tasks")
+        _assert_background_task_creation(project, response)
+
+    response = client.get(
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
+    assert len(background_tasks.background_tasks) == 3
+
+    for background_task in background_tasks.background_tasks:
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+        assert background_task.metadata.updated is not None
+
+    assert call_counter == 3
+
+
+# TODO: test list with timeout
+# TODO: test list stale background tasks (should be deleted)
+# TODO: test pagination?
+
+
 def _generate_background_task(
     background_task_name,
     state: mlrun.common.schemas.BackgroundTaskState = mlrun.common.schemas.BackgroundTaskState.running,

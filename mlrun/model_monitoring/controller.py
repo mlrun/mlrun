@@ -36,7 +36,7 @@ from mlrun.model_monitoring.helpers import (
     get_monitoring_parquet_path,
     get_stream_path,
 )
-from mlrun.utils import Logger, logger
+from mlrun.utils import create_logger, logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
 
@@ -76,7 +76,11 @@ class _BatchWindow:
         self._endpoint = endpoint
         self._application = application
         self._first_request = first_request
-        self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
+        self._kv_storage = get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api,
+            # Avoid noisy warning logs before the KV table is created
+            logger=create_logger(name="v3io_client", level="error"),
+        ).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
         self._stop = last_updated
         self._step = timedelta_seconds

@@ -123,9 +123,12 @@ class _BatchWindow:
         """Generate the batch interval time ranges."""
         if self._start is not None and self._stop is not None:
             entered = False
-            # Iterate timestamp from start until timestamp < stop - step
-            # so that the last interval will end at (timestamp + step) < stop.
-            for timestamp in range(self._start, self._stop - self._step, self._step):
+            # Iterate timestamp from start until timestamp <= stop - step
+            # so that the last interval will end at (timestamp + step) <= stop.
+            # Add 1 to stop - step to get <= and not <.
+            for timestamp in range(
+                self._start, self._stop - self._step + 1, self._step
+            ):
                 entered = True
                 start_time = datetime.datetime.fromtimestamp(
                     timestamp, tz=datetime.timezone.utc

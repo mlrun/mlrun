@@ -32,7 +32,11 @@ from mlrun.common.model_monitoring.helpers import (
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
 from mlrun.errors import MLRunValueError
-from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
+from mlrun.model_monitoring.controller import (
+    _BatchWindow,
+    _BatchWindowGenerator,
+    _Interval,
+)
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
     bump_model_endpoint_last_request,
@@ -145,7 +149,7 @@ class TestBatchInterval:
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
-    ) -> list[tuple[datetime.datetime, datetime.datetime]]:
+    ) -> list[_Interval]:
         mock = Mock(spec=["kv"])
         mock.kv.get = Mock(side_effect=HttpResponseError)
         with patch(
@@ -170,37 +174,37 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.fixture
-    def expected_intervals() -> list[tuple[datetime.datetime, datetime.datetime]]:
-        def dt(hour, minute):
+    def expected_intervals() -> list[_Interval]:
+        def dt(hour: int, minute: int) -> datetime.datetime:
             return datetime.datetime(
                 2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc
             )
 
+        def interval(start: tuple[int, int], end: tuple[int, int]) -> _Interval:
+            return _Interval(dt(*start), dt(*end))
+
         return [
-            (dt(12, 0), dt(12, 6)),
-            (dt(12, 6), dt(12, 12)),
-            (dt(12, 12), dt(12, 18)),
-            (dt(12, 18), dt(12, 24)),
-            (dt(12, 24), dt(12, 30)),
-            (dt(12, 30), dt(12, 36)),
-            (dt(12, 36), dt(12, 42)),
-            (dt(12, 42), dt(12, 48)),
-            (dt(12, 48), dt(12, 54)),
-            (dt(12, 54), dt(13, 0)),
+            interval((12, 0), (12, 6)),
+            interval((12, 6), (12, 12)),
+            interval((12, 12), (12, 18)),
+            interval((12, 18), (12, 24)),
+            interval((12, 24), (12, 30)),
+            interval((12, 30), (12, 36)),
+            interval((12, 36), (12, 42)),
+            interval((12, 42), (12, 48)),
+            interval((12, 48), (12, 54)),
+            interval((12, 54), (13, 0)),
         ]
 
     @staticmethod
-    def test_touching_intervals(
-        intervals: list[tuple[datetime.datetime, datetime.datetime]],
-    ) -> None:
+    def test_touching_intervals(intervals: list[_Interval]) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
             assert prev[1] == curr[0], "The intervals should be touching"
 
     @staticmethod
     def test_intervals(
-        intervals: list[tuple[datetime.datetime, datetime.datetime]],
-        expected_intervals: list[tuple[datetime.datetime, datetime.datetime]],
+        intervals: list[_Interval], expected_intervals: list[_Interval]
     ) -> None:
         assert len(intervals) == len(
             expected_intervals
@@ -209,8 +213,7 @@ class TestBatchInterval:
 
     @staticmethod
     def test_last_interval_does_not_overflow(
-        intervals: list[tuple[datetime.datetime, datetime.datetime]],
-        last_updated: int,
+        intervals: list[_Interval], last_updated: int
     ) -> None:
         assert (
             intervals[-1][1].timestamp() <= last_updated

@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Iterator, Optional, Tuple, Union, cast
+from typing import Any, Iterator, NamedTuple, Optional, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -37,6 +37,11 @@ from mlrun.model_monitoring.helpers import (
 )
 from mlrun.utils import logger
 from mlrun.utils.v3io_clients import get_v3io_client
+
+
+class _Interval(NamedTuple):
+    start: datetime.datetime
+    end: datetime.datetime
 
 
 class _BatchWindow:
@@ -120,7 +125,7 @@ class _BatchWindow:
 
     def get_intervals(
         self,
-    ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
+    ) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
         if self._start is not None and self._stop is not None:
             entered = False
@@ -137,7 +142,7 @@ class _BatchWindow:
                 end_time = datetime.datetime.fromtimestamp(
                     timestamp + self._step, tz=datetime.timezone.utc
                 )
-                yield start_time, end_time
+                yield _Interval(start_time, end_time)
                 self._update_last_analyzed(timestamp + self._step)
             if not entered:
                 logger.info(
@@ -388,7 +393,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[Tuple[str, Exception]]:
+    ) -> Optional[tuple[str, Exception]]:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data

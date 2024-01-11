@@ -223,6 +223,40 @@ class TestBatchInterval:
             intervals[-1][1].timestamp() <= last_updated
         ), "The last interval should be after last_updated"
 
+    @staticmethod
+    @pytest.mark.parametrize(
+        (
+            "timedelta_seconds",
+            "first_request",
+            "last_updated",
+            "expected_last_analyzed",
+        ),
+        [
+            (60, 100, 300, 100),
+            (60, 100, 180, 100),
+            (60, 100, 110, 50),
+            (60, 100, 100, 40),
+            (60, None, None, None),
+        ],
+    )
+    def test_get_last_analyzed(
+        timedelta_seconds: int,
+        last_updated: Optional[int],
+        first_request: Optional[int],
+        expected_last_analyzed: Optional[int],
+    ) -> None:
+        assert (
+            _BatchWindow(
+                project="my-project",
+                endpoint="some-endpoint",
+                application="special-app",
+                timedelta_seconds=timedelta_seconds,
+                first_request=first_request,
+                last_updated=last_updated,
+            )._get_last_analyzed()
+            == expected_last_analyzed
+        ), "The last analyzed time is not as expected"
+
     @pytest.mark.parametrize(
         "intervals",
         [

@@ -84,15 +84,16 @@ class _BatchWindow:
                 last_update=self._stop,
                 error=err,
             )
-
-            # TODO : Change the timedelta according to the policy.
-            first_period_in_seconds = max(
-                int(datetime.timedelta(days=1).total_seconds()), self._step
-            )  # max between one day and the base period
-            return max(
-                self._first_request,
-                self._stop - first_period_in_seconds,
-            )
+            if self._first_request and self._stop:
+            	# TODO : Change the timedelta according to the policy.
+        	    first_period_in_seconds = max(
+    	            int(datetime.timedelta(days=1).total_seconds()), self._step
+	            )  # max between one day and the base period
+            	return max(
+        	        self._first_request,
+    	            self._stop - first_period_in_seconds,
+	            )
+            return self._first_request
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(

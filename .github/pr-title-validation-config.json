@@ -5,7 +5,7 @@
   },
   "CHECKS": {
     "regexp": "^((\\[\\p{Lu}[^\\]]+\\])+|Revert) .*$",
-    "regexpFlags": "",
+    "regexpFlags": "im",
     "ignoreLabels": []
   },
   "MESSAGES": {

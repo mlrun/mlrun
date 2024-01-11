@@ -29,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.runtimes.base
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -45,6 +46,53 @@ def context():
 
 def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+class RemoteBuilderMock:
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func,
+            with_mlrun,
+            mlrun_version_specifier=None,
+            skip_deployed=False,
+            builder_env=None,
+            force_build=False,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                    },
+                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
+                },
+            }
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock
 
 
 def test_sync_functions(rundb_mock):
@@ -1116,6 +1164,13 @@ def test_set_workflow_local_engine():
         proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
 
 
+def test_run_non_existing_workflow(rundb_mock):
+    proj = mlrun.new_project("proj", save=False)
+    proj.set_function("hub://describe", "describe")
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        proj.run("non-existing-workflow")
+
+
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -1477,3 +1532,69 @@ def test_load_project_from_yaml_with_function(context):
             )
             == {}
         )
+
+
+def test_project_create_remote():
+    # test calling create_remote without git_init=True on project creation
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        assert project.spec.repo is not None
+        assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
+
+
+@pytest.mark.parametrize(
+    "source_url, pull_at_runtime, base_image, image_name, target_dir",
+    [
+        (None, None, "aaa/bbb", "ccc/ddd", ""),
+        ("git://some/repo", False, None, ".some-image", ""),
+        (
+            "git://some/other/repo",
+            False,
+            ".some-base-image",
+            "some-repo/some-target-image",
+            "/target/path/for/source",
+        ),
+        ("git://some/repo", True, None, ".some-image", "/target/path"),
+    ],
+)
+def test_project_build_image(
+    source_url, pull_at_runtime, base_image, image_name, target_dir, remote_builder_mock
+):
+    project_name = "project1"
+
+    project = mlrun.new_project(project_name, save=False)
+
+    if source_url:
+        project.set_source(source_url, pull_at_runtime=pull_at_runtime)
+
+    project.build_image(image=image_name, base_image=base_image, target_dir=target_dir)
+
+    (
+        build_config,
+        clone_target_dir,
+    ) = remote_builder_mock.get_build_config_and_target_dir()
+
+    # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
+    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    if pull_at_runtime:
+        assert build_config.load_source_on_run is None
+        assert build_config.source is None
+        assert clone_target_dir == ""
+    else:
+        assert not build_config.load_source_on_run
+        assert build_config.source == source_url
+        assert clone_target_dir == target_dir
+
+    assert build_config.image == image_name
+    # If no base image was used, then mlrun/mlrun is expected
+    assert build_config.base_image == base_image or "mlrun/mlrun"
+    assert project.default_image == image_name

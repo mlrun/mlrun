@@ -375,6 +375,10 @@ def handler(**kwargs):
             filename_extension="parquet", test_name=test_name
         )
         parquet_artifact_name = "my_test_artifact_parquet"
+        parquet_artifact_spark_path = self._upload_df(
+            filename_extension="parquet", test_name=test_name
+        )
+        parquet_artifact_spark_path_name = "my_test_artifact_parquet_spark_path"
         csv_artifact_dbfs_path = self._upload_df(
             filename_extension="csv", test_name=test_name
         )
@@ -382,19 +386,22 @@ def handler(**kwargs):
         generated_path_artifact_dbfs_path = self._upload_df(
             filename_extension="parquet", test_name=test_name
         )
+
         paths_dict = {
             parquet_artifact_name: parquet_artifact_dbfs_path,
+            parquet_artifact_spark_path_name: parquet_artifact_spark_path,
             csv_artifact_name: csv_artifact_dbfs_path,
-            "mlrun_return_value_3": generated_path_artifact_dbfs_path,
+            "mlrun_return_value_4": generated_path_artifact_dbfs_path,
         }
-        #  CSV has been tested as a Spark path, and an illegal path was
+        #  CSV has been tested as another type of Spark path, and an illegal path was
         #  used for testing to avoid triggering an error in log_artifact.
         code = f"""\n
 def main():
-    mlrun_log_artifact('my_test_artifact_parquet','/dbfs{parquet_artifact_dbfs_path}')
+    mlrun_log_artifact('{parquet_artifact_name}','/dbfs{parquet_artifact_dbfs_path}')
+    mlrun_log_artifact('{parquet_artifact_spark_path_name}','dbfs://{parquet_artifact_spark_path}')
     mlrun_log_artifact('illegal artifact',10)
     mlrun_log_artifact(path='/dbfs{generated_path_artifact_dbfs_path}')
-    return {{'my_test_artifact_csv': 'dbfs:{csv_artifact_dbfs_path}'}}
+    return {{'{csv_artifact_name}': 'dbfs:{csv_artifact_dbfs_path}'}}
 """
         function_ref = FunctionReference(
             kind="databricks",

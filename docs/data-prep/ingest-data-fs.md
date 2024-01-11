@@ -90,6 +90,17 @@ source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 ingest(measurements, source, targets)
 ```
+You can **update a feature set** either by overwriting its data (`overwrite=true`), or by appending data (`overwrite=false`). 
+To append data you need to reuse the feature set that was used in previous ingestions 
+that was saved in the DB (and not create a new feature set on every ingest).<br>
+For example:
+```python
+    my_fset = fstore.get_feature_set("my_fset")
+except mlrun.errors.MLRunNotFoundError:
+    my_fset = FeatureSet("my_fset", entities=[Entity("key")])
+
+my_fset.ingest(overwrite=false)
+```
 
 To learn more about ingest, go to {py:class}`~mlrun.feature_store.ingest`.
 
@@ -135,10 +146,12 @@ and the subsequent jobs ingest only the deltas since the previous run (from the 
 Example:
 
 ```
-cron_trigger = "* */1 * * *" #runs every hour
-source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
-feature_set = fstore.FeatureSet(name=name, entities=[fstore.Entity("first_name")], timestamp_key="time",)
-fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
+cron_trigger = "* */1 * * *" # will run every hour
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+fs.ingest(
+    source=ParquetSource("mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger),
+    run_config=fstore.RunConfig(image='mlrun/mlrun')
+)
 ```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the 

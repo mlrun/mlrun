@@ -1009,6 +1009,7 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
+            max_workers=extra_attributes.pop("max_workers", 4),
         )
         function = function.add_trigger("kafka", trigger)
         return function

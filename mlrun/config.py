@@ -192,6 +192,7 @@ default_config = {
                 "load_project": "60",
                 "run_abortion": "600",
                 "abort_grace_period": "10",
+                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -276,7 +277,7 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://,ds://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.common.schemas.APIStates for options

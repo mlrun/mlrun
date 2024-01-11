@@ -28,6 +28,8 @@ def store_path_to_spark(path, spark_options=None):
         url = urlparse(path)
         if url.path:
             path = url.path
+    elif path.startswith("gcs://"):
+        path = "gs:" + path[len("gcs:") :]
     elif path.startswith("v3io:///"):
         path = "v3io:" + path[len("v3io:/") :]
     elif path.startswith("az://"):

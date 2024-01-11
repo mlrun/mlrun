@@ -176,19 +176,19 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
 
         # test the list_runs/artifacts/functions methods
-        runs_list = project2.list_runs(name="test", labels={"workflow": run.run_id})
+        runs_list = project2.list_runs(name="test", labels=f"workflow={run.run_id}")
         runs = runs_list.to_objects()
         assert runs[0].status.state == "completed"
         assert runs[0].metadata.name == "test"
         runs_list.compare(filename=f"{projects_dir}/compare.html")
-        artifacts = project2.list_artifacts(tag=run.run_id).to_objects()
+        artifacts = project2.list_artifacts(tree=run.run_id).to_objects()
 
         # model, prep_data_cleaned_data, test_evaluation-confusion-matrix, test_evaluation-roc-curves,
         # test_evaluation-test_set, train_confusion-matrix, train_feature-importance, train_roc-curves, test_set
         assert len(artifacts) == 9
         assert artifacts[0].producer["workflow"] == run.run_id
 
-        models = project2.list_models(tag=run.run_id)
+        models = project2.list_models(tree=run.run_id)
         assert len(models) == 1
         assert models[0].producer["workflow"] == run.run_id
 

@@ -98,7 +98,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.6.15"},
+        "storey": {"~=1.6.16"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -123,7 +123,7 @@ def test_requirement_specifiers_convention():
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.26.9, <1.27"},
-        "numpy": {">=1.16.5, <1.23.0"},
+        "numpy": {">=1.16.5, <1.27.0"},
         "boto3": {">=1.28.0,<1.29.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <15"},

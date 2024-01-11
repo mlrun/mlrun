@@ -23,10 +23,10 @@ from pandas.io.json import build_table_schema
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
-from ..datastore import is_store_uri, store_manager
 from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
 
 default_preview_rows_length = 20
@@ -38,6 +38,10 @@ max_ddf_size = 1
 
 class TableArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + ["schema", "header"]
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "schema",
+        "header",
+    ]
 
     def __init__(self):
         super().__init__()
@@ -114,6 +118,17 @@ class DatasetArtifactSpec(ArtifactSpec):
         "label_column",
     ]
 
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "schema",
+        "header",
+        "length",
+        "column_metadata",
+        "features",
+        "partition_keys",
+        "timestamp_key",
+        "label_column",
+    ]
+
     def __init__(self):
         super().__init__()
         self.schema = None
@@ -150,7 +165,7 @@ class DatasetArtifact(Artifact):
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
             raise ValueError(
-                f"unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
+                f"Unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
             )
 
         if format == "pq":
@@ -575,8 +590,8 @@ def update_dataset_meta(
 
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
-    elif is_store_uri(artifact):
-        artifact_spec, _ = store_manager.get_store_artifact(artifact)
+    elif mlrun.datastore.is_store_uri(artifact):
+        artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -622,7 +637,7 @@ def upload_dataframe(
     df, target_path, format, src_path=None, **kw
 ) -> Tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
-        store_manager.object(url=target_path).upload(src_path)
+        mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
         return (
             os.stat(src_path).st_size,
             mlrun.utils.helpers.calculate_local_file_hash(src_path),
@@ -632,7 +647,7 @@ def upload_dataframe(
         return None, None
 
     if target_path.startswith("memory://"):
-        store_manager.object(target_path).put(df)
+        mlrun.datastore.store_manager.object(target_path).put(df)
         return None, None
 
     if format in ["csv", "parquet"]:

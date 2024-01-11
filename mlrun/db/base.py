@@ -14,7 +14,6 @@
 
 import datetime
 import typing
-import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
@@ -50,7 +49,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
     @abstractmethod
@@ -60,14 +59,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_runs(
         self,
-        name="",
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project="",
-        labels=None,
-        state="",
-        sort=True,
-        last=0,
-        iter=False,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime.datetime = None,
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
@@ -92,11 +91,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     @abstractmethod
@@ -112,23 +113,17 @@ class RunDBInterface(ABC):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     @abstractmethod
     def del_artifacts(self, name="", project="", tag="", labels=None):
         pass
-
-    # TODO: Make these abstract once filedb implements them
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        warnings.warn("store_metric not implemented yet")
-
-    def read_metric(self, keys, project="", query=""):
-        warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
     def store_function(self, function, name, project="", tag="", versioned=False):
@@ -211,8 +206,8 @@ class RunDBInterface(ABC):
                     key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
                     # we are passing tree as uid when storing an artifact, so if uid is not defined,
                     # pass the tree as uid
-                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid")
-                    or mlrun.utils.get_in_artifact(artifact_obj, "tree"),
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
+                    producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )
@@ -634,6 +629,9 @@ class RunDBInterface(ABC):
         project: str = None,
         mask_params: bool = True,
     ):
+        pass
+
+    def get_log_size(self, uid, project=""):
         pass
 
     def watch_log(self, uid, project="", watch=True, offset=0):

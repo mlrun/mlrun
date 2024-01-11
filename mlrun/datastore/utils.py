@@ -15,21 +15,46 @@
 import tarfile
 import tempfile
 import typing
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 import pandas as pd
 
 import mlrun.datastore
 
 
-def store_path_to_spark(path):
+def store_path_to_spark(path, spark_options=None):
     schemas = ["redis://", "rediss://", "ds://"]
     if any(path.startswith(schema) for schema in schemas):
         url = urlparse(path)
         if url.path:
             path = url.path
+    elif path.startswith("gcs://"):
+        path = "gs:" + path[len("gcs:") :]
     elif path.startswith("v3io:///"):
         path = "v3io:" + path[len("v3io:/") :]
+    elif path.startswith("az://"):
+        account_key = None
+        path = "wasbs:" + path[len("az:") :]
+        prefix = "spark.hadoop.fs.azure.account.key."
+        if spark_options:
+            for key in spark_options:
+                if key.startswith(prefix):
+                    account_key = key[len(prefix) :]
+                    break
+        if account_key:
+            # transfer "wasb://basket/some/path" to wasb://basket@account_key.blob.core.windows.net/some/path
+            parsed_url = urlparse(path)
+            new_netloc = f"{parsed_url.hostname}@{account_key}"
+            path = urlunparse(
+                (
+                    parsed_url.scheme,
+                    new_netloc,
+                    parsed_url.path,
+                    parsed_url.params,
+                    parsed_url.query,
+                    parsed_url.fragment,
+                )
+            )
     elif path.startswith("s3://"):
         if path.startswith("s3:///"):
             # 's3:///' not supported since mlrun 0.9.0 should use s3:// instead
@@ -91,7 +116,7 @@ def filter_df_start_end_time(
     start_time: pd.Timestamp = None,
     end_time: pd.Timestamp = None,
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
-    if not time_column or (not start_time and not end_time):
+    if not time_column:
         return df
     if isinstance(df, pd.DataFrame):
         return _execute_time_filter(df, time_column, start_time, end_time)

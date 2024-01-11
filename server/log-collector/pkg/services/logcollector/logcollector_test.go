@@ -67,6 +67,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	bufferPoolSize := 20
 	bufferSizeBytes := 100
 	clusterizationRole := "chief"
+	advancedLogLevel := 0
 
 	// create base dir
 	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
@@ -85,7 +86,9 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		bufferPoolSize,
 		bufferPoolSize,
 		bufferSizeBytes,
-		bufferSizeBytes)
+		bufferSizeBytes,
+		common.LogTimeUpdateBytesInterval,
+		advancedLogLevel)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	suite.logger.InfoWith("Setup complete")
@@ -340,11 +343,123 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 	}
 }
 
+func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
+	runUID := uuid.New().String()
+
+	// create log file for runUID and pod
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
+
+	// write log file
+	// write 10 times buffer size log lines
+	for i := 0; i < 10*suite.logCollectorServer.getLogsBufferSizeBytes; i++ {
+		logText := fmt.Sprintf("Some fake pod logs %d\n", i)
+		err := common.WriteToFile(logFilePath, []byte(logText), true)
+		suite.Require().NoError(err, "Failed to write to file")
+	}
+	fileContents, err := os.ReadFile(logFilePath)
+	suite.Require().NoError(err)
+
+	fileContentsLength := len(fileContents)
+
+	for _, testCase := range []struct {
+		name             string
+		offset           int
+		readSize         int
+		expectedReadSize int
+		verifyContents   bool
+	}{
+		{
+			name:             "Read it all",
+			offset:           0,
+			readSize:         -1,
+			expectedReadSize: fileContentsLength,
+			verifyContents:   true,
+		},
+		{
+			name:             "Read nothing",
+			offset:           0,
+			readSize:         0,
+			expectedReadSize: 0,
+		},
+		{
+			name:             "Read 100 bytes",
+			offset:           0,
+			readSize:         100,
+			expectedReadSize: 100,
+			verifyContents:   true,
+		},
+		{
+			name:             "Read buffer size bytes with offset",
+			offset:           fileContentsLength / 2,
+			readSize:         suite.logCollectorServer.getLogsBufferSizeBytes,
+			expectedReadSize: suite.logCollectorServer.getLogsBufferSizeBytes,
+			verifyContents:   true,
+		},
+		{
+			name:             "Read buffer size * 2 bytes with offset",
+			offset:           fileContentsLength / 2,
+			readSize:         suite.logCollectorServer.getLogsBufferSizeBytes * 2,
+			expectedReadSize: suite.logCollectorServer.getLogsBufferSizeBytes * 2,
+			verifyContents:   true,
+		},
+		{
+			name:             "Read buffer size / 2 bytes with offset",
+			offset:           fileContentsLength / 2,
+			readSize:         suite.logCollectorServer.getLogsBufferSizeBytes / 2,
+			expectedReadSize: suite.logCollectorServer.getLogsBufferSizeBytes / 2,
+			verifyContents:   true,
+		},
+		{
+
+			// further explanation - This edge case is when the offset + readSize + buffer size is larger than the file size
+			// so we must reduce the buffer size to fit the needed size
+			name:             "Overflowing read size + bufferSize",
+			offset:           fileContentsLength - int(1.5*float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			readSize:         int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			expectedReadSize: int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			verifyContents:   true,
+		},
+		{
+			name:             "Overflowing read size return what is left",
+			offset:           fileContentsLength - 1,
+			readSize:         100,
+			expectedReadSize: 1,
+			verifyContents:   true,
+		},
+		{
+			name:             "Overflowing offset - returns nothing",
+			offset:           fileContentsLength,
+			readSize:         -1,
+			expectedReadSize: 0,
+		},
+	} {
+		suite.Run(testCase.name, func() {
+			nopStream := &nop.GetLogsResponseStreamNop{}
+			err := suite.logCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+				RunUID:      runUID,
+				Offset:      int64(testCase.offset),
+				Size:        int64(testCase.readSize),
+				ProjectName: suite.projectName,
+			}, nopStream)
+			suite.Require().NoError(err, "Failed to get logs")
+
+			// verify logs
+			suite.Require().Equal(testCase.expectedReadSize, len(nopStream.Logs))
+			if testCase.verifyContents {
+				suite.Require().Equal(string(
+					fileContents[testCase.offset:testCase.offset+testCase.expectedReadSize]),
+					string(nopStream.Logs))
+			}
+		})
+	}
+
+}
+
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
 
-	// creat log file for runUID and pod
+	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file
@@ -478,18 +593,18 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 	suite.Require().Equal(totalWritten, totalRead, "Expected total written to be equal to total read")
 }
 
-func (suite *LogCollectorTestSuite) TestHasLogs() {
+func (suite *LogCollectorTestSuite) TestGetLogSize() {
 	runUID := uuid.New().String()
-	request := &log_collector.HasLogsRequest{
+	request := &log_collector.GetLogSizeRequest{
 		RunUID:      runUID,
 		ProjectName: suite.projectName,
 	}
 
-	// call has logs with no logs
-	hasLogsResponse, err := suite.logCollectorServer.HasLogs(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to check if has logs")
-	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
-	suite.Require().False(hasLogsResponse.HasLogs, "Expected run to not have logs")
+	// call get log size with no logs
+	getLogSizeResponse, err := suite.logCollectorServer.GetLogSize(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to get log size")
+	suite.Require().True(getLogSizeResponse.Success, "Expected get log size request to succeed")
+	suite.Require().Equal(int64(-1), getLogSizeResponse.LogSize, "Expected size to be negative")
 
 	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
@@ -499,11 +614,11 @@ func (suite *LogCollectorTestSuite) TestHasLogs() {
 	err = common.WriteToFile(logFilePath, []byte(logText), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
-	// check if run has logs
-	hasLogsResponse, err = suite.logCollectorServer.HasLogs(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to check if has logs")
-	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
-	suite.Require().True(hasLogsResponse.HasLogs, "Expected run to have logs")
+	// get the log size
+	getLogSizeResponse, err = suite.logCollectorServer.GetLogSize(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to get log size")
+	suite.Require().True(getLogSizeResponse.Success, "Expected get log size request to succeed")
+	suite.Require().Equal(int64(len(logText)), getLogSizeResponse.LogSize, "Expected size to be equal to log size")
 }
 
 func (suite *LogCollectorTestSuite) TestStopLog() {

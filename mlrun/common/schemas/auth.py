@@ -59,6 +59,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     hub_source = "hub-source"
     workflow = "workflow"
     datastore_profile = "datastore-profile"
+    api_gateways = "api-gateways"
 
     def to_resource_string(
         self,
@@ -70,10 +71,9 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.project: "/projects/{project_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
-            # fmt: off
-            AuthorizationResourceTypes.project_background_task:
-                "/projects/{project_name}/background-tasks/{resource_name}",
-            # fmt: on
+            AuthorizationResourceTypes.project_background_task: (
+                "/projects/{project_name}/background-tasks/{resource_name}"
+            ),
             AuthorizationResourceTypes.background_task: "/background-tasks/{resource_name}",
             AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_name}",
             AuthorizationResourceTypes.feature_vector: "/projects/{project_name}/feature-vectors/{resource_name}",
@@ -94,6 +94,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.hub_source: "/marketplace/sources",
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
+            AuthorizationResourceTypes.api_gateways: "/projects/{project_name}/api-gateways",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

@@ -24,6 +24,7 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -36,6 +37,8 @@ import mlrun.common.schemas
 import mlrun.utils.db
 from server.api.utils.db.sql_collation import SQLCollationUtil
 
+from .common import post_table_definitions
+
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 
@@ -45,6 +48,7 @@ def make_label(table):
         __tablename__ = f"{table}_labels"
         __table_args__ = (
             UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
+            Index(f"idx_{table}_labels_name_value", "name", "value"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -92,6 +96,30 @@ def make_tag_v2(table):
             return f"{self.project}/{self.name}"
 
     return Tag
+
+
+def make_artifact_tag(table):
+    """
+    For artifacts, we cannot use tag_v2 because different artifacts with the same key can have the same tag.
+    therefore we need to use the obj_id as the unique constraint.
+    """
+
+    class ArtifactTag(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = f"{table}_tags"
+        __table_args__ = (
+            UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        obj_id = Column(Integer, ForeignKey(f"{table}.id"))
+        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
+    return ArtifactTag
 
 
 def make_notification(table):
@@ -148,6 +176,10 @@ def make_notification(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
+    # deprecated, use ArtifactV2 instead
+    # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
+    #  1. upgrade to 1.6.x which will create the new table
+    #  2. upgrade to 1.7.x which will remove the old table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -167,6 +199,48 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.key}/{self.uid}"
+
+    class ArtifactV2(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "artifacts_v2"
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
+        )
+
+        Label = make_label(__tablename__)
+        Tag = make_artifact_tag(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
+        iteration = Column(Integer)
+        best_iteration = Column(BOOLEAN, default=False, index=True)
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        _full_object = Column("object", sqlalchemy.dialects.mysql.MEDIUMBLOB)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return pickle.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = pickle.dumps(value)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
@@ -210,6 +284,7 @@ with warnings.catch_warnings():
         __tablename__ = "runs"
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
+            Index("idx_runs_project_id", "id", "project", unique=True),
         )
 
         Label = make_label(__tablename__)
@@ -265,6 +340,7 @@ with warnings.catch_warnings():
             default=datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
+        error = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
         def get_identifier_string(self) -> str:
@@ -549,10 +625,4 @@ with warnings.catch_warnings():
 
 
 # Must be after all table definitions
-_tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
-_labeled = [cls for cls in Base.__subclasses__() if hasattr(cls, "Label")]
-_with_notifications = [
-    cls for cls in Base.__subclasses__() if hasattr(cls, "Notification")
-]
-_classes = [cls for cls in Base.__subclasses__()]
-_table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}
+post_table_definitions(base_cls=Base)

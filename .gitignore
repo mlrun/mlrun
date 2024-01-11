@@ -1,10 +1,13 @@
 *.pyc
+__pycache__/
 .aws-secrets
 .idea/
 .ipynb_checkpoints
 .pytest_cache/
+.hypothesis/
 .vscode/
 .bin
+.DS_Store
 build
 chart
 chart.html
@@ -32,14 +35,16 @@ tests/system/env.yml
 *.bak
 docs/contributing.md
 server/api/proto/*pb2*.py
-docs/tutorial/colab/01-mlrun-basics-colab.ipynb
 automation/patch_igz/patch_env.yml
-mlrun/api/
+kubeconfig
 
 # used for local development.
 # e.g., when developing for mlrun api, you may use this env to preset envvars.
 # then, when running the api, just feed it with "MLRUN_DEFAULT_ENV_FILE=<absolute-path-to-this-file>"
-hack/mlrun.env
+hack/*.env
 
 # files generated for openapi spec checks
 mlrun_bc_*.json
+
+# used for local development.
+playground

@@ -56,8 +56,9 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
-        self.enrich_runtime(runtime)
+        self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
 
         run = self._enrich_run(
@@ -77,6 +78,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             artifact_path=artifact_path,
             workdir=workdir,
             notifications=notifications,
+            state_thresholds=state_thresholds,
         )
         self._validate_runtime(runtime, run)
 
@@ -88,9 +90,11 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
                 runtime.deploy(skip_deployed=True, show_on_failure=True)
 
             else:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "Function image is not built/ready, set auto_build=True or use .deploy() method first"
-                )
+                if runtime.requires_build():
+                    logger.warning(
+                        "Function image is not built/ready and function requires build - execution will fail. "
+                        "Need to set auto_build=True or use .deploy() method first"
+                    )
 
         if runtime.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")

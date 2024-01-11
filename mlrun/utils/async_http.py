@@ -23,8 +23,9 @@ import aiohttp.http_exceptions
 from aiohttp_retry import ExponentialRetry, RequestParams, RetryClient, RetryOptionsBase
 from aiohttp_retry.client import _RequestContext
 
-from ..config import config
-from ..errors import err_to_str
+from mlrun.config import config
+from mlrun.errors import err_to_str
+
 from .helpers import logger as mlrun_logger
 
 

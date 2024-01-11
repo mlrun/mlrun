@@ -45,7 +45,7 @@ import server.api.utils.singletons.scheduler
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
 from server.api.db.sqldb.models import (
-    Artifact,
+    ArtifactV2,
     Entity,
     Feature,
     FeatureSet,
@@ -65,9 +65,7 @@ def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
-        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
-            db
-        )
+        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
         mlrun.config.config.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
@@ -552,7 +550,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
@@ -567,11 +564,11 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same function name
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get("artifacts", params={"project": project_name, "tag": "*"})
+    response = client.get(f"projects/{project_name}/artifacts", params={"tag": "*"})
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
-        (artifact["db_key"], artifact["iter"])
+        (artifact["spec"]["db_key"], artifact["metadata"]["iter"])
         for artifact in response.json()["artifacts"]
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
@@ -599,7 +596,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
     server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
-    server.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
@@ -613,9 +609,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
 
     assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
         distinct_function_names
-    )
-    assert server.api.utils.singletons.db.get_db().del_artifact.call_count == len(
-        distinct_artifact_keys
     )
     assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
@@ -909,6 +902,39 @@ def test_projects_crud(
     _list_project_names_and_assert(client, [name2])
 
 
+def test_project_with_parameters(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # validate that leading/trailing whitespaces in the keys and values are removed
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.params = {"aa": "1", "aa ": "1", "aa   ": "1", " bb ": "   2"}
+    expected_params = {"aa": "1", "bb": "2"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project request
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # validate that the parameters are as expected
+    assert response_body["spec"]["params"] == expected_params
+
+
 def _create_resources_of_all_kinds(
     db_session: Session,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
@@ -954,29 +980,34 @@ def _create_resources_of_all_kinds(
                 )
 
     # Create several artifacts with several tags
-    artifact = {
-        "bla": "blabla",
-        "labels": labels,
+    artifact_template = {
+        "metadata": {"labels": labels},
+        "spec": {},
+        "kind": "artifact",
         "status": {"bla": "blabla"},
     }
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
-    artifact_uids = ["some_uid", "some_uid2", "some_uid3"]
+    artifact_trees = ["some_tree", "some_tree2", "some_tree3"]
     artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
     for artifact_key in artifact_keys:
-        for artifact_uid in artifact_uids:
+        for artifact_tree in artifact_trees:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
-                    artifact["iter"] = artifact_iter
-                    artifact["tag"] = artifact_tag
-                    artifact["uid"] = artifact_uid
+                    artifact = copy.deepcopy(artifact_template)
+                    artifact["metadata"]["iter"] = artifact_iter
+                    artifact["metadata"]["tag"] = artifact_tag
+                    artifact["metadata"]["tree"] = artifact_tree
+
+                    # pass a copy of the artifact to the store function, otherwise the store function will change the
+                    # original artifact
                     db.store_artifact(
                         db_session,
                         artifact_key,
                         artifact,
-                        artifact_uid,
-                        artifact_iter,
-                        artifact_tag,
-                        project,
+                        iter=artifact_iter,
+                        tag=artifact_tag,
+                        project=project,
+                        producer_id=artifact_tree,
                     )
 
     # Create several runs
@@ -1184,6 +1215,7 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
+            or cls.__name__ == "Artifact"
             or cls.__name__ == "Log"
             or (
                 cls.__tablename__ == "projects_labels"
@@ -1196,6 +1228,9 @@ def _assert_db_resources_in_project(
         # Label doesn't have project attribute
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
+            if cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
+                continue
             number_of_cls_records = (
                 db_session.query(cls).filter_by(project=project).count()
             )
@@ -1214,11 +1249,11 @@ def _assert_db_resources_in_project(
                     .filter(Run.project == project)
                     .count()
                 )
-            if cls.__tablename__ == "artifacts_labels":
+            if cls.__tablename__ == "artifacts_v2_labels":
                 number_of_cls_records = (
-                    db_session.query(Artifact)
+                    db_session.query(ArtifactV2)
                     .join(cls)
-                    .filter(Artifact.project == project)
+                    .filter(ArtifactV2.project == project)
                     .count()
                 )
             if cls.__tablename__ == "feature_sets_labels":
@@ -1265,6 +1300,9 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
+            if cls.__tablename__ == "artifacts_labels":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
+                continue
         elif cls.__name__ == "Project":
             number_of_cls_records = (
                 db_session.query(Project).filter(Project.name == project).count()
@@ -1362,7 +1400,7 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
                 "spec": {"src_path": "/some/local/path"},
             }
             response = client.post(
-                f"artifact/{project_name}/{uid}/{key}", json=artifact
+                f"projects/{project_name}/artifacts/{uid}/{key}", json=artifact
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 

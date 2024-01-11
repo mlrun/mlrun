@@ -57,6 +57,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
         super().__init__(
             command=command,
@@ -86,6 +87,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
         self.provider = provider
 
@@ -176,6 +178,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ):
         """deploy function, build container with dependencies
 
@@ -187,6 +190,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             force building the image, even when no changes were made
 
         :return True if the function is ready (deployed)
         """
@@ -201,6 +205,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             show_on_failure=show_on_failure,
+            force_build=force_build,
         )
 
 

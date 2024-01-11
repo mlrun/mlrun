@@ -146,6 +146,8 @@ class ServingSpec(NuclioSpec):
         service_type=None,
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
+        state_thresholds=None,
+        disable_default_http_trigger=None,
     ):
         super().__init__(
             command=command,
@@ -186,6 +188,7 @@ class ServingSpec(NuclioSpec):
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             clone_target_dir=clone_target_dir,
+            disable_default_http_trigger=disable_default_http_trigger,
         )
 
         self.models = models or {}
@@ -479,6 +482,7 @@ class ServingRuntime(RemoteRuntime):
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )
+                    trigger_args["max_workers"] = trigger_args.get("max_workers", 4)
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
                     extra_attributes["workerAllocationMode"] = extra_attributes.get(
@@ -583,6 +587,7 @@ class ServingRuntime(RemoteRuntime):
         verbose=False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
         builder_env: dict = None,
+        force_build: bool = False,
     ):
         """deploy model serving function to a local/remote cluster
 
@@ -593,6 +598,7 @@ class ServingRuntime(RemoteRuntime):
         :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
                           dashboard
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param force_build: set True for force building the image
         """
         load_mode = self.spec.load_mode
         if load_mode and load_mode not in ["sync", "async"]:
@@ -632,7 +638,13 @@ class ServingRuntime(RemoteRuntime):
             logger.info(f"deploy root function {self.metadata.name} ...")
 
         return super().deploy(
-            dashboard, project, tag, verbose, auth_info, builder_env=builder_env
+            dashboard,
+            project,
+            tag,
+            verbose,
+            auth_info,
+            builder_env=builder_env,
+            force_build=force_build,
         )
 
     def _get_runtime_env(self):

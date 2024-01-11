@@ -247,7 +247,6 @@ def _conceal_notification_params_with_secret(
         notification_object.secret_params
         and "secret" not in notification_object.secret_params
     ):
-
         # create secret key from a hash of the secret params. this will allow multiple notifications with the same
         # params to share the same secret (saving secret storage space).
         # TODO: add holders to the secret content, so we can monitor when all runs that use the secret are deleted.
@@ -483,10 +482,13 @@ def ensure_function_auth_and_sensitive_data_is_masked(
 def mask_function_sensitive_data(function, auth_info: mlrun.common.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         _mask_v3io_access_key_env_var(function, auth_info)
-        _mask_v3io_volume_credentials(function)
+        _mask_v3io_volume_credentials(function, auth_info)
 
 
-def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
+def _mask_v3io_volume_credentials(
+    function: mlrun.runtimes.pod.KubeResource,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
+):
     """
     Go over all of the flex volumes with v3io/fuse driver of the function and try mask their access key to a secret
     """
@@ -559,7 +561,11 @@ def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
                 )
                 continue
             username = _resolve_v3io_fuse_volume_access_key_matching_username(
-                function, volume, volume["name"], volume_name_to_volume_mounts
+                function,
+                volume,
+                volume["name"],
+                volume_name_to_volume_mounts,
+                auth_info,
             )
             if not username:
                 continue
@@ -580,13 +586,16 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     volume: dict,
     volume_name: str,
     volume_name_to_volume_mounts: dict,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ) -> typing.Optional[str]:
     """
     Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
-    to resolve the username from there
-    If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var
-    If it's not found, skip masking for this volume
-    :return: the resolved username (string), none if not found
+    to resolve the username from there.
+    If it's not found (user may set custom volume mounts), try to look for V3IO_USERNAME env var.
+    If it's still not found, look for the username in the auth info provided from the REST call (assuming we got here
+    through store-function API flow, for example).
+    If it's not found, skip masking for this volume.
+    :return: the resolved username (string), none if not found.
     """
 
     get_item_attribute = mlrun.runtimes.utils.get_item_name
@@ -614,6 +623,9 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
         return None
     if not username:
         v3io_username = function.get_env("V3IO_USERNAME")
+        if not v3io_username and auth_info:
+            v3io_username = auth_info.username
+
         if not v3io_username or not isinstance(v3io_username, str):
             logger.warning(
                 "Could not resolve username from volume mount or env vars, skipping masking",
@@ -1038,3 +1050,11 @@ def parse_reference(reference: str):
     else:
         uid = regex_match.string
     return tag, uid
+
+
+# Extract project and artifact name from the artifact
+def artifact_project_and_resource_name_extractor(artifact):
+    return (
+        artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+        artifact.get("spec")["db_key"],
+    )

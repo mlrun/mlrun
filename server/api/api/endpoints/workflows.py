@@ -17,7 +17,7 @@ import copy
 import traceback
 import typing
 from http import HTTPStatus
-from typing import Dict
+from typing import Dict, Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -32,6 +32,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
+from mlrun.k8s_utils import sanitize_label_value
 from mlrun.utils.helpers import logger
 from server.api.api.utils import log_and_raise
 
@@ -52,6 +53,12 @@ async def submit_workflow(
         server.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(server.api.api.deps.get_db_session),
+    client_version: Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
 ):
     """
     Submitting a workflow of existing project.
@@ -63,15 +70,17 @@ async def submit_workflow(
     in case of simply running a workflow, the returned run_id value is the id of the run of the auxiliary function.
     For getting the id and status of the workflow, use the `get_workflow_id` endpoint with the returned run id.
 
-    :param project:             name of the project
-    :param name:                name of the workflow
-    :param request:             fastapi request for supporting rerouting to chief if needed
-    :param workflow_request:    the request includes: workflow spec, arguments for the workflow, artifact path
-                                as the artifact target path of the workflow, source url of the project for overriding
-                                the existing one, run name to override the default: 'workflow-runner-<workflow name>'
-                                and kubernetes namespace if other than default
-    :param auth_info:           auth info of the request
-    :param db_session:          session that manages the current dialog with the database
+    :param project:               name of the project
+    :param name:                  name of the workflow
+    :param request:               fastapi request for supporting rerouting to chief if needed
+    :param workflow_request:      the request includes: workflow spec, arguments for the workflow, artifact path
+                                  as the artifact target path of the workflow, source url of the project for overriding
+                                  the existing one, run name to override the default: 'workflow-runner-<workflow name>'
+                                  and kubernetes namespace if other than default
+    :param auth_info:             auth info of the request
+    :param db_session:            session that manages the current dialog with the database
+    :param client_version:        SDK version used by the client
+    :param client_python_version: Python version running on client environment
 
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
@@ -99,28 +108,40 @@ async def submit_workflow(
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
+
+    # If workflow spec has not passed need to create on same name:
+    requested_workflow_name = getattr(workflow_request.spec, "name", name)
+
     # Check permission CREATE workflow on new workflow's name
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
-        # If workflow spec has not passed need to create on same name:
-        resource_name=getattr(workflow_request.spec, "name", name),
+        resource_name=requested_workflow_name,
         action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
-    # Re-route to chief in case of schedule
-    if (
-        _is_requested_schedule(name, workflow_request.spec, project)
-        and mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        chief_client = server.api.utils.clients.chief.Client()
-        return await chief_client.submit_workflow(
-            project=project.metadata.name,
-            name=name,
-            request=request,
-            json=workflow_request.dict(),
+
+    # Validate permissions and re-route to chief if needed in case of schedule
+    if _is_requested_schedule(name, workflow_request.spec, project):
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.schedule,
+            project_name=project.metadata.name,
+            resource_name=requested_workflow_name,
+            action=mlrun.common.schemas.AuthorizationAction.create,
+            auth_info=auth_info,
         )
+
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = server.api.utils.clients.chief.Client()
+            return await chief_client.submit_workflow(
+                project=project.metadata.name,
+                name=name,
+                request=request,
+                json=workflow_request.dict(),
+            )
 
     workflow_spec = _fill_workflow_missing_fields_from_project(
         project=project,
@@ -128,12 +149,13 @@ async def submit_workflow(
         spec=workflow_request.spec,
         arguments=workflow_request.arguments,
     )
+
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
-    workflow_runner = await run_in_threadpool(
+    workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
         server.api.crud.WorkflowRunners().create_runner,
         run_name=updated_request.run_name
         or mlrun.mlconf.workflows.default_workflow_runner_name.format(
@@ -161,6 +183,20 @@ async def submit_workflow(
     run_uid = None
     status = None
     workflow_action = "schedule" if workflow_spec.schedule else "run"
+    workflow_runner.metadata.labels.update(
+        {
+            "job-type": "workflow-runner",
+            "workflow": sanitize_label_value(workflow_request.spec.name),
+        }
+    )
+    if client_version is not None:
+        workflow_runner.metadata.labels["mlrun/client_version"] = sanitize_label_value(
+            client_version
+        )
+    if client_python_version is not None:
+        workflow_runner.metadata.labels[
+            "mlrun/client_python_version"
+        ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(
@@ -268,9 +304,9 @@ def _fill_workflow_missing_fields_from_project(
 
     if "name" not in workflow:
         log_and_raise(
-            reason=f"workflow {workflow_name} not found in project"
+            reason=f"Workflow {workflow_name} not found in project"
             if not workflow
-            else "workflow spec is invalid",
+            else "Workflow spec is invalid",
         )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
@@ -282,7 +318,7 @@ def _fill_workflow_missing_fields_from_project(
     return workflow_spec
 
 
-def _update_dict(dict_1: dict, dict_2: dict):
+def _update_dict(dict_1: dict, dict_2: collections.abc.Mapping):
     """
     Update two dictionaries included nested dictionaries (recursively).
     :param dict_1: The dict to update

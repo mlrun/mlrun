@@ -22,7 +22,7 @@ import mlrun.utils.singleton
 import server.api.api.utils
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
-from mlrun.utils import fill_project_path_template
+from mlrun.utils import template_artifact_path
 
 
 class WorkflowRunners(
@@ -99,6 +99,13 @@ class WorkflowRunners(
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
+
+        if workflow_request.notifications:
+            run_spec.spec.notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications
+            ]
+
         workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
         scheduled_object = {
@@ -154,14 +161,17 @@ class WorkflowRunners(
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
                     subpath=project.spec.subpath,
+                    # remote pipeline pod stays alive for the whole lifetime of the pipeline.
+                    # once the pipeline is done, the pod finishes (either successfully or not) and notifications
+                    # can be sent.
+                    wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
-                output_path=fill_project_path_template(
-                    (workflow_request.artifact_path or config.artifact_path).replace(
-                        "{{run.uid}}", meta_uid
-                    ),
+                output_path=template_artifact_path(
+                    workflow_request.artifact_path or config.artifact_path,
                     project.metadata.name,
+                    meta_uid,
                 ),
             ),
             metadata=RunMetadata(
@@ -195,6 +205,9 @@ class WorkflowRunners(
         else:
             labels["job-type"] = "workflow-runner"
             labels["workflow"] = runner.metadata.name
+        mlrun.runtimes.utils.enrich_run_labels(
+            labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
 
         run_spec = self._prepare_run_object_for_single_run(
             project=project,
@@ -204,10 +217,18 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
+        notifications = None
+        if workflow_request and workflow_request.notifications:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications
+            ]
+
         artifact_path = workflow_request.artifact_path if workflow_request else ""
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
+            notifications=notifications,
             local=False,
             watch=False,
         )
@@ -244,7 +265,7 @@ class WorkflowRunners(
                 workflow_id = ""
             else:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"workflow id of run {project}:{uid} not found"
+                    f"Workflow id of run {project}:{uid} not found"
                 )
 
         return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
@@ -279,6 +300,10 @@ class WorkflowRunners(
                     save=save,
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
+                    # remote pipeline pod stays alive for the whole lifetime of the pipeline.
+                    # once the pipeline is done, the pod finishes (either successfully or not) and notifications
+                    # can be sent.
+                    wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
             ),

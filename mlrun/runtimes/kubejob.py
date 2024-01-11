@@ -102,7 +102,6 @@ class KubejobRuntime(KubeResource):
         auto_build=None,
         requirements=None,
         overwrite=False,
-        verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
         builder_env=None,
@@ -126,15 +125,18 @@ class KubejobRuntime(KubeResource):
         :param overwrite:  overwrite existing build configuration (currently applies to requirements and commands)
            * False: the new params are merged with the existing
            * True: the existing params are replaced by the new ones
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}
         """
-
+        if not overwrite:
+            # TODO: change overwrite default to True in 1.8.0
+            warnings.warn(
+                "The `overwrite` parameter default will change from 'False' to 'True in 1.8.0.",
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
             image=image,
@@ -153,14 +155,7 @@ class KubejobRuntime(KubeResource):
             extra_args=extra_args,
         )
 
-        if verify_base_image or prepare_image_for_deploy:
-            if verify_base_image:
-                # TODO: remove verify_base_image in 1.6.0
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
 
     def deploy(
@@ -172,6 +167,7 @@ class KubejobRuntime(KubeResource):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -183,8 +179,9 @@ class KubejobRuntime(KubeResource):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             set True for force building the image, even when no changes were made
 
-        :return True if the function is ready (deployed)
+        :return: True if the function is ready (deployed)
         """
 
         build = self.spec.build
@@ -228,6 +225,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                force_build=force_build,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")

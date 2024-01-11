@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun import new_task, run_local
+import mlrun
+from mlrun import new_task
 from tests.system.base import TestMLRunSystem
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestDB(TestMLRunSystem):
-
     project_name = "db-system-test-project"
 
     def test_db_commands(self):
@@ -37,9 +37,8 @@ class TestDB(TestMLRunSystem):
         )
 
         self._logger.debug("Running dummy task")
-        run_object = run_local(
-            task, command="training.py", workdir=str(self.assets_path)
-        )
+        function = mlrun.new_function(name="dummy", kind="job", command="training.py")
+        run_object = function.run(task, workdir=str(self.assets_path), local=True)
         self._logger.debug(
             "Finished running dummy task", run_object=run_object.to_dict()
         )

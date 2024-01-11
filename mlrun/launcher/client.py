@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import getpass
-import os
 from typing import Optional
 
 import IPython
@@ -39,6 +37,8 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
+        if project_name:
+            runtime.metadata.project = project_name
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
@@ -50,12 +50,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         if runtime.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
             return
 
-        build = runtime.spec.build
-        require_build = (
-            build.commands
-            or build.requirements
-            or (build.source and not build.load_source_on_run)
-        )
+        require_build = runtime.requires_build()
         image = runtime.spec.image
         # we allow users to not set an image, in that case we'll use the default
         if (
@@ -75,10 +70,9 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         run.metadata.labels["kind"] = runtime.kind
-        if "owner" not in run.metadata.labels:
-            run.metadata.labels["owner"] = (
-                os.environ.get("V3IO_USERNAME") or getpass.getuser()
-            )
+        mlrun.runtimes.utils.enrich_run_labels(
+            run.metadata.labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
                 "{{run.user}}", run.metadata.labels["owner"]
@@ -114,17 +108,15 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             pass
 
     @staticmethod
-    def _log_track_results(
-        runtime: "mlrun.runtimes.BaseRuntime", result: dict, run: "mlrun.run.RunObject"
-    ):
+    def _log_track_results(is_child: bool, result: dict, run: "mlrun.run.RunObject"):
         """
         log commands to track results
         in jupyter, displays a table widget with the result
         else, logs CLI commands to track results and a link to the results in UI
 
-        :param: runtime: runtime object
-        :param result:   run result dict
-        :param run:      run object
+        :param: runtime: A bool to determine whether runtime is child or not
+        :param result:   Run result dict
+        :param run:      Run object
         """
         uid = run.metadata.uid
         project = run.metadata.project
@@ -148,7 +140,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                     f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
                 )
             )
-        elif not runtime.is_child:
+        elif is_child:
             # TODO: Log sdk commands to track results instead of CLI commands
             project_flag = f"-p {project}" if project else ""
             info_cmd = f"mlrun get run {uid} {project_flag}"

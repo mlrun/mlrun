@@ -82,9 +82,9 @@ Finally, install mlrun
 pip install -e '.[complete]'
 ```
 
-## Formatting
+## Formatting and Linting
 
-We use [black](https://github.com/psf/black) as our formatter.
+We use [ruff](https://docs.astral.sh/ruff/) as our formatter and linter.
 Format your code prior opening PR by running:
 ```shell script
 make fmt

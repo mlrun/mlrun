@@ -65,9 +65,17 @@ def test_build_runtime_enrich_base_image(monkeypatch):
             mlrun.common.schemas.AuthInfo(),
             fn,
         )
+
         dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
+
+        # verify that the target image is populated properly
+        target_image = server.api.utils.builder.make_kaniko_pod.call_args[0][2]
+        assert (
+            target_image
+            == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
+        )
 
 
 def test_build_runtime_use_image_when_no_build():
@@ -134,7 +142,9 @@ def test_build_runtime_insecure_registries(
 def test_build_runtime_target_image(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     registry = "registry.hub.docker.com/username"
+    docker_registry_secret = "whatever"
     mlrun.mlconf.httpdb.builder.docker_registry = registry
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = docker_registry_secret
     mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = (
         "my-cool-prefix-{project}-{name}"
     )
@@ -161,16 +171,23 @@ def test_build_runtime_target_image(monkeypatch):
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == f"{registry}/{image_name_prefix}:{function.metadata.tag}"
 
+    # verify the secret is populated to function spec build
+    assert docker_registry_secret == function.spec.build.secret
+
     # assert we can override the target image as long as we stick to the prefix
     function.spec.build.image = (
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
+    function.spec.build.secret = docker_registry_secret + "-other"
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
+
+    # verify function spec build secret overrides the default mlrun config
+    assert docker_registry_secret + "-other" == function.spec.build.secret
 
     # assert the same with the registry enrich prefix
     # assert we can override the target image as long as we stick to the prefix
@@ -463,6 +480,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
@@ -526,6 +544,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         server.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
+            force_build=True,
         )
         pod_spec = _create_pod_mock_pod_spec()
         for init_container in pod_spec.init_containers:
@@ -676,84 +695,8 @@ def test_resolve_image_dest(image_target, registry, default_repository, expected
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    image_target, _ = server.api.utils.builder.resolve_image_target_and_registry_secret(
-        image_target, registry
-    )
+    image_target = server.api.utils.builder.resolve_image_target(image_target, registry)
     assert image_target == expected_dest
-
-
-@pytest.mark.parametrize(
-    "image_target,registry,secret_name,default_secret_name,expected_secret_name",
-    [
-        (
-            "test-image",
-            None,
-            None,
-            "default-secret-name",
-            None,
-        ),
-        (
-            "test-image",
-            None,
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            "test-image",
-            "test-registry",
-            None,
-            "default-secret-name",
-            None,
-        ),
-        (
-            "test-image",
-            "test-registry",
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            None,
-            "default-secret-name",
-            "default-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            "test-secret-name",
-            None,
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            None,
-            None,
-            None,
-        ),
-    ],
-)
-def test_resolve_registry_secret(
-    image_target, registry, secret_name, default_secret_name, expected_secret_name
-):
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
-    config.httpdb.builder.docker_registry_secret = default_secret_name
-
-    _, secret_name = server.api.utils.builder.resolve_image_target_and_registry_secret(
-        image_target, registry, secret_name
-    )
-    assert secret_name == expected_secret_name
 
 
 def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
@@ -774,6 +717,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
@@ -798,22 +742,23 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
 
 
 @pytest.mark.parametrize(
-    "clone_target_dir,expected_workdir",
+    "clone_target_dir,expected_source_dir",
     [
-        (None, r"WORKDIR .*\/tmp.*\/mlrun"),
-        ("", r"WORKDIR .*\/tmp.*\/mlrun"),
-        ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
-        ("rel_path", r"WORKDIR .*\/tmp.*\/mlrun\/rel_path"),
-        ("/some/workdir", r"WORKDIR \/some\/workdir"),
+        (None, "ADD /path/some-source.tgz /home/mlrun_code/"),
+        ("", "ADD /path/some-source.tgz /home/mlrun_code/"),
+        ("./path/to/code", "ADD /path/some-source.tgz /home/mlrun_code/path/to/code"),
+        ("rel_path", "ADD /path/some-source.tgz /home/mlrun_code/rel_path"),
+        ("/some/workdir", "ADD /path/some-source.tgz /some/workdir"),
     ],
 )
-def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
+def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
         "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
@@ -842,8 +787,8 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
             for line in list(dockerfile_lines)
             if not line.startswith(("ARG", "ENV"))
         ]
-        expected_workdir_re = re.compile(expected_workdir)
-        assert expected_workdir_re.match(dockerfile_lines[1])
+        expected_source_dir_re = re.compile(expected_source_dir)
+        assert expected_source_dir_re.match(dockerfile_lines[1])
 
 
 @pytest.mark.parametrize(
@@ -898,15 +843,15 @@ def test_builder_source(monkeypatch, source, expectation):
 
             if source.endswith(".zip"):
                 expected_output_re = re.compile(
-                    rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+                    rf"COPY {expected_source} /home/mlrun_code/source"
                 )
                 expected_line_index = 3
 
             else:
                 expected_output_re = re.compile(
-                    rf"ADD {expected_source} .*/tmp.*/mlrun"
+                    rf"ADD {expected_source} /home/mlrun_code"
                 )
-                expected_line_index = 2
+                expected_line_index = 1
 
             assert expected_output_re.match(
                 dockerfile_lines[expected_line_index].strip()
@@ -990,6 +935,198 @@ def test_resolve_build_requirements(
     assert commands == expected_commands
     assert requirements_list == expected_requirements_list
     assert requirements_path == expected_requirements_path
+
+
+@pytest.mark.parametrize(
+    "mlrun_version_specifier, base_image, client_version, expected_mlrun_version",
+    [
+        (
+            None,
+            "mlrun/mlrun",
+            "1.4.0",
+            "==1.4.0",
+        ),
+        (
+            None,
+            "registry:80/quay.io/mlrun/mlrun:1.6.0-rc7",
+            "1.6.0-rc7",
+            "==1.6.0-rc7",
+        ),
+        (
+            None,
+            "",
+            "1.6.0-rc7",
+            "==1.6.0-rc7",
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.5.2",
+            "1.4.0",
+            "==1.5.2",
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.5.2-rc10",
+            None,
+            "==1.5.2-rc10",
+        ),
+        (
+            None,
+            "mlrun/ml-base:1.5.1",
+            "1.4.0",
+            "==1.5.1",
+        ),
+        (
+            None,
+            "somewhere/mlrun/ml-base:1.5.1",
+            "1.4.0",
+            "==1.5.1",
+        ),
+        (
+            None,
+            "not-an-mlrun/image:1.5.1",
+            "1.4.0",
+            "==1.4.0",
+        ),
+        (
+            "mlrun[complete]==1.6.0",
+            "not-an-mlrun/image:1.5.1",
+            "1.4.0",
+            "",
+        ),
+        (
+            None,
+            "mlrun/mlrun:unstable",
+            "1.4.0",
+            None,
+        ),
+        (
+            None,
+            "mlrun/mlrun",
+            "0.0.0+unstable",
+            None,
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.4.0-rc5-feature",
+            "1.4.0",
+            None,
+        ),
+        (
+            "mlrun~=1.5.0",
+            "mlrun/mlrun:1.6.0",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun:not-semver",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            None,
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            "unstable",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun:unstable",
+            "unstable",
+            "",
+        ),
+    ],
+)
+def test_mlrun_base_image_with_requirements(
+    monkeypatch,
+    mlrun_version_specifier,
+    base_image,
+    client_version,
+    expected_mlrun_version,
+):
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+    _patch_k8s_helper(monkeypatch)
+
+    with unittest.mock.patch(
+        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            kind="job",
+            requirements=["some-package"],
+        )
+        function.spec.build.base_image = base_image
+
+        server.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+            client_version=client_version,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
+
+        requirements = server.api.utils.builder.make_kaniko_pod.call_args[1][
+            "requirements"
+        ]
+        if expected_mlrun_version is None:
+            assert requirements == [
+                "some-package",
+            ]
+        elif mlrun_version_specifier:
+            assert requirements == [
+                mlrun_version_specifier,
+                "some-package",
+            ]
+        else:
+            assert requirements == [
+                f"mlrun[complete]{expected_mlrun_version}",
+                "some-package",
+            ]
+
+
+def test_mlrun_base_image_no_requirements():
+    with unittest.mock.patch(
+        "server.api.utils.builder.build_image", new=unittest.mock.MagicMock()
+    ):
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            kind="job",
+            source="some-source.zip",
+        )
+        function.spec.build.base_image = "mlrun/mlrun:1.6.0"
+
+        server.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+        )
+
+        requirements = server.api.utils.builder.build_image.call_args[1]["requirements"]
+        with_mlrun = server.api.utils.builder.build_image.call_args[1]["with_mlrun"]
+        assert requirements == []
+        assert with_mlrun is False
 
 
 def _get_target_image_from_create_pod_mock():
@@ -1407,3 +1544,74 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
     for arg in kpod_build_args:
         arg_key, arg_val = arg.split("=")
         assert f"ARG {arg_key}" in dock_arg_lines
+
+
+@pytest.mark.parametrize(
+    "default_registry,resolved_image_target,secret_name,default_secret_name,expected_secret_name",
+    [
+        # no secret name is given and image is not auto-enrich-able or known as default registry
+        # do not enrich secret
+        (
+            None,
+            "test-image",
+            None,
+            "default-secret-name",
+            None,
+        ),
+        # secret name is given, so it should be used
+        (
+            None,
+            "test-image",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        # auto-enrich registry name is given without secret name, use default secret name
+        (
+            None,
+            ".test-image",
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        # auto-enrich registry name is given without secret name, use default secret name
+        (
+            "test-registry",
+            "test-registry/test-image",
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        # auto enrich registry name is given with secret name, use given secret name
+        (
+            None,
+            ".test-image",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        # auto enrich registry is given but not secret name and no default secret name, leave as default
+        (
+            None,
+            ".test-image",
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_function_image_secret(
+    default_registry,
+    resolved_image_target,
+    secret_name,
+    default_secret_name,
+    expected_secret_name,
+):
+    config.httpdb.builder.docker_registry = default_registry
+    config.httpdb.builder.docker_registry_secret = default_secret_name
+    assert (
+        expected_secret_name
+        == server.api.utils.builder._resolve_function_image_secret(
+            resolved_image_target, secret_name
+        )
+    )

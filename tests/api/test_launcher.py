@@ -82,3 +82,55 @@ def test_enrich_runtime_with_auth_info(
         function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name
         == "secret-ref-username-access_key"
     )
+
+
+def test_validate_state_thresholds_success():
+    server.api.launcher.ServerSideLauncher._validate_state_thresholds(
+        state_thresholds={
+            "pending_scheduled": "-1",
+            "executing": "1000s",
+            "image_pull_backoff": "3m",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "state_thresholds, expected_error",
+    [
+        (
+            {
+                "pending_scheduled": "-1",
+                "executing": "1000s",
+                "image_pull_backoff": "3mm",
+            },
+            "Threshold '3mm' for state 'image_pull_backoff' is not a valid timelength string. "
+            "Error: Input TimeLength \"3mm\" contains an invalid value: ['mm']",
+        ),
+        (
+            {
+                "pending_scheduled": -1,
+            },
+            "Threshold '-1' for state 'pending_scheduled' must be a string",
+        ),
+        (
+            {
+                "unknown_state": "10s",
+            },
+            f"Invalid state unknown_state for state threshold, must be one of "
+            f"{mlrun.runtimes.constants.ThresholdStates.all()}",
+        ),
+        (
+            {
+                "executing": "10",
+            },
+            "Threshold '10' for state 'executing' is not a valid timelength string. "
+            'Error: Input TimeLength "10" contains no valid Value and Scale pairs.',
+        ),
+    ],
+)
+def test_validate_state_thresholds_failure(state_thresholds, expected_error):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        server.api.launcher.ServerSideLauncher._validate_state_thresholds(
+            state_thresholds=state_thresholds
+        )
+    assert expected_error in str(exc.value)

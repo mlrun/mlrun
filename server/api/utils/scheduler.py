@@ -615,7 +615,6 @@ class Scheduler:
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
-
         schedule_access_key_secret_key = (
             server.api.crud.Secrets().generate_client_project_secret_key(
                 server.api.crud.SecretsClientType.schedules,
@@ -799,9 +798,7 @@ class Scheduler:
                 access_key = None
                 username = None
                 need_to_update_credentials = False
-                if (
-                    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
-                ):
+                if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
                     )
@@ -886,7 +883,6 @@ class Scheduler:
             if job:
                 schedule.next_run_time = job.next_run_time
             else:
-
                 # if the job does not exist, there is no next run time (the job has finished)
                 schedule.next_run_time = None
 
@@ -898,16 +894,32 @@ class Scheduler:
 
         return schedule
 
-    @staticmethod
     def _enrich_schedule_with_last_run(
-        db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput
+        self, db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput
     ):
         if schedule_output.last_run_uri:
-            run_project, run_uid, iteration, _ = RunObject.parse_uri(
-                schedule_output.last_run_uri
-            )
+            run_data = self._get_last_run(db_session, schedule_output.last_run_uri)
+            if run_data:
+                schedule_output.last_run = run_data
+            else:
+                # Possibly the last-run was already deleted (ML-4902). Continue, and clear the last_run_uri in
+                # the response.
+                schedule_output.last_run_uri = None
+
+    @staticmethod
+    def _get_last_run(db_session, last_run_uri):
+        run_project, run_uid, iteration, _ = RunObject.parse_uri(last_run_uri)
+        try:
             run_data = get_db().read_run(db_session, run_uid, run_project, iteration)
-            schedule_output.last_run = run_data
+            return run_data
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "Failed to find the last run for schedule. Continuing",
+                project=run_project,
+                run_uid=run_uid,
+                iteration=iteration,
+            )
+            return None
 
     def _enrich_schedule_with_credentials(
         self, schedule_output: mlrun.common.schemas.ScheduleOutput
@@ -1014,14 +1026,13 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
-        scheduler,
+        scheduler: "Scheduler",
         scheduled_object,
         project_name,
         schedule_name,
         schedule_concurrency_limit,
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
-
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
         scheduled_object.pop("schedule", None)
@@ -1079,23 +1090,14 @@ class Scheduler:
         try:
             db_session = create_session()
 
-            active_runs = server.api.crud.Runs().list_runs(
+            # bail out if schedule is not invokable (e.g.: exceeding concurrency limit)
+            if not Scheduler.schedule_invokable(
                 db_session,
-                states=RunStates.non_terminal_states(),
-                project=project_name,
-                labels=f"{mlrun.common.schemas.constants.LabelNames.schedule_name}={schedule_name}",
-            )
-            if len(active_runs) >= schedule_concurrency_limit:
-                logger.warn(
-                    "Schedule exceeded concurrency limit, skipping this run",
-                    project=project_name,
-                    schedule_name=schedule_name,
-                    schedule_concurrency_limit=schedule_concurrency_limit,
-                    active_runs=len(active_runs),
-                )
-                scheduler.update_schedule_next_run_time(
-                    db_session, schedule_name, project_name
-                )
+                scheduler,
+                project_name,
+                schedule_name,
+                schedule_concurrency_limit,
+            ):
                 return
 
             # if credentials are needed but missing (will happen for schedules on upgrade from scheduler
@@ -1105,7 +1107,6 @@ class Scheduler:
                 not auth_info.access_key
                 and server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             ):
-
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",
                     project_name=project_name,
@@ -1141,6 +1142,7 @@ class Scheduler:
             # update every finish of a run the next run time, so it would be accessible for worker instances
             job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
             job = scheduler._scheduler.get_job(job_id)
+
             get_db().update_schedule(
                 db_session,
                 run_metadata["project"],
@@ -1151,3 +1153,35 @@ class Scheduler:
             return response
         finally:
             close_session(db_session)
+
+    @staticmethod
+    def schedule_invokable(
+        db_session,
+        scheduler: "Scheduler",
+        project_name,
+        schedule_name,
+        schedule_concurrency_limit,
+    ) -> bool:
+        """
+        Determine whether the schedule should be invoked now.
+        """
+        active_runs = server.api.crud.Runs().list_runs(
+            db_session,
+            states=RunStates.non_terminal_states(),
+            project=project_name,
+            labels=f"{mlrun.common.schemas.constants.LabelNames.schedule_name}={schedule_name}",
+        )
+        if len(active_runs) >= schedule_concurrency_limit:
+            logger.warn(
+                "Schedule exceeded concurrency limit, skipping this run",
+                project=project_name,
+                schedule_name=schedule_name,
+                schedule_concurrency_limit=schedule_concurrency_limit,
+                active_runs=len(active_runs),
+            )
+            scheduler.update_schedule_next_run_time(
+                db_session, schedule_name, project_name
+            )
+            return False
+
+        return True

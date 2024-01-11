@@ -149,7 +149,8 @@ completion and prints out the workflow progress. Alternatively, you can use `.wa
 The default workflow engine is `kfp`. You can override it by specifying the `engine` in the `run()` or `set_workflow()` methods. 
 Using the `local` engine executes the workflow state machine locally (its functions still run as cluster jobs).
 If you set the `local` flag to True, the workflow uses the `local` engine AND the functions run as local process.
-This mode is used for local debugging of workflows.
+This mode is used for local debugging of workflows. The `remote` engine runs the workflow from a remote pod. From the project 
+source you can set the remote engine to run in local by setting engine to `remote:local`.
 
 When running workflows from a git enabled context it first verifies that there are no uncommitted git changes 
 (to guarantee that workflows that load from git do not use old code versions). You can suppress that check by setting the `dirty` flag to True.

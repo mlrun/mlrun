@@ -15,6 +15,7 @@
 import inspect
 import os
 import shutil
+import tempfile
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -140,9 +141,9 @@ def chdir_to_test_location(request):
 def patch_file_forbidden(monkeypatch):
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
@@ -156,9 +157,9 @@ def patch_file_forbidden(monkeypatch):
 def patch_file_not_found(monkeypatch):
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise FileNotFoundError
 
     mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
@@ -224,11 +225,13 @@ class RunDBMock:
         self._functions[name] = function
         return hash_key
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         self._artifacts[key] = artifact
         return artifact
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
+    def read_artifact(self, key, tag=None, iter=None, project="", tree=None, uid=None):
         return self._artifacts.get(key, None)
 
     def list_artifacts(
@@ -239,12 +242,11 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        kind=None,
-        category=None,
         iter: int = None,
         best_iteration: bool = False,
-        as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        kind: str = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -336,7 +338,7 @@ class RunDBMock:
             return self._project
 
         elif name == config.default_project and not self._project:
-            project = mlrun.projects.MlrunProject(name)
+            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
             self.store_project(name, project)
             return project
 
@@ -349,6 +351,7 @@ class RunDBMock:
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         function = func.to_dict()
         status = NuclioStatus(
@@ -505,9 +508,6 @@ class RunDBMock:
 
         return list(self._functions.values())[0]
 
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        pass
-
     def list_hub_sources(self, *args, **kwargs):
         return [self._create_dummy_indexed_hub_source()]
 
@@ -529,6 +529,12 @@ class RunDBMock:
             ),
         )
 
+    def assert_runtime_categories(self, expected_categories, function_name=None):
+        function = self._get_function_internal(function_name)
+        categories = function["metadata"]["categories"]
+
+        assert categories == expected_categories
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -545,12 +551,13 @@ def rundb_mock() -> RunDBMock:
     config.dbpath = "http://localhost:12345"
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    mlrun.get_or_create_project("default")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mlrun.get_or_create_project("default", context=tmp_dir)
 
-    yield mock_object
+        yield mock_object
 
-    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-    mlrun.db.get_run_db = orig_get_run_db
-    mlrun.get_run_db = orig_get_run_db
-    BaseRuntime._get_db = orig_get_db
-    config.dbpath = orig_db_path
+        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+        mlrun.db.get_run_db = orig_get_run_db
+        mlrun.get_run_db = orig_get_run_db
+        BaseRuntime._get_db = orig_get_db
+        config.dbpath = orig_db_path

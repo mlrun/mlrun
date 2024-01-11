@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import getpass
 import hashlib
 import json
 import os
@@ -26,13 +27,13 @@ import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
+from mlrun.artifacts import TableArtifact
+from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-
-from ..artifacts import TableArtifact
-from ..config import config
-from ..utils import get_in, helpers, logger, verify_field_regex
-from .generators import selector
+from mlrun.runtimes.constants import RunLabels
+from mlrun.runtimes.generators import selector
+from mlrun.utils import get_in, helpers, logger, verify_field_regex
 
 
 class RunError(Exception):
@@ -96,7 +97,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
             project = runobj.metadata.project or ""
             db.store_log(uid, project, out.encode(), append=True)
     if err:
-        logger.error(f"exec error - {err_to_str(err)}")
+        logger.error(f"Exec error - {err_to_str(err)}")
         print(err, file=stderr)
         if not silent:
             raise RunError(err)
@@ -139,16 +140,11 @@ def add_code_metadata(path=""):
         ValueError,
     ) as exc:
         logger.warning(
-            "Failed to add git metadata, ignore if path is not part of a git repo.",
+            "Failed to add git metadata, ignore if path is not part of a git repo",
             path=path,
             error=err_to_str(exc),
         )
     return None
-
-
-def set_if_none(struct, key, value):
-    if not struct.get(key):
-        struct[key] = value
 
 
 def results_to_iter(results, runspec, execution):
@@ -243,38 +239,6 @@ def log_iter_artifacts(execution, df, header):
         logger.warning(f"failed to log iter artifacts, {err_to_str(exc)}")
 
 
-def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
-    project = function.metadata.project or config.default_project
-    name = function.metadata.name
-    tag = function.metadata.tag or "latest"
-    if image:
-        image_name_prefix = resolve_function_target_image_name_prefix(project, name)
-        registries_to_enforce_prefix = (
-            resolve_function_target_image_registries_to_enforce_prefix()
-        )
-        for registry in registries_to_enforce_prefix:
-            if image.startswith(registry):
-                prefix_with_registry = f"{registry}{image_name_prefix}"
-                if not image.startswith(prefix_with_registry):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
-                    )
-        return image
-    return generate_function_image_name(project, name, tag)
-
-
-def generate_function_image_name(project: str, name: str, tag: str) -> str:
-    _, repository = helpers.get_parsed_docker_registry()
-    repository = helpers.get_docker_repository_or_default(repository)
-    return fill_function_image_name_template(
-        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
-        repository,
-        project,
-        name,
-        tag,
-    )
-
-
 def fill_function_image_name_template(
     registry: str,
     repository: str,
@@ -306,13 +270,6 @@ def set_named_item(obj, item):
         obj[item["name"]] = item
     else:
         obj[item.name] = item
-
-
-def set_item_attribute(item, attribute, value):
-    if isinstance(item, dict):
-        item[attribute] = value
-    else:
-        setattr(item, attribute, value)
 
 
 def get_item_name(item, attr="name"):
@@ -538,3 +495,19 @@ def enrich_function_from_dict(function, function_dict):
             else:
                 setattr(function.spec, attribute, override_value)
     return function
+
+
+def enrich_run_labels(
+    labels: dict,
+    labels_to_enrich: typing.List[RunLabels] = None,
+):
+    labels_enrichment = {
+        RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
+        RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
+    }
+    labels_to_enrich = labels_to_enrich or RunLabels.all()
+    for label in labels_to_enrich:
+        enrichment = labels_enrichment.get(label)
+        if label.value not in labels and enrichment:
+            labels[label.value] = enrichment
+    return labels

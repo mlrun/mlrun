@@ -4,9 +4,9 @@
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
+      <env name="PYTHONUNBUFFERED" value="1" />
       <env name="MLRUN_DEFAULT_ENV_FILE" value="$PROJECT_DIR$/hack/mlrun.env" />
       <env name="MLRUN_IS_API_SERVER" value="true" />
-      <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/server/api" />

@@ -64,6 +64,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     try:
         response = await call_next(request)
     except Exception as exc:
+        exc = mlrun.errors.err_to_str(exc)
         logger.warning(
             "Request handling failed. Sending response",
             # User middleware (like this one) runs after the exception handling middleware, the only thing running after
@@ -112,7 +113,6 @@ async def ui_clear_cache(request: fastapi.Request, call_next):
     #  - ui version is different from backend version
     # otherwise, do not ask ui to reload its cache as it will make each request to reload ui and clear cache
     if ui_version and not development_version and ui_version != config.version:
-
         # clear site cache
         response.headers["Clear-Site-Data"] = '"cache"'
 

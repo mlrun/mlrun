@@ -10,6 +10,7 @@ You can write your code on a local machine while running your functions on a rem
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
    - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
    - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+- [Setting up a dark site](#setting-up-a-dark-site)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -20,9 +21,15 @@ Applications:
 - Python 3.9
 - Recommended pip 22.x+
 
-The MLRun server is now based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
+The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
 
-For a Python 3.7 environment for platform versions up to and including v3.5.2 see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
+For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
+
+## MLRun client supported OS
+The MLRun client supports:
+- Linux
+- Mac
+- Windows via WSL
 
 ## Set up a Python 3.9 client environment 
 
@@ -119,7 +126,7 @@ If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V
 
 The `mlrun config set` command sets configuration parameters in mlrun default or the specified environment file. By default, it stores all 
 of the configuration into the default environment file, and your own environment file does not need editing. The default environment file is 
-created by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows. 
+created by default at `~/.mlrun.env`. 
 
 The `set` command can work with the following parameters:
 - `--env-file` or `-f` to set the url path to the mlrun environment file
@@ -248,3 +255,15 @@ If you created a new configuration in the previous step, your `launch.json` woul
     ]
 }
 ```
+
+## Setting up a dark site
+Use this procedure for the MLRun package, and any other packages you want to install on a dark site.
+
+To install a package in a dark (air-gapped) site:
+1. Download the packages: conda==23.1.0, pip.
+2. Pack the conda package file and upload it to your dark system.
+2. Install the tar.gz by running:
+
+   ```
+   conda install -y <package-filename>.tar.gz 
+   ```

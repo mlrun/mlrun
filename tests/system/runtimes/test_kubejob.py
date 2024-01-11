@@ -27,13 +27,14 @@ import tests.system.base
 
 def exec_run(args):
     cmd = [executable, "-m", "mlrun", "run"] + args
-    out = os.popen(" ".join(cmd)).read()
-    return out
+    process = os.popen(" ".join(cmd))
+    out = process.read()
+    ret_code = process.close()
+    return out, ret_code
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
-
     project_name = "kubejob-system-test"
 
     def test_deploy_function(self):
@@ -53,14 +54,14 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
     def test_deploy_function_with_requirements_file(self):
         # ML-3518
         code_path = str(self.assets_path / "kubejob_function_custom_requirements.py")
-        requirements_path = str(self.assets_path / "requirements.txt")
+        requirements_path = str(self.assets_path / "requirements-test.txt")
         function = mlrun.code_to_function(
             name="simple-function",
             kind="job",
             project=self.project_name,
             filename=code_path,
             image="mlrun/mlrun",
-            requirements=requirements_path,
+            requirements_file=requirements_path,
         )
         function.deploy()
         run = function.run(handler="mycls::do")
@@ -82,7 +83,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             filename=code_path,
             requirements=[
                 # ML-3518
-                "pandas>=1.5.0, <1.6.0",
+                "pandas>=1.5.0, <3",
             ],
         )
         assert function.spec.image == ""
@@ -382,6 +383,30 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
+
+    def test_run_cli_not_specified_image(self):
+        # define the function without an image
+        func = mlrun.code_to_function(
+            "new-function",
+            filename=str(self.assets_path / "my_func.py"),
+            kind="job",
+            project=self.project_name,
+        )
+        self.project.set_function(func)
+        self.project.sync_functions(save=True)
+
+        # when image is not provided, "mlrun/mlrun" should be used by default
+        args = [
+            "--func-url",
+            f"db://{self.project_name}/new-function",
+            "my_func.py",
+            "--project",
+            self.project_name,
+            "--handler",
+            "handler",
+        ]
+        _, ret_code = exec_run(args)
+        assert ret_code is None
 
     def test_function_handler_set_labels_and_annotations(self):
         code_path = str(self.assets_path / "handler.py")

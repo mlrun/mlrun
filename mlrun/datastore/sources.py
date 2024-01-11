@@ -41,6 +41,36 @@ from .utils import (
 )
 
 
+def load_spark_dataframe_with_options(session, spark_options, format=None):
+    original_hadoop_conf = {}
+    hadoop_conf = session.sparkContext._jsc.hadoopConfiguration()
+    non_hadoop_spark_options = {}
+
+    for key, value in spark_options.items():
+        if key.startswith("spark.hadoop."):
+            key = key[len("spark.hadoop.") :]
+            # Save the original configuration
+            original_value = hadoop_conf.get(key, None)
+            original_hadoop_conf[key] = original_value
+            hadoop_conf.set(key, value)
+        else:
+            non_hadoop_spark_options[key] = value
+    try:
+        if format:
+            df = session.read.format(format).load(**non_hadoop_spark_options)
+        else:
+            df = session.read.load(**non_hadoop_spark_options)
+    except Exception as e:
+        raise e
+    finally:
+        for key, value in original_hadoop_conf.items():
+            if value:
+                hadoop_conf.set(key, value)
+            else:
+                hadoop_conf.unset(key)
+    return df
+
+
 def get_source_from_dict(source):
     kind = source.get("kind", "")
     if not kind:
@@ -101,7 +131,7 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = session.read.load(**self.get_spark_options())
+            df = load_spark_dataframe_with_options(session, self.get_spark_options())
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
@@ -177,9 +207,14 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            path = store.url + path
+        else:
+            path = data_item.url
 
         return storey.CSVSource(
-            paths=data_item.url,  # unlike self.path, it already has store:// replaced
+            paths=path,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
@@ -188,17 +223,30 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        return {
-            "path": store_path_to_spark(self.path),
-            "format": "csv",
-            "header": "true",
-            "inferSchema": "true",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            storage_spark_options = store.get_spark_options()
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path, storage_spark_options),
+                "format": "csv",
+                "header": "true",
+                "inferSchema": "true",
+            }
+
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.path),
+                "format": "csv",
+                "header": "true",
+                "inferSchema": "true",
+            }
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
 
-        df = session.read.load(**self.get_spark_options())
+        df = load_spark_dataframe_with_options(session, self.get_spark_options())
 
         parse_dates = self._parse_dates or []
         if time_field and time_field not in parse_dates:
@@ -323,9 +371,14 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            path = store.url + path
+        else:
+            path = data_item.url
 
         return storey.ParquetSource(
-            paths=data_item.url,  # unlike self.path, it already has store:// replaced
+            paths=path,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
@@ -335,10 +388,20 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        return {
-            "path": store_path_to_spark(self.path),
-            "format": "parquet",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            storage_spark_options = store.get_spark_options()
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path, storage_spark_options),
+                "format": "parquet",
+            }
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.path),
+                "format": "parquet",
+            }
 
     def to_dataframe(
         self,
@@ -566,7 +629,7 @@ class BigQuerySource(BaseSourceDriver):
         elif table:
             options["path"] = table
 
-        df = session.read.format("bigquery").load(**options)
+        df = load_spark_dataframe_with_options(session, options, "bigquery")
         if named_view:
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)
@@ -775,7 +838,7 @@ class OnlineSource(BaseSourceDriver):
         )
         src_class = source_class(
             context=context,
-            key_field=self.key_field,
+            key_field=self.key_field or key_field,
             full_event=True,
             explicit_ack=explicit_ack,
             **source_args,
@@ -837,9 +900,9 @@ class StreamSource(OnlineSource):
         endpoint, stream_path = parse_path(self.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         container, stream_path = split_path(stream_path)
-        res = v3io_client.create_stream(
+        res = v3io_client.stream.create(
             container=container,
-            path=stream_path,
+            stream_path=stream_path,
             shard_count=self.attributes["shards"],
             retention_period_hours=self.attributes["retention_in_hours"],
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -952,12 +1015,10 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
+            max_workers=extra_attributes.pop("max_workers", 4),
         )
-        func = function.add_trigger("kafka", trigger)
-        replicas = 1 if not partitions else len(partitions)
-        func.spec.min_replicas = replicas
-        func.spec.max_replicas = replicas
-        return func
+        function = function.add_trigger("kafka", trigger)
+        return function
 
 
 class SQLSource(BaseSourceDriver):

@@ -30,7 +30,6 @@ from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
 
-from distributed import Client, as_completed
 from nuclio import Event
 
 import mlrun
@@ -48,10 +47,22 @@ from .utils import RunError, global_context, log_std
 
 
 class ParallelRunner:
+    def _get_trackers_manager(self):
+        """
+        useful to import and call get_trackers_manager from mlrun.track in order to avoid circular imports
+        or imports in multiple spots mid-code
+        :return: trackers_manager
+        """
+        from mlrun.track import TrackerManager
+
+        return TrackerManager()
+
     def _get_handler(self, handler, context):
         return handler
 
     def _get_dask_client(self, options):
+        from distributed import Client
+
         if options.dask_cluster_uri:
             function = mlrun.import_function(options.dask_cluster_uri)
             return function.client, function.metadata.name
@@ -60,6 +71,9 @@ class ParallelRunner:
     def _parallel_run_many(
         self, generator, execution: MLClientCtx, runobj: RunObject
     ) -> RunList:
+        # TODO: this flow assumes we use dask - move it to dask runtime
+        from distributed import as_completed
+
         if self.spec.build.source and generator.options.dask_cluster_uri:
             # the attached dask cluster will not have the source code when we clone the git on run
             raise mlrun.errors.MLRunRuntimeError(
@@ -90,13 +104,13 @@ class ParallelRunner:
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
-                logger.error("max errors reached, stopping iterations!")
+                logger.error("Max errors reached, stopping iterations!")
                 return True
             run_results = resp["status"].get("results", {})
             stop = generator.eval_stop_condition(run_results)
             if stop:
                 logger.info(
-                    f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                    f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                 )
             return stop
 
@@ -126,7 +140,7 @@ class ParallelRunner:
 
         client.close()
         if function_name and generator.options.teardown_dask:
-            logger.info("tearing down the dask cluster..")
+            logger.info("Tearing down the dask cluster..")
             mlrun.get_run_db().delete_runtime_resources(
                 kind="dask", object_id=function_name, force=True
             )
@@ -167,7 +181,11 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
             host=socket.gethostname(),
         )
         global_context.set(context)
+        # Running tracking services pre run to detect if some of them should be used:
+        trackers_manager = self._get_trackers_manager()
+        trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
+        context = trackers_manager.post_run(context)
         log_std(self._db_conn, runobj, sout, serr, show=False)
         return context.to_dict()
 
@@ -251,6 +269,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             os.chdir(execution._old_workdir)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        # we define a tmp file for mlrun to log its run, for easy access later
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
         tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
@@ -259,7 +278,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
         handler = runobj.spec.handler
         handler_str = handler or "main"
-        logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
+        logger.debug(f"Starting local run: {self.spec.command} # {handler_str}")
         pythonpath = self.spec.pythonpath
 
         if handler:
@@ -275,14 +294,20 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             try:
                 fn = self._get_handler(handler, context)
                 global_context.set(context)
+                # Running tracking services pre run to detect if some of them should be used:
+                trackers_manager = self._get_trackers_manager()
+                trackers_manager.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
+                # If trackers where used, this is where we log all data collected to MLRun
+                context = trackers_manager.post_run(context)
                 log_std(
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
                 return context.to_dict()
+
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
-            except RunError as err:
+            except (RunError, mlrun.errors.MLRunTaskCancelledError) as err:
                 raise err
             # this exception handling is for the case where we fail on pre-loading or post-running the function
             # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
@@ -290,15 +315,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
                 # by the caller and will set the state to error ( in `update_run_state` )
                 context.set_state(error=err_to_str(exc), commit=True)
-                logger.error(f"run error, {traceback.format_exc()}")
+                logger.error(f"Run error, {traceback.format_exc()}")
                 raise RunError(
-                    "failed on pre-loading / post-running of the function"
+                    "Failed on pre-loading / post-running of the function"
                 ) from exc
 
         else:
             command = self.spec.command
             command = command.format(**runobj.spec.parameters)
-            logger.info(f"handler was not provided running main ({command})")
+            logger.info(f"Handler was not provided running main ({command})")
             arg_list = command.split()
             if self.spec.mode == "pass":
                 cmd = arg_list
@@ -322,20 +347,27 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     arg = arg.format(**runobj.spec.parameters)
                     new_args.append(arg)
                 args = new_args
-
+            # Running tracking services pre run to detect if some of them should be used:
+            trackers_manager = self._get_trackers_manager()
+            trackers_manager.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
-            try:
+            run_obj_dict = runobj.to_dict()  # default value
+            if os.path.isfile(tmp):
                 with open(tmp) as fp:
                     resp = fp.read()
                 remove(tmp)
                 if resp:
-                    return json.loads(resp)
-                logger.error("empty context tmp file")
-            except FileNotFoundError:
-                logger.info("no context file found")
-            return runobj.to_dict()
+                    run_obj_dict = json.loads(resp)
+                else:
+                    logger.debug("Empty context tmp file")
+            else:
+                logger.info("No context file found")
+
+            # If trackers where used, this is where we log all data collected to MLRun
+            run_obj_dict = trackers_manager.post_run(run_obj_dict)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
+            return run_obj_dict
 
 
 def load_module(file_name, handler, context):
@@ -348,7 +380,7 @@ def load_module(file_name, handler, context):
             mod_name = mod_name[: -len(path.suffix)]
         spec = imputil.spec_from_file_location(mod_name, file_name)
         if spec is None:
-            raise RunError(f"cannot import from {file_name!r}")
+            raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
         spec.loader.exec_module(module)
 
@@ -364,7 +396,7 @@ def run_exec(cmd, args, env=None, cwd=None):
         cmd += args
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
-    print("running:", cmd)
+    print("Running:", cmd)
     process = Popen(
         cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
     )
@@ -457,7 +489,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
-            logger.error(f"execution error, {traceback.format_exc()}")
+            logger.error(f"Execution error, {traceback.format_exc()}")
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 
@@ -484,9 +516,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         input_obj = context.get_input(input_key, inputs[input_key])
         # If there is no type hint annotation but there is a default value and its type is string, point the data
         # item to local downloaded file path (`local()` returns the downloaded temp path string):
-        if (
-            args[input_key].annotation is inspect.Parameter.empty
-            and type(args[input_key].default) is str
+        if args[input_key].annotation is inspect.Parameter.empty and isinstance(
+            args[input_key].default, str
         ):
             return input_obj.local()
         else:

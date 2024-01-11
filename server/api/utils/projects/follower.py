@@ -32,6 +32,7 @@ import server.api.crud
 import server.api.db.session
 import server.api.utils.auth.verifier
 import server.api.utils.clients.iguazio
+import server.api.utils.helpers
 import server.api.utils.periodic
 import server.api.utils.projects.member as project_member
 import server.api.utils.projects.remotes.leader
@@ -69,7 +70,7 @@ class Member(
             # Basically the delete operation in our projects mechanism is fully consistent, meaning the leader won't
             # remove the project from its persistency (the source of truth) until it was successfully removed from all
             # followers. Therefore, when syncing projects from the leader, we don't need to search for the deletions
-            # that may happened without us knowing about it (therefore full_sync by default is false). When we
+            # that may happen without us knowing about it (therefore full_sync by default is false). When we
             # introduced the chief/worker mechanism, we needed to change the follower to keep its projects in the DB
             # instead of in cache. On the switch, since we were using cache and the projects table in the DB was not
             # maintained, we know we may have projects that shouldn't be there anymore, ideally we would have trigger
@@ -101,7 +102,9 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
@@ -141,7 +144,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
@@ -170,7 +175,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:
@@ -197,7 +204,9 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().delete_project(
                 db_session, name, deletion_strategy
             )
@@ -239,7 +248,9 @@ class Member(
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.schemas.ProjectsFormat.leader
-            and not self._is_request_from_leader(projects_role)
+            and not server.api.utils.helpers.is_request_from_leader(
+                projects_role, leader_name=self._leader_name
+            )
         ):
             raise mlrun.errors.MLRunAccessDeniedError(
                 "Leader format is allowed only to the leader"
@@ -323,7 +334,6 @@ class Member(
                 self._sync_session, self._synced_until_datetime
             )
         except Exception:
-
             # if we failed to get projects from the leader, we'll try get all the
             # projects without the updated_at filter
             leader_projects, latest_updated_at = self._leader_client.list_projects(
@@ -332,7 +342,6 @@ class Member(
         return leader_projects, latest_updated_at
 
     def _store_projects_from_leader(self, db_session, db_projects, leader_projects):
-
         db_projects_names = [project.metadata.name for project in db_projects.projects]
 
         # Don't add projects in non-terminal state if they didn't exist before to prevent race conditions
@@ -388,20 +397,12 @@ class Member(
 
     def _update_latest_synced_datetime(self, latest_updated_at):
         if latest_updated_at:
-
             # sanity and defensive programming - if the leader returned a latest_updated_at that is older
             # than the epoch, we'll set it to the epoch
             epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))
             if latest_updated_at < epoch:
                 latest_updated_at = epoch
             self._synced_until_datetime = latest_updated_at
-
-    def _is_request_from_leader(
-        self, projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole]
-    ) -> bool:
-        if projects_role and projects_role.value == self._leader_name:
-            return True
-        return False
 
     @staticmethod
     def _is_project_matching_labels(

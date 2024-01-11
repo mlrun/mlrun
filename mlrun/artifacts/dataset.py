@@ -23,13 +23,14 @@ from pandas.io.json import build_table_schema
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.utils.helpers
+from mlrun.config import config as mlconf
 
-from ..datastore import is_store_uri, store_manager
 from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
 
 default_preview_rows_length = 20
-max_preview_columns = 100
+max_preview_columns = mlconf.artifacts.datasets.max_preview_columns
 max_csv = 10000
 ddf_sample_pct = 0.2
 max_ddf_size = 1
@@ -37,6 +38,10 @@ max_ddf_size = 1
 
 class TableArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + ["schema", "header"]
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "schema",
+        "header",
+    ]
 
     def __init__(self):
         super().__init__()
@@ -59,7 +64,6 @@ class TableArtifact(Artifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -68,7 +72,7 @@ class TableArtifact(Artifact):
 
         if df is not None:
             self._is_df = True
-            self.spec.header = df.reset_index().columns.values.tolist()
+            self.spec.header = df.reset_index(drop=True).columns.values.tolist()
             self.spec.format = "csv"  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -114,6 +118,17 @@ class DatasetArtifactSpec(ArtifactSpec):
         "label_column",
     ]
 
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "schema",
+        "header",
+        "length",
+        "column_metadata",
+        "features",
+        "partition_keys",
+        "timestamp_key",
+        "label_column",
+    ]
+
     def __init__(self):
         super().__init__()
         self.schema = None
@@ -146,12 +161,11 @@ class DatasetArtifact(Artifact):
         label_column: str = None,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
             raise ValueError(
-                f"unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
+                f"Unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
             )
 
         if format == "pq":
@@ -268,7 +282,11 @@ class DatasetArtifact(Artifact):
 
         if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+
+        # reset index while dropping existing index
+        # that way it wont create another index if one already there
+        preview_df = preview_df.reset_index(drop=True)
+        artifact.status.header_original_length = len(preview_df.columns)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()
@@ -348,7 +366,6 @@ class LegacyTableArtifact(LegacyArtifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -357,7 +374,7 @@ class LegacyTableArtifact(LegacyArtifact):
 
         if df is not None:
             self._is_df = True
-            self.header = df.reset_index().columns.values.tolist()
+            self.header = df.reset_index(drop=True).columns.values.tolist()
             self.format = "csv"  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -417,7 +434,6 @@ class LegacyDatasetArtifact(LegacyArtifact):
         ignore_preview_limits: bool = False,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -497,7 +513,7 @@ class LegacyDatasetArtifact(LegacyArtifact):
 
         if artifact.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+        preview_df = preview_df.reset_index(drop=True)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.header = preview_df.columns.values.tolist()
@@ -574,8 +590,8 @@ def update_dataset_meta(
 
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
-    elif is_store_uri(artifact):
-        artifact_spec, _ = store_manager.get_store_artifact(artifact)
+    elif mlrun.datastore.is_store_uri(artifact):
+        artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -611,7 +627,7 @@ def update_dataset_meta(
     mlrun.get_run_db().store_artifact(
         artifact_spec.spec.db_key,
         artifact_spec.to_dict(),
-        artifact_spec.metadata.tree,
+        tree=artifact_spec.metadata.tree,
         iter=artifact_spec.metadata.iter,
         project=artifact_spec.metadata.project,
     )
@@ -621,7 +637,7 @@ def upload_dataframe(
     df, target_path, format, src_path=None, **kw
 ) -> Tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
-        store_manager.object(url=target_path).upload(src_path)
+        mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
         return (
             os.stat(src_path).st_size,
             mlrun.utils.helpers.calculate_local_file_hash(src_path),
@@ -631,7 +647,7 @@ def upload_dataframe(
         return None, None
 
     if target_path.startswith("memory://"):
-        store_manager.object(target_path).put(df)
+        mlrun.datastore.store_manager.object(target_path).put(df)
         return None, None
 
     if format in ["csv", "parquet"]:

@@ -36,7 +36,6 @@ class _NotificationPusherBase(object):
     def _push(
         self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
     ):
-
         if mlrun.utils.helpers.is_running_in_jupyter_notebook():
             # Running in Jupyter notebook.
             # In this case, we need to create a new thread, run a separate event loop in
@@ -88,11 +87,10 @@ class _NotificationPusherBase(object):
 
 
 class NotificationPusher(_NotificationPusherBase):
-
     messages = {
-        "completed": "Run completed",
-        "error": "Run failed",
-        "aborted": "Run aborted",
+        "completed": "{resource} completed",
+        "error": "{resource} failed",
+        "aborted": "{resource} aborted",
     }
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
@@ -236,13 +234,39 @@ class NotificationPusher(_NotificationPusherBase):
         custom_message = (
             f": {notification_object.message}" if notification_object.message else ""
         )
-        message = self.messages.get(run.state(), "") + custom_message
+        resource = "Run"
+        runs = [run.to_dict()]
+
+        if "workflow" in run.metadata.labels:
+            resource = "Workflow"
+            custom_message = (
+                f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
+            )
+            db = mlrun.get_run_db()
+
+            workflow_id = run.status.results.get("workflow_id", None)
+            if workflow_id:
+                workflow_runs = db.list_runs(
+                    project=run.metadata.project,
+                    labels=f"workflow={workflow_id}",
+                )
+                logger.debug(
+                    "Found workflow runs, extending notification runs",
+                    workflow_id=workflow_id,
+                    workflow_runs_amount=len(workflow_runs),
+                )
+                runs.extend(workflow_runs)
+
+        message = (
+            self.messages.get(run.state(), "").format(resource=resource)
+            + custom_message
+        )
 
         severity = (
             notification_object.severity
             or mlrun.common.schemas.NotificationSeverity.INFO
         )
-        return message, severity, [run.to_dict()]
+        return message, severity, runs
 
     def _push_notification_sync(
         self,
@@ -363,7 +387,6 @@ class NotificationPusher(_NotificationPusherBase):
             # but also for human readability reasons.
             notification.reason = notification.reason[:255]
         else:
-
             # empty out the reason if the notification is in a non-error state
             # in case a retry would kick in (when such mechanism would be implemented)
             notification.reason = None
@@ -528,7 +551,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
                 runs_list.append(run.to_dict())
                 run._notified = True
 
-        text = "pipeline run finished"
+        text = "Pipeline run finished"
         if had_errors:
             text += f" with {had_errors} errors"
         if state:

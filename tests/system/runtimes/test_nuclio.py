@@ -144,7 +144,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         v3io_client = v3io.dataplane.Client(
             endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
         )
-        v3io_client.delete_stream(
+        v3io_client.stream.delete(
             self.stream_container,
             self.stream_path,
             raise_for_status=RaiseForStatus.never,
@@ -332,7 +332,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_kafka_source_with_avro(self, kafka_fixture):
-
         row_divide = 3
         stocks_df = pd.DataFrame(
             {
@@ -377,6 +376,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             requirements=["avro"],
             filename=str(self.assets_path / "map_avro.py"),
         )
+
+        func.spec.min_replicas = 1
+        func.spec.max_replicas = 1
 
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import datetime
 import hashlib
@@ -30,6 +29,7 @@ from mlrun.utils import logger
 
 from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
+from .helpers import bump_model_endpoint_last_request
 from .model_endpoint import ModelEndpoint
 
 # A union of all supported dataset types:
@@ -125,13 +125,14 @@ def record_results(
     model_endpoint_name: str,
     endpoint_id: str = "",
     function_name: str = "",
-    context: mlrun.MLClientCtx = None,
-    infer_results_df: pd.DataFrame = None,
-    sample_set_statistics: typing.Dict[str, typing.Any] = None,
+    context: typing.Optional[mlrun.MLClientCtx] = None,
+    infer_results_df: typing.Optional[pd.DataFrame] = None,
+    sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
-    drift_threshold: float = None,
-    possible_drift_threshold: float = None,
+    drift_threshold: typing.Optional[float] = None,
+    possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
+    last_in_batch_set: typing.Optional[bool] = True,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -164,6 +165,14 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
+    :param last_in_batch_set:        This flag can (and should only) be used when the model endpoint does not have
+                                     model-monitoring set.
+                                     If set to `True` (the default), this flag marks the current monitoring window
+                                     (on this monitoring endpoint) is completed - the data inferred so far is assumed
+                                     to be the total data for this monitoring window.
+                                     You may want to set this flag to `False` if you want to record multiple results in
+                                     close time proximity ("batch set"). In this case, set this flag to `False` on all
+                                     but the last batch in the set.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 
@@ -186,6 +195,7 @@ def record_results(
         monitoring_mode=monitoring_mode,
         db_session=db,
     )
+    logger.debug("Model endpoint", endpoint=model_endpoint.to_dict())
 
     if infer_results_df is not None:
         # Write the monitoring parquet to the relevant model endpoint context
@@ -194,6 +204,27 @@ def record_results(
             endpoint_id=model_endpoint.metadata.uid,
             infer_results_df=infer_results_df,
         )
+
+    if model_endpoint.spec.stream_path == "":
+        if last_in_batch_set:
+            logger.info(
+                "Updating the last request time to mark the current monitoring window as completed",
+                project=project,
+                endpoint_id=model_endpoint.metadata.uid,
+            )
+            bump_model_endpoint_last_request(
+                project=project, model_endpoint=model_endpoint, db=db
+            )
+    else:
+        if last_in_batch_set is not None:
+            logger.warning(
+                "`last_in_batch_set` is not `None`, but the model endpoint has a stream path. "
+                "Ignoring `last_in_batch_set`, as it is relevant only when the model "
+                "endpoint does not have a model monitoring infrastructure in place (i.e. stream path is "
+                " empty). Set `last_in_batch_set` to `None` to resolve this warning.",
+                project=project,
+                endpoint_id=model_endpoint.metadata.uid,
+            )
 
     if trigger_monitoring_job:
         # Run the monitoring batch drift job
@@ -356,7 +387,9 @@ def write_monitoring_df(
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now()
+        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now(
+            tz=datetime.timezone.utc
+        )
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
@@ -429,8 +462,9 @@ def _generate_model_endpoint(
         ] = possible_drift_threshold
 
     model_endpoint.spec.monitoring_mode = monitoring_mode
-    model_endpoint.status.first_request = datetime.datetime.now()
-    model_endpoint.status.last_request = datetime.datetime.now()
+    model_endpoint.status.first_request = (
+        model_endpoint.status.last_request
+    ) = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 

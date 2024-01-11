@@ -13,6 +13,11 @@
 # limitations under the License.
 #
 import asyncio
+import re
+from typing import Optional
+
+import semver
+from timelength import TimeLength
 
 import mlrun
 import mlrun.common.schemas
@@ -71,3 +76,49 @@ def minimize_project_schema(
     project.spec.workflows = None
     project.spec.artifacts = None
     return project
+
+
+def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int]:
+    if not time_str:
+        return None
+
+    if time_str == "-1":
+        return -1
+
+    parsed_length = TimeLength(time_str, strict=True)
+    total_seconds = parsed_length.to_seconds()
+    if total_seconds < min_seconds:
+        raise ValueError(f"Invalid time string {time_str}, must be at least 1 minute")
+
+    return total_seconds
+
+
+def extract_image_tag(image_reference):
+    # This matches any word character,dots,hyphens after a colon (:) anchored to the end of the string
+    pattern = r"(?<=:)[\w.-]+$"
+    match = re.search(pattern, image_reference)
+
+    tag = None
+    is_semver = False
+    has_py_package = False
+    if match:
+        tag = match.group()
+        is_semver = semver.Version.is_valid(tag)
+
+        if is_semver:
+            version = semver.Version.parse(tag)
+            # If the version is a prerelease, and it has a hyphen, it means it's a feature branch build
+            has_py_package = (
+                not version.prerelease or version.prerelease.find("-") == -1
+            )
+
+    return tag, has_py_package
+
+
+def is_request_from_leader(
+    projects_role: Optional[mlrun.common.schemas.ProjectsRole], leader_name: str = None
+):
+    leader_name = leader_name or mlrun.mlconf.httpdb.projects.leader
+    if projects_role and projects_role.value == leader_name:
+        return True
+    return False

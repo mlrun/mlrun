@@ -30,12 +30,11 @@ logger = create_logger(level="debug", name="test-integration")
 
 
 class TestMLRunIntegration:
-
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
 
-    db_liveness_timeout = 30
+    db_liveness_timeout = 40
     db_host_internal = "host.docker.internal"
     db_host_external = "localhost"
     db_user = "root"
@@ -43,13 +42,13 @@ class TestMLRunIntegration:
     db_name = "mlrun"
     db_dsn = f"mysql+pymysql://{db_user}@{db_host_internal}:{db_port}/{db_name}"
 
-    def setup_method(self, method):
+    def setup_method(self, method, extra_env=None):
         self._logger = logger
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
         self._run_db()
-        api_url = self._run_api()
+        api_url = self._run_api(extra_env)
         self._test_env = {}
         self._old_env = {}
         self._setup_env({"MLRUN_DBPATH": api_url})
@@ -132,7 +131,7 @@ class TestMLRunIntegration:
 
         self._ensure_database_liveness(timeout=self.db_liveness_timeout)
 
-    def _run_api(self):
+    def _run_api(self, extra_env=None):
         self._logger.debug("Starting API")
         self._run_command(
             # already compiled schemas in run-test-db
@@ -144,7 +143,8 @@ class TestMLRunIntegration:
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
                     "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
-                }
+                },
+                extra_env,
             ),
             cwd=TestMLRunIntegration.root_path,
         )
@@ -207,9 +207,11 @@ class TestMLRunIntegration:
         self._logger.debug("Database ready for connection")
 
     @staticmethod
-    def _extend_current_env(env):
+    def _extend_current_env(env, extra_env=None):
         current_env = copy.deepcopy(os.environ)
         current_env.update(env)
+        if extra_env:
+            current_env.update(extra_env)
         return current_env
 
     @staticmethod

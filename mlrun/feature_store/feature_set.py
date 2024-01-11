@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
@@ -22,6 +22,7 @@ import mlrun
 import mlrun.common.schemas
 
 from ..config import config as mlconf
+from ..data_types import InferOptions
 from ..datastore import get_store_uri
 from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
@@ -44,11 +45,12 @@ from ..model import (
     ObjectList,
     VersionedObjMetadata,
 )
+from ..runtimes import BaseRuntime
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
-from .common import verify_feature_set_permissions
+from .common import RunConfig, verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
 
@@ -423,6 +425,9 @@ class FeatureSet(ModelObj):
             return self._run_db
         else:
             return mlrun.get_run_db()
+
+    def _override_run_db(self, run_db):
+        self._run_db = run_db
 
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
@@ -926,9 +931,8 @@ class FeatureSet(ModelObj):
                 )
             df = self.spec.source.to_dataframe(
                 columns=columns,
-                start_time=start_time
-                or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
-                end_time=end_time or pd.Timestamp.max,
+                start_time=start_time,
+                end_time=end_time,
                 time_field=time_column,
                 **kwargs,
             )
@@ -951,22 +955,6 @@ class FeatureSet(ModelObj):
             time_column=time_column,
             **kwargs,
         )
-        if not columns:
-            drop_cols = []
-            if target.time_partitioning_granularity:
-                for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
-                    drop_cols.append(col)
-                    if col == target.time_partitioning_granularity:
-                        break
-            elif (
-                target.partitioned
-                and not target.partition_cols
-                and not target.key_bucketing_number
-            ):
-                drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
-            if drop_cols:
-                # if these columns aren't present for some reason, that's no reason to fail
-                result.drop(columns=drop_cols, inplace=True, errors="ignore")
         return result
 
     def save(self, tag="", versioned=False):
@@ -991,6 +979,109 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+    def ingest(
+        self,
+        source=None,
+        targets: List[DataTargetBase] = None,
+        namespace=None,
+        return_df: bool = True,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
+        mlrun_context=None,
+        spark_context=None,
+        overwrite=None,
+    ) -> Optional[pd.DataFrame]:
+        return mlrun.feature_store.api._ingest(
+            self,
+            source,
+            targets,
+            namespace,
+            return_df,
+            infer_options,
+            run_config,
+            mlrun_context,
+            spark_context,
+            overwrite,
+        )
+
+    def preview(
+        self,
+        source,
+        entity_columns: list = None,
+        namespace=None,
+        options: InferOptions = None,
+        verbose: bool = False,
+        sample_size: int = None,
+    ) -> pd.DataFrame:
+        return mlrun.feature_store.api._preview(
+            self, source, entity_columns, namespace, options, verbose, sample_size
+        )
+
+    def deploy_ingestion_service(
+        self,
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        run_config: RunConfig = None,
+        verbose=False,
+    ) -> Tuple[str, BaseRuntime]:
+        return mlrun.feature_store.api._deploy_ingestion_service_v2(
+            self, source, targets, name, run_config, verbose
+        )
+
+    def extract_relation_keys(
+        self,
+        other_feature_set,
+        relations: Dict[str, Union[str, Entity]] = None,
+    ) -> list[str]:
+        """
+        Checks whether a feature set can be merged to the right of this feature set.
+
+        :param other_feature_set:   The feature set to be merged to the right of this feature set.
+        :param relations:           The relations that were defined on this feature set.
+        :returns:                   If the two feature sets can be merged, a list of the left join keys is returned.
+                                    Otherwise, an empty list is returned.
+                                    (The right join keys are always the entities of the other feature set)
+        """
+        right_feature_set_entity_list = other_feature_set.spec.entities
+
+        if all(
+            ent in self.spec.entities for ent in right_feature_set_entity_list
+        ) and len(right_feature_set_entity_list) == len(self.spec.entities):
+            # entities wise
+            return list(self.spec.entities.keys())
+        elif all(ent in self.spec.entities for ent in right_feature_set_entity_list):
+            # entities wise when the right fset have lower number of entities
+            return list(right_feature_set_entity_list.keys())
+
+        elif relations:
+            curr_col_relations_list = list(
+                map(
+                    lambda ent: (
+                        list(relations.keys())[list(relations.values()).index(ent)]
+                        if ent in relations.values()
+                        else False
+                    ),
+                    right_feature_set_entity_list,
+                )
+            )
+
+            if all(curr_col_relations_list):
+                return curr_col_relations_list
+
+        return []
+
+    def is_connectable_to_df(self, df_columns: list[str]) -> bool:
+        """
+        This method checks if the dataframe can be left-joined with this feature set
+
+        :param df_columns:  The columns of the data frame you want to merge to the left of this feature set
+        :return:            True if it can be left-joined and False otherwise
+        """
+        return df_columns and all(
+            ent in df_columns for ent in self.spec.entities.keys()
+        )
 
 
 class SparkAggregateByKey(StepToDict):

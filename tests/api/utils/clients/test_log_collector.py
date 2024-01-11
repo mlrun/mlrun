@@ -56,14 +56,14 @@ class GetLogsResponse:
         raise StopAsyncIteration
 
 
-class HasLogsResponse:
-    def __init__(self, success, error, has_logs):
+class GetLogSizeResponse:
+    def __init__(self, success, error, log_size=None):
         self.success = success
         self.errorMessage = error
         self.errorCode = (
             server.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
         )
-        self.hasLogs = has_logs
+        self.logSize = log_size
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"
@@ -117,9 +117,9 @@ class TestLogCollector:
 
         log_byte_string = b"some log"
 
-        # mock responses for HasLogs and GetLogs
+        # mock responses for GetLogSize and GetLogs
         log_collector._call = unittest.mock.AsyncMock(
-            return_value=HasLogsResponse(True, "", True)
+            return_value=GetLogSizeResponse(True, "", 1)
         )
         log_collector._call_stream = unittest.mock.MagicMock(
             return_value=GetLogsResponse(True, "", log_byte_string, 1)
@@ -139,9 +139,9 @@ class TestLogCollector:
             ):
                 assert log == b""  # should not get here
 
-        # mock HasLogs response to return False
+        # mock GetLogSize response to return 0
         log_collector._call = unittest.mock.AsyncMock(
-            return_value=HasLogsResponse(True, "", False)
+            return_value=GetLogSizeResponse(True, "", 0)
         )
 
         log_stream = log_collector.get_logs(
@@ -158,12 +158,11 @@ class TestLogCollector:
         project_name = "some-project"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
 
-        # mock responses for HasLogs to return a retryable error
+        # mock responses for GetLogSize to return a retryable error
         log_collector._call = unittest.mock.AsyncMock(
-            return_value=HasLogsResponse(
+            return_value=GetLogSizeResponse(
                 False,
                 "readdirent /var/mlrun/logs/blabla: resource temporarily unavailable",
-                True,
             )
         )
 
@@ -173,12 +172,11 @@ class TestLogCollector:
         async for log in log_stream:
             assert log == b""
 
-        # mock responses for HasLogs to return a retryable error
+        # mock responses for GetLogSize to return a non-retryable error
         log_collector._call = unittest.mock.AsyncMock(
-            return_value=HasLogsResponse(
+            return_value=GetLogSizeResponse(
                 False,
                 "I'm an error that should not be retried",
-                True,
             )
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):

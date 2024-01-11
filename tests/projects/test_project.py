@@ -19,7 +19,6 @@ import re
 import shutil
 import tempfile
 import unittest.mock
-import warnings
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -30,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.runtimes.base
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -46,6 +46,53 @@ def context():
 
 def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+class RemoteBuilderMock:
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func,
+            with_mlrun,
+            mlrun_version_specifier=None,
+            skip_deployed=False,
+            builder_env=None,
+            force_build=False,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                    },
+                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
+                },
+            }
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock
 
 
 def test_sync_functions(rundb_mock):
@@ -85,6 +132,20 @@ def test_sync_functions_with_names_different_than_default(rundb_mock):
 
     assert project.spec._function_objects == project_function_object
     assert project.spec._function_definitions == project_function_definition
+
+
+def test_sync_functions_unavailable_file():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec._function_definitions["non-existing-function"] = {
+        "handler": "func",
+        "image": "mlrun/mlrun",
+        "kind": "job",
+        "name": "func",
+        "url": "func.py",
+    }
+    with pytest.raises(mlrun.errors.MLRunMissingDependencyError):
+        project.sync_functions()
 
 
 def test_export_project_dir_doesnt_exist():
@@ -325,7 +386,6 @@ def test_load_project(
     project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
 
     for temp_file in temp_files:
-
         # verify that the context directory was cleaned if clone is True
         assert os.path.exists(os.path.join(context, temp_file)) is not clone
 
@@ -466,7 +526,8 @@ def test_set_function_requirements(rundb_mock):
 
 def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -508,7 +569,8 @@ def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
 
 def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.projects.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
 
@@ -1096,6 +1158,19 @@ def test_set_workflow_with_invalid_path(
         proj.set_workflow("main", workflow_path)
 
 
+def test_set_workflow_local_engine():
+    proj = mlrun.new_project("proj", save=False)
+    with pytest.raises(ValueError):
+        proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
+
+
+def test_run_non_existing_workflow(rundb_mock):
+    proj = mlrun.new_project("proj", save=False)
+    proj.set_function("hub://describe", "describe")
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        proj.run("non-existing-workflow")
+
+
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -1112,44 +1187,6 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
-
-
-def test_clear_context():
-    proj = mlrun.new_project("proj", save=False)
-    proj_with_subpath = mlrun.new_project(
-        "proj",
-        subpath="test",
-        context=pathlib.Path(tests.conftest.tests_root_directory),
-        save=False,
-    )
-    subdir_path = os.path.join(
-        proj_with_subpath.spec.context, proj_with_subpath.spec.subpath
-    )
-    # when the context is relative, assert no deletion called
-    with unittest.mock.patch(
-        "shutil.rmtree", return_value=True
-    ) as rmtree, warnings.catch_warnings(record=True) as w:
-        proj.clear_context()
-        rmtree.assert_not_called()
-
-        assert len(w) == 2
-        assert issubclass(w[-2].category, FutureWarning)
-        assert (
-            "This method deletes all files and clears the context directory or subpath (if defined)!"
-            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
-            " it will be deprecated in 1.6.0." in str(w[-1].message)
-        )
-
-    # when the context is not relative and subdir specified, assert that the subdir is deleted rather than the context
-    with unittest.mock.patch(
-        "shutil.rmtree", return_value=True
-    ) as rmtree, unittest.mock.patch(
-        "os.path.exists", return_value=True
-    ), unittest.mock.patch(
-        "os.path.isdir", return_value=True
-    ):
-        proj_with_subpath.clear_context()
-        rmtree.assert_called_once_with(subdir_path)
 
 
 @pytest.mark.parametrize(
@@ -1290,3 +1327,274 @@ def test_get_or_create_project_no_db():
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file, commands",
+    [
+        (["pandas", "scikit-learn"], False, ["echo 123"]),
+        (["pandas", "scikit-learn"], True, ["echo 123"]),
+        ([], True, ["echo 123"]),
+        (None, True, ["echo 123"]),
+        ([], False, ["echo 123"]),
+    ],
+)
+def test_project_build_config(requirements, with_requirements_file, commands):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    project.build_config(
+        image=image,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+        commands=commands,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + (requirements or [])
+    assert project.spec.build.image == image
+    assert project.spec.build.requirements == expected_requirements
+    assert project.spec.build.commands == commands
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file",
+    [
+        (["pandas", "scikit-learn"], False),
+        (["pandas", "scikit-learn"], True),
+        ([], True),
+        (None, True),
+        ([], False),
+    ],
+)
+def test_project_set_function_with_requirements(requirements, with_requirements_file):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    func = project.set_function(
+        name="my-func",
+        image=image,
+        func=str(assets_path() / "handler.py"),
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + (requirements or [])
+
+    if requirements or with_requirements_file:
+        assert func.spec.build.base_image == image
+    else:
+        assert func.spec.image == image
+
+    assert func.spec.build.requirements == expected_requirements
+
+    # set from object
+    if requirements or with_requirements_file:
+        # change requirements to make sure they are overriden
+        func.spec.build.requirements = ["some-req"]
+    project.set_function(
+        name="my-func",
+        image=image,
+        func=func,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+    )
+
+    if requirements or with_requirements_file:
+        assert func.spec.build.base_image == image
+    else:
+        assert func.spec.image == image
+
+    assert func.spec.build.requirements == expected_requirements
+
+
+def test_init_function_from_dict_function_in_spec():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    func_dict = {
+        "name": "sparkjob-from-github",
+        "spec": {
+            "kind": "spark",
+            "metadata": {
+                "name": "sparkjob-from-github",
+                "tag": "latest",
+                "project": project_name,
+                "categories": [],
+            },
+            "spec": {
+                "command": "simple_job.py",
+                "args": [],
+                "image": ".sparkjob-from-github:latest",
+                "build": {
+                    "source": "./",
+                    "base_image": "iguazio/spark-app:3.5.5-b697",
+                    "commands": [],
+                    "load_source_on_run": False,
+                    "requirements": ["pyspark==3.2.3"],
+                },
+                "description": "",
+                "disable_auto_mount": False,
+                "clone_target_dir": "/home/mlrun_code/",
+                "env": [],
+                "replicas": 1,
+                "image_pull_policy": "Always",
+                "priority_class_name": "dummy-class",
+                "preemption_mode": "prevent",
+                "driver_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1300m"},
+                },
+                "executor_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1400m"},
+                },
+                "deps": {
+                    "jars": [
+                        "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
+                        "local:///igz/java/libs/scala-library-2.12.14.jar",
+                        "local:///spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                    ],
+                    "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
+                },
+                "use_default_image": False,
+                "monitoring": {
+                    "enabled": True,
+                    "exporter_jar": "/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                },
+                "driver_preemption_mode": "prevent",
+                "executor_preemption_mode": "prevent",
+                "affinity": None,
+                "tolerations": None,
+                "security_context": {},
+                "executor_affinity": None,
+                "executor_tolerations": None,
+                "driver_affinity": None,
+                "driver_tolerations": None,
+                "volume_mounts": [],
+                "volumes": [],
+                "driver_volume_mounts": [],
+                "executor_volume_mounts": [],
+                "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
+            },
+            "verbose": False,
+        },
+    }
+    func = mlrun.projects.project._init_function_from_dict(func_dict, project)
+    assert (
+        deepdiff.DeepDiff(func[1].to_dict(), func_dict["spec"], ignore_order=True) == {}
+    )
+
+
+def test_load_project_from_yaml_with_function(context):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    function = mlrun.code_to_function(
+        name="my-func",
+        image="my-image",
+        kind="job",
+        filename=str(assets_path() / "handler.py"),
+    )
+    function.save()
+    project.set_function(function)
+    project.set_function(
+        name="my-other-func",
+        image="my-image",
+        func=str(assets_path() / "handler.py"),
+        tag="latest",
+    )
+    project.save()
+    loaded_project = mlrun.load_project(context=str(context))
+    for function_name in ["my-func", "my-other-func"]:
+        assert (
+            deepdiff.DeepDiff(
+                project.get_function(function_name).to_dict(),
+                loaded_project.get_function(function_name).to_dict(),
+                ignore_order=True,
+                exclude_paths=[
+                    "root['spec']['build']['code_origin']",
+                    "root['metadata']['categories']",
+                ],
+            )
+            == {}
+        )
+
+
+def test_project_create_remote():
+    # test calling create_remote without git_init=True on project creation
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        assert project.spec.repo is not None
+        assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
+
+
+@pytest.mark.parametrize(
+    "source_url, pull_at_runtime, base_image, image_name, target_dir",
+    [
+        (None, None, "aaa/bbb", "ccc/ddd", ""),
+        ("git://some/repo", False, None, ".some-image", ""),
+        (
+            "git://some/other/repo",
+            False,
+            ".some-base-image",
+            "some-repo/some-target-image",
+            "/target/path/for/source",
+        ),
+        ("git://some/repo", True, None, ".some-image", "/target/path"),
+    ],
+)
+def test_project_build_image(
+    source_url, pull_at_runtime, base_image, image_name, target_dir, remote_builder_mock
+):
+    project_name = "project1"
+
+    project = mlrun.new_project(project_name, save=False)
+
+    if source_url:
+        project.set_source(source_url, pull_at_runtime=pull_at_runtime)
+
+    project.build_image(image=image_name, base_image=base_image, target_dir=target_dir)
+
+    (
+        build_config,
+        clone_target_dir,
+    ) = remote_builder_mock.get_build_config_and_target_dir()
+
+    # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
+    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    if pull_at_runtime:
+        assert build_config.load_source_on_run is None
+        assert build_config.source is None
+        assert clone_target_dir == ""
+    else:
+        assert not build_config.load_source_on_run
+        assert build_config.source == source_url
+        assert clone_target_dir == target_dir
+
+    assert build_config.image == image_name
+    # If no base image was used, then mlrun/mlrun is expected
+    assert build_config.base_image == base_image or "mlrun/mlrun"
+    assert project.default_image == image_name

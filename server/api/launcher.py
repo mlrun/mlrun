@@ -21,6 +21,8 @@ import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
+import mlrun.projects.operations
+import mlrun.projects.pipelines
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -29,6 +31,7 @@ import mlrun.utils.regex
 import server.api.api.utils
 import server.api.crud
 import server.api.runtime_handlers
+import server.api.utils.helpers
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
@@ -73,6 +76,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -95,6 +99,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             artifact_path=artifact_path,
             workdir=workdir,
             notifications=notifications,
+            state_thresholds=state_thresholds,
         )
         self._validate_runtime(runtime, run)
 
@@ -209,11 +214,19 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project, runtime, copy_function=False, try_auto_mount=False
             )
 
+        if (
+            not runtime.spec.image
+            and not runtime.requires_build()
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
+
     def _enrich_full_spec(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
     ):
-
         # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
         # config and params passed in the auth_info.
         # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
@@ -264,7 +277,54 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 "Local runtimes can not be run through API (not locally)"
             )
 
+        self._validate_state_thresholds(run.spec.state_thresholds)
+
+        if (
+            mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
+            and not runtime.spec.image
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"This runtime kind ({runtime.kind}) must have a valid image"
+            )
+
         super()._validate_runtime(runtime, run)
+
+    @staticmethod
+    def _validate_state_thresholds(
+        state_thresholds: Optional[Dict[str, str]] = None,
+    ):
+        """
+        Validate the state thresholds
+        If threshold is:
+            - None - will use default
+            - -1 - infinity
+            - otherwise - validate it's a valid time string
+        """
+        if state_thresholds is None:
+            return
+
+        for state, threshold in state_thresholds.items():
+            if state not in mlrun.runtimes.constants.ThresholdStates.all():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid state {state} for state threshold, must be one of "
+                    f"{mlrun.runtimes.constants.ThresholdStates.all()}"
+                )
+
+            if threshold is None:
+                continue
+
+            if not isinstance(threshold, str):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Threshold '{threshold}' for state '{state}' must be a string"
+                )
+
+            try:
+                server.api.utils.helpers.time_string_to_seconds(threshold)
+            except Exception as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "
+                    f"Error: {mlrun.errors.err_to_str(exc)}"
+                ) from exc
 
 
 # Once this file is imported it will set the container server side launcher

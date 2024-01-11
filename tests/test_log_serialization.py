@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import datetime
-from pprint import pprint
 
 import numpy as np
 import pandas as pd
 
-from mlrun import new_task, run_local
+import mlrun
+from mlrun import new_task
 from tests.conftest import out_path, tag_test, verify_state
 
 
@@ -26,7 +26,6 @@ def my_func(context):
     print(f"Run: {context.name} (uid={context.uid})")
 
     context.log_result("float", 1.5)
-    context.log_result("np-float", np.float(1.5))
     context.log_result("np-float32", np.float32(1.5))
     context.log_result("date", datetime.datetime(2018, 1, 1))
     context.log_result("np-date", np.datetime64("2018-01-01"))
@@ -58,13 +57,9 @@ def my_func(context):
     return np.nan
 
 
-base_spec = new_task(artifact_path=out_path, handler=my_func)
-
-
 def test_serialization():
-    spec = tag_test(base_spec, "test_serialization")
-    result = run_local(spec)
+    function = mlrun.new_function(name="test_serialization", kind="job")
+    base_task = new_task(artifact_path=out_path, handler=my_func)
+    task = tag_test(base_task, "test_serialization")
+    result = function.run(task, local=True)
     verify_state(result)
-    pprint(result.to_dict())
-    print(result.to_yaml())
-    pprint(result.to_json())

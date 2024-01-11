@@ -19,6 +19,12 @@ __all__ = ["get_model", "update_model"]
 
 from .base import Artifact, ArtifactMetadata, ArtifactSpec, get_artifact_meta
 from .dataset import DatasetArtifact, TableArtifact, update_dataset_meta
-from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
+from .manager import (
+    ArtifactManager,
+    ArtifactProducer,
+    artifact_types,
+    dict_to_artifact,
+    legacy_artifact_types,
+)
 from .model import ModelArtifact, get_model, update_model
 from .plots import BokehArtifact, ChartArtifact, PlotArtifact, PlotlyArtifact

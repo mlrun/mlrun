@@ -22,7 +22,6 @@ def current_version():
     root = path.dirname(path.dirname(path.abspath(__file__)))
     with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
-
             # __version__ = '0.4.6'
             match = re.search(r"__version__\s*=\s*'([^']+)'", line)
             if match:
@@ -33,7 +32,7 @@ def current_version():
 # -- Project information -----------------------------------------------------
 
 project = "mlrun"
-copyright = "2022, Iguazio"
+copyright = "2023, Iguazio"
 author = "Iguazio"
 
 master_doc = "contents"
@@ -62,6 +61,7 @@ extensions = [
     "sphinx_togglebutton",
     "sphinx_design",
     "sphinx_reredirects",
+    "versionwarning.extension",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -88,6 +88,12 @@ source_suffix = {
     ".md": "myst-nb",
 }
 
+# versionwarning configuration
+versionwarning_default_message = (
+    "This is not the latest documentation. See {stable} instead."
+)
+
+versionwarning_message_placeholder = "stable"
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -98,7 +104,6 @@ html_theme = "sphinx_book_theme"
 html_title = ""
 html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
-extra_navbar = "<p>Your HTML</p>"
 nb_execution_mode = "off"
 html_sourcelink_suffix = ""
 autoclass_content = "both"
@@ -121,7 +126,6 @@ html_theme_options = {
     "show_navbar_depth": 1,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
-    "google_analytics_id": "",
 }
 
 html_sidebars = {
@@ -144,9 +148,10 @@ myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2
 myst_all_links_external = True
 
+# These substitutions point to the relevant mlrun docs for the currect CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.2.1",
+    "ceversion": "v1.4.0",
     "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
 }
 
@@ -165,6 +170,7 @@ autodoc_mock_imports = [
     "onnx",
 ]
 
+redirects = {"functions-architecture": "functions.html"}
 
 # -- Autosummary -------------------------------------------------------------
 

@@ -29,19 +29,7 @@ def test_dataset_preview_size_limit():
     data_frame = pandas.DataFrame(
         range(0, mlrun.artifacts.dataset.default_preview_rows_length * 2), columns=["A"]
     )
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
-    assert len(artifact.preview) == mlrun.artifacts.dataset.default_preview_rows_length
-
-    # override limit
-    limit = 25
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame, preview=limit)
-    assert len(artifact.preview) == limit
-
-    # ignore limits
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(
-        df=data_frame, ignore_preview_limits=True
-    )
-    assert len(artifact.preview) == len(data_frame)
+    _assert_data_artifact_limits(data_frame, len(data_frame))
 
     # more than allowed columns
     number_of_columns = mlrun.artifacts.dataset.max_preview_columns * 3
@@ -49,21 +37,7 @@ def test_dataset_preview_size_limit():
         numpy.random.randint(0, 10, size=(10, number_of_columns)),
         columns=list(range(number_of_columns)),
     )
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
-    assert len(artifact.preview[0]) == mlrun.artifacts.dataset.max_preview_columns
-    assert artifact.stats is None
-
-    # ignore limits
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(
-        df=data_frame, ignore_preview_limits=True
-    )
-    assert len(artifact.preview[0]) == number_of_columns + 1
-
-    # too many rows for stats computation
-    data_frame = pandas.DataFrame(
-        numpy.random.randint(0, 10, size=(mlrun.artifacts.dataset.max_csv * 3, 1)),
-        columns=["A"],
-    )
+    _assert_data_artifacts(data_frame, number_of_columns)
     artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
     assert artifact.stats is None
 
@@ -101,10 +75,6 @@ def test_dataset_upload_with_src_path_filling_hash():
     artifact.src_path = src_path
     artifact.upload()
     assert artifact.hash is not None
-
-
-def assets_path():
-    return pathlib.Path(__file__).absolute().parent / "assets"
 
 
 def test_resolve_dataset_hash_path():
@@ -230,6 +200,107 @@ def test_dataset_stats():
             assert dataset_artifact.status.stats is not None
 
 
+def test_get_log_dataset_dont_duplicate_index_column():
+    source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
+    df = mlrun.get_dataitem(source_url).as_df()
+    artifact = mlrun.get_or_create_ctx("test").log_dataset("iris", df=df, upload=False)
+    index_counter = 0
+    for field in artifact.spec.schema["fields"]:
+        if field["name"] == "index":
+            index_counter += 1
+    assert index_counter == 1
+
+    df = df.set_index("label")
+    artifact = mlrun.get_or_create_ctx("test").log_dataset("iris", df=df, upload=False)
+    index_counter = 0
+    for field in artifact.spec.schema["fields"]:
+        if field["name"] == "index":
+            index_counter += 1
+    assert index_counter == 1
+
+
+def test_log_dataset_with_column_overflow(monkeypatch):
+    context = mlrun.get_or_create_ctx("test")
+    source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
+    df = mlrun.get_dataitem(source_url).as_df()
+
+    monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 10)
+    artifact = context.log_dataset("iris", df=df, upload=False)
+    assert len(artifact.spec.header) == 5
+    assert artifact.status.header_original_length == 5
+
+    monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 2)
+    artifact = context.log_dataset("iris", df=df, upload=False)
+    assert len(artifact.spec.header) == 2
+    assert artifact.status.header_original_length == 5
+
+
+def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
+    """
+    To simplify testing the behavior of a large Dask DataFrame as a mlrun
+    Dataset, we set the default max_ddf_size parameter at 300MB,
+    and test with dataframes of 430MB in size.  Default behavior is to
+    convert any Dask DataFrames of size <1GB to Pandas, else use Dask to create the artifact.
+    """
+    # Set a MAX_DDF_SIZE param to simplify testing
+    monkeypatch.setattr(mlrun.artifacts.dataset, "max_ddf_size", 0.001)
+
+    print("Creating dataframe and setting memory limit")
+    A = numpy.random.random_sample(size=(50000, 6))
+    df = pandas.DataFrame(data=A, columns=list("ABCDEF"))
+    print("Verify the memory size of the dataframe is >400MB")
+    assert (df.memory_usage().sum() // 1e3) > 200
+    ddf = dd.from_pandas(df, npartitions=4)
+
+    # for a large DDF, sample 20% of the rows for
+    # creating the preview
+    _assert_data_artifact_limits(
+        ddf, len(ddf.sample(frac=0.2).compute().values.tolist())
+    )
+
+    # more than allowed columns
+    number_of_columns = mlrun.artifacts.dataset.max_preview_columns * 3
+    data_frame = pandas.DataFrame(
+        numpy.random.randint(0, 10, size=(2000, number_of_columns)),
+        columns=list(range(number_of_columns)),
+    )
+    ddf = dd.from_pandas(data_frame, npartitions=4)
+    ddf = ddf.repartition(partition_size="1MB")
+    _assert_data_artifacts(ddf, number_of_columns)
+
+    ddf = dd.from_pandas(data_frame, npartitions=2)
+    ddf.repartition(partition_size="100MB")
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
+    assert artifact.stats is None
+
+
+def test_dataset_preview_size_limit_from_small_dask_dataframe():
+    print("Starting preview for small dask dataframe")
+    df_data = numpy.random.random_sample(size=(100, 6))
+    df = pandas.DataFrame(data=df_data, columns=list("ABCDEF"))
+    ddf = dd.from_pandas(df, npartitions=4).persist()
+    _assert_data_artifact_limits(ddf, len(df))
+
+    # more than allowed columns
+    number_of_columns = mlrun.artifacts.dataset.max_preview_columns * 3
+    data_frame = pandas.DataFrame(
+        numpy.random.randint(0, 10, size=(10, number_of_columns)),
+        columns=list(range(number_of_columns)),
+    )
+    ddf = dd.from_pandas(data_frame, npartitions=4)
+    ddf = ddf.repartition(partition_size="100MB").persist()
+    _assert_data_artifacts(ddf, number_of_columns)
+    # too many rows for stats computation
+    data_frame = pandas.DataFrame(
+        numpy.random.randint(0, 10, size=(mlrun.artifacts.dataset.max_csv * 3, 1)),
+        columns=["A"],
+    )
+    ddf = dd.from_pandas(data_frame, npartitions=2)
+    ddf.repartition(partition_size="100MB").persist()
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=data_frame)
+    assert artifact.stats is None
+
+
 def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"
@@ -239,3 +310,31 @@ def _generate_dataset_artifact(format_):
         format=format_,
     )
     return artifact
+
+
+def _assert_data_artifact_limits(df, expected_preview_length):
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=df)
+    assert len(artifact.preview) == mlrun.artifacts.dataset.default_preview_rows_length
+
+    # override limit
+    limit = 25
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=df, preview=limit)
+    assert len(artifact.preview) == limit
+
+    # ignore limits
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, ignore_preview_limits=True
+    )
+    assert len(artifact.preview) == expected_preview_length
+
+
+def _assert_data_artifacts(df, number_of_columns):
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=df)
+    assert len(artifact.preview[0]) == mlrun.artifacts.dataset.max_preview_columns
+    assert artifact.stats is None
+
+    # ignore limits
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, ignore_preview_limits=True
+    )
+    assert len(artifact.preview[0]) == number_of_columns

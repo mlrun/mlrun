@@ -238,12 +238,59 @@ async def test_invoke_schedule(
 
 
 @pytest.mark.asyncio
+# ML-4902
+async def test_get_schedule_last_run_deleted(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
+    schedule_name = "schedule-name"
+    project_name = config.default_project
+    create_project(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    scheduler.create_schedule(
+        db,
+        mlrun.common.schemas.AuthInfo(),
+        project_name,
+        schedule_name,
+        mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    await scheduler.invoke_schedule(
+        db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 1
+
+    run_uid = runs[0]["metadata"]["uid"]
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
+
+    assert schedule.last_run is not None
+    assert schedule.last_run["metadata"]["uid"] == run_uid
+    assert schedule.last_run["metadata"]["project"] == project_name
+
+    # delete the last run for the schedule, ensure we can still get the schedule without failing
+    get_db().del_run(db, uid=run_uid, project=project_name)
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
+
+    assert schedule.last_run_uri is None
+    assert schedule.last_run == {}
+
+
+@pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(
     db: Session,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-
     project_name = config.default_project
     create_project(db, project_name)
 
@@ -1245,6 +1292,10 @@ async def test_update_schedule_failure_not_found_in_scheduler(
 
 
 @pytest.mark.asyncio
+# Marking the test as flaky since it depends on the scheduler to run the job in the right time.
+# We were experiencing issues with concurrency_limit > 1 where some job might be unexpectedly skipped due to
+# milliseconds delay. This issue is rare and if it seems to be happening more frequently, it should be addressed.
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.parametrize(
     # The function waits 2 seconds and the schedule runs every second for 4 seconds. So:
     # For 1 concurrent job, the second and fourth jobs should be skipped resulting in 2 runs.

@@ -33,5 +33,7 @@ export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/server/api/migrations_sqlite/mlr
 
 cleanup
 
+export PYTHONPATH=$ROOT_DIR
+
 alembic -c "${ROOT_DIR}/server/api/alembic.ini" upgrade head
 alembic -c "${ROOT_DIR}/server/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

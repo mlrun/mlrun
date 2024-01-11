@@ -54,6 +54,7 @@ class MPIResourceSpec(KubeResourceSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
         super().__init__(
             command=command,
@@ -83,6 +84,7 @@ class MPIResourceSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -109,7 +111,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @staticmethod
     def _get_run_completion_updates(run: dict) -> dict:
-
         # TODO: add a 'workers' section in run objects state, each worker will update its state while
         #  the run state will be resolved by the server.
         # update the run object state if empty so that it won't default to 'created' state

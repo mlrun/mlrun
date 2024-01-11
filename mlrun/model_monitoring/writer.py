@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+import json
+from http import HTTPStatus
 from typing import Any, NewType
 
 import pandas as pd
@@ -23,7 +26,6 @@ from v3io_frames.frames_pb2 import IGNORE
 import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring import EventFieldType
 from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
@@ -74,7 +76,7 @@ class _Notifier:
 The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
 of kind `{self._event[WriterEvent.RESULT_KIND]}` \
 detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
-at time `{self._event[WriterEvent.SCHEDULE_TIME]}`.
+at time `{self._event[WriterEvent.START_INFER_TIME]}`.
 
 Result data:
 Name: `{self._event[WriterEvent.RESULT_NAME]}`
@@ -103,21 +105,30 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(self, project: str) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-        self._v3io_container = f"users/pipelines/{self.name}/monitoring-apps"
+        self._v3io_container = self.get_v3io_container(self.name)
         self._kv_client = self._get_v3io_client().kv
-        self._tsdb_client = self._get_v3io_frames_client()
+        self._tsdb_client = self._get_v3io_frames_client(self._v3io_container)
         self._custom_notifier = CustomNotificationPusher(
             notification_types=[NotificationKind.slack]
         )
         self._create_tsdb_table()
+        self._kv_schemas = []
 
-    def _get_v3io_client(self) -> V3IOClient:
-        return mlrun.utils.v3io_clients.get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
+    @staticmethod
+    def get_v3io_container(project_name: str) -> str:
+        return f"users/pipelines/{project_name}/monitoring-apps"
 
-    def _get_v3io_frames_client(self) -> V3IOFramesClient:
+    @staticmethod
+    def _get_v3io_client() -> V3IOClient:
+        return mlrun.utils.v3io_clients.get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api,
+        )
+
+    @staticmethod
+    def _get_v3io_frames_client(v3io_container: str) -> V3IOFramesClient:
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
-            container=self._v3io_container,
+            container=v3io_container,
         )
 
     def _create_tsdb_table(self) -> None:
@@ -132,29 +143,55 @@ class ModelMonitoringWriter(StepToDict):
         event = _AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
         app_name = event.pop(WriterEvent.APPLICATION_NAME)
-        self._kv_client.put(
+        metric_name = event.pop(WriterEvent.RESULT_NAME)
+        attributes = {metric_name: json.dumps(event)}
+        self._kv_client.update(
             container=self._v3io_container,
             table_path=endpoint_id,
             key=app_name,
-            attributes=event,
+            attributes=attributes,
         )
+        if endpoint_id not in self._kv_schemas:
+            self._generate_kv_schema(endpoint_id)
         logger.info("Updated V3IO KV successfully", key=app_name)
+
+    def _generate_kv_schema(self, endpoint_id: str):
+        """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
+        fields = [
+            {"name": WriterEvent.RESULT_NAME, "type": "string", "nullable": False}
+        ]
+        res = self._kv_client.create_schema(
+            container=self._v3io_container,
+            table_path=endpoint_id,
+            key=WriterEvent.APPLICATION_NAME,
+            fields=fields,
+        )
+        if res.status_code != HTTPStatus.OK.value:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
+            )
+        else:
+            logger.info(
+                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
+            )
+            self._kv_schemas.append(endpoint_id)
 
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())
-        event[WriterEvent.SCHEDULE_TIME] = pd.to_datetime(
-            event[WriterEvent.SCHEDULE_TIME],
-            format=EventFieldType.TIME_FORMAT,
+        event[WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
+            event[WriterEvent.END_INFER_TIME]
         )
+        del event[WriterEvent.RESULT_EXTRA_DATA]
         try:
             self._tsdb_client.write(
                 backend=_TSDB_BE,
                 table=_TSDB_TABLE,
                 dfs=pd.DataFrame.from_records([event]),
                 index_cols=[
-                    WriterEvent.SCHEDULE_TIME,
+                    WriterEvent.END_INFER_TIME,
                     WriterEvent.ENDPOINT_ID,
                     WriterEvent.APPLICATION_NAME,
+                    WriterEvent.RESULT_NAME,
                 ],
             )
             logger.info("Updated V3IO TSDB successfully", table=_TSDB_TABLE)
@@ -173,21 +210,13 @@ class ModelMonitoringWriter(StepToDict):
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         try:
-            return _AppResultEvent(
-                {
-                    key: event[key]
-                    for key in (
-                        WriterEvent.ENDPOINT_ID,
-                        WriterEvent.SCHEDULE_TIME,
-                        WriterEvent.APPLICATION_NAME,
-                        WriterEvent.RESULT_NAME,
-                        WriterEvent.RESULT_KIND,
-                        WriterEvent.RESULT_VALUE,
-                        WriterEvent.RESULT_STATUS,
-                        WriterEvent.RESULT_EXTRA_DATA,
-                    )
-                }
+            result_event = _AppResultEvent(
+                {key: event[key] for key in WriterEvent.list()}
             )
+            result_event[WriterEvent.CURRENT_STATS] = json.loads(
+                event[WriterEvent.CURRENT_STATS]
+            )
+            return result_event
         except KeyError as err:
             raise _WriterEventValueError(
                 "The received event misses some keys compared to the expected "

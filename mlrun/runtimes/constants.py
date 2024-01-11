@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
+import typing
+
+
 class PodPhases:
     """
     https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
@@ -53,6 +57,56 @@ class PodPhases:
         }[pod_phase]
 
 
+class ThresholdStates:
+    # A pod can be in pending and scheduled state when the pod's container images are not already available on the node
+    # where it is scheduled, or initialization tasks specified in the pod's configuration are not yet completed.
+    pending_scheduled = "pending_scheduled"
+    pending_not_scheduled = "pending_not_scheduled"
+    executing = "executing"
+    image_pull_backoff = "image_pull_backoff"
+
+    @staticmethod
+    def all():
+        return [
+            ThresholdStates.pending_scheduled,
+            ThresholdStates.pending_not_scheduled,
+            ThresholdStates.executing,
+            ThresholdStates.image_pull_backoff,
+        ]
+
+    @staticmethod
+    def from_pod_phase(pod_phase: str, pod: typing.Dict) -> typing.Optional[str]:
+        if pod_phase == PodPhases.pending:
+            if ThresholdStates.is_pod_in_image_pull_backoff(pod):
+                return ThresholdStates.image_pull_backoff
+            elif ThresholdStates.is_pod_scheduled(pod):
+                return ThresholdStates.pending_scheduled
+            else:
+                return ThresholdStates.pending_not_scheduled
+
+        elif pod_phase == PodPhases.running:
+            return ThresholdStates.executing
+
+        return None
+
+    @staticmethod
+    def is_pod_scheduled(pod: typing.Dict):
+        conditions = pod["status"].get("conditions", []) or []
+        for condition in conditions:
+            if condition["type"] == "PodScheduled" and condition["status"] == "True":
+                return True
+        return False
+
+    @staticmethod
+    def is_pod_in_image_pull_backoff(pod: typing.Dict):
+        container_statuses = pod.get("status").get("container_statuses", []) or []
+        for container_status in container_statuses:
+            state_waiting = container_status.get("state", {}).get("waiting", {}) or {}
+            if state_waiting.get("reason", "") == "ImagePullBackOff":
+                return True
+        return False
+
+
 class MPIJobCRDVersions(object):
     v1 = "v1"
     v1alpha1 = "v1alpha1"
@@ -81,6 +135,7 @@ class RunStates(object):
     pending = "pending"
     unknown = "unknown"
     aborted = "aborted"
+    aborting = "aborting"
 
     @staticmethod
     def all():
@@ -92,6 +147,7 @@ class RunStates(object):
             RunStates.pending,
             RunStates.unknown,
             RunStates.aborted,
+            RunStates.aborting,
         ]
 
     @staticmethod
@@ -103,8 +159,35 @@ class RunStates(object):
         ]
 
     @staticmethod
+    def error_states():
+        return [
+            RunStates.error,
+            RunStates.aborted,
+        ]
+
+    @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
+
+    @staticmethod
+    def not_allowed_for_deletion_states():
+        return [
+            RunStates.running,
+            RunStates.pending,
+            # TODO: add aborting state once we have it
+        ]
+
+
+class RunLabels(enum.Enum):
+    owner = "owner"
+    v3io_user = "v3io_user"
+
+    @staticmethod
+    def all():
+        return [
+            RunLabels.owner,
+            RunLabels.v3io_user,
+        ]
 
 
 class SparkApplicationStates:

@@ -52,6 +52,7 @@ class FeatureFlags(pydantic.BaseModel):
 
 class FrontendSpec(pydantic.BaseModel):
     jobs_dashboard_url: typing.Optional[str]
+    model_monitoring_dashboard_url: typing.Optional[str]
     abortable_function_kinds: typing.List[str] = []
     feature_flags: FeatureFlags
     default_function_priority_class_name: typing.Optional[str]

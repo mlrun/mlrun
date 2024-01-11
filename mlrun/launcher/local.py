@@ -67,15 +67,15 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
-
         # do not allow local function to be scheduled
         if self._is_run_local and schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "local and schedule cannot be used together"
             )
 
-        self.enrich_runtime(runtime)
+        self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
 
         if self._is_run_local:
@@ -117,6 +117,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             artifact_path=artifact_path,
             workdir=workdir,
             notifications=notifications,
+            state_thresholds=state_thresholds,
         )
         self._validate_runtime(runtime, run)
         result = self._execute(
@@ -131,7 +132,6 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
-
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
 
@@ -207,7 +207,6 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         workdir: Optional[str] = "",
         handler: Optional[str] = None,
     ):
-
         project = project or runtime.metadata.project
         function_name = name or runtime.metadata.name
         command, args = self._resolve_local_code_path(local_code_path)

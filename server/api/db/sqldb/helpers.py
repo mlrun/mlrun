@@ -14,12 +14,11 @@
 #
 from dateutil import parser
 
+import mlrun.runtimes.constants
 from mlrun.utils import get_in
-from server.api.db.sqldb.models import Base, _table2cls
+from server.api.db.sqldb.models import Base
 
-
-def table2cls(name):
-    return _table2cls.get(name)
+max_str_length = 255
 
 
 def label_set(labels):
@@ -45,9 +44,6 @@ def run_labels(run) -> dict:
 
 
 def run_state(run):
-    # import here to avoid circular imports
-    import mlrun.runtimes.constants
-
     return get_in(run, "status.state", mlrun.runtimes.constants.RunStates.created)
 
 
@@ -86,3 +82,9 @@ def generate_query_predicate_for_name(column, query_string):
         return column.ilike(f"%{query_string[1:]}%")
     else:
         return column.__eq__(query_string)
+
+
+def ensure_max_length(string: str):
+    if string and len(string) > max_str_length:
+        string = string[:max_str_length]
+    return string

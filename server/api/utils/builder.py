@@ -14,7 +14,6 @@
 import os.path
 import pathlib
 import re
-import tempfile
 import textwrap
 import typing
 from base64 import b64decode, b64encode
@@ -27,8 +26,10 @@ from kubernetes import client
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
@@ -39,7 +40,7 @@ def make_dockerfile(
     commands: list = None,
     source: str = None,
     requirements_path: str = None,
-    workdir: str = "/mlrun",
+    target_dir: str = "/mlrun",
     extra: str = "",
     user_unix_id: int = None,
     enriched_group_id: int = None,
@@ -55,8 +56,7 @@ def make_dockerfile(
     :param source: The path to the source code directory to be included in the Docker image.
     :param requirements_path: The path to the requirements file (e.g., requirements.txt) containing
                               the Python dependencies to be installed in the Docker image.
-    :param workdir: The working directory inside the container where commands will be executed.
-                    Default is "/mlrun".
+    :param target_dir: The directory to which source code will be copied. Default is "/mlrun".
     :param extra: Additional content to be appended to the generated Dockerfile.
     :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
                          This is useful for matching the user ID with the host environment
@@ -104,10 +104,9 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
-        dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
-            source_dir = os.path.join(workdir, "source")
+            source_dir = os.path.join(target_dir, "source")
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
@@ -119,14 +118,14 @@ def make_dockerfile(
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
             dock = stage + "\n" + dock
 
-            dock += f"COPY --from=extractor {source_dir}/ {workdir}\n"
+            dock += f"COPY --from=extractor {source_dir}/ {target_dir}\n"
         else:
-            dock += f"ADD {source} {workdir}\n"
+            dock += f"ADD {source} {target_dir}\n"
 
         if user_unix_id is not None and enriched_group_id is not None:
-            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {target_dir}\n"
 
-        dock += f"ENV PYTHONPATH {workdir}\n"
+        dock += f"ENV PYTHONPATH {target_dir}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
     if requirements_path:
@@ -162,7 +161,6 @@ def make_kaniko_pod(
 ):
     extra_runtime_spec = {}
     if not registry:
-
         # if registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
@@ -278,8 +276,9 @@ def make_kaniko_pod(
             commands.append("echo ${CODE} | base64 -d > /empty/" + name)
         if requirements:
             # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
+            requirements_file_content = "{0}\n".format("\n".join(requirements))
             env["REQUIREMENTS"] = b64encode(
-                "\n".join(requirements).encode("utf-8")
+                requirements_file_content.encode("utf-8")
             ).decode("utf-8")
             # dump requirement content and decode to the requirement.txt destination
             commands.append(
@@ -294,8 +293,7 @@ def make_kaniko_pod(
         )
 
     # when using ECR we need init container to create the image repository
-    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    if ".ecr." in registry and ".amazonaws.com" in registry:
+    if mlrun.utils.helpers.is_ecr_url(registry):
         end = dest.find(":")
         if end == -1:
             end = len(dest)
@@ -340,7 +338,6 @@ def configure_kaniko_ecr_init_container(
     kpod.env = kpod.env or []
 
     if assume_instance_role:
-
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
@@ -399,6 +396,7 @@ def build_image(
     client_version=None,
     runtime=None,
     extra_args=None,
+    force_build=None,
 ):
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
@@ -410,16 +408,15 @@ def build_image(
     # no need to enrich extra args because we get them from the build anyway
     _validate_extra_args(extra_args)
 
-    image_target, secret_name = resolve_image_target_and_registry_secret(
-        image_target, registry, secret_name
-    )
-
+    image_target = resolve_image_target(image_target, registry)
     commands, requirements_list, requirements_path = _resolve_build_requirements(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
 
-    if not inline_code and not source and not commands and not requirements:
-        mlrun.utils.logger.info("skipping build, nothing to add")
+    if force_build:
+        mlrun.utils.logger.info("Forcefully building image")
+    elif not inline_code and not source and not commands and not requirements:
+        mlrun.utils.logger.info("Skipping build, nothing to add")
         return "skipped"
 
     context = "/context"
@@ -492,12 +489,10 @@ def build_image(
         not runtime.spec.clone_target_dir
         or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # use a temp dir for permissions and set it as the workdir
-        tmpdir = tempfile.mkdtemp()
         relative_workdir = runtime.spec.clone_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
+        runtime.spec.clone_target_dir = path.join("/home/mlrun_code", relative_workdir)
 
     dock = make_dockerfile(
         base_image,
@@ -507,7 +502,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=runtime.spec.clone_target_dir,
+        target_dir=runtime.spec.clone_target_dir,
         builder_env=builder_env_list,
         project_secrets=project_secrets,
         extra_args=extra_args,
@@ -610,7 +605,7 @@ def resolve_upgrade_pip_command(commands=None):
 
 def build_runtime(
     auth_info: mlrun.common.schemas.AuthInfo,
-    runtime,
+    runtime: mlrun.runtimes.BaseRuntime,
     with_mlrun=True,
     mlrun_version_specifier=None,
     skip_deployed=False,
@@ -618,14 +613,25 @@ def build_runtime(
     builder_env=None,
     client_version=None,
     client_python_version=None,
+    force_build=False,
 ):
-    build = runtime.spec.build
+    build: mlrun.model.ImageBuilder = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
+        mlrun.utils.logger.info(
+            "Skipping build, runtime is already deployed",
+            runtime_name=runtime.metadata.name,
+            project=project,
+        )
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
-    if build.base_image:
+
+    is_mlrun_image = False
+    base_image: str = (
+        build.base_image or runtime.spec.image or config.default_base_image
+    )
+    if base_image:
         # TODO: ml-models was removed in 1.5.0. remove it from here in 1.7.0.
         mlrun_images = [
             "mlrun/mlrun",
@@ -633,10 +639,14 @@ def build_runtime(
             "mlrun/ml-base",
             "mlrun/ml-models",
         ]
-        # if the base is one of mlrun images - no need to install mlrun
-        if any([image in build.base_image for image in mlrun_images]):
+        if any([image in base_image for image in mlrun_images]):
+            # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
             with_mlrun = False
-    if (
+            is_mlrun_image = True
+
+    if force_build:
+        mlrun.utils.logger.info("Forcefully building image")
+    elif (
         not build.source
         and not build.commands
         and not build.requirements
@@ -655,10 +665,14 @@ def build_runtime(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
                 " (commands/source)"
             )
+
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
+    build.image = _resolve_function_image_name(runtime, build.image)
+
+    # config.httpdb.builder.docker_registry_secret
+    build.secret = _resolve_function_image_secret(build.image, build.secret)
     runtime.status.state = ""
 
     inline = None  # noqa: F841
@@ -666,16 +680,32 @@ def build_runtime(
         inline = b64decode(build.functionSourceCode).decode("utf-8")  # noqa: F841
     if not build.image:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "build spec must have a target image, set build.image = <target image>"
+            "Build spec must have a target image, set build.image = <target image>"
         )
     name = mlrun.utils.normalize_name(f"mlrun-build-{runtime.metadata.name}")
 
-    base_image: str = (
-        build.base_image or runtime.spec.image or config.default_base_image
-    )
     enriched_base_image = runtime.full_image_path(
         base_image, client_version, client_python_version
     )
+
+    # Add mlrun to the requirements even though it is already installed because
+    # we want pip to include mlrun constraints when installing other packages
+    if is_mlrun_image and build.requirements:
+        image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
+            enriched_base_image
+        )
+        if has_py_package or mlrun_version_specifier:
+            installed_mlrun_version_command = resolve_mlrun_install_command_version(
+                mlrun_version_specifier, client_version=image_tag
+            )
+            build.requirements.insert(0, installed_mlrun_version_command)
+
+        else:
+            mlrun.utils.logger.warning(
+                "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
+                base_image=enriched_base_image,
+            )
+
     mlrun.utils.logger.info(
         "Building runtime image",
         base_image=enriched_base_image,
@@ -704,6 +734,7 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
+        force_build=force_build,
     )
     runtime.status.build_pod = None
     if status == "skipped":
@@ -722,7 +753,7 @@ def build_runtime(
         runtime.spec.build.base_image = base_image
         return False
 
-    mlrun.utils.logger.info(f"build completed with {status}")
+    mlrun.utils.logger.info("Build completed", status=status)
     if status in ["failed", "error"]:
         runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False
@@ -733,24 +764,20 @@ def build_runtime(
     return True
 
 
-def resolve_image_target_and_registry_secret(
-    image_target: str, registry: str = None, secret_name: str = None
-) -> (str, str):
+def resolve_image_target(image_target: str, registry: str = None) -> str:
     if registry:
-        return "/".join([registry, image_target]), secret_name
+        return "/".join([registry, image_target])
 
     # if dest starts with a dot, we add the configured registry to the start of the dest
     if image_target.startswith(
         mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
     ):
-
         # remove prefix from image name
         image_target = image_target[
             len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
         ]
 
         registry, repository = mlrun.utils.get_parsed_docker_registry()
-        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
         if not registry:
             raise ValueError(
                 "Default docker registry is not defined, set "
@@ -760,11 +787,10 @@ def resolve_image_target_and_registry_secret(
         if repository and repository not in image_target:
             image_target_components = [registry, repository, image_target]
 
-        return "/".join(image_target_components), secret_name
+        return "/".join(image_target_components)
 
     image_target = remove_image_protocol_prefix(image_target)
-
-    return image_target, secret_name
+    return image_target
 
 
 def _generate_builder_env(
@@ -993,3 +1019,53 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
                     merged_args.extend([flag, val])
 
     return merged_args
+
+
+def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
+    project = function.metadata.project or config.default_project
+    name = function.metadata.name
+    tag = function.metadata.tag or "latest"
+    if image:
+        image_name_prefix = (
+            mlrun.runtimes.utils.resolve_function_target_image_name_prefix(
+                project, name
+            )
+        )
+        registries_to_enforce_prefix = mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+        for registry in registries_to_enforce_prefix:
+            if image.startswith(registry):
+                prefix_with_registry = f"{registry}{image_name_prefix}"
+                if not image.startswith(prefix_with_registry):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
+                    )
+        return image
+    return _generate_function_image_name(project, name, tag)
+
+
+def _generate_function_image_name(project: str, name: str, tag: str) -> str:
+    _, repository = mlrun.utils.get_parsed_docker_registry()
+    repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
+    return mlrun.runtimes.utils.fill_function_image_name_template(
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
+        repository,
+        project,
+        name,
+        tag,
+    )
+
+
+def _resolve_function_image_secret(
+    resolved_target_image: str, secret: typing.Optional[str] = None
+) -> str:
+    if not secret:
+        parsed_registry, _ = mlrun.utils.get_parsed_docker_registry()
+
+        # populate default secret if target image prefix equals to either the implicit or explicit default registry
+        if (
+            parsed_registry and resolved_target_image.startswith(parsed_registry)
+        ) or resolved_target_image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
+            secret = config.httpdb.builder.docker_registry_secret
+    return secret

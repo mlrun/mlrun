@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import pathlib
 import typing
 
 import sqlalchemy.orm
 from fastapi import Depends
 
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
@@ -33,14 +32,16 @@ from mlrun.utils import logger
 from server.api.api import deps
 from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 
-_MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
+_MODEL_MONITORING_COMMON_PATH = (
+    pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
+)
 _STREAM_PROCESSING_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
 )
 _MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "batch.py"
 
-_MONITORING_APPLICATION_BATCH_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "batch_application_handler.py"
+_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
+    _MODEL_MONITORING_COMMON_PATH / "controller_handler.py"
 )
 
 _MONITORING_WRITER_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "writer.py"
@@ -101,23 +102,6 @@ class MonitoringDeployment:
             tracking_offset=Seconds(self._max_parquet_save_interval),
             function_name=mm_constants.MonitoringFunctionNames.BATCH,
         )
-        if tracking_policy.application_batch:
-            self.deploy_model_monitoring_batch_processing(
-                project=project,
-                model_monitoring_access_key=model_monitoring_access_key,
-                db_session=db_session,
-                auth_info=auth_info,
-                tracking_policy=tracking_policy,
-                tracking_offset=Seconds(self._max_parquet_save_interval),
-                function_name=mm_constants.MonitoringFunctionNames.BATCH_APPLICATION,
-            )
-            self.deploy_model_monitoring_writer_application(
-                project=project,
-                model_monitoring_access_key=model_monitoring_access_key,
-                db_session=db_session,
-                auth_info=auth_info,
-                tracking_policy=tracking_policy,
-            )
 
     def deploy_model_monitoring_stream_processing(
         self,
@@ -185,6 +169,48 @@ class MonitoringDeployment:
             function=fn,
         )
 
+    def deploy_model_monitoring_controller(
+        self,
+        project: str,
+        model_monitoring_access_key: str,
+        db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 5 min.
+
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations, including the required controller
+                                            configurations such as the base period (5 minutes by default) and
+                                            the default controller image (`mlrun/mlrun` by default).
+
+        :return: Model monitoring controller job as a runtime function.
+        """
+
+        self.deploy_model_monitoring_writer_application(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            tracking_policy=tracking_policy,
+        )
+
+        return self.deploy_model_monitoring_batch_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            tracking_policy=tracking_policy,
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+
     def deploy_model_monitoring_batch_processing(
         self,
         project: str,
@@ -198,7 +224,7 @@ class MonitoringDeployment:
         function_name: str = mm_constants.MonitoringFunctionNames.BATCH,
     ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
         """
-        Deploying model monitoring batch job or model monitoring batch application job.
+        Deploying model monitoring batch job.
         The goal of this job is to identify drift in the data based on the latest batch of events. By default,
         this job is executed on the hour every hour.
         Note that if this job was already deployed then you will either have to pass overwrite=True or
@@ -212,14 +238,14 @@ class MonitoringDeployment:
         :param with_schedule:               If true, submit a scheduled batch drift job.
         :param overwrite:                   If true, overwrite the existing model monitoring batch job.
         :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
-        :param function_name:               model-monitoring-batch or model-monitoring-application-batch
+        :param function_name:               model-monitoring-batch or model-monitoring-controller
                                             indicates witch one to deploy.
 
         :return: Model monitoring batch job as a runtime function.
         """
         job_valid_names = [
             mm_constants.MonitoringFunctionNames.BATCH,
-            mm_constants.MonitoringFunctionNames.BATCH_APPLICATION,
+            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         ]
         if function_name not in job_valid_names:
             raise mlrun.errors.MLRunRuntimeError(
@@ -258,7 +284,9 @@ class MonitoringDeployment:
                 model_monitoring_access_key=model_monitoring_access_key,
                 db_session=db_session,
                 auth_info=auth_info,
-                tracking_policy=tracking_policy,
+                image=tracking_policy.default_batch_image
+                if function_name == mm_constants.MonitoringFunctionNames.BATCH
+                else tracking_policy.default_controller_image,
                 function_name=function_name,
             )
 
@@ -388,12 +416,15 @@ class MonitoringDeployment:
         )
 
         # Create a new serving function for the streaming process
-        function = mlrun.code_to_function(
-            name="model-monitoring-stream",
-            project=project,
-            filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
-            kind="serving",
-            image=tracking_policy.stream_image,
+        function = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name="model-monitoring-stream",
+                project=project,
+                filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=tracking_policy.stream_image,
+            ),
         )
 
         # Create monitoring serving graph
@@ -422,7 +453,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        image: str,
         function_name: str = "model-monitoring-batch",
     ):
         """
@@ -433,8 +464,8 @@ class MonitoringDeployment:
                                             deployments this parameter will be None.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
-        :param function_name:               model-monitoring-batch or model-monitoring-application-batch
+        :param image:                       Base docker image to use for building the function container
+        :param function_name:               model-monitoring-batch or model-monitoring-controller
                                             indicates witch one to create.
         :return:                            A function object from a mlrun runtime class
 
@@ -442,7 +473,7 @@ class MonitoringDeployment:
         filename = (
             str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
             if function_name == "model-monitoring-batch"
-            else str(_MONITORING_APPLICATION_BATCH_FUNCTION_PATH)
+            else str(_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
@@ -450,7 +481,7 @@ class MonitoringDeployment:
             project=project,
             filename=filename,
             kind="job",
-            image=tracking_policy.default_batch_image,
+            image=image,
             handler="handler",
         )
         function.set_db_connection(server.api.api.utils.get_run_db_instance(db_session))
@@ -474,8 +505,9 @@ class MonitoringDeployment:
 
         return function
 
-    @staticmethod
+    @classmethod
     def _submit_schedule_batch_job(
+        cls,
         project: str,
         function_uri: str,
         db_session: sqlalchemy.orm.Session,
@@ -503,31 +535,19 @@ class MonitoringDeployment:
         task = mlrun.new_task(name=function_name, project=project)
         task.spec.function = function_uri
 
-        # Apply batching interval params
-        interval_list = [
-            tracking_policy.default_batch_intervals.minute,
-            tracking_policy.default_batch_intervals.hour,
-            tracking_policy.default_batch_intervals.day,
-        ]
-        (
-            minutes,
-            hours,
-            days,
-        ) = server.api.crud.model_monitoring.helpers.get_batching_interval_param(
-            interval_list
+        schedule, batch_dict = cls._generate_schedule_and_interval_dict(
+            function_name=function_name,
+            tracking_policy=tracking_policy,
+            tracking_offset=tracking_offset,
         )
-        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
 
         task.spec.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
         ] = batch_dict
 
         data = {
             "task": task.to_dict(),
-            "schedule": server.api.crud.model_monitoring.helpers.convert_to_cron_string(
-                tracking_policy.default_batch_intervals,
-                minute_delay=seconds2minutes(tracking_offset),
-            ),
+            "schedule": schedule,
         }
 
         logger.info(
@@ -539,6 +559,55 @@ class MonitoringDeployment:
         server.api.api.utils.submit_run_sync(
             db_session=db_session, auth_info=auth_info, data=data
         )
+
+    @classmethod
+    def _generate_schedule_and_interval_dict(
+        cls,
+        function_name: str,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_offset: Seconds,
+    ) -> typing.Tuple[str, typing.Dict[str, int]]:
+        """Generate schedule cron string along with the batch interval dictionary according to the providing
+        function name. As for the model monitoring controller function, the dictionary batch interval is
+        corresponding to the scheduling policy.
+
+        :param tracking_policy: Model monitoring configurations.
+        :param tracking_offset: Offset for the tracking policy (for synchronization with the stream).
+
+        :return: A tuple of:
+         [0] = Schedule cron string
+         [1] = Dictionary of the batch interval.
+        """
+
+        if function_name == mm_constants.MonitoringFunctionNames.BATCH:
+            # Apply batching interval params
+            interval_list = [
+                tracking_policy.default_batch_intervals.minute,
+                tracking_policy.default_batch_intervals.hour,
+                tracking_policy.default_batch_intervals.day,
+            ]
+            (
+                minutes,
+                hours,
+                days,
+            ) = server.api.crud.model_monitoring.helpers.get_batching_interval_param(
+                interval_list
+            )
+            schedule = server.api.crud.model_monitoring.helpers.convert_to_cron_string(
+                tracking_policy.default_batch_intervals,
+                minute_delay=seconds2minutes(tracking_offset),
+            )
+        else:
+            # Apply monitoring controller params
+            minutes = tracking_policy.base_period
+            hours = days = 0
+            schedule = f"*/{tracking_policy.base_period} * * * *"
+        batch_dict = {
+            mm_constants.EventFieldType.MINUTES: minutes,
+            mm_constants.EventFieldType.HOURS: hours,
+            mm_constants.EventFieldType.DAYS: days,
+        }
+        return schedule, batch_dict
 
     def _apply_stream_trigger(
         self,
@@ -630,13 +699,13 @@ class MonitoringDeployment:
         if function_name in mm_constants.MonitoringFunctionNames.all():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                     project
                 ),
                 server.api.crud.secrets.Secrets().generate_client_project_secret_key(
                     server.api.crud.secrets.SecretsClientType.model_monitoring,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                    mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 ),
             )
 
@@ -669,7 +738,7 @@ class MonitoringDeployment:
             project=project,
             filename=str(_MONITORING_WRITER_FUNCTION_PATH),
             kind="serving",
-            image=tracking_policy.stream_image,
+            image=tracking_policy.default_controller_image,
         )
 
         # Create writer monitoring serving graph
@@ -678,6 +747,18 @@ class MonitoringDeployment:
 
         # Set the project to the serving function
         function.metadata.project = project
+
+        # create v3io stream for  model_monitoring_writer | model monitoring application
+        server.api.api.endpoints.functions.create_model_monitoring_stream(
+            project=project,
+            function=function,
+            monitoring_application=mm_constants.MonitoringFunctionNames.WRITER,
+            stream_path=server.api.crud.model_monitoring.get_stream_path(
+                project=project,
+                application_name=mm_constants.MonitoringFunctionNames.WRITER,
+            ),
+            access_key=model_monitoring_access_key,
+        )
 
         # Add stream triggers
         function = self._apply_stream_trigger(

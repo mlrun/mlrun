@@ -160,7 +160,6 @@ def nuclio_serving_init(context, data):
 
 
 def nuclio_serving_handler(context, event):
-
     # check if valid route & model
     try:
         if hasattr(event, "trigger") and event.trigger.kind not in ["http", ""]:

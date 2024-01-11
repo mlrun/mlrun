@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import getpass
 import json
 import os
 import os.path
@@ -93,7 +92,7 @@ def write_kfpmeta(struct):
             val = results[key]
         try:
             path = "/".join([KFP_ARTIFACTS_DIR, key])
-            logger.info("writing artifact output", path=path, val=val)
+            logger.info("Writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))
         except Exception as exc:
@@ -313,7 +312,6 @@ def mlrun_op(
     code_env = None
     function_name = ""
     if function:
-
         if not func_url:
             if function.kind in ["", "local"]:
                 image = image or function.spec.image
@@ -380,10 +378,7 @@ def mlrun_op(
     returns = returns or []
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
-        labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
-    if "owner" not in labels:
-        labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
+    mlrun.runtimes.utils.enrich_run_labels(labels)
 
     if name:
         cmd += ["--name", name]
@@ -463,6 +458,7 @@ def mlrun_op(
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
+    add_labels(cop, function, scrape_metrics)
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -491,7 +487,6 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
@@ -684,6 +679,16 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
     cop.add_pod_annotation(function_annotation, func_url or function.uri)
 
 
+def add_labels(cop, function, scrape_metrics=False):
+    prefix = mlrun.runtimes.utils.mlrun_key
+    cop.add_pod_label(prefix + "class", function.kind)
+    cop.add_pod_label(prefix + "function", function.metadata.name)
+    cop.add_pod_label(prefix + "name", cop.human_name)
+    cop.add_pod_label(prefix + "project", function.metadata.project)
+    cop.add_pod_label(prefix + "tag", function.metadata.tag or "latest")
+    cop.add_pod_label(prefix + "scrape-metrics", "True" if scrape_metrics else "False")
+
+
 def generate_kfp_dag_and_resolve_project(run, project=None):
     workflow = run.get("pipeline_runtime", {}).get("workflow_manifest")
     if not workflow:
@@ -739,6 +744,7 @@ def format_summary_from_kfp_run(
         kfp_run, override_project
     )
     run_id = get_in(kfp_run, "run.id")
+    logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
 
     # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
     if not run_db:
@@ -762,6 +768,7 @@ def format_summary_from_kfp_run(
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message
+    logger.debug("Completed summary formatting", run_id=run_id, project=project)
     return short_run
 
 
@@ -842,7 +849,6 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         if getattr(function.spec, "node_selector"):
             container_op.node_selector = function.spec.node_selector

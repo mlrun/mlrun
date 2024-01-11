@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.common.schemas
 import mlrun.model
 import server.api.db.sqldb.helpers
 import server.api.initial_data
@@ -95,6 +96,62 @@ def test_runs_with_notifications(db: DBInterface, db_session: Session):
     db.verify_project_has_no_related_resources(db_session, project_name)
 
 
+def test_list_runs_with_notifications_identical_run_names(
+    db: DBInterface, db_session: Session
+):
+    project_name = "project"
+
+    _create_new_run(db, db_session, project=project_name, name="test-run", uid="uid1")
+    notification = mlrun.model.Notification(
+        kind="slack",
+        when=["completed", "error"],
+        name="test-notification",
+        message="test-message",
+        condition="blabla",
+        severity="info",
+        params={"some-param": "some-value"},
+    )
+    db.store_run_notifications(db_session, [notification], "uid1", project_name)
+
+    # same name, different uid
+    _create_new_run(db, db_session, project=project_name, name="test-run", uid="uid2")
+
+    # default query with partition should only return the last run of the same name. this is done in the endpoint
+    # and in the httpdb client, so we'll implement it here manually as this db instance goes directly to the sql db
+    # implementation.
+    partition_by = mlrun.common.schemas.RunPartitionByField.name
+    partition_sort_by = mlrun.common.schemas.SortField.updated
+
+    runs = db.list_runs(
+        db_session,
+        project=project_name,
+        with_notifications=True,
+        partition_by=partition_by,
+        partition_sort_by=partition_sort_by,
+    )
+    assert len(runs) == 1
+
+    runs = db.list_runs(
+        db_session,
+        project=project_name,
+        with_notifications=False,
+        partition_by=partition_by,
+        partition_sort_by=partition_sort_by,
+    )
+    assert len(runs) == 1
+
+    # without partitioning, we should get all runs when querying without notifications and only the first run
+    # when querying with notifications
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == 1
+
+    runs = db.list_runs(db_session, project=project_name, with_notifications=False)
+    assert len(runs) == 2
+
+    db.del_runs(db_session, project=project_name)
+    db.verify_project_has_no_related_resources(db_session, project_name)
+
+
 def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     project_name = "project"
     uid = "run-uid"
@@ -109,14 +166,14 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
         db_session, project=project_name, only_uids=False
     )
     assert len(distinct_runs) == 1
-    assert type(distinct_runs[0]) == dict
+    assert isinstance(distinct_runs[0], dict)
     assert distinct_runs[0]["metadata"]["uid"] == uid
 
     only_uids = db.list_distinct_runs_uids(
         db_session, project=project_name, only_uids=True
     )
     assert len(only_uids) == 1
-    assert type(only_uids[0]) == str
+    assert isinstance(only_uids[0], str)
     assert only_uids[0] == uid
 
     only_uids_requested_true = db.list_distinct_runs_uids(
@@ -128,7 +185,7 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
         db_session, project=project_name, only_uids=True, requested_logs_modes=[False]
     )
     assert len(only_uids_requested_false) == 1
-    assert type(only_uids[0]) == str
+    assert isinstance(only_uids[0], str)
 
     distinct_runs_requested_true = db.list_distinct_runs_uids(
         db_session, project=project_name, requested_logs_modes=[True]
@@ -139,7 +196,7 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
         db_session, project=project_name, requested_logs_modes=[False]
     )
     assert len(distinct_runs_requested_false) == 1
-    assert type(distinct_runs[0]) == dict
+    assert isinstance(distinct_runs[0], dict)
 
 
 def test_list_runs_state_filter(db: DBInterface, db_session: Session):

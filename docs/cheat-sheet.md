@@ -220,7 +220,7 @@ mpijob.run()
 #### Dask
 
 ```python
-dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/mlrun")
+dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = 'NodePort'
@@ -310,6 +310,17 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preempt
 ### Serving/Nuclio triggers
 
 Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/development/nuclio/triggers.py)
+
+By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
+However, we provide a way to disable the default HTTP trigger using:
+`function.disable_default_http_trigger()`
+
+Also, you can explicitly enable the default HTTP trigger creation with:
+`function.enable_default_http_trigger()`
+
+If you didn't set this parameter explicitly, the value is taken from [Nuclio platform configuration](https://github.com/nuclio/nuclio/blob/development/docs/tasks/configuring-a-platform.md). 
+ Therefore, if you haven't disabled the default HTTP trigger, don't have a custom one, and are unable to invoke the function, we recommend checking the Nuclio platform configuration.
+
 ```python
 import nuclio
 serve = mlrun.import_function('hub://v2_model_server')
@@ -724,9 +735,7 @@ categorical_fset = fstore.FeatureSet(
     description="Categorical columns for heart disease dataset"
 )
 
-fstore.ingest(
-    featureset=categorical_fset,
-    source=ParquetSource(path="./data/heart_disease_categorical.parquet")
+categorical_fset.ingest(source=ParquetSource(path="./data/heart_disease_categorical.parquet")
 )
 ```
 
@@ -742,7 +751,7 @@ storey_set = fstore.FeatureSet(
     description="Heart disease data via storey engine",
     engine="storey"
 )
-fstore.ingest(featureset=storey_set, source=DataFrameSource(df=data))
+storey_set.ingest(source=DataFrameSource(df=data))
 
 # Pandas engine
 pandas_set = fstore.FeatureSet(
@@ -751,7 +760,7 @@ pandas_set = fstore.FeatureSet(
     description="Heart disease data via pandas engine",
     engine="pandas"
 )
-fstore.ingest(featureset=pandas_set, source=DataFrameSource(df=data))
+pandas_set.ingest(source=DataFrameSource(df=data))
 
 # Spark engine
 from pyspark.sql import SparkSession
@@ -763,7 +772,7 @@ spark_set = fstore.FeatureSet(
     description="Heart disease data via spark engine",
     engine="spark"
 )
-fstore.ingest(featureset=spark_set, source=CSVSource(path=v3io_data_path), spark_context=spark)
+spark_set.ingest(source=CSVSource(path=v3io_data_path), spark_context=spark)
 ```
 
 #### Ingestion methods
@@ -774,33 +783,33 @@ Docs: [Ingest data locally](./data-prep/ingest-data-fs.html#ingest-data-locally)
 # Local
 from mlrun.datastore.sources import CSVSource
 
-df = fstore.ingest(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
+fs=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+df = fs.ingest(    
     source=CSVSource("mycsv", path="stocks.csv")
 )
 
 # Job
 from mlrun.datastore.sources import ParquetSource
 
-df = fstore.ingest(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
-    source=ParquetSource("mypq", path="stocks.parquet"),
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+df = fs.ingest(    
+    source=ParquetSource("mypq", path="stocks.parquet")
     run_config=fstore.RunConfig(image='mlrun/mlrun')
-)
+	)
 
 # Real-Time
 from mlrun.datastore.sources import HttpSource
 
-url, _ = fstore.deploy_ingestion_service_v2(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+url, _ = fs.deploy_ingestion_service(
     source=HttpSource(key_field="ticker"),
     run_config=fstore.RunConfig(image='mlrun/mlrun', kind="serving")
 )
 
 # Incremental
 cron_trigger = "* */1 * * *" # will run every hour
-fstore.ingest(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+fset.ingest(
     source=ParquetSource("mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger),
     run_config=fstore.RunConfig(image='mlrun/mlrun')
 )
@@ -1103,7 +1112,7 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/mlrun")
+dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-base")
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

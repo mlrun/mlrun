@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends
 from server.api.api import deps
 from server.api.api.endpoints import (
     artifacts,
+    artifacts_v2,
     auth,
     background_tasks,
     client_spec,
@@ -33,9 +34,11 @@ from server.api.api.endpoints import (
     jobs,
     logs,
     model_endpoints,
+    nuclio,
     operations,
     pipelines,
     projects,
+    projects_v2,
     runs,
     runtime_resources,
     schedules,
@@ -45,6 +48,7 @@ from server.api.api.endpoints import (
     workflows,
 )
 
+# v1 router
 api_router = APIRouter(dependencies=[Depends(deps.verify_api_state)])
 api_router.include_router(
     artifacts.router,
@@ -126,9 +130,7 @@ api_router.include_router(
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
-
 api_router.include_router(jobs.router, tags=["jobs"])
-
 api_router.include_router(
     hub.router,
     tags=["hub"],
@@ -144,7 +146,6 @@ api_router.include_router(
     tags=["tags"],
     dependencies=[Depends(deps.authenticate_request)],
 )
-
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],
@@ -158,5 +159,28 @@ api_router.include_router(
 api_router.include_router(
     datastore_profile.router,
     tags=["datastores"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    nuclio.router,
+    tags=["nuclio"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+
+# v2 Router
+api_v2_router = APIRouter(dependencies=[Depends(deps.verify_api_state)])
+api_v2_router.include_router(
+    healthz.router,
+    tags=["healthz"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_v2_router.include_router(
+    artifacts_v2.router,
+    tags=["artifacts"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_v2_router.include_router(
+    projects_v2.router,
+    tags=["projects"],
     dependencies=[Depends(deps.authenticate_request)],
 )

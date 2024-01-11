@@ -512,7 +512,7 @@ class Client(
                 pass
             if not status_code:
                 raise mlrun.errors.MLRunRuntimeError(error_message)
-            raise mlrun.errors.raise_for_status_code(status_code, error_message)
+            raise mlrun.errors.err_for_status_code(status_code, error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
 
     def _send_request_to_api(
@@ -536,7 +536,6 @@ class Client(
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
-
         (
             username,
             session,
@@ -570,9 +569,8 @@ class Client(
 
     @staticmethod
     def _resolve_params_from_response_headers(
-        response_headers: typing.Mapping[str, typing.Any]
+        response_headers: typing.Mapping[str, typing.Any],
     ):
-
         username = response_headers.get("x-remote-user")
         session = response_headers.get("x-v3io-session-key")
         user_id = response_headers.get("x-user-id")
@@ -596,7 +594,7 @@ class Client(
 
     @staticmethod
     def _resolve_params_from_response_body(
-        response_body: typing.Mapping[typing.Any, typing.Any]
+        response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[typing.List[str]]]:
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}

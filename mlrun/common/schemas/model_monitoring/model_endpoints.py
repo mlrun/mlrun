@@ -184,7 +184,7 @@ class ModelEndpointStatus(ObjectStatus):
     features: Optional[List[Features]] = []
     children: Optional[List[str]] = []
     children_uids: Optional[List[str]] = []
-    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value
+    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP
     monitoring_feature_set_uri: Optional[str] = ""
     state: Optional[str] = ""
 

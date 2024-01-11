@@ -54,6 +54,9 @@ def test_client_spec(
     mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
         feature_store_data_prefix_redisnosql
     )
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override
+    )
 
     tolerations = [
         kubernetes.client.V1Toleration(
@@ -123,12 +126,14 @@ def test_client_spec(
     )
     assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
+    assert response_body["function"]["spec"]["security_context"]["enrichment_mode"] == (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override
+    )
 
 
 def test_client_spec_response_based_on_client_version(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()

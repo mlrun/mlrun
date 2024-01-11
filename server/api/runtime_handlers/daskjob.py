@@ -15,6 +15,7 @@
 import typing
 from typing import Dict, List, Optional, Union
 
+import semver
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -29,9 +30,9 @@ import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+from server.api.common.runtime_handlers import get_resource_labels
 from server.api.db.base import DBInterface
 from server.api.runtime_handlers import BaseRuntimeHandler
-from server.api.runtime_handlers.base import get_resource_labels
 
 
 def get_dask_resource():
@@ -61,8 +62,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
         self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
-    ):
-        return
+    ) -> List[dict]:
+        return []
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
@@ -81,7 +82,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
         function = run.get("spec", {}).get("function", None)
         if function:
-
             # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
             # we only want the function name
             project_and_function = function.split("@")[0]
@@ -264,6 +264,7 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
             # 5 minutes, to resiliently handle delicate/slow k8s clusters
             "kubernetes.scheduler-service-wait-timeout": 60 * 5,
             "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.retry.count": 10,
         }
     )
 
@@ -326,13 +327,29 @@ def enrich_dask_cluster(
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    worker_args = ["dask", "worker", "--nthreads", str(spec.nthreads)]
+
+    worker_args = ["dask", "worker"]
+    scheduler_args = ["dask", "scheduler"]
+    # before mlrun 1.6.0, mlrun required a dask version that was not compatible with the new dask CLI
+    # this assumes that the dask client version matches the dask cluster version
+    is_legacy_dask = False
+    try:
+        is_legacy_dask = client_version and semver.VersionInfo.parse(
+            client_version
+        ) < semver.VersionInfo.parse("1.6.0-X")
+    except ValueError:
+        pass
+
+    if is_legacy_dask:
+        worker_args = ["dask-worker"]
+        scheduler_args = ["dask-scheduler"]
+
+    worker_args.extend(["--nthreads", str(spec.nthreads)])
     memory_limit = spec.worker_resources.get("limits", {}).get("memory")
     if memory_limit:
         worker_args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
         worker_args.extend(spec.args)
-    scheduler_args = ["dask", "scheduler"]
 
     container_kwargs = {
         "name": "base",

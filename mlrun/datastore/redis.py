@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from urllib.parse import urlparse
+
 import redis
 import redis.cluster
 
 import mlrun
 
 from .base import DataStore
-from .datastore_profile import datastore_profile_read
 
 
 class RedisStore(DataStore):
@@ -30,31 +31,31 @@ class RedisStore(DataStore):
     """
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        REDIS_DEFAULT_PORT = "6379"
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.headers = None
 
         self.endpoint = self.endpoint or mlrun.mlconf.redis.url
-        if schema == "ds":
-            datastore_profile = datastore_profile_read(name)
-            if not datastore_profile:
-                raise ValueError(f"Failed to load datastore profile '{name}'")
-            if datastore_profile.type != "redis":
-                raise ValueError(
-                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
-                )
-            self._redis_url = datastore_profile.url_with_credentials()
-            self.secure = datastore_profile.is_secured()
-        else:
-            if self.endpoint.startswith("rediss://"):
-                self.endpoint = self.endpoint[len("rediss://") :]
-                self.secure = True
-            elif self.endpoint.startswith("redis://"):
-                self.endpoint = self.endpoint[len("redis://") :]
-                self.secure = False
-            elif self.endpoint == "":
-                raise NotImplementedError(f"invalid endpoint: {self.endpoint}")
+        parsed_endpoint = urlparse(self.endpoint)
+        if parsed_endpoint.scheme != "redis" and parsed_endpoint.scheme != "rediss":
+            parsed_endpoint = urlparse(f"{schema}://{self.endpoint}")
+        self.secure = parsed_endpoint.scheme == "rediss"
 
-            self._redis_url = f"{schema}://{self.endpoint}"
+        if parsed_endpoint.username or parsed_endpoint.password:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Provide Redis username and password only via secrets"
+            )
+        credentials_prefix = self._get_secret_or_env("CREDENTIALS_PREFIX")
+        user = self._get_secret_or_env("REDIS_USER", "", credentials_prefix)
+        password = self._get_secret_or_env("REDIS_PASSWORD", "", credentials_prefix)
+        host = parsed_endpoint.hostname
+        port = parsed_endpoint.port if parsed_endpoint.port else REDIS_DEFAULT_PORT
+        schema = parsed_endpoint.scheme
+        if user or password:
+            endpoint = f"{schema}://{user}:{password}@{host}:{port}"
+        else:
+            endpoint = f"{schema}://{host}:{port}"
+        self._redis_url = endpoint
 
         self._redis = None
 

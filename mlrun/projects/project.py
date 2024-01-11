@@ -53,7 +53,7 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring.application import (
-    ModelMonitoringApplication,
+    ModelMonitoringApplicationBase,
     PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
@@ -1745,7 +1745,7 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1815,7 +1815,7 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -1866,7 +1866,7 @@ class MlrunProject(ModelObj):
     def _instantiate_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -2623,6 +2623,8 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
+            if name not in self.spec._workflows.keys():
+                raise mlrun.errors.MLRunNotFoundError(f"Workflow {name} does not exist")
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
         workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
@@ -3048,9 +3050,12 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        target_dir: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
+        If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
+        image built. The `target_dir` parameter allows specifying the target path where the code will be extracted.
 
         :param image: target image name/path. If not specified the project's existing `default_image` name will be
                         used. If not set, the `mlconf.default_project_image_name` value will be used
@@ -3072,6 +3077,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+        :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
             base_image = mlrun.mlconf.default_base_image
@@ -3114,6 +3120,13 @@ class MlrunProject(ModelObj):
             )
 
             function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+            if self.spec.source and not self.spec.load_source_on_run:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    target_dir=target_dir,
+                    pull_at_runtime=False,
+                )
 
             build = self.spec.build
             result = self.build_function(

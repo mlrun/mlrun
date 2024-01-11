@@ -20,7 +20,7 @@ import pandas as pd
 import semver
 
 from mlrun.errors import MLRunIncompatibleVersionError
-from mlrun.model_monitoring.application import ModelMonitoringApplication
+from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 
 SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.11")
 
@@ -64,13 +64,14 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams
 
 
-class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
+class EvidentlyModelMonitoringApplicationBase(ModelMonitoringApplicationBase):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
     ) -> None:
         """
         A class for integrating Evidently for mlrun model monitoring within a monitoring application.
-        Note: evidently is not installed by default and must be installed separately.
+        Note: evidently is not installed by default in the mlrun/mlrun image.
+        It must be installed separately to use this class.
 
         :param evidently_workspace_path:    (str) The path to the Evidently workspace.
         :param evidently_project_id:        (str) The ID of the Evidently project.

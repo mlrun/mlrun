@@ -61,7 +61,7 @@ def log_artifacts_by_dbfs_json(
     with workspace.dbfs.open(artifact_json_path, read=True) as artifact_file:
         artifact_json = json.load(artifact_file)
     for artifact_name, artifact_path in artifact_json.items():
-        fixed_artifact_path = ""
+        fixed_artifact_path = artifact_path
         if artifact_path.startswith("/dbfs"):
             fixed_artifact_path = artifact_path.replace("/dbfs", "dbfs://", 1)
         # for pyspark format:

@@ -2380,16 +2380,28 @@ class HTTPRunDB(RunDBInterface):
             - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
-        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
-        response = self.api_call("DELETE", path, error_message, headers=headers)
+        response = self.api_call(
+            "DELETE", f"projects/{name}", error_message, headers=headers, version="v2"
+        )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info("Project is being deleted", project_name=name)
-            self._wait_for_project_to_be_deleted(name)
-        logger.info("Project deleted", project_name=name)
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info("Project deleted", project_name=name)
+                return
+        elif response.status_code == http.HTTPStatus.NO_CONTENT:
+            logger.info("Project deleted", project_name=name)
+            return
 
     def store_project(
         self,
@@ -2505,22 +2517,6 @@ class HTTPRunDB(RunDBInterface):
             logger,
             False,
             _verify_background_task_in_terminal_state,
-        )
-
-    def _wait_for_project_to_be_deleted(self, project_name: str):
-        def _verify_project_deleted():
-            projects = self.list_projects(
-                format_=mlrun.common.schemas.ProjectsFormat.name_only
-            )
-            if project_name in projects:
-                raise Exception(f"Project {project_name} still exists")
-
-        return mlrun.utils.helpers.retry_until_successful(
-            self._wait_for_project_deletion_interval,
-            120,
-            logger,
-            False,
-            _verify_project_deleted,
         )
 
     def create_project_secrets(

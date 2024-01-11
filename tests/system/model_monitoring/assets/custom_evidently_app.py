@@ -26,7 +26,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
 from mlrun.model_monitoring.application import ModelMonitoringApplicationResult
 from mlrun.model_monitoring.evidently_application import (
     _HAS_EVIDENTLY,
-    EvidentlyModelMonitoringApplication,
+    EvidentlyModelMonitoringApplicationBase,
 )
 
 if _HAS_EVIDENTLY:
@@ -131,7 +131,7 @@ if _HAS_EVIDENTLY:
         return workspace, project
 
 
-class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
+class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     name = "evidently-app-test"
 
     def _lazy_init(self, *args, **kwargs) -> None:
@@ -160,7 +160,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
                 self.evidently_workspace, self.evidently_project_id
             )
 
-    def run_application(
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,

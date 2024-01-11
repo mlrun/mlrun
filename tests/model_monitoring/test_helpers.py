@@ -143,6 +143,17 @@ class TestBatchInterval:
         )
 
     @staticmethod
+    @pytest.fixture(autouse=True)
+    def mock_kv() -> Iterator[None]:
+        mock = Mock(spec=["kv"])
+        mock.kv.get = Mock(side_effect=HttpResponseError)
+        with patch(
+            "mlrun.model_monitoring.controller.get_v3io_client",
+            return_value=mock,
+        ):
+            yield
+
+    @staticmethod
     @pytest.fixture
     def intervals(
 		request: pytest.FixtureRequest,
@@ -150,27 +161,20 @@ class TestBatchInterval:
         first_request: int,
         last_updated: int,
     ) -> list[_Interval]:
-        mock = Mock(spec=["kv"])
-        mock.kv.get = Mock(side_effect=HttpResponseError)
-        with patch(
-            "mlrun.model_monitoring.controller.get_v3io_client",
-            return_value=mock,
-        ):
-            if hasattr(request, "param"):
-                timedelta_seconds = request.param[0]
-                first_request = request.param[1]
-                last_updated = request.param[2]
-
-            return list(
-                _BatchWindow(
-                    project="project",
-                    endpoint="ep",
-                    application="app",
-                    timedelta_seconds=timedelta_seconds,
-                    first_request=first_request,
-                    last_updated=last_updated,
-                ).get_intervals()
-            )
+        if hasattr(request, "param"):
+            timedelta_seconds = request.param[0]
+            first_request = request.param[1]
+            last_updated = request.param[2]
+        return list(
+            _BatchWindow(
+                project="project",
+                endpoint="ep",
+                application="app",
+                timedelta_seconds=timedelta_seconds,
+                first_request=first_request,
+                last_updated=last_updated,
+            ).get_intervals()
+        )
 
     @staticmethod
     @pytest.fixture

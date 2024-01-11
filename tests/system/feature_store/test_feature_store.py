@@ -4372,7 +4372,6 @@ class TestFeatureStore(TestMLRunSystem):
                 f"Column '{column_name}' of type '{type_description}' was not replaced."
             )
 
-
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_as_of_join_different_ts(self, engine):
         engine_args = {}

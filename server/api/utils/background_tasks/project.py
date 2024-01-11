@@ -60,10 +60,10 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         )
         background_tasks.add_task(
             self.background_task_wrapper,
-            db_session=db_session,
-            project=project,
-            name=name,
-            function=function,
+            db_session,
+            project,
+            name,
+            function,
             *args,
             **kwargs,
         )

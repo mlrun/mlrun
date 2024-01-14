@@ -47,7 +47,7 @@ class FileStore(DataStore):
                 key = path.join(self._real_path, suffix)
         return path.join(self.subpath, key)
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("file")

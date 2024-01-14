@@ -33,20 +33,17 @@ class AzureBlobStore(DataStore):
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        self.get_filesystem()
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
         try:
             import adlfs  # noqa
         except ImportError as exc:
-            if not silent:
-                raise ImportError(
-                    f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
-                )
-            return None
+            raise ImportError(
+                f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
+            )
         # in order to support az and wasbs kinds.
         filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
@@ -86,12 +83,12 @@ class AzureBlobStore(DataStore):
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
-        self._filesystem.put_file(src_path, remote_path, overwrite=True)
+        self.get_filesystem().put_file(src_path, remote_path, overwrite=True)
 
     def get(self, key, size=None, offset=0):
         remote_path = self._convert_key_to_remote_path(key)
         end = offset + size if size else None
-        blob = self._filesystem.cat_file(remote_path, start=offset, end=end)
+        blob = self.get_filesystem().cat_file(remote_path, start=offset, end=end)
         return blob
 
     def put(self, key, data, append=False):
@@ -106,12 +103,12 @@ class AzureBlobStore(DataStore):
             mode = "w"
         else:
             raise TypeError("Data type unknown.  Unable to put in Azure!")
-        with self._filesystem.open(remote_path, mode) as f:
+        with self.get_filesystem().open(remote_path, mode) as f:
             f.write(data)
 
     def stat(self, key):
         remote_path = self._convert_key_to_remote_path(key)
-        files = self._filesystem.ls(remote_path, detail=True)
+        files = self.get_filesystem().ls(remote_path, detail=True)
         if len(files) == 1 and files[0]["type"] == "file":
             size = files[0]["size"]
             modified = files[0]["last_modified"]
@@ -123,10 +120,10 @@ class AzureBlobStore(DataStore):
 
     def listdir(self, key):
         remote_path = self._convert_key_to_remote_path(key)
-        if self._filesystem.isfile(remote_path):
+        if self.get_filesystem().isfile(remote_path):
             return key
         remote_path = f"{remote_path}/**"
-        files = self._filesystem.glob(remote_path)
+        files = self.get_filesystem().glob(remote_path)
         key_length = len(key)
         files = [
             f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1

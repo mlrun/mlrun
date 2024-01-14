@@ -73,18 +73,16 @@ class V3ioStore(DataStore):
         schema = "https" if self.secure else "http"
         return f"{schema}://{self.endpoint}"
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
         try:
             import v3iofs  # noqa
         except ImportError as exc:
-            if not silent:
-                raise ImportError(
-                    "v3iofs or storey not installed, run pip install storey"
-                ) from exc
-            return None
+            raise ImportError(
+                "v3iofs or storey not installed, run pip install storey"
+            ) from exc
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem
 

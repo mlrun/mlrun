@@ -91,7 +91,7 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
-    def get_filesystem(self, silent=True) -> Optional[fsspec.AbstractFileSystem]:
+    def get_filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
         """return fsspec file system object, if supported"""
         return None
 
@@ -110,7 +110,7 @@ class DataStore:
         return None
 
     def open(self, filepath, mode):
-        file_system = self.get_filesystem(False)
+        file_system = self.get_filesystem()
         return file_system.open(filepath, mode)
 
     def _join(self, key):
@@ -672,7 +672,7 @@ class HttpStore(DataStore):
         self._enrich_https_token()
         self._validate_https_token()
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")

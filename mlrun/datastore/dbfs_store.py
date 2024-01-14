@@ -83,9 +83,8 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        self.get_filesystem(silent=False)
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self):
         """return fsspec file system object, if supported"""
         filesystem_class = get_filesystem_class(protocol=self.kind)
         if not self._filesystem:
@@ -103,7 +102,7 @@ class DBFSStore(DataStore):
         )
 
     def _verify_filesystem_and_key(self, key: str):
-        if not self._filesystem:
+        if not self.get_filesystem():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Performing actions on data-item without a valid filesystem"
             )
@@ -120,7 +119,7 @@ class DBFSStore(DataStore):
             raise mlrun.errors.MLRunInvalidArgumentError("offset cannot be None")
         start = offset or None
         end = offset + size if size else None
-        return self._filesystem.cat_file(key, start=start, end=end)
+        return self.get_filesystem().cat_file(key, start=start, end=end)
 
     def put(self, key, data, append=False):
         self._verify_filesystem_and_key(key)
@@ -134,16 +133,16 @@ class DBFSStore(DataStore):
             mode += "b"
         elif not isinstance(data, str):
             raise TypeError(f"Unknown data type {type(data)}")
-        with self._filesystem.open(key, mode) as f:
+        with self.get_filesystem().open(key, mode) as f:
             f.write(data)
 
     def upload(self, key: str, src_path: str):
         self._verify_filesystem_and_key(key)
-        self._filesystem.put_file(src_path, key, overwrite=True)
+        self.get_filesystem().put_file(src_path, key, overwrite=True)
 
     def stat(self, key: str):
         self._verify_filesystem_and_key(key)
-        file = self._filesystem.stat(key)
+        file = self.get_filesystem().stat(key)
         if file["type"] == "file":
             size = file["size"]
         elif file["type"] == "directory":
@@ -155,10 +154,10 @@ class DBFSStore(DataStore):
         Basic ls of file/dir - without recursion.
         """
         self._verify_filesystem_and_key(key)
-        if self._filesystem.isfile(key):
+        if self.get_filesystem().isfile(key):
             return key
         remote_path = f"{key}/*"
-        files = self._filesystem.glob(remote_path)
+        files = self.get_filesystem().glob(remote_path)
         # Get only the files and directories under key path, without the key path itself.
         # for example in a filesystem that has this path: /test_mlrun_dbfs_objects/test.txt
         # listdir with the input /test_mlrun_dbfs_objects as a key will return ['test.txt'].

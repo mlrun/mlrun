@@ -115,11 +115,7 @@ def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
 
     :return:            Timedelta.
     """
-    return datetime.timedelta(
-        days=batch_dict[EventFieldType.DAYS],
-        hours=batch_dict[EventFieldType.HOURS],
-        minutes=batch_dict[EventFieldType.MINUTES],
-    )
+    return datetime.timedelta(**batch_dict)
 
 
 def _get_monitoring_time_window_from_controller_run(

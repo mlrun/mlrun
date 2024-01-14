@@ -76,6 +76,7 @@
 |ML-5089|When trying to delete a running job, an error opens that a running job cannot be deleted and it needs to be aborted first.|
 |ML-5091|Monitoring does not recreate a deleted run. |                                   |
 |ML-5146|The memory footprint when monitoring runs was reduced, solving OOM issues. |
+|ML-5481|You can now use `build_image` using the project source. See the example in [build_image](../projects/run-build-deploy.html#build-image).|
 
 
 

@@ -261,7 +261,7 @@ The {py:meth}`~mlrun.projects.MlrunProject.build_image` function builds an image
 This method can also be used to set the build configuration and build the image based on it - in a single step. 
 
 If you set a source for the project (for example, git source) and set `pull_at_runtime = False`, then 
-the images used contain the project source in them. For example, this code builds `.some-project-image` 
+the generated image contains the project source in it. For example, this code builds `.some-project-image` 
 image with the source in it.
 ```python
 project = mlrun.get_or_create_project(

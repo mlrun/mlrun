@@ -69,7 +69,7 @@ class _BatchWindow:
                 key=self._application,
             )
         except HttpResponseError as err:
-            logger.warn(
+            logger.info(
                 "Failed to get the last analyzed time for this endpoint and application, "
                 "as this is probably the first time this application is running. ",
                 "Using the latest between first request time or last update time minus one day instead.",
@@ -81,9 +81,12 @@ class _BatchWindow:
             )
 
             # TODO : Change the timedelta according to the policy.
+            first_period_in_seconds = max(
+                3600, self._step
+            )  # max between one day and the bace period
             return max(
                 self._first_request,
-                self._stop - int(datetime.timedelta(days=1).total_seconds()),
+                self._stop - first_period_in_seconds,
             )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]

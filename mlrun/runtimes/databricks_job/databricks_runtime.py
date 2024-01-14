@@ -199,8 +199,8 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
         code = """\n
 from mlrun.runtimes.databricks_job import databricks_wrapper
 
-def run_mlrun_databricks_job(**kwargs):
-        databricks_wrapper.run_mlrun_databricks_job(**kwargs)
+def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
+        databricks_wrapper.run_mlrun_databricks_job(context, task_parameters, **kwargs)
 """
         wrap_code = b64encode(code.encode("utf-8")).decode("utf-8")
         self.spec.build.functionSourceCode = wrap_code

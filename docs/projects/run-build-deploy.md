@@ -265,6 +265,13 @@ image name is not set as the default image for this project.
 For example:
 
 ```python
+# Include these 2 lines if you want the image to contain the source. 
+# Do not omit pull_at_runtime=False, it causes the source to be pulled 
+# while the image is getting built
+project.set_source(source=source, pull_at_runtime=False) 
+source = "git://github.com/mlrun/ci-cd-tutorial.git"
+
+# Otherwise, start here
 image_name = ".temporary-image"
 project.build_image(image=image_name, set_as_default=False)
 

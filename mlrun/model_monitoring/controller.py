@@ -29,7 +29,12 @@ from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_his
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
-from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
+from mlrun.model_monitoring.helpers import (
+    _BatchDict,
+    batch_dict2timedelta,
+    get_monitoring_parquet_path,
+    get_stream_path,
+)
 from mlrun.utils import logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
@@ -165,15 +170,9 @@ class _BatchWindowGenerator:
             self._batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _get_timedelta(self) -> int:
-        """Get the timedelta from a batch dictionary"""
-        self._batch_dict = cast(dict[str, int], self._batch_dict)
-        minutes, hours, days = (
-            self._batch_dict[mm_constants.EventFieldType.MINUTES],
-            self._batch_dict[mm_constants.EventFieldType.HOURS],
-            self._batch_dict[mm_constants.EventFieldType.DAYS],
-        )
+        """Get the timedelta in seconds from the batch dictionary"""
         return int(
-            datetime.timedelta(minutes=minutes, hours=hours, days=days).total_seconds()
+            batch_dict2timedelta(cast(_BatchDict, self._batch_dict)).total_seconds()
         )
 
     @classmethod

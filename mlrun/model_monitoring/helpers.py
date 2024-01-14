@@ -21,11 +21,18 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import EventFieldType
 from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
 
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
+
+
+class _BatchDict(typing.TypedDict):
+    minutes: int
+    hours: int
+    days: int
 
 
 def get_stream_path(project: str = None, application_name: str = None):
@@ -96,6 +103,21 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
             secret_provider=secret_provider,
         )
         or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    )
+
+
+def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
+    """
+    Convert a batch dictionary to timedelta.
+
+    :param batch_dict:  Batch dict.
+
+    :return:            Timedelta.
+    """
+    return datetime.timedelta(
+        days=batch_dict[EventFieldType.DAYS],
+        hours=batch_dict[EventFieldType.HOURS],
+        minutes=batch_dict[EventFieldType.MINUTES],
     )
 
 

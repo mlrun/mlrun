@@ -75,7 +75,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         return self.get_background_task(name)
 
     @server.api.utils.helpers.ensure_running_on_chief
-    def get_background_tasks(
+    def list_background_tasks(
         self,
         name: typing.Optional[str] = None,
         kind: typing.Optional[str] = None,

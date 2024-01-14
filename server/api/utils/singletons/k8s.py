@@ -591,6 +591,7 @@ class BasePod:
         project=None,
         default_pod_spec_attributes=None,
         resources=None,
+        labels=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -607,7 +608,7 @@ class BasePod:
             "mlrun/task-name": task_name,
             "mlrun/class": kind,
             "mlrun/project": self.project,
-        }
+        } | (labels or {})
         self._annotations = {}
         self._init_containers = []
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes

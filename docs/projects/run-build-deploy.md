@@ -275,7 +275,7 @@ project.set_source(
 
 project.build_image(image=".some-project-image")
 ```
-And now you can run a function without having to specify an image:
+And now you can run a function based on the project code without having to specify an image:
 ```python
 func = project.set_function(handler="package.function", name="func", kind="job")
 func.save()

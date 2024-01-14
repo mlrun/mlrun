@@ -1137,7 +1137,6 @@ class TestProject(TestMLRunSystem):
 
         # validate that the artifact is in the db
         artifacts = project.list_artifacts(name=artifact_db_key)
-        print("TOMER - artifacts 1", artifacts)
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == artifact_key
 
@@ -1153,7 +1152,6 @@ class TestProject(TestMLRunSystem):
 
         # validate that the artifact was saved with the db_key
         artifacts = project2.list_artifacts(name=artifact_db_key)
-        print("TOMER - artifacts 2", artifacts)
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == artifact_new_key
 

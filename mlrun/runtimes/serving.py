@@ -499,8 +499,8 @@ class ServingRuntime(RemoteRuntime):
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
                     if max_workers_default:
-                        trigger_args["max_workers_default"] = trigger_args.get(
-                            "max_workers_default", max_workers_default
+                        trigger_args["max_workers"] = trigger_args.get(
+                            "max_workers", max_workers_default
                         )
                     trigger = KafkaTrigger(
                         brokers=brokers,

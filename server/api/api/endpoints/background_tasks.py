@@ -113,8 +113,8 @@ async def list_project_background_tasks(
         mlrun.common.schemas.AuthorizationResourceTypes.background_task,
         background_tasks,
         lambda background_task: (
-            background_tasks.metadata.project,
-            background_tasks.metadata.name,
+            background_task.metadata.project,
+            background_task.metadata.name,
         ),
         auth_info,
     )

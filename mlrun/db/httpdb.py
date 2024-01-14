@@ -1482,7 +1482,7 @@ class HTTPRunDB(RunDBInterface):
 
     def list_project_background_tasks(
         self,
-        project: str,
+        project: Optional[str] = None,
         state: Optional[str] = None,
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
@@ -1493,7 +1493,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name.
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.

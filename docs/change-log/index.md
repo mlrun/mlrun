@@ -18,7 +18,7 @@
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
-|ML-5193|Supports Pandas 2.0.                                                                               |
+
 
 ### Feature store
 | ID     |Description                                                                                         |
@@ -57,6 +57,7 @@
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
 |ML-3921|mlrun is now installed in the same pip install command along with the user requirements during deploy, resulting in better compatibility with external packages.|
+|ML-5193|Supports Pandas 2.0.                                                                               |
 
 ### Documentation
 | ID     |Description                                                                                         |

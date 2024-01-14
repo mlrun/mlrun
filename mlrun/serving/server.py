@@ -40,8 +40,6 @@ from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import (
     event_id_key,
     event_path_key,
-    legacy_event_id_key,
-    legacy_event_path_key,
 )
 
 
@@ -257,18 +255,10 @@ class GraphServer(ModelObj):
         context = context or server_context
         event.content_type = event.content_type or self.default_content_type or ""
         if event.headers:
-            # TODO: remove old event id and path keys in 1.6.0
-            if event_id_key in event.headers or legacy_event_id_key in event.headers:
-                event.id = event.headers.get(event_id_key) or event.headers.get(
-                    legacy_event_id_key
-                )
-            if (
-                event_path_key in event.headers
-                or legacy_event_path_key in event.headers
-            ):
-                event.path = event.headers.get(event_path_key) or event.headers.get(
-                    legacy_event_path_key
-                )
+            if event_id_key in event.headers:
+                event.id = event.headers.get(event_id_key)
+            if event_path_key in event.headers:
+                event.path = event.headers.get(event_path_key)
 
         if isinstance(event.body, (str, bytes)) and (
             not event.content_type or event.content_type in ["json", "application/json"]

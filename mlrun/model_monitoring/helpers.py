@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import datetime
 import typing
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.common.schemas.model_monitoring import (
+    EventFieldType,
+    MonitoringFunctionNames,
+)
 from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
@@ -121,12 +122,35 @@ def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
     )
 
 
+def _get_monitoring_time_window_from_controller_run(
+    project: str, db: "RunDBInterface"
+) -> datetime.timedelta:
+    """
+    Get timedelta for the controller to run.
+
+    :param project: Project name.
+    :param db:      DB interface.
+
+    :return:    Timedelta for the controller to run.
+    """
+    run_name = MonitoringFunctionNames.APPLICATION_CONTROLLER
+    runs = db.list_runs(project=project, name=run_name, sort=True)
+    if not runs:
+        raise MLRunValueError(f"No {run_name} runs were found")
+    last_run = runs[0]
+    try:
+        batch_dict = last_run["spec"]["parameters"]["batch_intervals_dict"]
+    except KeyError:
+        raise MLRunValueError(
+            f"Could not find `batch_intervals_dict` in {run_name} run"
+        )
+    return batch_dict2timedelta(batch_dict)
+
+
 def bump_model_endpoint_last_request(
     project: str,
     model_endpoint: ModelEndpoint,
     db: "RunDBInterface",
-    minutes_delta: int = 10,  # TODO: move to config - should be the same as `batch_interval`
-    seconds_delta: int = 1,
 ) -> None:
     """
     Update the last request field of the model endpoint to be after the current last request time.
@@ -134,10 +158,6 @@ def bump_model_endpoint_last_request(
     :param project:         Project name.
     :param model_endpoint:  Model endpoint object.
     :param db:              DB interface.
-    :param minutes_delta:   Minutes delta to add to the last request time.
-    :param seconds_delta:   Seconds delta to add to the last request time. This is mainly to ensure that the last
-                            request time is strongly greater than the previous one (with respect to the window time)
-                            after adding the minutes delta.
     """
     if not model_endpoint.status.last_request:
         logger.error(
@@ -145,14 +165,10 @@ def bump_model_endpoint_last_request(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
         )
-        raise MLRunInvalidArgumentError("Model endpoint last request time is empty")
-
+        raise MLRunValueError("Model endpoint last request time is empty")
     bumped_last_request = (
         datetime.datetime.fromisoformat(model_endpoint.status.last_request)
-        + datetime.timedelta(
-            minutes=minutes_delta,
-            seconds=seconds_delta,
-        )
+        + _get_monitoring_time_window_from_controller_run(project, db)
         + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )

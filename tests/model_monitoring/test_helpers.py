@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import datetime
-import typing
-from typing import Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -30,13 +29,13 @@ from mlrun.common.model_monitoring.helpers import (
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
 from mlrun.model_monitoring.helpers import bump_model_endpoint_last_request
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
-class _HistLen(typing.NamedTuple):
+class _HistLen(NamedTuple):
     counts_len: int
     edges_len: int
 
@@ -202,11 +201,61 @@ class TestBumpModelEndpointLastRequest:
         return empty_model_endpoint
 
     @staticmethod
+    @pytest.fixture
+    def runs() -> list[dict]:
+        return [
+            {
+                "kind": "run",
+                "metadata": {
+                    "name": "model-monitoring-controller",
+                    "uid": "3a88d8aef52f4a90a12b681a87d9dc51",
+                    "iteration": 0,
+                    "project": "test-mm-1",
+                    "labels": {
+                        "mlrun/schedule-name": "model-monitoring-controller",
+                        "kind": "job",
+                        "v3io_user": "pipelines",
+                        "host": "model-monitoring-controller-cbvs4",
+                    },
+                    "annotations": {},
+                },
+                "spec": {
+                    "function": "test-mm-1/model-monitoring-controller@8056f87c8e5b11408d9d990fc0381f7a0fca83cf",
+                    "log_level": "info",
+                    "parameters": {
+                        "batch_intervals_dict": {"minutes": 1, "hours": 0, "days": 0}
+                    },
+                    "handler": "handler",
+                    "outputs": [],
+                    "output_path": "v3io:///projects/test-mm-1/artifacts",
+                    "inputs": {},
+                    "notifications": [],
+                    "state_thresholds": {
+                        "pending_scheduled": "1h",
+                        "pending_not_scheduled": "-1",
+                        "image_pull_backoff": "1h",
+                        "executing": "24h",
+                    },
+                    "hyperparams": {},
+                    "hyper_param_options": {},
+                    "data_stores": [],
+                },
+                "status": {
+                    "results": {},
+                    "start_time": "2024-01-14T15:01:03.639771+00:00",
+                    "last_update": "2024-01-14T15:01:04.049320+00:00",
+                    "state": "completed",
+                    "artifacts": [],
+                },
+            }
+        ]
+
+    @staticmethod
     def test_empty_last_request(
         project: str, empty_model_endpoint: ModelEndpoint, db: NopDB
     ) -> None:
         with pytest.raises(
-            MLRunInvalidArgumentError, match="Model endpoint last request time is empty"
+            MLRunValueError, match="Model endpoint last request time is empty"
         ):
             bump_model_endpoint_last_request(
                 project=project,
@@ -220,24 +269,22 @@ class TestBumpModelEndpointLastRequest:
         model_endpoint: ModelEndpoint,
         db: NopDB,
         last_request: str,
-        minutes_delta: int = 4,
-        seconds_delta: int = 0,
+        runs: list[dict],
     ) -> None:
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            bump_model_endpoint_last_request(
-                project=project,
-                model_endpoint=model_endpoint,
-                db=db,
-                minutes_delta=minutes_delta,
-                seconds_delta=seconds_delta,
-            )
+            with patch.object(db, "list_runs", return_value=runs):
+                bump_model_endpoint_last_request(
+                    project=project,
+                    model_endpoint=model_endpoint,
+                    db=db,
+                )
         patch_patch_model_endpoint.assert_called_once()
         assert datetime.datetime.fromisoformat(
             patch_patch_model_endpoint.call_args.kwargs["attributes"][
                 EventFieldType.LAST_REQUEST
             ]
         ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
-            minutes=minutes_delta, seconds=seconds_delta
+            minutes=1
         ) + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"

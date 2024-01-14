@@ -57,7 +57,7 @@ class AzureBlobStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
+        res = dict(
             account_name=self._get_secret_or_env("account_name")
             or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
             account_key=self._get_secret_or_env("account_key")
@@ -74,6 +74,9 @@ class AzureBlobStore(DataStore):
             or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
             credential=self._get_secret_or_env("credential"),
         )
+        # Filter out None values
+        res = {k: v for k, v in res.items() if v}
+        return res
 
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")
@@ -149,7 +152,7 @@ class AzureBlobStore(DataStore):
             for key in ["account_name", "account_key"]:
                 parsed_value = parsed_credential.get(key)
                 if parsed_value:
-                    if st[key] and st[key] != parsed_value:
+                    if key in st and st[key] != parsed_value:
                         if key == "account_name":
                             raise mlrun.errors.MLRunInvalidArgumentError(
                                 f"Storage option for '{key}' is '{st[key]}',\

@@ -110,7 +110,7 @@ async def list_project_background_tasks(
     )
 
     background_tasks = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.background_task,
+        mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
         background_tasks,
         lambda background_task: (
             background_task.metadata.project,

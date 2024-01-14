@@ -1488,7 +1488,7 @@ class HTTPRunDB(RunDBInterface):
         created_to: Optional[datetime] = None,
         last_update_time_from: Optional[datetime] = None,
         last_update_time_to: Optional[datetime] = None,
-    ) -> mlrun.common.schemas.BackgroundTaskList:
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
         """
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
@@ -1524,7 +1524,9 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/background-tasks"
         error_message = f"Failed listing project background task. project={project}"
         response = self.api_call("GET", path, error_message, params=params)
-        return mlrun.common.schemas.BackgroundTaskList(**response.json())
+        return mlrun.common.schemas.BackgroundTaskList(
+            **response.json()
+        ).background_tasks
 
     def get_background_task(self, name: str) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a background task being executed."""

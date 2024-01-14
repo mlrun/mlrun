@@ -2623,6 +2623,8 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
+            if name not in self.spec._workflows.keys():
+                raise mlrun.errors.MLRunNotFoundError(f"Workflow {name} does not exist")
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
         workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
@@ -2751,6 +2753,11 @@ class MlrunProject(ModelObj):
             project_file_path = path.join(
                 self.spec.context, self.spec.subpath or "", "project.yaml"
             )
+        if filepath and "://" in str(filepath) and not archive_code:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "URLs are only applicable to archives"
+            )
+
         project_dir = pathlib.Path(project_file_path).parent
         project_dir.mkdir(parents=True, exist_ok=True)
         with open(project_file_path, "w") as fp:

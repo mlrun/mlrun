@@ -33,7 +33,7 @@ class S3Store(DataStore):
 
         self.headers = None
 
-        access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
@@ -43,7 +43,7 @@ class S3Store(DataStore):
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
             client = boto3.client(
-                "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+                "sts", aws_access_key_id=access_key_id, aws_secret_access_key=secret_key
             )
             self._temp_credentials = client.assume_role(
                 RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
@@ -74,11 +74,11 @@ class S3Store(DataStore):
             )
             return
 
-        if access_key or secret_key or force_non_anonymous:
+        if access_key_id or secret_key or force_non_anonymous:
             self.s3 = boto3.resource(
                 "s3",
                 region_name=region,
-                aws_access_key_id=access_key,
+                aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_key,
                 endpoint_url=endpoint_url,
             )
@@ -133,19 +133,19 @@ class S3Store(DataStore):
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile = self._get_secret_or_env("AWS_PROFILE")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
-        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
 
         if self._temp_credentials:
-            key = self._temp_credentials["AccessKeyId"]
+            access_key_id = self._temp_credentials["AccessKeyId"]
             secret = self._temp_credentials["SecretAccessKey"]
             token = self._temp_credentials["SessionToken"]
         else:
             token = None
 
         storage_options = dict(
-            anon=not (force_non_anonymous or (key and secret)),
-            key=key,
+            anon=not (force_non_anonymous or (access_key_id and secret)),
+            key=access_key_id,
             secret=secret,
             token=token,
         )

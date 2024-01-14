@@ -136,13 +136,13 @@ class DatastoreProfileS3(DatastoreProfile):
     force_non_anonymous: typing.Optional[str] = None
     profile_name: typing.Optional[str] = None
     assume_role_arn: typing.Optional[str] = None
-    access_key: typing.Optional[str] = None
+    access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
 
     def secrets(self) -> dict:
         res = {}
-        if self.access_key:
-            res["AWS_ACCESS_KEY_ID"] = self.access_key
+        if self.access_key_id:
+            res["AWS_ACCESS_KEY_ID"] = self.access_key_id
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:

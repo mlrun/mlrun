@@ -1310,12 +1310,12 @@ class HTTPRunDB(RunDBInterface):
 
     def remote_builder(
         self,
-        func,
-        with_mlrun,
-        mlrun_version_specifier=None,
-        skip_deployed=False,
-        builder_env=None,
-        force_build=False,
+        func: BaseRuntime,
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1330,6 +1330,20 @@ class HTTPRunDB(RunDBInterface):
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         :param force_build:   Force building the image, even when no changes were made
         """
+        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
+            "s3://"
+        )
+        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
+        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
+            logger.warning(
+                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
+                "keys. Only the permissions granted to the platform's configured secret will take affect "
+                "(see mlrun.mlconf.httpdb.builder.docker_registry_secret). "
+                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
+                source=func.spec.build.source,
+                load_source_on_run=func.spec.build.load_source_on_run,
+                default_docker_registry=config.httpdb.builder.docker_registry,
+            )
 
         try:
             req = {
@@ -1465,6 +1479,54 @@ class HTTPRunDB(RunDBInterface):
         )
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
+
+    def list_project_background_tasks(
+        self,
+        project: Optional[str] = None,
+        state: Optional[str] = None,
+        created_from: Optional[datetime] = None,
+        created_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        """
+        Retrieve updated information on project background tasks being executed.
+        If no filter is provided, will return background tasks from the last week.
+
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
+        :param state:   List only background tasks whose state is specified.
+        :param created_from: Filter by background task created time in ``[created_from, created_to]``.
+        :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
+        :param last_update_time_from: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        :param last_update_time_to: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        """
+        project = project or config.default_project
+        if (
+            not state
+            and not created_from
+            and not created_to
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
+            # default to last week on no filter
+            created_from = datetime.now() - timedelta(days=7)
+
+        params = {
+            "state": state,
+            "created_from": datetime_to_iso(created_from),
+            "created_to": datetime_to_iso(created_to),
+            "last_update_time_from": datetime_to_iso(last_update_time_from),
+            "last_update_time_to": datetime_to_iso(last_update_time_to),
+        }
+
+        path = f"projects/{project}/background-tasks"
+        error_message = f"Failed listing project background task. project={project}"
+        response = self.api_call("GET", path, error_message, params=params)
+        return mlrun.common.schemas.BackgroundTaskList(
+            **response.json()
+        ).background_tasks
 
     def get_background_task(self, name: str) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a background task being executed."""

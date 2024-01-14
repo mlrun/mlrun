@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import datetime
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
 from typing import NamedTuple, Optional, Tuple
 from unittest.mock import Mock, patch
 
@@ -31,7 +33,10 @@ from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
 from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
-from mlrun.model_monitoring.helpers import bump_model_endpoint_last_request
+from mlrun.model_monitoring.helpers import (
+    _get_monitoring_time_window_from_controller_run,
+    bump_model_endpoint_last_request,
+)
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
@@ -288,3 +293,71 @@ class TestBumpModelEndpointLastRequest:
         ) + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("runs", "error_context", "expected_window"),
+        [
+            (
+                [],
+                pytest.raises(
+                    MLRunValueError, match="No model-monitoring-controller runs"
+                ),
+                None,
+            ),
+            (
+                [{"kind": "run", "spec": {"parameters": {}}}],
+                pytest.raises(
+                    MLRunValueError,
+                    match="Could not find `batch_intervals_dict` in model-monitoring-controller run",
+                ),
+                None,
+            ),
+            (
+                [
+                    {
+                        "kind": "run",
+                        "spec": {
+                            "parameters": {
+                                "batch_intervals_dict": {
+                                    "minutes": 1,
+                                    "hours": 0,
+                                    "days": 0,
+                                }
+                            }
+                        },
+                    },
+                    {
+                        "kind": "run",
+                        "spec": {
+                            "parameters": {
+                                "batch_intervals_dict": {
+                                    "minutes": 1,
+                                    "hours": 2,
+                                    "days": 3,
+                                }
+                            }
+                        },
+                    },
+                ],
+                does_not_raise(),
+                datetime.timedelta(minutes=1),
+            ),
+        ],
+    )
+    def test_get_monitoring_time_window_from_controller_run(
+        project: str,
+        db: NopDB,
+        runs: list[dict],
+        error_context: AbstractContextManager,
+        expected_window: Optional[datetime.timedelta],
+    ) -> None:
+        with patch.object(db, "list_runs", return_value=runs):
+            with error_context:
+                assert (
+                    _get_monitoring_time_window_from_controller_run(
+                        project=project,
+                        db=db,
+                    )
+                    == expected_window
+                ), "The window is different than expected"

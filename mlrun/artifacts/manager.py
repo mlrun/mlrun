@@ -200,6 +200,9 @@ class ArtifactManager:
                 # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
+                # if the db_key is not explicitly set on the item, we want to use the key as the db_key
+                # otherwise, we do not want to override it.
+                # this is mainly relevant for imported artifacts that have an explicit db_key value already set
                 db_key = item.db_key or key
         item.db_key = db_key or ""
         item.viewer = viewer or item.viewer

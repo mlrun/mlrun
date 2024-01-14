@@ -1494,12 +1494,13 @@ class HTTPRunDB(RunDBInterface):
         If no filter is provided, will return background tasks from the last week.
 
         :param project: Project name.
-        :param state:   List only runs whose state is specified.
-        :param created_from: Filter by run start time in ``[start_time_from, start_time_to]``.
-        :param created_to:  Filter by run start time in ``[start_time_from, start_time_to]``.
-        :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
-            last_update_time_to)``.
-        :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param state:   List only background tasks whose state is specified.
+        :param created_from: Filter by background task created time in ``[created_from, created_to]``.
+        :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
+        :param last_update_time_from: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        :param last_update_time_to: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
         """
         project = project or config.default_project
         if (

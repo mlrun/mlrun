@@ -82,8 +82,8 @@ class _BatchWindow:
 
             # TODO : Change the timedelta according to the policy.
             first_period_in_seconds = max(
-                3600, self._step
-            )  # max between one day and the bace period
+                int(datetime.timedelta(days=1).total_seconds()), self._step
+            )  # max between one day and the base period
             return max(
                 self._first_request,
                 self._stop - first_period_in_seconds,

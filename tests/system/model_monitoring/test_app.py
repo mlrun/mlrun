@@ -365,8 +365,8 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         with ThreadPoolExecutor() as executor:
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
-            future = executor.submit(self._record_results)
-            future.result()
+
+        self._record_results()
 
         time.sleep(1.4 * self.app_interval_seconds)
 

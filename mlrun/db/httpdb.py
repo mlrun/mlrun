@@ -1480,6 +1480,54 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
+    def list_project_background_tasks(
+        self,
+        project: Optional[str] = None,
+        state: Optional[str] = None,
+        created_from: Optional[datetime] = None,
+        created_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        """
+        Retrieve updated information on project background tasks being executed.
+        If no filter is provided, will return background tasks from the last week.
+
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
+        :param state:   List only background tasks whose state is specified.
+        :param created_from: Filter by background task created time in ``[created_from, created_to]``.
+        :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
+        :param last_update_time_from: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        :param last_update_time_to: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        """
+        project = project or config.default_project
+        if (
+            not state
+            and not created_from
+            and not created_to
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
+            # default to last week on no filter
+            created_from = datetime.now() - timedelta(days=7)
+
+        params = {
+            "state": state,
+            "created_from": datetime_to_iso(created_from),
+            "created_to": datetime_to_iso(created_to),
+            "last_update_time_from": datetime_to_iso(last_update_time_from),
+            "last_update_time_to": datetime_to_iso(last_update_time_to),
+        }
+
+        path = f"projects/{project}/background-tasks"
+        error_message = f"Failed listing project background task. project={project}"
+        response = self.api_call("GET", path, error_message, params=params)
+        return mlrun.common.schemas.BackgroundTaskList(
+            **response.json()
+        ).background_tasks
+
     def get_background_task(self, name: str) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a background task being executed."""
 

@@ -89,10 +89,11 @@ class V3ioStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
+        res = dict(
             v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
             v3io_api=mlrun.mlconf.v3io_api,
         )
+        return self._sanitize_storage_options(res)
 
     def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""

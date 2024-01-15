@@ -57,6 +57,14 @@ class Client(
             "GET", f"background-tasks/{name}", request
         )
 
+    async def get_internal_background_tasks(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        """
+        internal background tasks are managed by the chief only
+        """
+        return await self._proxy_request_to_chief("GET", "background-tasks", request)
+
     async def trigger_migrations(
         self, request: fastapi.Request = None
     ) -> fastapi.Response:
@@ -158,7 +166,7 @@ class Client(
         )
 
     async def delete_project(
-        self, name, request: fastapi.Request, api_version=None
+        self, name, request: fastapi.Request, api_version: typing.Optional[str] = None
     ) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
@@ -223,8 +231,8 @@ class Client(
         path,
         request: fastapi.Request = None,
         json: dict = None,
-        raise_on_failure: bool = False,
         version: str = None,
+        raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
         request_kwargs = self._resolve_request_kwargs_from_request(
@@ -234,8 +242,8 @@ class Client(
         async with self._send_request_to_api(
             method=method,
             path=path,
-            raise_on_failure=raise_on_failure,
             version=version,
+            raise_on_failure=raise_on_failure,
             **request_kwargs,
         ) as chief_response:
             return await self._convert_requests_response_to_fastapi_response(
@@ -302,7 +310,12 @@ class Client(
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api(
-        self, method, path, raise_on_failure: bool = False, version=None, **kwargs
+        self,
+        method,
+        path,
+        version: str = None,
+        raise_on_failure: bool = False,
+        **kwargs,
     ) -> aiohttp.ClientResponse:
         version = version or mlrun.mlconf.api_base_version
         await self._ensure_session()

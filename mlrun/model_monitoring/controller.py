@@ -57,9 +57,9 @@ class _BatchWindow:
         self._first_request = first_request
         self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
-        self._start = self._get_last_analyzed()
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._start = self._get_last_analyzed()
 
     def _get_last_analyzed(self) -> Optional[int]:
         try:
@@ -69,16 +69,25 @@ class _BatchWindow:
                 key=self._application,
             )
         except HttpResponseError as err:
-            logger.warn(
+            logger.info(
                 "Failed to get the last analyzed time for this endpoint and application, "
-                "as this is probably the first time this application is running. "
-                "Using the first request time instead.",
+                "as this is probably the first time this application is running. ",
+                "Using the latest between first request time or last update time minus one day instead.",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
+                last_update=self._stop,
                 error=err,
             )
-            return self._first_request
+
+            # TODO : Change the timedelta according to the policy.
+            first_period_in_seconds = max(
+                int(datetime.timedelta(days=1).total_seconds()), self._step
+            )  # max between one day and the base period
+            return max(
+                self._first_request,
+                self._stop - first_period_in_seconds,
+            )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(
@@ -202,12 +211,10 @@ class _BatchWindowGenerator:
                 first_request=first_request,
             )
             return None
-        # See mm_constants.EventFieldType.TIME_FORMAT
         return cls._date_string2timestamp(first_request)
 
     @staticmethod
     def _date_string2timestamp(date_string: str) -> int:
-        # See mm_constants.EventFieldType.TIME_FORMAT
         return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
     def get_batch_window(

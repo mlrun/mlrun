@@ -26,6 +26,7 @@ import mlrun.errors
 import mlrun.utils
 import server.api.db.sqldb.models
 import server.api.initial_data
+from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
@@ -83,9 +84,9 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session)
         assert len(artifacts) == len(test_iters) * 2
 
-        # look for the artifact with the "latest" tag
+        # look for the artifact with the "latest" tag - should return all iterations
         artifacts = db.list_artifacts(db_session, name=artifact_name_1, tag="latest")
-        assert len(artifacts) == 1
+        assert len(artifacts) == len(test_iters)
 
         # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
         for iter in test_iters:
@@ -306,7 +307,7 @@ class TestArtifacts:
 
         # ids are auto generated using this util function
         expected_uids = [
-            mlrun.utils.fill_artifact_object_hash(artifact_body)
+            mlrun.artifacts.base.fill_artifact_object_hash(artifact_body)
             for artifact_body in [artifact_1_body, artifact_2_body]
         ]
         uids = [artifact["metadata"]["uid"] for artifact in artifacts]
@@ -434,6 +435,26 @@ class TestArtifacts:
         # verify that the old artifact is still there, but without the tag
         artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
         assert len(artifacts) == 3
+
+    def test_store_artifact_with_different_key(
+        self, db: DBInterface, db_session: Session
+    ):
+        artifact_key = "artifact_key"
+        artifact_different_key = "artifact_different_key"
+        artifact_tree = "artifact_tree"
+
+        artifact_body = self._generate_artifact(artifact_key, tree=artifact_tree)
+        db.store_artifact(
+            db_session,
+            artifact_different_key,
+            artifact_body,
+        )
+        artifact = db.read_artifact(db_session, artifact_different_key)
+        assert artifact
+        assert artifact["metadata"]["key"] == artifact_key
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key)
 
     def test_read_artifact_tag_resolution(self, db: DBInterface, db_session: Session):
         """
@@ -853,6 +874,83 @@ class TestArtifacts:
         )
         assert len(artifacts) == 1
 
+    def test_iterations_with_latest_tag(self, db: DBInterface, db_session: Session):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_tree"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, project=project
+        )
+        num_of_iterations = 5
+
+        # create artifacts with the same key and different iterations
+        for iteration in range(1, num_of_iterations + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree,
+            )
+
+        # list artifact with "latest" tag - should return all artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == num_of_iterations
+
+        # mark iteration 3 as the best iteration
+        best_iteration = 3
+        self._mark_best_iteration_artifact(
+            db, db_session, project, artifact_key, artifact_tree, best_iteration
+        )
+
+        # list artifact with "latest" tag - should return all artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == num_of_iterations
+
+        # list artifact with "latest" tag and best_iteration=True - should return only the artifact with iteration 3
+        artifacts = db.list_artifacts(
+            db_session, project=project, tag="latest", best_iteration=True
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["iter"] == best_iteration
+
+        # run the same test with a different producer id
+        artifact_tree_2 = "artifact_tree_2"
+        for iteration in range(1, num_of_iterations + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            artifact_body["metadata"]["tree"] = artifact_tree_2
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree_2,
+            )
+
+        # list artifact with "latest" tag - should return only the new artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == num_of_iterations
+        producer_ids = set([artifact["metadata"]["tree"] for artifact in artifacts])
+        assert len(producer_ids) == 1
+        assert producer_ids.pop() == artifact_tree_2
+
+        # mark iteration 2 as the best iteration
+        best_iteration = 2
+        self._mark_best_iteration_artifact(
+            db, db_session, project, artifact_key, artifact_tree_2, best_iteration
+        )
+
+        # list artifact with "latest" tag and best iteration - should return only the new artifacts
+        artifacts = db.list_artifacts(
+            db_session, project=project, tag="latest", best_iteration=True
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["iter"] == best_iteration
+        assert artifacts[0]["metadata"]["tree"] == artifact_tree_2
+
     @pytest.mark.asyncio
     async def test_project_file_counter(self, db: DBInterface, db_session: Session):
         # create artifact with 5 distinct keys, and 3 tags for each key
@@ -1184,6 +1282,43 @@ class TestArtifacts:
             assert artifacts[0]["metadata"]["project"] == project
             assert artifacts[0]["metadata"]["uid"] != artifact_uid
 
+    def test_update_model_spec(self, db: DBInterface, db_session: Session):
+        artifact_key = "model1"
+
+        # create a model
+        model_body = self._generate_artifact(artifact_key, kind="model")
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # update the model with spec that should be ignored in UID calc
+        model_body["spec"]["parameters"] = {"p1": 5}
+        model_body["spec"]["outputs"] = {"o1": 6}
+        model_body["spec"]["metrics"] = {"l1": "a"}
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # update spec that should not be ignored
+        model_body["spec"]["model_file"] = "some/path"
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 2
+
+        tags = [artifact["metadata"].get("tag", None) for artifact in artifacts]
+        assert len(tags) == 2
+        assert "latest" in tags
+        assert None in tags
+
+        for model in artifacts:
+            assert model["metadata"]["key"] == artifact_key
+            if model["metadata"].get("tag") == "latest":
+                assert model["spec"]["model_file"] == "some/path"
+            else:
+                assert model["spec"].get("model_file") is None
+
     def _generate_artifact_with_iterations(
         self, db, db_session, key, tree, num_iters, best_iter, kind, project=""
     ):
@@ -1223,3 +1358,24 @@ class TestArtifacts:
             artifact["metadata"]["project"] = project
 
         return artifact
+
+    @staticmethod
+    def _mark_best_iteration_artifact(
+        db, db_session, project, artifact_key, artifact_tree, best_iteration
+    ):
+        item = LinkArtifact(
+            artifact_key,
+            link_iteration=best_iteration,
+            link_key=artifact_key,
+            link_tree=artifact_tree,
+        )
+        item.tree = artifact_tree
+        item.iter = best_iteration
+        db.store_artifact(
+            db_session,
+            item.db_key,
+            item.to_dict(),
+            iter=0,
+            project=project,
+            producer_id=artifact_tree,
+        )

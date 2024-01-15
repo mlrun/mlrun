@@ -59,14 +59,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_runs(
         self,
-        name="",
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project="",
-        labels=None,
-        state="",
-        sort=True,
-        last=0,
-        iter=False,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime.datetime = None,
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
@@ -629,6 +629,9 @@ class RunDBInterface(ABC):
         project: str = None,
         mask_params: bool = True,
     ):
+        pass
+
+    def get_log_size(self, uid, project=""):
         pass
 
     def watch_log(self, uid, project="", watch=True, offset=0):

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import enum
-import getpass
 import http
 import re
 import typing
@@ -441,8 +440,9 @@ class BaseRuntime(ModelObj):
 
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
-        if "owner" not in meta.labels:
-            meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
+        mlrun.runtimes.utils.enrich_run_labels(
+            meta.labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.user}}", meta.labels["owner"]
@@ -575,7 +575,7 @@ class BaseRuntime(ModelObj):
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError(f"handler must be provided for {self.kind} runtime")
+            raise RunError(f"Handler must be provided for {self.kind} runtime")
 
     def _has_pipeline_param(self) -> bool:
         # check if the runtime has pipeline parameters
@@ -612,7 +612,7 @@ class BaseRuntime(ModelObj):
         namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
         if namespace_domain is not None:
             return f"docker-registry.{namespace_domain}:80/{image[1:]}"
-        raise RunError("local container registry is not defined")
+        raise RunError("Local container registry is not defined")
 
     def as_step(
         self,

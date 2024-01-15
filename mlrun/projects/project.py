@@ -53,7 +53,7 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring.application import (
-    ModelMonitoringApplication,
+    ModelMonitoringApplicationBase,
     PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
@@ -1436,7 +1436,7 @@ class MlrunProject(ModelObj):
             )
 
 
-        :param item:          artifact key or artifact class ()
+        :param item:          artifact key or artifact object (can be any type, such as dataset, model, feature store)
         :param body:          will use the body as the artifact content
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
@@ -1745,7 +1745,7 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1815,7 +1815,7 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -1866,7 +1866,7 @@ class MlrunProject(ModelObj):
     def _instantiate_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -2292,8 +2292,7 @@ class MlrunProject(ModelObj):
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
-        if not self.spec.repo:
-            raise ValueError("git repo is not set/defined")
+        self._ensure_git_repo()
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:
@@ -2305,6 +2304,19 @@ class MlrunProject(ModelObj):
             url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
+
+    def _ensure_git_repo(self):
+        if self.spec.repo:
+            return
+        context = self.context
+        git_dir_path = path.join(context, ".git")
+
+        if not path.exists(git_dir_path):
+            logger.warning("Git repository not initialized. initializing now")
+            self.spec.repo = git.Repo.init(context)
+        else:
+            # git already initialized
+            self.spec.repo = git.Repo(context)
 
     def push(
         self,
@@ -2611,6 +2623,8 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
+            if name not in self.spec._workflows.keys():
+                raise mlrun.errors.MLRunNotFoundError(f"Workflow {name} does not exist")
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
         workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
@@ -2739,6 +2753,11 @@ class MlrunProject(ModelObj):
             project_file_path = path.join(
                 self.spec.context, self.spec.subpath or "", "project.yaml"
             )
+        if filepath and "://" in str(filepath) and not archive_code:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "URLs are only applicable to archives"
+            )
+
         project_dir = pathlib.Path(project_file_path).parent
         project_dir.mkdir(parents=True, exist_ok=True)
         with open(project_file_path, "w") as fp:
@@ -3036,9 +3055,12 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        target_dir: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
+        If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
+        image built. The `target_dir` parameter allows specifying the target path where the code will be extracted.
 
         :param image: target image name/path. If not specified the project's existing `default_image` name will be
                         used. If not set, the `mlconf.default_project_image_name` value will be used
@@ -3060,6 +3082,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+        :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
             base_image = mlrun.mlconf.default_base_image
@@ -3102,6 +3125,13 @@ class MlrunProject(ModelObj):
             )
 
             function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+            if self.spec.source and not self.spec.load_source_on_run:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    target_dir=target_dir,
+                    pull_at_runtime=False,
+                )
 
             build = self.spec.build
             result = self.build_function(
@@ -3192,6 +3222,7 @@ class MlrunProject(ModelObj):
         best_iteration: bool = False,
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3220,6 +3251,7 @@ class MlrunProject(ModelObj):
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
+        :param tree: Return artifacts of the requested tree.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3233,6 +3265,7 @@ class MlrunProject(ModelObj):
             best_iteration=best_iteration,
             kind=kind,
             category=category,
+            tree=tree,
         )
 
     def list_models(
@@ -3244,6 +3277,7 @@ class MlrunProject(ModelObj):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        tree: str = None,
     ):
         """List models in project, filtered by various parameters.
 
@@ -3266,6 +3300,7 @@ class MlrunProject(ModelObj):
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param tree: Return artifacts of the requested tree.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3278,6 +3313,7 @@ class MlrunProject(ModelObj):
             iter=iter,
             best_iteration=best_iteration,
             kind="model",
+            tree=tree,
         ).to_objects()
 
     def list_functions(self, name=None, tag=None, labels=None):
@@ -3365,9 +3401,9 @@ class MlrunProject(ModelObj):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
-        :param project: Project that the runs belongs to.
-        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
-            applied.
+        :param labels:  A list of labels to filter by. Label filters work by either filtering a specific value
+                of a label (i.e. list("key=value")) or by looking for the existence of a given
+                key (i.e. "key").
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).

@@ -114,6 +114,7 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def intervals(
+        request: pytest.FixtureRequest,
         timedelta_seconds: int = int(datetime.timedelta(minutes=6).total_seconds()),
         first_request: int = int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
         last_updated: int = int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
@@ -124,6 +125,11 @@ class TestBatchInterval:
             "mlrun.model_monitoring.controller.get_v3io_client",
             return_value=mock,
         ):
+            if hasattr(request, "param"):
+                timedelta_seconds = request.param[0]
+                first_request = request.param[1]
+                last_updated = request.param[2]
+
             return list(
                 _BatchWindow(
                     project="project",
@@ -142,6 +148,28 @@ class TestBatchInterval:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
             assert prev[1] == curr[0], "The intervals should be touching"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        "intervals",
+        [
+            [
+                6 * 60 * 60 * 24,
+                int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
+                int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
+            ]
+        ],
+        indirect=True,
+    )
+    def test_large_base_period(
+        intervals: list[Tuple[datetime.datetime, datetime.datetime]],
+    ) -> None:
+        assert len(intervals) == 1, "There should be exactly one interval"
+        assert 6 * 60 * 60 * 24 == datetime.datetime.timestamp(
+            intervals[0][1]
+        ) - datetime.datetime.timestamp(
+            intervals[0][0]
+        ), "The time slot should be equal to timedelta_seconds (6 days)"
 
 
 class TestBatchWindowGenerator:
@@ -164,7 +192,7 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request.strftime(EventFieldType.TIME_FORMAT),
+            last_request=last_request.isoformat(),
         )
         assert last_updated
         assert (

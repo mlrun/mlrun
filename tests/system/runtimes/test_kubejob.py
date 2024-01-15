@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
@@ -480,3 +481,31 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = project.run_function(name)
         results = run.status.results["results"]
         assert results == expected_results
+
+    def test_abort_run(self):
+        sleep_func = mlrun.code_to_function(
+            "sleep-function",
+            filename=str(self.assets_path / "sleep.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        run = sleep_func.run(
+            params={"time_to_sleep": 30},
+            watch=False,
+        )
+        db = mlrun.get_run_db()
+        background_task = db.abort_run(run.metadata.uid)
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+
+        run = db.read_run(run.metadata.uid)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+
+        # list background tasks
+        background_tasks = db.list_project_background_tasks()
+        assert background_task.metadata.name in [
+            task.metadata.name for task in background_tasks
+        ]

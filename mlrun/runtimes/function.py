@@ -335,7 +335,7 @@ class RemoteRuntime(KubeResource):
         :param source: a full path to the nuclio function source (code entry) to load the function from
         :param handler: a path to the function's handler, including path inside archive/git repo
         :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        :param runtime: (optional) the runtime of the function (defaults to mlrun.mlconf.default_nuclio_runtime)
 
         :Examples:
 
@@ -630,7 +630,7 @@ class RemoteRuntime(KubeResource):
 
         if state != "ready":
             logger.error("Nuclio function failed to deploy", function_state=state)
-            raise RunError(f"function {self.metadata.name} deployment failed")
+            raise RunError(f"Function {self.metadata.name} deployment failed")
 
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
@@ -982,7 +982,7 @@ class RemoteRuntime(KubeResource):
         state = self.status.state
         if state != "ready":
             if state:
-                raise RunError(f"cannot run, function in state {state}")
+                raise RunError(f"Cannot run, function in state {state}")
             state, _, _ = self._get_state(raise_on_exception=True)
             if state != "ready":
                 logger.info("starting nuclio build!")

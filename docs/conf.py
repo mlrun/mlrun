@@ -170,6 +170,7 @@ autodoc_mock_imports = [
     "onnx",
 ]
 
+redirects = {"functions-architecture": "functions.html"}
 
 # -- Autosummary -------------------------------------------------------------
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import typing
 
 
@@ -174,6 +175,18 @@ class RunStates(object):
             RunStates.running,
             RunStates.pending,
             # TODO: add aborting state once we have it
+        ]
+
+
+class RunLabels(enum.Enum):
+    owner = "owner"
+    v3io_user = "v3io_user"
+
+    @staticmethod
+    def all():
+        return [
+            RunLabels.owner,
+            RunLabels.v3io_user,
         ]
 
 

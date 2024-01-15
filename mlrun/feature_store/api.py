@@ -709,7 +709,7 @@ def _ingest(
         infer_options, InferOptions.schema()
     )
     if schema_options:
-        preview(
+        _preview(
             featureset,
             source,
             options=schema_options,

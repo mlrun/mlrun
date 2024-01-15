@@ -34,12 +34,12 @@ import mlrun.errors
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
+from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    fill_artifact_object_hash,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -313,18 +313,18 @@ class SQLDB(DBInterface):
     def list_runs(
         self,
         session,
-        name=None,
-        uid: typing.Optional[typing.Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        states=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        name: typing.Optional[str] = None,
+        uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        states: typing.Optional[typing.List[str]] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -360,6 +360,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
             query = query.filter(Run.requested_logs == requested_logs)
+        # Purposefully not using outer join to avoid returning runs without notifications
+        if with_notifications:
+            query = query.join(Run.Notification)
         if partition_by:
             self._assert_partition_by_parameters(
                 mlrun.common.schemas.RunPartitionByField,
@@ -378,10 +381,6 @@ class SQLDB(DBInterface):
             )
         if not return_as_run_structs:
             return query.all()
-
-        # Purposefully not using outer join to avoid returning runs without notifications
-        if with_notifications:
-            query = query.join(Run.Notification)
 
         runs = RunList()
         for run in query:
@@ -524,6 +523,12 @@ class SQLDB(DBInterface):
                 self._should_update_artifact(existing_artifact, uid, iter)
                 or always_overwrite
             ):
+                logger.debug(
+                    "Updating an existing artifact",
+                    project=project,
+                    key=key,
+                    iteration=iter,
+                )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
                     db_artifact,
@@ -537,13 +542,7 @@ class SQLDB(DBInterface):
                 )
                 self._upsert(session, [db_artifact])
                 if tag:
-                    self.tag_objects_v2(
-                        session,
-                        [db_artifact],
-                        project,
-                        tag,
-                        obj_name_attribute="key",
-                    )
+                    self.tag_artifacts(session, tag, [db_artifact], project)
                 return uid
             logger.debug(
                 "A similar artifact exists, but some values have changed - creating a new artifact",
@@ -552,13 +551,6 @@ class SQLDB(DBInterface):
                 iteration=iter,
                 producer_id=producer_id,
             )
-
-        # Object with the given tag/uid doesn't exist
-        # Check if this is a re-tag of existing object - search by the resolved uid only
-        if self._re_tag_existing_object(
-            session, ArtifactV2, project, key, tag, uid, obj_name_attribute="key"
-        ):
-            return uid
 
         return self.create_artifact(
             session,
@@ -613,15 +605,16 @@ class SQLDB(DBInterface):
         self._upsert(session, [db_artifact])
         if tag:
             validate_tag_name(tag, "artifact.metadata.tag")
-            self.tag_objects_v2(
-                session, [db_artifact], project, tag, obj_name_attribute="key"
+            self.tag_artifacts(
+                session,
+                tag,
+                [db_artifact],
+                project,
             )
 
         # we want to tag the artifact also as "latest" if it's the first time we store it
         if tag != "latest":
-            self.tag_objects_v2(
-                session, [db_artifact], project, "latest", obj_name_attribute="key"
-            )
+            self.tag_artifacts(session, "latest", [db_artifact], project)
 
         return uid
 
@@ -646,7 +639,7 @@ class SQLDB(DBInterface):
 
         if best_iteration and iter is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "best-iteration cannot be used when iter is specified"
+                "Best iteration cannot be used when iter is specified"
             )
 
         artifact_records = self._find_artifacts(
@@ -858,9 +851,7 @@ class SQLDB(DBInterface):
         self._delete_artifacts_tags(session, project, artifacts, commit=False)
 
         # tag artifacts with tag
-        self.tag_objects_v2(
-            session, artifacts, project, name=tag, obj_name_attribute="key"
-        )
+        self.tag_artifacts(session, tag, artifacts, project)
 
     @retry_on_conflict
     def append_tag_to_artifacts(
@@ -878,7 +869,7 @@ class SQLDB(DBInterface):
                 project_name=project,
                 identifier=identifier,
             )
-        self.tag_objects_v2(session, artifacts, project, tag, obj_name_attribute="key")
+        self.tag_artifacts(session, tag, artifacts, project)
 
     def delete_tag_from_artifacts(
         self,
@@ -896,6 +887,71 @@ class SQLDB(DBInterface):
                 identifier=identifier,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    def tag_artifacts(
+        self,
+        session,
+        tag_name: str,
+        artifacts,
+        project: str,
+    ):
+        objects = []
+        for artifact in artifacts:
+            # remove the tags that point to artifacts with the same key
+            # and a different producer id
+            query = (
+                self._query(
+                    session,
+                    artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.producer_id != artifact.producer_id,
+                )
+            )
+
+            # delete the tags
+            for old_tag in query.all():
+                objects.append(old_tag)
+                session.delete(old_tag)
+
+            # search for an existing tag with the same name, producer id, and iteration
+            query = (
+                self._query(
+                    session,
+                    artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.producer_id == artifact.producer_id,
+                    ArtifactV2.iteration == artifact.iteration,
+                )
+            )
+
+            tag = query.one_or_none()
+            if not tag:
+                # create the new tag
+                tag = artifact.Tag(
+                    project=project,
+                    name=tag_name,
+                    obj_name=artifact.key,
+                )
+            tag.obj_id = artifact.id
+
+            objects.append(tag)
+            session.add(tag)
+
+        self._commit(session, objects)
 
     def _mark_best_iteration_artifact(
         self,
@@ -3502,7 +3558,7 @@ class SQLDB(DBInterface):
             except SQLAlchemyError as err:
                 session.rollback()
                 raise mlrun.errors.MLRunConflictError(
-                    f"add user: {err_to_str(err)}"
+                    f"Failed to add user: {err_to_str(err)}"
                 ) from err
         return users
 
@@ -4052,7 +4108,7 @@ class SQLDB(DBInterface):
             name=name,
             project=project,
         ).one_or_none()
-        now = datetime.now(timezone.utc)
+        now = mlrun.utils.now_date()
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -4086,7 +4142,7 @@ class SQLDB(DBInterface):
 
     def get_background_task(
         self,
-        session,
+        session: Session,
         name: str,
         project: str,
         background_task_exceeded_timeout_func,
@@ -4094,6 +4150,65 @@ class SQLDB(DBInterface):
         background_task_record = self._get_background_task_record(
             session, name, project
         )
+        background_task_record = self._apply_background_task_timeout(
+            session,
+            background_task_exceeded_timeout_func,
+            background_task_record,
+        )
+
+        return self._transform_background_task_record_to_schema(background_task_record)
+
+    def list_background_tasks(
+        self,
+        session,
+        project: str,
+        background_task_exceeded_timeout_func,
+        states: typing.Optional[typing.List[str]] = None,
+        created_from: datetime = None,
+        created_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        background_tasks = []
+        query = self._list_project_background_tasks(session, project)
+        if states is not None:
+            query = query.filter(BackgroundTask.state.in_(states))
+        if created_from is not None:
+            query = query.filter(BackgroundTask.created >= created_from)
+        if created_to is not None:
+            query = query.filter(BackgroundTask.created <= created_to)
+        if last_update_time_from is not None:
+            query = query.filter(BackgroundTask.updated >= last_update_time_from)
+        if last_update_time_to is not None:
+            query = query.filter(BackgroundTask.updated <= last_update_time_to)
+
+        background_task_records = query.all()
+        for background_task_record in background_task_records:
+            background_task_record = self._apply_background_task_timeout(
+                session,
+                background_task_exceeded_timeout_func,
+                background_task_record,
+            )
+
+            # retest state after applying timeout
+            if states and background_task_record.state not in states:
+                continue
+
+            background_tasks.append(
+                self._transform_background_task_record_to_schema(background_task_record)
+            )
+
+        return background_tasks
+
+    def delete_background_task(self, session: Session, name: str, project: str):
+        self._delete(session, BackgroundTask, name=name, project=project)
+
+    def _apply_background_task_timeout(
+        self,
+        session: Session,
+        background_task_exceeded_timeout_func: typing.Callable,
+        background_task_record: BackgroundTask,
+    ):
         if (
             background_task_exceeded_timeout_func
             and background_task_exceeded_timeout_func(
@@ -4106,15 +4221,14 @@ class SQLDB(DBInterface):
             # and the task still in progress then we change to failed
             self.store_background_task(
                 session,
-                name,
-                project,
+                background_task_record.name,
+                background_task_record.project,
                 mlrun.common.schemas.background_task.BackgroundTaskState.failed,
             )
             background_task_record = self._get_background_task_record(
-                session, name, project
+                session, background_task_record.name, background_task_record.project
             )
-
-        return self._transform_background_task_record_to_schema(background_task_record)
+        return background_task_record
 
     @staticmethod
     def _transform_background_task_record_to_schema(
@@ -4135,7 +4249,7 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _list_project_background_tasks(
+    def _list_project_background_task_names(
         self, session: Session, project: str
     ) -> typing.List[str]:
         return [
@@ -4145,15 +4259,15 @@ class SQLDB(DBInterface):
             ).all()
         ]
 
+    def _list_project_background_tasks(self, session: Session, project: str):
+        return self._query(session, BackgroundTask, project=project)
+
     def _delete_background_tasks(self, session: Session, project: str):
         logger.debug("Removing background tasks from db", project=project)
-        for background_task_name in self._list_project_background_tasks(
+        for background_task_name in self._list_project_background_task_names(
             session, project
         ):
             self.delete_background_task(session, background_task_name, project)
-
-    def delete_background_task(self, session: Session, name: str, project: str):
-        self._delete(session, BackgroundTask, name=name, project=project)
 
     def _get_background_task_record(
         self,
@@ -4161,7 +4275,7 @@ class SQLDB(DBInterface):
         name: str,
         project: str,
         raise_on_not_found: bool = True,
-    ) -> BackgroundTask:
+    ) -> typing.Optional[BackgroundTask]:
         background_task_record = self._query(
             session, BackgroundTask, name=name, project=project
         ).one_or_none()

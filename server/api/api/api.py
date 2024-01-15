@@ -172,6 +172,7 @@ api_v2_router = APIRouter(dependencies=[Depends(deps.verify_api_state)])
 api_v2_router.include_router(
     healthz.router,
     tags=["healthz"],
+    dependencies=[Depends(deps.authenticate_request)],
 )
 api_v2_router.include_router(
     artifacts_v2.router,

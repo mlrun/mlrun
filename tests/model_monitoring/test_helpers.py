@@ -15,7 +15,7 @@
 import datetime
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from typing import NamedTuple, Optional, Tuple
+from typing import Iterator, NamedTuple, Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -156,7 +156,7 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def intervals(
-		request: pytest.FixtureRequest,
+        request: pytest.FixtureRequest,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
@@ -267,9 +267,7 @@ class TestBatchInterval:
         ],
         indirect=True,
     )
-    def test_large_base_period(
-        intervals: list[Tuple[datetime.datetime, datetime.datetime]],
-    ) -> None:
+    def test_large_base_period(intervals: list[_Interval]) -> None:
         assert len(intervals) == 1, "There should be exactly one interval"
         assert 6 * 60 * 60 * 24 == datetime.datetime.timestamp(
             intervals[0][1]

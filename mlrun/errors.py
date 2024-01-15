@@ -207,6 +207,10 @@ class MLRunTaskCancelledError(Exception):
     pass
 
 
+class MLRunValueError(ValueError):
+    pass
+
+
 class MLRunFatalFailureError(Exception):
     """
     Internal exception meant to be used inside mlrun.utils.helpers.retry_until_successful to signal the loop not to

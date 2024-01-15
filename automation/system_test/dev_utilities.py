@@ -130,6 +130,7 @@ def add_repos():
         cmd = f"helm repo add {repo} {url}"
         subprocess.run(cmd.split(), check=True)
 
+
 def add_env_to_deployment(namespace, deployment_name, env_vars):
     try:
         # Build the kubectl command to patch the deployment with new environment variables
@@ -151,8 +152,6 @@ def add_env_to_deployment(namespace, deployment_name, env_vars):
 
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}")
-
-
 
 
 def install_redisinsight(ipadd):
@@ -401,6 +400,7 @@ def status_h(svc):
 @click.group()
 def cli():
     pass
+
 
 cli.add_command(install)
 cli.add_command(uninstall)

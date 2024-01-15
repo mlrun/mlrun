@@ -178,7 +178,7 @@ def toPandas(spark_df):
         if isinstance(field.dataType, IntegralType) and pandas_col.isnull().any():
             dtype[fieldIdx] = np.float64
         if isinstance(field.dataType, BooleanType) and pandas_col.isnull().any():
-            dtype[fieldIdx] = np.object
+            dtype[fieldIdx] = object
 
     df = pd.DataFrame()
     for index, t in enumerate(dtype):

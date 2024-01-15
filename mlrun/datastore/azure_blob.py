@@ -74,9 +74,7 @@ class AzureBlobStore(DataStore):
             or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
             credential=self._get_secret_or_env("credential"),
         )
-        # Filter out None values
-        res = {k: v for k, v in res.items() if v}
-        return res
+        return self._sanitize_storage_options(res)
 
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")

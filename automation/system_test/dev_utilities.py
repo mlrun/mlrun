@@ -83,7 +83,9 @@ def create_ingress_resource(domain_name, ipadd):
       - hosts:
         - {}
         secretName: ingress-tls
-    """.format(ipadd, domain_name, domain_name)
+    """.format(
+        ipadd, domain_name, domain_name
+    )
     subprocess.run(
         ["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True
     )
@@ -135,14 +137,14 @@ def add_env_to_deployment(namespace, deployment_name, env_vars):
     try:
         # Build the kubectl command to patch the deployment with new environment variables
         kubectl_command = [
-            'kubectl',
-            'patch',
-            'deployment',
+            "kubectl",
+            "patch",
+            "deployment",
             deployment_name,
-            f'--namespace={namespace}',
-            '--type=json',
-            '--patch',
-            f'[{{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": {env_vars}}}]'
+            f"--namespace={namespace}",
+            "--type=json",
+            "--patch",
+            f'[{{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": {env_vars}}}]',
         ]
 
         # Execute the kubectl command
@@ -201,9 +203,11 @@ def install_redisinsight(ipadd):
         pfull_domain = "https://" + full_domain
         env_vars = [
             {"name": "RITRUSTEDORIGINS", "value": pfull_domain},
-            {"name": "RIPROXYENABLE", "value": "true"}
+            {"name": "RIPROXYENABLE", "value": "true"},
         ]
-        add_env_to_deployment(namespace="devtools", deployment_name=deployment_name, env_vars=env_vars)
+        add_env_to_deployment(
+            namespace="devtools", deployment_name=deployment_name, env_vars=env_vars
+        )
         clean_command = "rm -rf redisinsight-chart-0.1.0.tgz*"
         subprocess.run(clean_command, shell=True)
     else:

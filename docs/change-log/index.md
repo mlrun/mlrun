@@ -23,8 +23,8 @@
 ### Feature store
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4343|Datastore profiles (for managing datastore credentials) support Azure, DBFS, GCS, Kafka, and S2. [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
-|ML-4622|Feature set and feature vector APIs are now FeatureSet / FeatureVector class methods. See examples in [Feature store](./cheat-sheet.html#feature-store), 
+|ML-4343|Datastore profiles (for managing datastore credentials) support Azure, DBFS, GCS, Kafka, and S3. [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
+|ML-4622|Feature set and feature vector APIs are now FeatureSet / FeatureVector class methods. See examples in [Feature store](../cheat-sheet.html#feature-store).| 
 
 ### Model monitoring 
 | ID     |Description                                                                                         |
@@ -62,8 +62,12 @@
 ### Documentation
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|NA|New: Building a docker image externally using a dockerfile and then using it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
-|NA|New: {ref}`project-setup`
+|ML-3663|Add how to build a docker image externally using a dockerfile and then use it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
+|ML-4048|Add creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).|
+|ML-5260|   `with_source_archive` |
+|NA|Add {ref}`project-setup`.|
+|NA|Add an example of a serving function with Git integration. See {ref}`serving-function`.
+
 
 ###  Closed issues
 | ID          |Description                                                               |

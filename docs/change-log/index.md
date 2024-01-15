@@ -72,12 +72,24 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
+|ML-1373|Incorrect service names do not result in stuck pods during ContainerCreating.|
+|ML-1835|The index record is not duplicated in the datasets metadata. | 
+|ML-3714|Runs that complete successfully do not show errors Kubeflow. |
 |ML-3856|Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest). See [Ingest data locally](../data-prep/ingest-data-fs.html#ingest-data-locally).|
 |ML-4093|Documentation: improve description of [handlers](../runtimes/create-and-use-functions.html#using-set-function) and {ref}`functions`. |
+|ML-4370|Hyper-param and single runs no longer generate artifacts with the same name. |
 |ML-4563|A local runtime that consumed more memory that the Jupyter service pod and that caused a restart of the pod can now be deleted. |
+|ML-4642|The UI no longer gets stuck when there is a high number of query results. | 
+|ML-4690|Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) no longer causes the job to fail. |
 |ML-4920|Documentation: improve description of `log_artifact`. See {ref}`artifacts` and {py:meth}`~mlrun.projects.MlrunProject.log_artifact`.|
 |ML-4608|The artifact db_key does not forward when registering an artifact. | Do not use `db_key`. Artifact uniqueness is defined across the key, uid (producer), iter, etc.| v1.5.0 |
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
+|ML-4953|Can now build the image through the UI on external registry.| 
+|ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
+|ML-4992|**check msg** When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|
+|ML-5001|The **Monitoring workflows** page now states that it includes only workflows that have already been run. | 
+|ML-5042|**check msg**  After creating and deleting a project, a new project cannot be created in the same folder with the same context. |
+|ML-5048|UI Edit function dialog: When selecting **Use an existing image** and pressing **Deploy**, the existing image is used, as expected.|
 |ML-5089|When trying to delete a running job, an error opens that a running job cannot be deleted and it needs to be aborted first.|
 |ML-5091|Monitoring does not recreate a deleted run. |                                   |
 |ML-5146|The memory footprint when monitoring runs was reduced, solving OOM issues. |
@@ -811,13 +823,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID| Description|Workaround |Opened in |
 |--------|----------------------------------------------------------------|-----------------------------------------|-----------|
 |ML-76|In rare cases (after changing the HEAD git commit of the project between different log_artifact calls) artifacts submitted from a git based project can't be received. |NA|v0.5.5|
-|ML-1373|When attempting to ingest data with RemoteSpark using an incorrect service name, the pods get stuck during ContainerCreating. | Verify the correct service name. | v0.9.0 | 
-|ML-1835|The index record is duplicated in the datasets metadata. | NA | v1.0.0 |
 |ML-2052|mlrun service default limits are not applied to wait container on pipeline jobs.|NA|v1.0.0|
 |ML-2030|Need means of moving artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
 |ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. |NA|v1.0.0|
 |ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)| Do not use "." in notebook name|v1.0.0 |
-|ML-2293|
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.|v1.1.0    |
 |ML-2489|Cannot pickle a class inside an mlrun function.                       |Use cloudpickle instead of pickle.|v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error|Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                                    |v1.1.0    |
@@ -837,25 +846,21 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
 |ML-3680|The function spec does not get updated after running a workflow. |NA  | v1.3.0|
-|ML-3714|It can happen that an MLrun pod succeeds but there's an error in Kubeflow. | NA | v1.3.0 |
 |ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. See [Create a single step](../serving/writing-custom-steps.html#create-a-single-step). | v1.3.1 |
 |ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all the source on each schedule iteration. | Use a different engine and/or source. | v1.4.0 |	
 |ML-4153|When creating a passthrough features-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
 |ML-4166|Project yaml file that is vrey large cannot be stored.    |Do not embed the artifact object in the project yaml. | v1.4.0 |
 |ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |  | v1.4.0|
 |ML-4235|**what is message?** |  | v1.5.0|
-|ML-4370|The same artifact was generated by 2 runs: one with multiple iterations (using hyper-params) and one with a single iteration. | Do not generate the same artifact name across hyper-param runs and single runs. For example, add a timestamp or other unique id to the name of the artifact.| v1.3.2 |
 |ML-4442|After a model is deployed without applying monitoring (`set_tracking()` was not set on the serving function), monitoring cannot be added.|Delete the existing model endpoint (`mlrun.get_run_db().delete_model_endpoint()`), then redeploy the model.| v1.5.0 |
 |ML-4539|**what is message?** |  | v1.5.0|
 |ML-4582|**what is message?** |  | v1.5.0|
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
-|ML-4613|UI: The Batch Inference Parameters has an incorrect hint on map type. The correct hint is "The 'dict' values should be in JSON key:value format, e.g. {"hello":"world"}" | NA | v1.5.0 |
-|ML-4617|Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
-|ML-4642|The UI can get stuck when query results are too large to display. |Add a filter (or narrow it) to retrieve fewer results.|                 v1.5.0|   
+|ML-4613|**Closed?** UI: The Batch Inference Parameters has an incorrect hint on map type. The correct hint is "The 'dict' values should be in JSON key:value format, e.g. {"hello":"world"}" | NA | v1.5.0 |
+|ML-4617|**Closed?**  Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
 |ML-4655|**in RN or not?**
-|ML-4678|When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|First add a tag, (`replace=False`), then delete the old tag: `mlrun.get_run_db().tag_artifacts(project=project.name,artifacts=model1, tag_name="newtag", replace=False)`,`mlrun.get_run_db().delete_artifacts_tags(project=project.name, artifacts=[model1], tag_name=model1.metadata.tag)`  | v1.5.0 |
+|ML-4678|**Closed?**  When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|First add a tag, (`replace=False`), then delete the old tag: `mlrun.get_run_db().tag_artifacts(project=project.name,artifacts=model1, tag_name="newtag", replace=False)`,`mlrun.get_run_db().delete_artifacts_tags(project=project.name, artifacts=[model1], tag_name=model1.metadata.tag)`  | v1.5.0 |
 |NL-4685|When using columns with type float as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
-|ML-4690|**was it fixed?** Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) causes the job to fail. |Do not enable the log.| v1.5.0|
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation. | v1.5.0 |
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
@@ -868,15 +873,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4857|Local runs can be aborted in the UI, though the actual execution continues.|NA | v1.5.0 |
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
+|ML-4922|Add indication to the dataset in the Preview or Metadata that there is additional data.|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
-|ML-4953|Cannot build image through the UI on external registry, as no credentials are passed.| NA | v1.5.0 |
-|ML-4967|The **Deploy** button in the **Project > Models** page does create a new endpoint/serving function, or add a model to any function, even though it responds "Model deployment initiated successfully". | NA | v1.5.1 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
-|ML-4992|When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|Set target dir, and change workdir back:    `sj.with_source_archive(`, `source=project.source, pull_at_runtime=False, target_dir="/igz/mlrun_code"`,    `)`, ` sj.spec.build.extra = "WORKDIR /igz"`| v1.5.0 |  
-|ML-5001|The list of workflows in the **Monitoring workflows** page includes only workflows that have already been run. | NA | v1.5.1 |
-|ML-5042|After creating and deleting a project, a new project cannot be created in the same folder with the same context. | NA | v1.5.1 |
-|ML-5048|UI Edit function dialog: After selecting **Use an existing image**, when pressing **Deploy**, a new image is created.| NA | v1.5.1 |
-|ML-5078|Cannot only use `project.create_remote()` if `init_git=True` was set on project creation. | Set `init_git=True` on project creation.| v1.5.1 |
+|ML-5078|**Fixed?**Cannot only use `project.create_remote()` if `init_git=True` was set on project creation. | Set `init_git=True` on project creation.| v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 
 

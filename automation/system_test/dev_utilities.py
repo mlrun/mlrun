@@ -147,7 +147,7 @@ def add_env_to_deployment(namespace, deployment_name, env_vars):
         # Execute the kubectl command
         subprocess.run(kubectl_command, check=True)
 
-        print(f"Environment variables added/updated successfully to the deployment '{deployment_name}' in namespace '{namespace}'.")
+        print(f"Environment added/updated to the deployment '{deployment_name}'")
 
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}")
@@ -199,8 +199,6 @@ def install_redisinsight(ipadd):
         full_domain = "redisinsight" + fqdn
         create_ingress_resource(full_domain, ipadd)
         deployment_name = "redisinsight"
-        container_name = "redisinsight-chart"
-        env_name = "RITRUSTEDORIGINS"
         pfull_domain = "https://" + full_domain
         env_vars = [
             {"name": "RITRUSTEDORIGINS", "value": pfull_domain},

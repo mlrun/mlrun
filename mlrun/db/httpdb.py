@@ -736,7 +736,7 @@ class HTTPRunDB(RunDBInterface):
         if last:
             # TODO: Remove this in 1.8.0
             warnings.warn(
-                "'last' is deprecated in 1.6.0 and will be removed in 1.8.0.",
+                "'last' is deprecated and will be removed in 1.8.0.",
                 FutureWarning,
             )
 

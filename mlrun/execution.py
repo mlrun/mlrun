@@ -393,7 +393,7 @@ class MLClientCtx(object):
                     if v:
                         self._set_input(k, v)
 
-        if host and not is_api:
+        if host and not is_api and self.is_logging_worker():
             self.set_label("host", host)
 
         start = get_in(attrs, "status.start_time")

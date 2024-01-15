@@ -226,13 +226,13 @@ def test_log_dataset_with_column_overflow(monkeypatch):
 
     monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 10)
     artifact = context.log_dataset("iris", df=df, upload=False)
-    assert len(artifact.spec.header) == 5
-    assert artifact.status.header_original_length == 5
+    assert len(artifact.spec.header) == 6
+    assert artifact.status.header_original_length == 6
 
     monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 2)
     artifact = context.log_dataset("iris", df=df, upload=False)
     assert len(artifact.spec.header) == 2
-    assert artifact.status.header_original_length == 5
+    assert artifact.status.header_original_length == 6
 
 
 def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
@@ -337,4 +337,5 @@ def _assert_data_artifacts(df, number_of_columns):
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
         df=df, ignore_preview_limits=True
     )
-    assert len(artifact.preview[0]) == number_of_columns
+    # Dataset previews have an extra column called "index"
+    assert len(artifact.preview[0]) - 1 == number_of_columns

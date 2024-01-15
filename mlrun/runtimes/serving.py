@@ -482,13 +482,13 @@ class ServingRuntime(RemoteRuntime):
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )
-                    trigger_args["max_workers"] = trigger_args.get("max_workers", 4)
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
                     extra_attributes["workerAllocationMode"] = extra_attributes.get(
                         "workerAllocationMode", "static"
                     )
 
+                max_workers_default = 4
                 if (
                     stream.path.startswith("kafka://")
                     or "kafka_bootstrap_servers" in stream.options
@@ -497,6 +497,9 @@ class ServingRuntime(RemoteRuntime):
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
+                    trigger_args["max_workers"] = trigger_args.get(
+                        "max_workers", max_workers_default
+                    )
                     trigger = KafkaTrigger(
                         brokers=brokers,
                         topics=[topic],
@@ -507,6 +510,10 @@ class ServingRuntime(RemoteRuntime):
                 else:
                     # V3IO doesn't allow hyphens in object names
                     group = group.replace("-", "_")
+                    # Deal with unconventional parameter naming in V3IOStreamTrigger specifically
+                    trigger_args["maxWorkers"] = trigger_args.get(
+                        "maxWorkers", max_workers_default
+                    )
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )

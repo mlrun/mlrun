@@ -97,10 +97,11 @@ class DBFSStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
+        res = dict(
             token=self._get_secret_or_env("DATABRICKS_TOKEN"),
             instance=self._get_secret_or_env("DATABRICKS_HOST"),
         )
+        return self._sanitize_storage_options(res)
 
     def _verify_filesystem_and_key(self, key: str):
         if not self._filesystem:

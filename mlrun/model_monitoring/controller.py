@@ -29,7 +29,12 @@ from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_his
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
-from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
+from mlrun.model_monitoring.helpers import (
+    _BatchDict,
+    batch_dict2timedelta,
+    get_monitoring_parquet_path,
+    get_stream_path,
+)
 from mlrun.utils import logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
@@ -57,9 +62,9 @@ class _BatchWindow:
         self._first_request = first_request
         self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
-        self._start = self._get_last_analyzed()
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._start = self._get_last_analyzed()
 
     def _get_last_analyzed(self) -> Optional[int]:
         try:
@@ -69,16 +74,25 @@ class _BatchWindow:
                 key=self._application,
             )
         except HttpResponseError as err:
-            logger.warn(
+            logger.info(
                 "Failed to get the last analyzed time for this endpoint and application, "
-                "as this is probably the first time this application is running. "
-                "Using the first request time instead.",
+                "as this is probably the first time this application is running. ",
+                "Using the latest between first request time or last update time minus one day instead.",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
+                last_update=self._stop,
                 error=err,
             )
-            return self._first_request
+
+            # TODO : Change the timedelta according to the policy.
+            first_period_in_seconds = max(
+                int(datetime.timedelta(days=1).total_seconds()), self._step
+            )  # max between one day and the base period
+            return max(
+                self._first_request,
+                self._stop - first_period_in_seconds,
+            )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(
@@ -165,15 +179,9 @@ class _BatchWindowGenerator:
             self._batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _get_timedelta(self) -> int:
-        """Get the timedelta from a batch dictionary"""
-        self._batch_dict = cast(dict[str, int], self._batch_dict)
-        minutes, hours, days = (
-            self._batch_dict[mm_constants.EventFieldType.MINUTES],
-            self._batch_dict[mm_constants.EventFieldType.HOURS],
-            self._batch_dict[mm_constants.EventFieldType.DAYS],
-        )
+        """Get the timedelta in seconds from the batch dictionary"""
         return int(
-            datetime.timedelta(minutes=minutes, hours=hours, days=days).total_seconds()
+            batch_dict2timedelta(cast(_BatchDict, self._batch_dict)).total_seconds()
         )
 
     @classmethod

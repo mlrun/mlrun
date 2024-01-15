@@ -157,7 +157,7 @@ class S3Store(DataStore):
         if profile:
             storage_options["profile"] = profile
 
-        return storage_options
+        return self._sanitize_storage_options(storage_options)
 
     def get_bucket_and_key(self, key):
         path = self._join(key)[1:]

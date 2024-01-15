@@ -58,10 +58,21 @@ async def delete_project(
 ):
     # check if project exists
     try:
-        get_project_member().get_project(db_session, name, auth_info.session)
+        await run_in_threadpool(
+            get_project_member().get_project, db_session, name, auth_info.session
+        )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+    # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
+    # task, we need to check permissions here. skip permission check if the request is from the leader.
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief

@@ -58,7 +58,9 @@ async def delete_project(
 ):
     # check if project exists
     try:
-        get_project_member().get_project(db_session, name, auth_info.session)
+        await run_in_threadpool(
+            get_project_member().get_project, db_session, name, auth_info.session
+        )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)

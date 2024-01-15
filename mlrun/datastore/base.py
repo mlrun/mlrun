@@ -91,7 +91,8 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
-    def get_filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
+    @property
+    def filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
         """return fsspec file system object, if supported"""
         return None
 
@@ -110,7 +111,7 @@ class DataStore:
         return None
 
     def open(self, filepath, mode):
-        file_system = self.get_filesystem()
+        file_system = self.filesystem
         return file_system.open(filepath, mode)
 
     def _join(self, key):
@@ -231,7 +232,7 @@ class DataStore:
         df_module = df_module or pd
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
-        file_system = self.get_filesystem()
+        file_system = self.filesystem
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -356,7 +357,7 @@ class DataStore:
         }
 
     def rm(self, path, recursive=False, maxdepth=None):
-        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     @staticmethod
     def _is_dd(df_module):
@@ -672,7 +673,8 @@ class HttpStore(DataStore):
         self._enrich_https_token()
         self._validate_https_token()
 
-    def get_filesystem(self):
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")

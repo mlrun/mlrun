@@ -109,14 +109,15 @@ class S3Store(DataStore):
             res["spark.hadoop.fs.s3a.aws.profile"] = st.get("profile")
         return res
 
-    def get_filesystem(self):
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
         try:
             import s3fs  # noqa
         except ImportError as exc:
-            raise ImportError("AWS s3fs not installed, run pip install s3fs") from exc
+            raise ImportError("AWS s3fs not installed") from exc
         filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
             filesystem_class,

@@ -492,7 +492,7 @@ class MonitoringApplicationController:
                 self.parquet_directory,
                 {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )
-            fs = store.get_filesystem()
+            fs = store.filesystem
 
             # calculate time threshold (keep only files from the last 24 hours)
             time_to_keep = float(

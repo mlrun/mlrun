@@ -316,7 +316,7 @@ class GraphServer(ModelObj):
 
     def wait_for_completion(self):
         """wait for async operation to complete"""
-        self.graph.wait_for_completion()
+        return self.graph.wait_for_completion()
 
 
 def v2_serving_init(context, namespace=None):
@@ -364,9 +364,9 @@ def v2_serving_init(context, namespace=None):
             "Setting termination callback to terminate graph on worker shutdown"
         )
 
-        def termination_callback():
+        async def termination_callback():
             context.logger.info("Termination callback called")
-            server.wait_for_completion()
+            await server.wait_for_completion()
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
@@ -376,9 +376,9 @@ def v2_serving_init(context, namespace=None):
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
 
-        def drain_callback():
+        async def drain_callback():
             context.logger.info("Drain callback called")
-            server.wait_for_completion()
+            await server.wait_for_completion()
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )

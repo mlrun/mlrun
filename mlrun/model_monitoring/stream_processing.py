@@ -528,9 +528,6 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
 
         # Getting event timestamp and endpoint_id
         base_event = {k: event[k] for k in base_fields}
-        base_event[EventFieldType.TIMESTAMP] = datetime.datetime.fromisoformat(
-            base_event[EventFieldType.TIMESTAMP]
-        )
 
         # base_metrics includes the stats about the average latency and the amount of predictions over time
         base_metrics = {

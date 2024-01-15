@@ -192,7 +192,7 @@ class BaseLauncher(abc.ABC):
             if isinstance(param_value, pd.DataFrame):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Error: Invalid parameter type - {param_name} has an unsupported value of type"
-                    f" 'pandas DataFrame'. Top 3 records: ({param_value.head(3)})"
+                    f" 'pandas DataFrame'. Top 3 records: \n{param_value.head(3)}\n"
                 )
 
     @staticmethod

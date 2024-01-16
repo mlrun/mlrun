@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Iterator, Optional, Tuple, Union, cast
+from typing import Any, Iterator, NamedTuple, Optional, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -37,6 +37,11 @@ from mlrun.model_monitoring.helpers import (
 )
 from mlrun.utils import logger
 from mlrun.utils.v3io_clients import get_v3io_client
+
+
+class _Interval(NamedTuple):
+    start: datetime.datetime
+    end: datetime.datetime
 
 
 class _BatchWindow:
@@ -84,15 +89,16 @@ class _BatchWindow:
                 last_update=self._stop,
                 error=err,
             )
-
-            # TODO : Change the timedelta according to the policy.
-            first_period_in_seconds = max(
-                int(datetime.timedelta(days=1).total_seconds()), self._step
-            )  # max between one day and the base period
-            return max(
-                self._first_request,
-                self._stop - first_period_in_seconds,
-            )
+            if self._first_request and self._stop:
+                # TODO : Change the timedelta according to the policy.
+                first_period_in_seconds = max(
+                    int(datetime.timedelta(days=1).total_seconds()), self._step
+                )  # max between one day and the base period
+                return max(
+                    self._first_request,
+                    self._stop - first_period_in_seconds,
+                )
+            return self._first_request
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(
@@ -119,15 +125,24 @@ class _BatchWindow:
 
     def get_intervals(
         self,
-    ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
+    ) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
         if self._start is not None and self._stop is not None:
             entered = False
-            for timestamp in range(self._start, self._stop, self._step):
+            # Iterate timestamp from start until timestamp <= stop - step
+            # so that the last interval will end at (timestamp + step) <= stop.
+            # Add 1 to stop - step to get <= and not <.
+            for timestamp in range(
+                self._start, self._stop - self._step + 1, self._step
+            ):
                 entered = True
-                start_time = datetime.datetime.utcfromtimestamp(timestamp)
-                end_time = datetime.datetime.utcfromtimestamp(timestamp + self._step)
-                yield start_time, end_time
+                start_time = datetime.datetime.fromtimestamp(
+                    timestamp, tz=datetime.timezone.utc
+                )
+                end_time = datetime.datetime.fromtimestamp(
+                    timestamp + self._step, tz=datetime.timezone.utc
+                )
+                yield _Interval(start_time, end_time)
                 self._update_last_analyzed(timestamp + self._step)
             if not entered:
                 logger.info(
@@ -378,7 +393,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[Tuple[str, Exception]]:
+    ) -> Optional[tuple[str, Exception]]:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -503,9 +518,11 @@ class MonitoringApplicationController:
             fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
-            time_to_keep = float(
-                (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
-            )
+            time_to_keep = (
+                datetime.datetime.now(tz=datetime.timezone.utc)
+                - datetime.timedelta(days=days)
+            ).timestamp()
+
             for endpoint in endpoints:
                 try:
                     apps_parquet_directories = fs.listdir(
@@ -626,7 +643,7 @@ class MonitoringApplicationController:
             timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,
             target=ParquetTarget(
                 path=parquet_directory
-                + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
+                + f"/key={endpoint_id}/{int(start_infer_time.timestamp())}/{application_name}.parquet",
                 storage_options=storage_options,
             ),
         )

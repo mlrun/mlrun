@@ -121,18 +121,18 @@ class Runs(
     def list_runs(
         self,
         db_session: sqlalchemy.orm.Session,
-        name=None,
-        uid=None,
-        project: str = mlrun.mlconf.default_project,
-        labels=None,
+        name: typing.Optional[str] = None,
+        uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
         states: typing.Optional[typing.List[str]] = None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -194,7 +194,7 @@ class Runs(
             in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Can not delete run in {run_state} state, consider aborting the run first."
+                f"Can not delete run in {run_state} state, consider aborting the run first"
             )
 
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
@@ -239,7 +239,7 @@ class Runs(
             in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Can not delete runs in {state} state, consider aborting the run first."
+                f"Can not delete runs in {state} state, consider aborting the run first"
             )
 
         if not runs_list:
@@ -293,7 +293,7 @@ class Runs(
             ]
 
         if failed_deletions:
-            raise mlrun.errors.MLRunRuntimeError(
+            raise mlrun.errors.MLRunBadRequestError(
                 f"Failed to delete {failed_deletions} run(s). Error: {mlrun.errors.err_to_str(last_exception)}"
             ) from last_exception
 
@@ -384,6 +384,10 @@ class Runs(
                 "status.state": mlrun.runtimes.constants.RunStates.error,
                 "status.error": f"Failed to abort run, error: {err}",
             }
+            server.api.utils.singletons.db.get_db().update_run(
+                db_session, run_updates, uid, project, iter
+            )
+            raise exc
 
         server.api.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter

@@ -765,6 +765,11 @@ class BatchProcessor:
                     mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS
                 ]
             )
+            # Pad the original feature stats to accommodate current data out
+            # of the original range (unless already padded)
+            mlrun.common.model_monitoring.helpers.pad_features_hist(
+                mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)
+            )
 
             # Get the current stats:
             current_stats = calculate_inputs_statistics(
@@ -907,7 +912,7 @@ class BatchProcessor:
         drift_status: mlrun.common.schemas.model_monitoring.DriftStatus,
         drift_measure: float,
         drift_result: Dict[str, Dict[str, Any]],
-        timestamp: pd._libs.tslibs.timestamps.Timestamp,
+        timestamp: pd.Timestamp,
     ):
         """Update drift results in input stream.
 
@@ -946,10 +951,7 @@ class BatchProcessor:
         # Update the results in tsdb:
         tsdb_drift_measures = {
             "endpoint_id": endpoint_id,
-            "timestamp": pd.to_datetime(
-                timestamp,
-                format=mlrun.common.schemas.model_monitoring.EventFieldType.TIME_FORMAT,
-            ),
+            "timestamp": timestamp,
             "record_type": "drift_measures",
             "tvd_mean": drift_result["tvd_mean"],
             "kld_mean": drift_result["kld_mean"],
@@ -960,7 +962,7 @@ class BatchProcessor:
             self.frames.write(
                 backend="tsdb",
                 table=self.tsdb_path,
-                dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
+                dfs=pd.DataFrame.from_records([tsdb_drift_measures]),
                 index_cols=["timestamp", "endpoint_id", "record_type"],
             )
         except v3io_frames.errors.Error as err:

@@ -20,7 +20,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultStatusApp,
 )
 from mlrun.model_monitoring.application import (
-    ModelMonitoringApplication,
+    ModelMonitoringApplicationBase,
     ModelMonitoringApplicationResult,
 )
 
@@ -29,7 +29,7 @@ EXPECTED_EVENTS_COUNT = (
 )
 
 
-class DemoMonitoringApp(ModelMonitoringApplication):
+class DemoMonitoringApp(ModelMonitoringApplicationBase):
     name = "monitoring-test"
     check_num_events = True
 
@@ -38,7 +38,7 @@ class DemoMonitoringApp(ModelMonitoringApplication):
         super().__init_subclass__()
         cls.check_num_events = check_num_events
 
-    def run_application(
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,
@@ -56,15 +56,17 @@ class DemoMonitoringApp(ModelMonitoringApplication):
         self.context.logger.info("Asserted sample_df length")
         return [
             ModelMonitoringApplicationResult(
-                application_name=self.name,
-                endpoint_id=endpoint_id,
-                start_infer_time=start_infer_time,
-                end_infer_time=end_infer_time,
-                result_name="data_drift_test",
-                result_value=2.15,
-                result_kind=ResultKindApp.data_drift,
-                result_status=ResultStatusApp.detected,
-            )
+                name="data_drift_test",
+                value=2.15,
+                kind=ResultKindApp.data_drift,
+                status=ResultStatusApp.detected,
+            ),
+            ModelMonitoringApplicationResult(
+                name="model_perf",
+                value=80,
+                kind=ResultKindApp.model_performance,
+                status=ResultStatusApp.no_detection,
+            ),
         ]
 
 

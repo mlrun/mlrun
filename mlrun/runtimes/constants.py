@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import typing
 
 
@@ -61,7 +62,7 @@ class ThresholdStates:
     # where it is scheduled, or initialization tasks specified in the pod's configuration are not yet completed.
     pending_scheduled = "pending_scheduled"
     pending_not_scheduled = "pending_not_scheduled"
-    running = "running"
+    executing = "executing"
     image_pull_backoff = "image_pull_backoff"
 
     @staticmethod
@@ -69,7 +70,7 @@ class ThresholdStates:
         return [
             ThresholdStates.pending_scheduled,
             ThresholdStates.pending_not_scheduled,
-            ThresholdStates.running,
+            ThresholdStates.executing,
             ThresholdStates.image_pull_backoff,
         ]
 
@@ -84,7 +85,7 @@ class ThresholdStates:
                 return ThresholdStates.pending_not_scheduled
 
         elif pod_phase == PodPhases.running:
-            return ThresholdStates.running
+            return ThresholdStates.executing
 
         return None
 
@@ -174,6 +175,18 @@ class RunStates(object):
             RunStates.running,
             RunStates.pending,
             # TODO: add aborting state once we have it
+        ]
+
+
+class RunLabels(enum.Enum):
+    owner = "owner"
+    v3io_user = "v3io_user"
+
+    @staticmethod
+    def all():
+        return [
+            RunLabels.owner,
+            RunLabels.v3io_user,
         ]
 
 

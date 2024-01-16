@@ -25,10 +25,16 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
-from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
+from mlrun.model_monitoring.helpers import (
+    _BatchDict,
+    batch_dict2timedelta,
+    get_monitoring_parquet_path,
+    get_stream_path,
+)
 from mlrun.utils import logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
@@ -56,9 +62,9 @@ class _BatchWindow:
         self._first_request = first_request
         self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
-        self._start = self._get_last_analyzed()
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._start = self._get_last_analyzed()
 
     def _get_last_analyzed(self) -> Optional[int]:
         try:
@@ -68,16 +74,25 @@ class _BatchWindow:
                 key=self._application,
             )
         except HttpResponseError as err:
-            logger.warn(
+            logger.info(
                 "Failed to get the last analyzed time for this endpoint and application, "
-                "as this is probably the first time this application is running. "
-                "Using the first request time instead.",
+                "as this is probably the first time this application is running. ",
+                "Using the latest between first request time or last update time minus one day instead.",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
+                last_update=self._stop,
                 error=err,
             )
-            return self._first_request
+
+            # TODO : Change the timedelta according to the policy.
+            first_period_in_seconds = max(
+                int(datetime.timedelta(days=1).total_seconds()), self._step
+            )  # max between one day and the base period
+            return max(
+                self._first_request,
+                self._stop - first_period_in_seconds,
+            )
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(
@@ -164,15 +179,9 @@ class _BatchWindowGenerator:
             self._batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _get_timedelta(self) -> int:
-        """Get the timedelta from a batch dictionary"""
-        self._batch_dict = cast(dict[str, int], self._batch_dict)
-        minutes, hours, days = (
-            self._batch_dict[mm_constants.EventFieldType.MINUTES],
-            self._batch_dict[mm_constants.EventFieldType.HOURS],
-            self._batch_dict[mm_constants.EventFieldType.DAYS],
-        )
+        """Get the timedelta in seconds from the batch dictionary"""
         return int(
-            datetime.timedelta(minutes=minutes, hours=hours, days=days).total_seconds()
+            batch_dict2timedelta(cast(_BatchDict, self._batch_dict)).total_seconds()
         )
 
     @classmethod
@@ -201,12 +210,10 @@ class _BatchWindowGenerator:
                 first_request=first_request,
             )
             return None
-        # See mm_constants.EventFieldType.TIME_FORMAT
         return cls._date_string2timestamp(first_request)
 
     @staticmethod
     def _date_string2timestamp(date_string: str) -> int:
-        # See mm_constants.EventFieldType.TIME_FORMAT
         return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
     def get_batch_window(
@@ -452,6 +459,10 @@ class MonitoringApplicationController:
                         endpoint[mm_constants.EventFieldType.FEATURE_STATS]
                     )
 
+                    # Pad the original feature stats to accommodate current
+                    # data out of the original range (unless already padded)
+                    pad_features_hist(FeatureStats(feature_stats))
+
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(
                         sample_set_statistics=feature_stats,
@@ -484,10 +495,11 @@ class MonitoringApplicationController:
         :param endpoints: A list of dictionaries of model endpoints records.
         """
         if self.parquet_directory.startswith("v3io:///"):
-            target = mlrun.datastore.targets.BaseStoreTarget(
-                path=self.parquet_directory
+            # create fs with access to the user side (under projects)
+            store, _ = mlrun.store_manager.get_or_create_store(
+                self.parquet_directory,
+                {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )
-            store, _ = target._get_store_and_path()
             fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
@@ -615,9 +627,6 @@ class MonitoringApplicationController:
             target=ParquetTarget(
                 path=parquet_directory
                 + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
-                partition_cols=[
-                    mm_constants.EventFieldType.ENDPOINT_ID,
-                ],
                 storage_options=storage_options,
             ),
         )

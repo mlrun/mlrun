@@ -157,6 +157,7 @@ def make_kaniko_pod(
     runtime_spec=None,
     registry=None,
     extra_args="",
+    extra_labels={},
     project_secrets=None,
 ):
     extra_runtime_spec = {}
@@ -238,6 +239,7 @@ def make_kaniko_pod(
         project=project,
         default_pod_spec_attributes=extra_runtime_spec,
         resources=resources,
+        labels=extra_labels,
     )
     envs = (builder_env or []) + (project_secrets or [])
     kpod.env = envs or None
@@ -293,8 +295,7 @@ def make_kaniko_pod(
         )
 
     # when using ECR we need init container to create the image repository
-    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    if ".ecr." in registry and ".amazonaws.com" in registry:
+    if mlrun.utils.helpers.is_ecr_url(registry):
         end = dest.find(":")
         if end == -1:
             end = len(dest)
@@ -509,6 +510,7 @@ def build_image(
         extra_args=extra_args,
     )
 
+    label_prefix = mlrun.runtimes.utils.mlrun_key
     kpod = make_kaniko_pod(
         project,
         context,
@@ -526,6 +528,11 @@ def build_image(
         runtime_spec=runtime_spec,
         registry=registry,
         extra_args=extra_args,
+        extra_labels={
+            label_prefix + "name": name,
+            label_prefix + "function": runtime.metadata.name,
+            label_prefix + "tag": runtime.metadata.tag or "latest",
+        },
     )
 
     if to_mount:
@@ -606,7 +613,7 @@ def resolve_upgrade_pip_command(commands=None):
 
 def build_runtime(
     auth_info: mlrun.common.schemas.AuthInfo,
-    runtime,
+    runtime: mlrun.runtimes.BaseRuntime,
     with_mlrun=True,
     mlrun_version_specifier=None,
     skip_deployed=False,
@@ -622,7 +629,7 @@ def build_runtime(
     if skip_deployed and runtime.is_deployed():
         mlrun.utils.logger.info(
             "Skipping build, runtime is already deployed",
-            runtime_uid=runtime.metadata.uid,
+            runtime_name=runtime.metadata.name,
             project=project,
         )
         runtime.status.state = mlrun.common.schemas.FunctionState.ready

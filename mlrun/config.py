@@ -193,6 +193,7 @@ default_config = {
                 "load_project": "60",
                 "run_abortion": "600",
                 "abort_grace_period": "10",
+                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -220,7 +221,7 @@ default_config = {
                     "pending_scheduled": "1h",
                     "pending_not_scheduled": "-1",  # infinite
                     "image_pull_backoff": "1h",
-                    "running": "24h",
+                    "executing": "24h",
                 }
             },
         },
@@ -277,7 +278,7 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://,ds://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.common.schemas.APIStates for options
@@ -653,6 +654,7 @@ default_config = {
         # used for igz client when emitting events
         "access_key": "",
     },
+    "grafana_url": "",
 }
 
 _is_running_as_api = None
@@ -1104,7 +1106,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_project_path_template(
+            return mlrun.utils.helpers.template_artifact_path(
                 artifact_path=artifact_path + file_path, project=project
             )
 
@@ -1145,7 +1147,9 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.9"
+            not self.nuclio_version
+            or semver.VersionInfo.parse(self.nuclio_version)
+            >= semver.VersionInfo.parse("1.12.10")
         )
 
 

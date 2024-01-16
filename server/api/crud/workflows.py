@@ -22,7 +22,7 @@ import mlrun.utils.singleton
 import server.api.api.utils
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
-from mlrun.utils import fill_project_path_template
+from mlrun.utils import template_artifact_path
 
 
 class WorkflowRunners(
@@ -168,11 +168,10 @@ class WorkflowRunners(
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
-                output_path=fill_project_path_template(
-                    (workflow_request.artifact_path or config.artifact_path).replace(
-                        "{{run.uid}}", meta_uid
-                    ),
+                output_path=template_artifact_path(
+                    workflow_request.artifact_path or config.artifact_path,
                     project.metadata.name,
+                    meta_uid,
                 ),
             ),
             metadata=RunMetadata(
@@ -206,6 +205,9 @@ class WorkflowRunners(
         else:
             labels["job-type"] = "workflow-runner"
             labels["workflow"] = runner.metadata.name
+        mlrun.runtimes.utils.enrich_run_labels(
+            labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
 
         run_spec = self._prepare_run_object_for_single_run(
             project=project,

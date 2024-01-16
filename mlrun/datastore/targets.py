@@ -79,6 +79,35 @@ def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
 
+def write_spark_dataframe_with_options(spark_options, df, mode):
+    sc = df.sql_ctx.sparkSession.sparkContext
+
+    original_hadoop_conf = {}
+    non_hadoop_spark_options = {}
+
+    hadoop_conf = sc._jsc.hadoopConfiguration()
+
+    for key, value in spark_options.items():
+        if key.startswith("spark.hadoop."):
+            key = key[len("spark.hadoop.") :]
+            # Save the original configuration
+            original_value = hadoop_conf.get(key, None)
+            original_hadoop_conf[key] = original_value
+            hadoop_conf.set(key, value)
+        else:
+            non_hadoop_spark_options[key] = value
+    try:
+        df.write.mode(mode).save(**non_hadoop_spark_options)
+    except Exception as e:
+        raise e
+    finally:
+        for key, value in original_hadoop_conf.items():
+            if value:
+                hadoop_conf.set(key, value)
+            else:
+                hadoop_conf.unset(key)
+
+
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets
     return [target.strip() for target in targets.split(",")]
@@ -498,7 +527,7 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
-            df.write.mode("overwrite").save(**options)
+            write_spark_dataframe_with_options(options, df, "overwrite")
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
             store, target_path = self._get_store_and_path()
@@ -926,12 +955,12 @@ class ParquetTarget(BaseStoreTarget):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
+            storage_spark_options = store.get_spark_options()
             path = store.url + path
             result = {
-                "path": store_path_to_spark(path),
+                "path": store_path_to_spark(path, storage_spark_options),
                 "format": "parquet",
             }
-            storage_spark_options = store.get_spark_options()
             result = {**result, **storage_spark_options}
         else:
             result = {
@@ -1068,13 +1097,13 @@ class CSVTarget(BaseStoreTarget):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
+            storage_spark_options = store.get_spark_options()
             path = store.url + path
             result = {
-                "path": store_path_to_spark(path),
+                "path": store_path_to_spark(path, storage_spark_options),
                 "format": "csv",
                 "header": "true",
             }
-            storage_spark_options = store.get_spark_options()
             return {**result, **storage_spark_options}
         else:
             return {
@@ -1196,7 +1225,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
-            df.write.mode("overwrite").save(**options)
+            write_spark_dataframe_with_options(options, df, "overwrite")
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted

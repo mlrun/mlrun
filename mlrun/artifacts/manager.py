@@ -16,7 +16,7 @@ import typing
 from os.path import isdir
 
 import mlrun.config
-from mlrun.utils.helpers import fill_project_path_template
+from mlrun.utils.helpers import template_artifact_path
 
 from ..utils import (
     is_legacy_artifact,
@@ -200,8 +200,11 @@ class ArtifactManager:
                 # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
-                db_key = key
-        item.db_key = db_key if db_key else ""
+                # if the db_key is not explicitly set on the item, we want to use the key as the db_key
+                # otherwise, we do not want to override it.
+                # this is mainly relevant for imported artifacts that have an explicit db_key value already set
+                db_key = item.db_key or key
+        item.db_key = db_key or ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
         item.tag = tag or item.tag
@@ -249,9 +252,7 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = fill_project_path_template(
-            artifact_path=target_path, project=project
-        )
+        target_path = template_artifact_path(artifact_path=target_path, project=project)
         item.target_path = target_path
 
         item.before_log()

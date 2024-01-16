@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import datetime
-import typing
-from typing import Optional, Tuple
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
+from typing import NamedTuple, Optional, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -26,16 +27,20 @@ from mlrun.common.model_monitoring.helpers import (
     FeatureStats,
     Histogram,
     pad_features_hist,
+    pad_hist,
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
-from mlrun.model_monitoring.helpers import bump_model_endpoint_last_request
+from mlrun.model_monitoring.helpers import (
+    _get_monitoring_time_window_from_controller_run,
+    bump_model_endpoint_last_request,
+)
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
-class _HistLen(typing.NamedTuple):
+class _HistLen(NamedTuple):
     counts_len: int
     edges_len: int
 
@@ -51,6 +56,17 @@ def feature_stats() -> FeatureStats:
             },
         }
     )
+
+
+@pytest.fixture
+def histogram() -> Histogram:
+    return Histogram([[0, 1], [1.1, 2.2, 3.3]])
+
+
+@pytest.fixture
+def padded_histogram(histogram: Histogram) -> Histogram:
+    pad_hist(histogram)
+    return histogram
 
 
 @pytest.fixture
@@ -74,6 +90,21 @@ def _check_padded_hist_spec(hist: Histogram, orig_data: _HistLen) -> None:
     assert (-edges[0]) == edges[-1] == _MAX_FLOAT
 
 
+def test_pad_hist(histogram: Histogram) -> None:
+    orig_data = _HistLen(
+        counts_len=len(histogram[0]),
+        edges_len=len(histogram[1]),
+    )
+    pad_hist(histogram)
+    _check_padded_hist_spec(histogram, orig_data)
+
+
+def test_padded_hist_unchanged(padded_histogram: Histogram) -> None:
+    orig_hist = padded_histogram.copy()
+    pad_hist(padded_histogram)
+    assert padded_histogram == orig_hist, "A padded histogram should not be changed"
+
+
 def test_pad_features_hist(
     feature_stats: FeatureStats,
     orig_feature_stats_hist_data: dict[str, _HistLen],
@@ -87,6 +118,7 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def intervals(
+        request: pytest.FixtureRequest,
         timedelta_seconds: int = int(datetime.timedelta(minutes=6).total_seconds()),
         first_request: int = int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
         last_updated: int = int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
@@ -97,6 +129,11 @@ class TestBatchInterval:
             "mlrun.model_monitoring.controller.get_v3io_client",
             return_value=mock,
         ):
+            if hasattr(request, "param"):
+                timedelta_seconds = request.param[0]
+                first_request = request.param[1]
+                last_updated = request.param[2]
+
             return list(
                 _BatchWindow(
                     project="project",
@@ -115,6 +152,28 @@ class TestBatchInterval:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
             assert prev[1] == curr[0], "The intervals should be touching"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        "intervals",
+        [
+            [
+                6 * 60 * 60 * 24,
+                int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
+                int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
+            ]
+        ],
+        indirect=True,
+    )
+    def test_large_base_period(
+        intervals: list[Tuple[datetime.datetime, datetime.datetime]],
+    ) -> None:
+        assert len(intervals) == 1, "There should be exactly one interval"
+        assert 6 * 60 * 60 * 24 == datetime.datetime.timestamp(
+            intervals[0][1]
+        ) - datetime.datetime.timestamp(
+            intervals[0][0]
+        ), "The time slot should be equal to timedelta_seconds (6 days)"
 
 
 class TestBatchWindowGenerator:
@@ -137,7 +196,7 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request.strftime(EventFieldType.TIME_FORMAT),
+            last_request=last_request.isoformat(),
         )
         assert last_updated
         assert (
@@ -175,11 +234,61 @@ class TestBumpModelEndpointLastRequest:
         return empty_model_endpoint
 
     @staticmethod
+    @pytest.fixture
+    def runs() -> list[dict]:
+        return [
+            {
+                "kind": "run",
+                "metadata": {
+                    "name": "model-monitoring-controller",
+                    "uid": "3a88d8aef52f4a90a12b681a87d9dc51",
+                    "iteration": 0,
+                    "project": "test-mm-1",
+                    "labels": {
+                        "mlrun/schedule-name": "model-monitoring-controller",
+                        "kind": "job",
+                        "v3io_user": "pipelines",
+                        "host": "model-monitoring-controller-cbvs4",
+                    },
+                    "annotations": {},
+                },
+                "spec": {
+                    "function": "test-mm-1/model-monitoring-controller@8056f87c8e5b11408d9d990fc0381f7a0fca83cf",
+                    "log_level": "info",
+                    "parameters": {
+                        "batch_intervals_dict": {"minutes": 1, "hours": 0, "days": 0}
+                    },
+                    "handler": "handler",
+                    "outputs": [],
+                    "output_path": "v3io:///projects/test-mm-1/artifacts",
+                    "inputs": {},
+                    "notifications": [],
+                    "state_thresholds": {
+                        "pending_scheduled": "1h",
+                        "pending_not_scheduled": "-1",
+                        "image_pull_backoff": "1h",
+                        "executing": "24h",
+                    },
+                    "hyperparams": {},
+                    "hyper_param_options": {},
+                    "data_stores": [],
+                },
+                "status": {
+                    "results": {},
+                    "start_time": "2024-01-14T15:01:03.639771+00:00",
+                    "last_update": "2024-01-14T15:01:04.049320+00:00",
+                    "state": "completed",
+                    "artifacts": [],
+                },
+            }
+        ]
+
+    @staticmethod
     def test_empty_last_request(
         project: str, empty_model_endpoint: ModelEndpoint, db: NopDB
     ) -> None:
         with pytest.raises(
-            MLRunInvalidArgumentError, match="Model endpoint last request time is empty"
+            MLRunValueError, match="Model endpoint last request time is empty"
         ):
             bump_model_endpoint_last_request(
                 project=project,
@@ -193,24 +302,90 @@ class TestBumpModelEndpointLastRequest:
         model_endpoint: ModelEndpoint,
         db: NopDB,
         last_request: str,
-        minutes_delta: int = 4,
-        seconds_delta: int = 0,
+        runs: list[dict],
     ) -> None:
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            bump_model_endpoint_last_request(
-                project=project,
-                model_endpoint=model_endpoint,
-                db=db,
-                minutes_delta=minutes_delta,
-                seconds_delta=seconds_delta,
-            )
+            with patch.object(db, "list_runs", return_value=runs):
+                bump_model_endpoint_last_request(
+                    project=project,
+                    model_endpoint=model_endpoint,
+                    db=db,
+                )
         patch_patch_model_endpoint.assert_called_once()
         assert datetime.datetime.fromisoformat(
             patch_patch_model_endpoint.call_args.kwargs["attributes"][
                 EventFieldType.LAST_REQUEST
             ]
         ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
-            minutes=minutes_delta, seconds=seconds_delta
+            minutes=1
         ) + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("runs", "error_context", "expected_window"),
+        [
+            (
+                [],
+                pytest.raises(
+                    MLRunValueError, match="No model-monitoring-controller runs"
+                ),
+                None,
+            ),
+            (
+                [{"kind": "run", "spec": {"parameters": {}}}],
+                pytest.raises(
+                    MLRunValueError,
+                    match="Could not find `batch_intervals_dict` in model-monitoring-controller run",
+                ),
+                None,
+            ),
+            (
+                [
+                    {
+                        "kind": "run",
+                        "spec": {
+                            "parameters": {
+                                "batch_intervals_dict": {
+                                    "minutes": 1,
+                                    "hours": 0,
+                                    "days": 0,
+                                }
+                            }
+                        },
+                    },
+                    {
+                        "kind": "run",
+                        "spec": {
+                            "parameters": {
+                                "batch_intervals_dict": {
+                                    "minutes": 1,
+                                    "hours": 2,
+                                    "days": 3,
+                                }
+                            }
+                        },
+                    },
+                ],
+                does_not_raise(),
+                datetime.timedelta(minutes=1),
+            ),
+        ],
+    )
+    def test_get_monitoring_time_window_from_controller_run(
+        project: str,
+        db: NopDB,
+        runs: list[dict],
+        error_context: AbstractContextManager,
+        expected_window: Optional[datetime.timedelta],
+    ) -> None:
+        with patch.object(db, "list_runs", return_value=runs):
+            with error_context:
+                assert (
+                    _get_monitoring_time_window_from_controller_run(
+                        project=project,
+                        db=db,
+                    )
+                    == expected_window
+                ), "The window is different than expected"

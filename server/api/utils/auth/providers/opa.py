@@ -25,12 +25,13 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import server.api.utils.auth.providers.base
+import server.api.utils.auth.providers.base as auth
+import server.api.utils.helpers
 from mlrun.utils import logger
 
 
 class Provider(
-    server.api.utils.auth.providers.base.Provider,
+    auth.Provider,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self) -> None:
@@ -87,7 +88,9 @@ class Provider(
             )
             create_allowed, update_allowed = results
             return create_allowed and update_allowed
-        if self._is_request_from_leader(auth_info.projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            auth_info.projects_role, leader_name=self._leader_name
+        ):
             return True
         if self._check_allowed_project_owners_cache(resource, auth_info):
             return True
@@ -117,7 +120,9 @@ class Provider(
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.common.schemas.AuthorizationAction.store:
             raise NotImplementedError("Store action is not supported in filtering")
-        if self._is_request_from_leader(auth_info.projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            auth_info.projects_role, leader_name=self._leader_name
+        ):
             return resources
         opa_resources = []
         for resource in resources:
@@ -195,13 +200,6 @@ class Provider(
                 user_ids_to_remove.append(user_id)
         for user_id in user_ids_to_remove:
             del self._allowed_project_owners_cache[user_id]
-
-    def _is_request_from_leader(
-        self, projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole]
-    ):
-        if projects_role and projects_role.value == self._leader_name:
-            return True
-        return False
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api(self, method, path, **kwargs):

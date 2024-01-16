@@ -12,6 +12,17 @@ serving.add_model(key="iris", model_path="https://s3.wasabisys.com/iguazio/model
 project.deploy_function(serving)
 ```
 
+This example illustrates how to use Git with serving function:
+
+```python
+project = mlrun.get_or_create_project("serving-git", "./")
+project.set_source(source="git://github.com/<username>/<repo>.git#main", pull_at_runtime=True)
+function = project.set_function(name="serving", kind="serving", with_repo=True, func=<python-file>, image="mlrun/mlrun")
+function.add_model("serve", <model_path> ,class_name="MyClass")
+project.deploy_function(function="serving")
+```
+
+
 
 **See also**
 - {ref}`Real-time serving pipelines (graphs) <serving-graph>`: higher level real-time graphs (DAG) over one or more Nuclio functions

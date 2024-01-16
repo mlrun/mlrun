@@ -14,6 +14,7 @@
 
 import dataclasses
 import json
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Tuple, Union
 
 import numpy as np
@@ -35,28 +36,19 @@ class ModelMonitoringApplicationResult:
     """
     Class representing the result of a custom model monitoring application.
 
-    :param application_name:      (str) Name of the model monitoring application.
-    :param endpoint_id:           (str) ID of the monitored model endpoint.
-    :param start_infer_time:      (pd.Timestamp) Start time of the monitoring schedule.
-    :param end_infer_time:        (pd.Timestamp) End time of the monitoring schedule.
-    :param result_name:           (str) Name of the application result.
-    :param result_value:          (float) Value of the application result.
-    :param result_kind:           (ResultKindApp) Kind of application result.
-    :param result_status:         (ResultStatusApp) Status of the application result.
-    :param result_extra_data:     (dict) Extra data associated with the application result.
-    :param _current_stats:        (dict) Current statistics of the data.
+    :param name:           (str) Name of the application result. This name must be
+                            unique for each metric in a single application.
+    :param value:          (float) Value of the application result.
+    :param kind:           (ResultKindApp) Kind of application result.
+    :param status:         (ResultStatusApp) Status of the application result.
+    :param extra_data:     (dict) Extra data associated with the application result.
     """
 
-    application_name: str
-    endpoint_id: str
-    start_infer_time: pd.Timestamp
-    end_infer_time: pd.Timestamp
-    result_name: str
-    result_value: float
-    result_kind: mm_constant.ResultKindApp
-    result_status: mm_constant.ResultStatusApp
-    result_extra_data: dict = dataclasses.field(default_factory=dict)
-    _current_stats: dict = dataclasses.field(default_factory=dict)
+    name: str
+    value: float
+    kind: mm_constant.ResultKindApp
+    status: mm_constant.ResultStatusApp
+    extra_data: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
         """
@@ -65,34 +57,23 @@ class ModelMonitoringApplicationResult:
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.WriterEvent.APPLICATION_NAME: self.application_name,
-            mm_constant.WriterEvent.ENDPOINT_ID: self.endpoint_id,
-            mm_constant.WriterEvent.START_INFER_TIME: self.start_infer_time.isoformat(
-                sep=" ", timespec="microseconds"
-            ),
-            mm_constant.WriterEvent.END_INFER_TIME: self.end_infer_time.isoformat(
-                sep=" ", timespec="microseconds"
-            ),
-            mm_constant.WriterEvent.RESULT_NAME: self.result_name,
-            mm_constant.WriterEvent.RESULT_VALUE: self.result_value,
-            mm_constant.WriterEvent.RESULT_KIND: self.result_kind,
-            mm_constant.WriterEvent.RESULT_STATUS: self.result_status,
-            mm_constant.WriterEvent.RESULT_EXTRA_DATA: json.dumps(
-                self.result_extra_data
-            ),
-            mm_constant.WriterEvent.CURRENT_STATS: json.dumps(self._current_stats),
+            mm_constant.WriterEvent.RESULT_NAME: self.name,
+            mm_constant.WriterEvent.RESULT_VALUE: self.value,
+            mm_constant.WriterEvent.RESULT_KIND: self.kind,
+            mm_constant.WriterEvent.RESULT_STATUS: self.status,
+            mm_constant.WriterEvent.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
         }
 
 
-class ModelMonitoringApplication(StepToDict):
+class ModelMonitoringApplicationBase(StepToDict, ABC):
     """
-    Class representing a model monitoring application. Subclass this to create custom monitoring logic.
+    A base class for a model monitoring application.
+    Inherit from this class to create a custom model monitoring application.
 
-    example for very simple costume application::
+    example for very simple custom application::
         # mlrun: start-code
-        class MyApp(ModelMonitoringApplication):
-
-            def run_application(
+        class MyApp(ApplicationBase):
+            def do_tracking(
                 self,
                 sample_df_stats: pd.DataFrame,
                 feature_stats: pd.DataFrame,
@@ -102,46 +83,44 @@ class ModelMonitoringApplication(StepToDict):
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
                 output_stream_uri: str,
-            ) -> Union[ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
-            ]:
+            ) -> ModelMonitoringApplicationResult:
                 self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
                 return ModelMonitoringApplicationResult(
-                    self.name,
-                    endpoint_id,
-                    schedule_time,
-                    result_name="data_drift_test",
-                    result_value=0.5,
-                    result_kind=mm_constant.ResultKindApp.data_drift,
-                    result_status = mm_constant.ResultStatusApp.detected,
-                    result_extra_data={})
+                    name="data_drift_test",
+                    value=0.5,
+                    kind=mm_constant.ResultKindApp.data_drift,
+                    status=mm_constant.ResultStatusApp.detected,
+                )
 
         # mlrun: end-code
     """
 
     kind = "monitoring_application"
 
-    def do(self, event: dict[str, Any]) -> list[ModelMonitoringApplicationResult]:
+    def do(
+        self, event: dict[str, Any]
+    ) -> Tuple[list[ModelMonitoringApplicationResult], dict]:
         """
         Process the monitoring event and return application results.
 
         :param event:   (dict) The monitoring event to process.
-        :returns:       (list[ModelMonitoringApplicationResult]) The application results.
+        :returns:       (list[ModelMonitoringApplicationResult], dict) The application results
+                        and the original event for the application.
         """
         resolved_event = self._resolve_event(event)
         if not (
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
             self._lazy_init(app_name=resolved_event[0])
-        results = self.run_application(*resolved_event)
+        results = self.do_tracking(*resolved_event)
         results = results if isinstance(results, list) else [results]
-        for result in results:
-            result._current_stats = event[mm_constant.ApplicationEvent.CURRENT_STATS]
-        return results
+        return results, event
 
     def _lazy_init(self, app_name: str):
         self.context = self._create_context_for_logging(app_name=app_name)
 
-    def run_application(
+    @abstractmethod
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,
@@ -173,8 +152,9 @@ class ModelMonitoringApplication(StepToDict):
         """
         raise NotImplementedError
 
-    @staticmethod
+    @classmethod
     def _resolve_event(
+        cls,
         event: dict[str, Any],
     ) -> Tuple[
         str,
@@ -208,10 +188,10 @@ class ModelMonitoringApplication(StepToDict):
         end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
-            ModelMonitoringApplication._dict_to_histogram(
+            cls._dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS])
             ),
-            ModelMonitoringApplication._dict_to_histogram(
+            cls._dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS])
             ),
             ParquetTarget(
@@ -283,15 +263,34 @@ class PushToMonitoringWriter(StepToDict):
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"
 
-    def do(self, event: list[ModelMonitoringApplicationResult]) -> None:
+    def do(self, event: Tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
         """
         Push application results to the monitoring writer stream.
 
-        :param event: Monitoring result(s) to push.
+        :param event: Monitoring result(s) to push and the original event from the controller.
         """
         self._lazy_init()
-        for result in event:
+        application_results, application_event = event
+        metadata = {
+            mm_constant.WriterEvent.APPLICATION_NAME: application_event[
+                mm_constant.ApplicationEvent.APPLICATION_NAME
+            ],
+            mm_constant.WriterEvent.ENDPOINT_ID: application_event[
+                mm_constant.ApplicationEvent.ENDPOINT_ID
+            ],
+            mm_constant.WriterEvent.START_INFER_TIME: application_event[
+                mm_constant.ApplicationEvent.START_INFER_TIME
+            ],
+            mm_constant.WriterEvent.END_INFER_TIME: application_event[
+                mm_constant.ApplicationEvent.END_INFER_TIME
+            ],
+            mm_constant.WriterEvent.CURRENT_STATS: json.dumps(
+                application_event[mm_constant.ApplicationEvent.CURRENT_STATS]
+            ),
+        }
+        for result in application_results:
             data = result.to_dict()
+            data.update(metadata)
             logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")
             self.output_stream.push([data])
 

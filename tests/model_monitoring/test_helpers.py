@@ -268,14 +268,14 @@ class TestBatchInterval:
     @pytest.mark.first_request(
         int(
             datetime.datetime(
-                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+                2020, 12, 25, 23, 0, 0, tzinfo=datetime.timezone.utc
             ).timestamp()
         )
     )
     @pytest.mark.last_updated(
         int(
             datetime.datetime(
-                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
+                2021, 1, 1, 3, 1, 0, tzinfo=datetime.timezone.utc
             ).timestamp()
         )
     )

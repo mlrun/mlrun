@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import concurrent
+import concurrent.futures
 import copy
 import json
 import traceback
+import typing
 from enum import Enum
 from io import BytesIO
 from typing import Dict, List, Union
@@ -209,16 +211,6 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
-class ExecutorTypes:
-    # TODO: Remove in 1.5.0.
-    thread = "thread"
-    process = "process"
-
-    @staticmethod
-    def all():
-        return [ExecutorTypes.thread, ExecutorTypes.process]
-
-
 class ParallelRunnerModes(str, Enum):
     """Supported parallel running modes for VotingEnsemble"""
 
@@ -313,17 +305,12 @@ class ParallelRun(BaseModelRouter):
         )
         self.name = name or "ParallelRun"
         self.extend_event = extend_event
-        if isinstance(executor_type, ExecutorTypes):
-            executor_type = str(executor_type)
-            logger.warn(
-                "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
-                # TODO: In 1.5.0 to remove ExecutorTypes
-                FutureWarning,
-            )
         self.executor_type = ParallelRunnerModes(executor_type)
-        self._pool: Union[
-            concurrent.futures.ProcessPoolExecutor,
-            concurrent.futures.ThreadPoolExecutor,
+        self._pool: typing.Optional[
+            Union[
+                concurrent.futures.ProcessPoolExecutor,
+                concurrent.futures.ThreadPoolExecutor,
+            ]
         ] = None
 
     def _apply_logic(self, results: dict, event=None):

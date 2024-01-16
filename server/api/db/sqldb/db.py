@@ -37,7 +37,7 @@ import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.lists import ArtifactList, FunctionList, RunList
+from mlrun.lists import ArtifactList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
@@ -1527,7 +1527,7 @@ class SQLDB(DBInterface):
         tag: str = None,
         labels: List[str] = None,
         hash_key: str = None,
-    ) -> typing.Union[FunctionList, List[dict]]:
+    ) -> List[dict]:
         project = project or config.default_project
         uids = None
         if tag:
@@ -1536,7 +1536,7 @@ class SQLDB(DBInterface):
                 uids = [uid for uid in uids if uid == hash_key] or None
         if not tag and hash_key:
             uids = [hash_key]
-        functions = FunctionList()
+        functions = []
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
             if not tag:

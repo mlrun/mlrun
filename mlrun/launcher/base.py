@@ -185,8 +185,8 @@ class BaseLauncher(abc.ABC):
                 param_name=param_name, param_value=param_value
             )
 
-    @staticmethod
-    def _validate_run_single_param(param_name, param_value):
+    @classmethod
+    def _validate_run_single_param(cls, param_name, param_value):
         # verify that integer parameters don't exceed a int64
         if isinstance(param_value, int) and abs(param_value) >= 2**63:
             raise mlrun.errors.MLRunInvalidArgumentError(

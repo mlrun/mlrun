@@ -146,15 +146,15 @@ After you create a profile object, you make it available on remote pods by calli
 
 Create a data store profile in the context of a project. Example of creating a Redis datastore profile:
 1. Create the profile, for example:<br>
-   `profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
+   `profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
     The username and password parameters are optional. 
 2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
-   `RedisNoSqlTarget(path="ds://test_profile/a/b")`<br>
+   `RedisNoSqlTarget(path="ds://profile-name/a/b")`<br>
     If you want to use a profile from a different project, you can specify it 
 	explicitly in the URI using the format:<br>
-    `RedisNoSqlTarget(path="ds://another_project@test_profile")`
+    `RedisNoSqlTarget(path="ds://another_project@profile-name")`
 
 
 To access a profile from the client/sdk, register the profile locally by calling
@@ -174,8 +174,8 @@ Datastore profile does not support: v3io (datastore, or source/target), snowflak
 
 ### Azure data store profile
 ```
-profile = DatastoreProfileAzureBlob(name="test_profile",connection_string=connection_string)
-ParquetTarget(path="ds://test_profile/az_blob/path/to/parquet.pq")
+profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)
+ParquetTarget(path="ds://profile-name/az_blob/path/to/parquet.pq")
 ```
 
 `DatastoreProfileAzureBlob` init parameters:
@@ -215,8 +215,8 @@ This variable is sensitive information and is kept confidential.
 ### DBFS data store profile
 
 ```
-profile = DatastoreProfileDBFS(name="test_profile", endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com", token=token)
-ParquetTarget(path="ds://test_profile/path/to/parquet.pq")
+profile = DatastoreProfileDBFS(name="profile-name", endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com", token=token)
+ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 ```
 
 `DatastoreProfileDBFS` init parameters:
@@ -229,8 +229,8 @@ The equivalent to this parameter in environment authentication is "DATABRICKS_TO
 
 ### GCS data store profile
 ```
-profile = DatastoreProfileGCS(name="test_profile",credentials_path="/local_path/to/gcs_credentials.json")
-ParquetTarget(path="ds://test_profile/gcs_bucket/path/to/parquet.pq")
+profile = DatastoreProfileGCS(name="profile-name",credentials_path="/local_path/to/gcs_credentials.json")
+ParquetTarget(path="ds://profile-name/gcs_bucket/path/to/parquet.pq")
 ```
 
 `DatastoreProfileGCS` init parameters:
@@ -247,8 +247,8 @@ The code prioritizes `gcp_credentials` over `credentials_path`.
 ### Kafka data store profile
 
 ```
-profile = DatastoreProfileKafkaTarget(name="test_profile",bootstrap_servers="localhost", topic="test_topic")
-target = KafkaTarget(path="ds://test_profile")
+profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="test_topic")
+target = KafkaTarget(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:
@@ -260,8 +260,8 @@ target = KafkaTarget(path="ds://test_profile")
 
 
 ```
-profile = DatastoreProfileKafkaSource(name="test_profile",bootstrap_servers="localhost", topic="test_topic")
-target = KafkaSource(path="ds://test_profile")
+profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="test_topic")
+target = KafkaSource(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaSource` class parameters:
@@ -279,16 +279,16 @@ target = KafkaSource(path="ds://test_profile")
 ### Redis data store profile
 
 ```python
-profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
-RedisNoSqlTarget(path="ds://test_profile/a/b")
+profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
+RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```
 
 ### S3 data store profile
 
 
 ```
-profile = DatastoreProfileS3(name="test_profile")
-ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
+profile = DatastoreProfileS3(name="profile-name")
+ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 ```
 
 `DatastoreProfileS3` init parameters:

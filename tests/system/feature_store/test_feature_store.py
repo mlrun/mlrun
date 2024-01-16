@@ -514,7 +514,7 @@ class TestFeatureStore(TestMLRunSystem):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
-                v3io = store.get_filesystem(False)
+                v3io = store.filesystem
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -552,7 +552,7 @@ class TestFeatureStore(TestMLRunSystem):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
-                v3io = store.get_filesystem(False)
+                v3io = store.filesystem
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -4629,7 +4629,7 @@ def verify_purge(fset, targets):
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             store, target_path = driver._get_store_and_path()
-            filesystem = store.get_filesystem(False)
+            filesystem = store.filesystem
             if filesystem is not None:
                 assert filesystem.exists(target_path)
             else:
@@ -4642,7 +4642,7 @@ def verify_purge(fset, targets):
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             store, target_path = driver._get_store_and_path()
-            filesystem = store.get_filesystem(False)
+            filesystem = store.filesystem
             if filesystem is not None:
                 assert not filesystem.exists(target_path)
             else:

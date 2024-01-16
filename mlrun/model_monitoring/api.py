@@ -577,13 +577,17 @@ def get_sample_set_statistics(
         return model_artifact_feature_stats
 
     # Turn other object types to DataFrame:
-    if isinstance(sample_set, (mlrun.DataItem, list, tuple, dict, np.ndarray)):
+    # A DataFrame is necessary for executing the "drop features" operation.
+    #  TODO check about URI option.
+    if isinstance(sample_set, (mlrun.DataItem, list, tuple, dict, np.ndarray, pd.Series, pd.DataFrame)):
         sample_set, _ = read_dataset_as_dataframe(
             dataset=sample_set,
             feature_columns=sample_set_columns,
             drop_columns=sample_set_drop_columns,
             label_columns=sample_set_label_columns,
         )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(f"Parameter dataset has an unsupported type: {type(sample_set)}")
 
     # Return the sample set statistics:
     return get_df_stats(df=sample_set, options=InferOptions.Histogram)

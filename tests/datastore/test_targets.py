@@ -27,7 +27,8 @@ class MockGraph:
         self.kwargs = kwargs
 
 
-def test_stream_target():
+# ML-5484
+def test_stream_target_path_is_without_run_id():
     os.environ["V3IO_ACCESS_KEY"] = os.environ.get("V3IO_ACCESS_KEY", "placeholder")
 
     mock_graph = MockGraph()
@@ -37,4 +38,5 @@ def test_stream_target():
     fset = FeatureSet(name="my-featureset")
     stream_target.set_resource(fset)
     stream_target.add_writer_step(mock_graph, None, None, key_columns={})
+    # make sure that run ID wasn't added to the path
     assert mock_graph.kwargs.get("stream_path") == path

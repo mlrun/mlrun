@@ -121,12 +121,20 @@ def test_pad_features_hist(
 class TestBatchInterval:
     @staticmethod
     @pytest.fixture
-    def timedelta_seconds() -> int:
+    def timedelta_seconds(request: pytest.FixtureRequest) -> int:
+        if marker := request.node.get_closest_marker(
+            TestBatchInterval.timedelta_seconds.__name__
+        ):
+            return marker.args[0]
         return int(datetime.timedelta(minutes=6).total_seconds())
 
     @staticmethod
     @pytest.fixture
-    def first_request() -> int:
+    def first_request(request: pytest.FixtureRequest) -> int:
+        if marker := request.node.get_closest_marker(
+            TestBatchInterval.first_request.__name__
+        ):
+            return marker.args[0]
         return int(
             datetime.datetime(
                 2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
@@ -135,7 +143,11 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.fixture
-    def last_updated() -> int:
+    def last_updated(request: pytest.FixtureRequest) -> int:
+        if marker := request.node.get_closest_marker(
+            TestBatchInterval.last_updated.__name__
+        ):
+            return marker.args[0]
         return int(
             datetime.datetime(
                 2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
@@ -156,15 +168,10 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def intervals(
-        request: pytest.FixtureRequest,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
     ) -> list[_Interval]:
-        if hasattr(request, "param"):
-            timedelta_seconds = request.param[0]
-            first_request = request.param[1]
-            last_updated = request.param[2]
         return list(
             _BatchWindow(
                 project="project",
@@ -256,20 +263,27 @@ class TestBatchInterval:
             == expected_last_analyzed
         ), "The last analyzed time is not as expected"
 
-    @pytest.mark.parametrize(
-        "intervals",
-        [
-            [
-                6 * 60 * 60 * 24,
-                int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
-                int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
-            ]
-        ],
-        indirect=True,
+    @staticmethod
+    @pytest.mark.timedelta_seconds(int(datetime.timedelta(days=6).total_seconds()))
+    @pytest.mark.first_request(
+        int(
+            datetime.datetime(
+                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        )
     )
-    def test_large_base_period(intervals: list[_Interval]) -> None:
+    @pytest.mark.last_updated(
+        int(
+            datetime.datetime(
+                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        )
+    )
+    def test_large_base_period(
+        timedelta_seconds: int, intervals: list[_Interval]
+    ) -> None:
         assert len(intervals) == 1, "There should be exactly one interval"
-        assert 6 * 60 * 60 * 24 == datetime.datetime.timestamp(
+        assert timedelta_seconds == datetime.datetime.timestamp(
             intervals[0][1]
         ) - datetime.datetime.timestamp(
             intervals[0][0]

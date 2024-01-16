@@ -16,7 +16,6 @@ import datetime
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from typing import Iterator, NamedTuple, Optional
-import logging
 from unittest.mock import Mock, patch
 
 import pytest
@@ -34,11 +33,6 @@ from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
 from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import (
-    _adapt_logger_level,
-    _BatchWindow,
-    _BatchWindowGenerator,
-)
-from mlrun.model_monitoring.controller import (
     _BatchWindow,
     _BatchWindowGenerator,
     _Interval,
@@ -50,7 +44,7 @@ from mlrun.model_monitoring.helpers import (
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
-class _HistLen(typing.NamedTuple):
+class _HistLen(NamedTuple):
     counts_len: int
     edges_len: int
 
@@ -442,7 +436,6 @@ class TestBumpModelEndpointLastRequest:
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"
 
-
     @staticmethod
     @pytest.mark.parametrize(
         ("runs", "error_context", "expected_window"),
@@ -510,4 +503,3 @@ class TestBumpModelEndpointLastRequest:
                     )
                     == expected_window
                 ), "The window is different than expected"
-

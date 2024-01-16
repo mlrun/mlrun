@@ -17,7 +17,6 @@ import datetime
 import json
 import os
 import re
-from contextlib import contextmanager
 from typing import Any, Iterator, NamedTuple, Optional, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
@@ -43,16 +42,6 @@ from mlrun.utils.v3io_clients import get_v3io_client
 class _Interval(NamedTuple):
     start: datetime.datetime
     end: datetime.datetime
-
-@contextmanager
-def _adapt_logger_level(logger: Logger, level: int) -> Iterator[None]:
-    """Temporarily change the logger level"""
-    old_level = logger.level
-    logger.set_logger_level(level)
-    try:
-        yield
-    finally:
-        logger.set_logger_level(old_level)
 
 
 class _BatchWindow:

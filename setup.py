@@ -59,6 +59,7 @@ setup(
             "server",
         ]
     ),
+    python_requires=">=3.9, <3.12",
     install_requires=dependencies.base_requirements(),
     tests_require=dependencies.dev_requirements(),
     extras_require=dependencies.extra_requirements(),

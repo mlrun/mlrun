@@ -201,7 +201,10 @@ class MLClientCtx(object):
     @property
     def labels(self):
         """Dictionary with labels (read-only)"""
-        return deepcopy(self._labels)
+        labels = deepcopy(self._labels)
+        if not self.is_logging_worker():
+            labels.pop("host", None)
+        return labels
 
     @property
     def annotations(self):
@@ -393,7 +396,7 @@ class MLClientCtx(object):
                     if v:
                         self._set_input(k, v)
 
-        if host and not is_api and self.is_logging_worker():
+        if host and not is_api:
             self.set_label("host", host)
 
         start = get_in(attrs, "status.start_time")
@@ -908,7 +911,7 @@ class MLClientCtx(object):
                 "uid": self._uid,
                 "iteration": self._iteration,
                 "project": self._project,
-                "labels": self._labels,
+                "labels": self.labels,
                 "annotations": self._annotations,
             },
             "spec": {
@@ -1004,7 +1007,7 @@ class MLClientCtx(object):
                 _struct[key] = val
 
         struct = {
-            "metadata.labels": self._labels,
+            "metadata.labels": self.labels,
             "metadata.annotations": self._annotations,
             "spec.parameters": self._parameters,
             "spec.outputs": self._outputs,

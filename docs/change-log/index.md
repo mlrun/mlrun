@@ -79,6 +79,7 @@
 |ML-4093|Documentation: improve description of [handlers](../runtimes/create-and-use-functions.html#using-set-function) and {ref}`functions`. |
 |ML-4370|Hyper-param and single runs no longer generate artifacts with the same name. |
 |ML-4563|A local runtime that consumed more memory that the Jupyter service pod and that caused a restart of the pod can now be deleted. |
+|ML-4613|UI: Fixed the map type hint in the Batch Inference Parameters. |
 |ML-4642|The UI no longer gets stuck when there is a high number of query results. | 
 |ML-4690|Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) no longer causes the job to fail. |
 |ML-4920|Documentation: improve description of `log_artifact`. See {ref}`artifacts` and {py:meth}`~mlrun.projects.MlrunProject.log_artifact`.|
@@ -86,7 +87,7 @@
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
 |ML-4953|Can now build the image through the UI on external registry.| 
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
-|ML-4992|**check msg** When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|
+|ML-4992|Fixed starting a spark job from source archive (using with_source_archive()).|
 |ML-5001|The **Monitoring workflows** page now states that it includes only workflows that have already been run. | 
 |ML-5042|**check msg**  After creating and deleting a project, a new project cannot be created in the same folder with the same context. |
 |ML-5048|UI Edit function dialog: When selecting **Use an existing image** and pressing **Deploy**, the existing image is used, as expected.|
@@ -856,7 +857,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4539|**what is message?** |  | v1.5.0|
 |ML-4582|**what is message?** |  | v1.5.0|
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
-|ML-4613|**Closed?** UI: The Batch Inference Parameters has an incorrect hint on map type. The correct hint is "The 'dict' values should be in JSON key:value format, e.g. {"hello":"world"}" | NA | v1.5.0 |
 |ML-4617|**Closed?**  Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
 |ML-4655|**in RN or not?**
 |ML-4678|**Closed?**  When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|First add a tag, (`replace=False`), then delete the old tag: `mlrun.get_run_db().tag_artifacts(project=project.name,artifacts=model1, tag_name="newtag", replace=False)`,`mlrun.get_run_db().delete_artifacts_tags(project=project.name, artifacts=[model1], tag_name=model1.metadata.tag)`  | v1.5.0 |

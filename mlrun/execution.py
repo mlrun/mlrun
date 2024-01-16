@@ -201,10 +201,7 @@ class MLClientCtx(object):
     @property
     def labels(self):
         """Dictionary with labels (read-only)"""
-        labels = deepcopy(self._labels)
-        if not self.is_logging_worker():
-            labels.pop("host", None)
-        return labels
+        return deepcopy(self._labels)
 
     @property
     def annotations(self):
@@ -911,7 +908,7 @@ class MLClientCtx(object):
                 "uid": self._uid,
                 "iteration": self._iteration,
                 "project": self._project,
-                "labels": self.labels,
+                "labels": self._cleanse_labels(),
                 "annotations": self._annotations,
             },
             "spec": {
@@ -1007,7 +1004,7 @@ class MLClientCtx(object):
                 _struct[key] = val
 
         struct = {
-            "metadata.labels": self.labels,
+            "metadata.labels": self._cleanse_labels(),
             "metadata.annotations": self._annotations,
             "spec.parameters": self._parameters,
             "spec.outputs": self._outputs,
@@ -1092,6 +1089,15 @@ class MLClientCtx(object):
             with open(self._tmpfile, "w") as fp:
                 fp.write(data)
                 fp.close()
+
+    def _cleanse_labels(self):
+        """Remove labels that should not be stored to the corresponding run"""
+        labels = deepcopy(self._labels)
+        # Remove host (pod name) label if it's not a logging worker:
+        if labels.get("host") and not self.is_logging_worker():
+            del labels["host"]
+
+        return labels
 
 
 def _cast_result(value):

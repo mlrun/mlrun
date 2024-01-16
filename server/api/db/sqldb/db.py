@@ -3705,14 +3705,17 @@ class SQLDB(DBInterface):
         for lbl in labels:
             if "=" in lbl:
                 name, value = [v.strip() for v in lbl.split("=", 1)]
-                cond = and_(cls.Label.name == name, cls.Label.value == value)
+                cond = and_(
+                    generate_query_predicate_for_name(cls.Label.name, name),
+                    generate_query_predicate_for_name(cls.Label.value, value),
+                )
                 preds.append(cond)
                 label_names_with_values.add(name)
             else:
                 label_names_no_values.add(lbl.strip())
 
         for name in label_names_no_values.difference(label_names_with_values):
-            preds.append(cls.Label.name == name)
+            preds.append(generate_query_predicate_for_name(cls.Label.name, name))
 
         if len(preds) == 1:
             # A single label predicate is a common case, and there's no need to burden the DB with

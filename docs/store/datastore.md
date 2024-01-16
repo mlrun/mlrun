@@ -53,7 +53,7 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = "<access key>"
 
 # Execute a function that reads from the object pointed at by source_url.
 # When running locally, the function can use the local environment variables.
-local_run = func.run(name='aws_test', inputs={'source_url': source_url}, local=True)
+local_run = func.run(name='aws_func', inputs={'source_url': source_url}, local=True)
 ```
 
 Running the same function remotely:
@@ -61,14 +61,14 @@ Running the same function remotely:
 ```python
 # Executing the function remotely using env variables (not recommended!)
 func.set_env("AWS_ACCESS_KEY_ID", "<access key ID>").set_env("AWS_SECRET_ACCESS_KEY", "<access key>")
-remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
+remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
 
 # Using project-secrets (recommended) - project secrets are automatically mounted to project functions
 secrets = {"AWS_ACCESS_KEY_ID": "<access key ID>", "AWS_SECRET_ACCESS_KEY": "<access key>"}
 db = mlrun.get_run_db()
 db.create_project_secrets(project=project_name, provider="kubernetes", secrets=secrets)
 
-remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
+remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
 ```
 
 The following sections list the credentials and configuration parameters applicable to each storage type.
@@ -247,8 +247,8 @@ The code prioritizes `gcp_credentials` over `credentials_path`.
 ### Kafka data store profile
 
 ```
-profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="test_topic")
-target = KafkaTarget(path="ds://profile-name")
+profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+target = KafkaTar_name_get(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:
@@ -260,7 +260,7 @@ target = KafkaTarget(path="ds://profile-name")
 
 
 ```
-profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="test_topic")
+profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
 target = KafkaSource(path="ds://profile-name")
 ```
 

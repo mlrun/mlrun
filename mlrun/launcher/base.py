@@ -18,8 +18,6 @@ import os
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import pandas as pd
-
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -188,11 +186,6 @@ class BaseLauncher(abc.ABC):
             if isinstance(param_value, int) and abs(param_value) >= 2**63:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Parameter {param_name} value {param_value} exceeds int64"
-                )
-            if isinstance(param_value, pd.DataFrame):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Error: Invalid parameter type - {param_name} has an unsupported value of type"
-                    f" 'pandas DataFrame'. Top 3 records: \n{param_value.head(3)}\n"
                 )
 
     @staticmethod

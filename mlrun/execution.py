@@ -1095,7 +1095,7 @@ class MLClientCtx(object):
         """Remove labels that should not be stored to the corresponding run"""
         labels = deepcopy(self._labels)
         # Remove host (pod name) label if it's not a logging worker:
-        if labels.get("host") and not self.is_logging_worker():
+        if "host" in labels and not self.is_logging_worker():
             del labels["host"]
 
         return labels

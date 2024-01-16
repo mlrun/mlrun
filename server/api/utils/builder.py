@@ -347,7 +347,7 @@ def configure_kaniko_ecr_init_container(
 
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
-        aws_credentials_file_env_value = "/tmp/credentials"
+        aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
         init_container_env[
@@ -363,7 +363,7 @@ def configure_kaniko_ecr_init_container(
         # mount the AWS credentials secret
         kpod.mount_secret(
             config.httpdb.builder.docker_registry_secret,
-            path="/tmp",
+            path="/tmp/aws",
         )
 
     kpod.append_init_container(

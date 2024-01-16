@@ -35,6 +35,7 @@ from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
+    _MLRunNoRunsFoundError,
     bump_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
@@ -323,13 +324,28 @@ class TestBumpModelEndpointLastRequest:
         ), "The patched last request time should be bumped by the given delta"
 
     @staticmethod
+    def test_no_bump(
+        project: str,
+        model_endpoint: ModelEndpoint,
+        db: NopDB,
+    ) -> None:
+        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
+            with patch.object(db, "list_runs", return_value=[]):
+                bump_model_endpoint_last_request(
+                    project=project,
+                    model_endpoint=model_endpoint,
+                    db=db,
+                )
+        patch_patch_model_endpoint.assert_not_called()
+
+    @staticmethod
     @pytest.mark.parametrize(
         ("runs", "error_context", "expected_window"),
         [
             (
                 [],
                 pytest.raises(
-                    MLRunValueError, match="No model-monitoring-controller runs"
+                    _MLRunNoRunsFoundError, match="No model-monitoring-controller runs"
                 ),
                 None,
             ),

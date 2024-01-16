@@ -53,8 +53,8 @@ class _BatchWindow:
         endpoint: str,
         application: str,
         timedelta_seconds: int,
-        last_updated: int,
-        first_request: int,
+        last_updated: Optional[int],
+        first_request: Optional[int],
     ) -> None:
         """
         Initialize a batch window object that handles the batch interval time range
@@ -71,7 +71,7 @@ class _BatchWindow:
         self._step = timedelta_seconds
         self._start = self._get_last_analyzed()
 
-    def _get_last_analyzed(self) -> int:
+    def _get_last_analyzed(self) -> Optional[int]:
         try:
             data = self._kv_storage.get(
                 container=self._v3io_container,
@@ -89,14 +89,16 @@ class _BatchWindow:
                 last_update=self._stop,
                 error=err,
             )
-            # TODO : Change the timedelta according to the policy.
-            first_period_in_seconds = max(
-                int(datetime.timedelta(days=1).total_seconds()), self._step
-            )  # max between one day and the base period
-            return max(
-                self._first_request,
-                self._stop - first_period_in_seconds,
-            )
+            if self._first_request and self._stop:
+                # TODO : Change the timedelta according to the policy.
+                first_period_in_seconds = max(
+                    int(datetime.timedelta(days=1).total_seconds()), self._step
+                )  # max between one day and the base period
+                return max(
+                    self._first_request,
+                    self._stop - first_period_in_seconds,
+                )
+            return self._first_request
 
         last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(
@@ -125,29 +127,41 @@ class _BatchWindow:
         self,
     ) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
-        entered = False
-        # Iterate timestamp from start until timestamp <= stop - step
-        # so that the last interval will end at (timestamp + step) <= stop.
-        # Add 1 to stop - step to get <= and not <.
-        for timestamp in range(self._start, self._stop - self._step + 1, self._step):
-            entered = True
-            start_time = datetime.datetime.fromtimestamp(
-                timestamp, tz=datetime.timezone.utc
-            )
-            end_time = datetime.datetime.fromtimestamp(
-                timestamp + self._step, tz=datetime.timezone.utc
-            )
-            yield _Interval(start_time, end_time)
-            self._update_last_analyzed(timestamp + self._step)
-        if not entered:
-            logger.info(
-                "All the data is set, but no complete intervals were found. "
-                "Wait for last_updated to be updated.",
+        if self._start is not None and self._stop is not None:
+            entered = False
+            # Iterate timestamp from start until timestamp <= stop - step
+            # so that the last interval will end at (timestamp + step) <= stop.
+            # Add 1 to stop - step to get <= and not <.
+            for timestamp in range(
+                self._start, self._stop - self._step + 1, self._step
+            ):
+                entered = True
+                start_time = datetime.datetime.fromtimestamp(
+                    timestamp, tz=datetime.timezone.utc
+                )
+                end_time = datetime.datetime.fromtimestamp(
+                    timestamp + self._step, tz=datetime.timezone.utc
+                )
+                yield _Interval(start_time, end_time)
+                self._update_last_analyzed(timestamp + self._step)
+            if not entered:
+                logger.info(
+                    "All the data is set, but no complete intervals were found. "
+                    "Wait for last_updated to be updated.",
+                    endpoint=self._endpoint,
+                    application=self._application,
+                    start=self._start,
+                    stop=self._stop,
+                    step=self._step,
+                )
+        else:
+            logger.warn(
+                "The first request time is not not found for this endpoint. "
+                "No intervals will be generated.",
                 endpoint=self._endpoint,
                 application=self._application,
                 start=self._start,
                 stop=self._stop,
-                step=self._step,
             )
 
 
@@ -186,10 +200,12 @@ class _BatchWindowGenerator:
         )
 
     @classmethod
-    def _get_last_updated_time(cls, last_request: str) -> int:
+    def _get_last_updated_time(cls, last_request: Optional[str]) -> Optional[int]:
         """
         Get the last updated time of a model endpoint.
         """
+        if not last_request:
+            return None
         return int(
             cls._date_string2timestamp(last_request)
             - cast(
@@ -197,6 +213,19 @@ class _BatchWindowGenerator:
                 mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             )
         )
+
+    @classmethod
+    def _normalize_first_request(
+        cls, first_request: Optional[str], endpoint: str
+    ) -> Optional[int]:
+        if not first_request:
+            logger.warn(
+                "There is no first request time for this endpoint.",
+                endpoint=endpoint,
+                first_request=first_request,
+            )
+            return None
+        return cls._date_string2timestamp(first_request)
 
     @staticmethod
     def _date_string2timestamp(date_string: str) -> int:
@@ -207,20 +236,21 @@ class _BatchWindowGenerator:
         project: str,
         endpoint: str,
         application: str,
-        first_request: str,
-        last_request: str,
+        first_request: Optional[str],
+        last_request: Optional[str],
     ) -> _BatchWindow:
         """
         Get the batch window for a specific endpoint and application.
         first_request is the first request time to the endpoint.
         """
+
         return _BatchWindow(
             project=project,
             endpoint=endpoint,
             application=application,
             timedelta_seconds=self._timedelta,
             last_updated=self._get_last_updated_time(last_request),
-            first_request=self._date_string2timestamp(first_request),
+            first_request=self._normalize_first_request(first_request, endpoint),
         )
 
 

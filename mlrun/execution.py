@@ -977,7 +977,7 @@ class MLClientCtx(object):
         """
         # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
         # configuration:
-        if self._labels.get("kind", "job") == "mpijob":
+        if self._labels.get("kind", "job") == "mpijob" and self._labels.get("host"):
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
             rank = int(self._labels["host"].rsplit("-", 1)[1])

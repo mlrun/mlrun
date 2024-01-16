@@ -488,11 +488,10 @@ class MonitoringApplicationController:
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )
-        except Exception as e:
-            logger.error(
+        except Exception:
+            logger.exception(
                 "Encountered an exception",
                 endpoint_id=endpoint[mm_constants.EventFieldType.UID],
-                exc=e,
             )
 
     def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):

@@ -194,7 +194,7 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-4323|Fixed: pipeline step failed with "Read timed out.: get log"                   |
 |ML-4391|Consumer group UI now shows complete details.                                 |
 |ML-4501|Fixed: UI  shows error after deleting a function, then viewing a related job. |
-|ML-4533|In the UI, ML functions can now be created with upper-case letters.           |
+|ML-4533|UI: ML functions can now be created with upper-case letters.           |
 
 
 ## v1.4.1 (8 August 2023)

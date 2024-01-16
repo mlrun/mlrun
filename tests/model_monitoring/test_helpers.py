@@ -242,7 +242,6 @@ class TestBatchInterval:
             (60, 100, 300, 100),
             (60, 100, 110, 100),
             (60, 0, 0, 0),
-            (60, None, None, None),
         ],
     )
     def test_get_last_analyzed(
@@ -293,17 +292,13 @@ class TestBatchInterval:
 class TestBatchWindowGenerator:
     @staticmethod
     @pytest.mark.parametrize(
-        ("first_request", "expected"),
-        [("", None), (None, None), ("2023-11-09 09:25:59.554971+00:00", 1699521959)],
+        ("date_string", "expected_timestamp"),
+        [("2023-11-09 09:25:59.554971+00:00", 1699521959)],
     )
-    def test_normalize_first_request(
-        first_request: Optional[str], expected: Optional[int]
-    ) -> None:
+    def test_date_string2timestamp(date_string: str, expected_timestamp: int) -> None:
         assert (
-            _BatchWindowGenerator._normalize_first_request(
-                first_request=first_request, endpoint=""
-            )
-            == expected
+            _BatchWindowGenerator._date_string2timestamp(date_string)
+            == expected_timestamp
         )
 
     @staticmethod

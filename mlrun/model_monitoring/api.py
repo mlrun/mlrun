@@ -600,7 +600,8 @@ def read_dataset_as_dataframe(
     parsed and validated as well.
 
     :param dataset:         A dataset that will be converted into a DataFrame.
-                            Can be either a list of lists, dict, URI or a FeatureVector.
+                            Can be either a list of lists, numpy.ndarray, dict, pd.Series, DataItem,
+                            URI or a FeatureVector.
     :param feature_columns: List of feature columns that will be used to build the dataframe when dataset is from
                             type list or numpy array.
     :param label_columns:   The target label(s) of the column(s) in the dataset. for Regression or

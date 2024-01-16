@@ -515,11 +515,16 @@ class LegacyDatasetArtifact(LegacyArtifact):
 
         if artifact.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index(drop=True)
+
+        preview_df = preview_df.reset_index()
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.header = preview_df.columns.values.tolist()
         artifact.preview = preview_df.values.tolist()
+        # Table schema parsing doesn't require a column named "index"
+        # to align its output with previously generated header and preview data
+        if "index" in preview_df.columns:
+            preview_df.drop("index", axis=1, inplace=True)
         artifact.schema = build_table_schema(preview_df)
         if (
             stats

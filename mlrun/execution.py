@@ -411,7 +411,7 @@ class MLClientCtx(object):
                 self._artifacts_manager.artifacts[key] = artifact_obj
             self._state = status.get("state", self._state)
 
-        # Do not store run if not logging worker to avoid conflicts like host label
+        # No need to store the run for every worker
         if store_run and self.is_logging_worker():
             self.store_run()
         return self
@@ -974,10 +974,11 @@ class MLClientCtx(object):
         """
         # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
         # configuration:
-        if self._labels.get("kind", "job") == "mpijob" and self._labels.get("host"):
+        labels = self.labels
+        if "host" in labels and labels.get("kind", "job") == "mpijob":
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(self._labels["host"].rsplit("-", 1)[1])
+            rank = int(labels["host"].rsplit("-", 1)[1])
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:

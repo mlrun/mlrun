@@ -68,6 +68,11 @@ MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
 CHECKED_IN_PYTHON_FILES := $(shell git ls-files | grep '\.py$$')
 
+# Fallback
+ifeq ($(CHECKED_IN_PYTHON_FILES),)
+CHECKED_IN_PYTHON_FILES := .
+endif
+
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
 # if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
 # if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests

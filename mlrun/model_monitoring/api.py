@@ -545,9 +545,9 @@ def _generate_job_params(
 def get_sample_set_statistics(
     sample_set: DatasetType = None,
     model_artifact_feature_stats: dict = None,
-    sample_set_columns: typing.Union[typing.List, None] = None,
-    sample_set_drop_columns: typing.Union[typing.List, None] = None,
-    sample_set_label_columns: typing.Union[typing.List, None] = None,
+    sample_set_columns: typing.Optional[typing.List] = None,
+    sample_set_drop_columns: typing.Optional[typing.List] = None,
+    sample_set_label_columns: typing.Optional[typing.List] = None,
 ) -> dict:
     """
     Get the sample set statistics either from the given sample set or the statistics logged with the model while

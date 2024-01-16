@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
-
 import json
 import logging
 import re
+
+from setuptools import setup
 
 import dependencies
 import packages

@@ -307,7 +307,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
-            except (RunError, mlrun.errors.MLRunTaskCancelledError) as err:
+            except RunError as err:
                 raise err
             # this exception handling is for the case where we fail on pre-loading or post-running the function
             # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
@@ -463,6 +463,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     err = ""
     val = None
     old_dir = os.getcwd()
+    commit = True
     with redirect_stdout(stdout):
         context.set_logger_stream(stdout)
         try:
@@ -487,6 +488,11 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             else:
                 val = handler(**kwargs)
             context.set_state("completed", commit=False)
+        except mlrun.errors.MLRunTaskCancelledError as exc:
+            logger.warning("Run was aborted", err=err_to_str(exc))
+            # Run was aborted, the state run state is updated by the abort job, no need to commit again
+            context.set_state(mlrun.runtimes.constants.RunStates.aborted, commit=False)
+            commit = False
         except Exception as exc:
             err = err_to_str(exc)
             logger.error(f"Execution error, {traceback.format_exc()}")
@@ -500,8 +506,9 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     if val:
         context.log_result("return", val)
 
-    # completion will be ignored if error is set
-    context.commit(completed=True)
+    if commit:
+        # completion will be ignored if error is set
+        context.commit(completed=True)
     logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err
 

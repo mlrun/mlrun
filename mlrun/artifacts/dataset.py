@@ -344,10 +344,10 @@ class DatasetArtifact(Artifact):
         self.status.stats = stats
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyTableArtifact' will be removed in 1.6.0, use 'TableArtifact' instead",
+    reason="'LegacyTableArtifact' will be removed in 1.7.0, use 'TableArtifact' instead",
     category=FutureWarning,
 )
 class LegacyTableArtifact(LegacyArtifact):
@@ -400,10 +400,10 @@ class LegacyTableArtifact(LegacyArtifact):
         return csv_buffer.getvalue()
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyDatasetArtifact' will be removed in 1.6.0, use 'DatasetArtifact' instead",
+    reason="'LegacyDatasetArtifact' will be removed in 1.7.0, use 'DatasetArtifact' instead",
     category=FutureWarning,
 )
 class LegacyDatasetArtifact(LegacyArtifact):

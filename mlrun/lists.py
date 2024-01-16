@@ -227,9 +227,3 @@ class ArtifactList(list):
             if artifact:
                 dataitems.append(mlrun.get_dataitem(artifact))
         return dataitems
-
-
-class FunctionList(list):
-    def __init__(self):
-        pass
-        # TODO

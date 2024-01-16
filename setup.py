@@ -59,6 +59,13 @@ setup(
             "server",
         ]
     ),
+    keywords=[
+        "mlrun",
+        "mlops",
+        "data-science",
+        "machine-learning",
+        "experiment-tracking",
+    ],
     python_requires=">=3.9, <3.12",
     install_requires=dependencies.base_requirements(),
     tests_require=dependencies.dev_requirements(),

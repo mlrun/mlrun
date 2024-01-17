@@ -277,9 +277,6 @@ class MonitoringDeployment:
                     project=project,
                 )
 
-        logger.info(
-            f"[DAVID] 111111"
-        )
         if not fn:
             # Create a monitoring batch job function object
             fn = self._get_model_monitoring_batch_function(
@@ -293,9 +290,6 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
 
-            logger.info(
-                f"[DAVID] 22222"
-            )
             if with_schedule:
                 if not overwrite:
                     try:
@@ -314,13 +308,11 @@ class MonitoringDeployment:
                             f"Deploying {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
-                # Save & Get the function uri
-                function_uri = fn.save(versioned=True)
 
                 # Submit batch scheduled job
                 self._submit_schedule_batch_job(
                     project=project,
-                    function_uri=function_uri,
+                    function=fn,
                     db_session=db_session,
                     auth_info=auth_info,
                     tracking_policy=tracking_policy,
@@ -328,9 +320,8 @@ class MonitoringDeployment:
                     function_name=function_name,
                 )
             else:
-                # Save unschedule function
+                # Save & Get the function uri
                 fn.save(versioned=True)
-
         return fn
 
     def deploy_model_monitoring_writer_application(
@@ -519,7 +510,7 @@ class MonitoringDeployment:
     def _submit_schedule_batch_job(
         cls,
         project: str,
-        function_uri: str,
+        function: mlrun.runtimes.BaseRuntime,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
@@ -540,10 +531,10 @@ class MonitoringDeployment:
 
         """
 
-        function_uri = function_uri.replace("db://", "")
+        # function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name=function_name, project=project)
-        task.spec.function = function_uri
+        task.spec.function = function
 
         schedule, batch_dict = cls._generate_schedule_and_interval_dict(
             function_name=function_name,

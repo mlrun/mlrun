@@ -217,7 +217,7 @@ class SQLDB(DBInterface):
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):
         project = project or config.default_project
-        run = self._get_run(session, uid, project, iter)
+        run = self._get_run(session, uid, project, iter, with_for_update=True)
         if not run:
             run_uri = RunObject.create_uri(project, uid, iter)
             raise mlrun.errors.MLRunNotFoundError(f"Run {run_uri} not found")
@@ -3566,11 +3566,12 @@ class SQLDB(DBInterface):
         query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
 
-    def _get_run(self, session, uid, project, iteration):
-        resp = self._query(
-            session, Run, uid=uid, project=project, iteration=iteration
-        ).one_or_none()
-        return resp
+    def _get_run(self, session, uid, project, iteration, with_for_update=False):
+        query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
+        if with_for_update:
+            query = query.populate_existing().with_for_update()
+
+        return query.one_or_none()
 
     def _delete_empty_labels(self, session, cls):
         session.query(cls).filter(cls.parent == NULL).delete()

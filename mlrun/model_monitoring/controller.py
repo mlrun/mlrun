@@ -35,7 +35,7 @@ from mlrun.model_monitoring.helpers import (
     get_monitoring_parquet_path,
     get_stream_path,
 )
-from mlrun.utils import logger
+from mlrun.utils import create_logger, logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
 
@@ -65,7 +65,11 @@ class _BatchWindow:
         self._endpoint = endpoint
         self._application = application
         self._first_request = first_request
-        self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
+        self._kv_storage = get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api,
+            # Avoid noisy warning logs before the KV table is created
+            logger=create_logger(name="v3io_client", level="error"),
+        ).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
         self._stop = last_updated
         self._step = timedelta_seconds
@@ -80,15 +84,15 @@ class _BatchWindow:
             )
         except HttpResponseError as err:
             logger.info(
-                "Failed to get the last analyzed time for this endpoint and application, "
+                "No last analyzed time for this endpoint and application, "
                 "as this is probably the first time this application is running. ",
-                "Using the latest between first request time or last update time minus one day instead.",
+                "Using the latest between first request time or last update time minus one day instead",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
                 last_update=self._stop,
-                error=err,
             )
+            logger.debug("Error while getting last analyzed time", err=err)
             if self._first_request and self._stop:
                 # TODO : Change the timedelta according to the policy.
                 first_period_in_seconds = max(
@@ -147,7 +151,7 @@ class _BatchWindow:
             if not entered:
                 logger.info(
                     "All the data is set, but no complete intervals were found. "
-                    "Wait for last_updated to be updated.",
+                    "Wait for last_updated to be updated",
                     endpoint=self._endpoint,
                     application=self._application,
                     start=self._start,
@@ -156,8 +160,8 @@ class _BatchWindow:
                 )
         else:
             logger.warn(
-                "The first request time is not not found for this endpoint. "
-                "No intervals will be generated.",
+                "The first request time is not found for this endpoint. "
+                "No intervals will be generated",
                 endpoint=self._endpoint,
                 application=self._application,
                 start=self._start,
@@ -219,7 +223,7 @@ class _BatchWindowGenerator:
         cls, first_request: Optional[str], endpoint: str
     ) -> Optional[int]:
         if not first_request:
-            logger.warn(
+            logger.debug(
                 "There is no first request time for this endpoint.",
                 endpoint=endpoint,
                 first_request=first_request,
@@ -274,20 +278,12 @@ class MonitoringApplicationController:
         """
         self.context = context
         self.project = project
+        self.project_obj = mlrun.get_or_create_project(project)
 
-        logger.info(
-            "Initializing MonitoringApplicationController",
-            project=project,
-        )
-
-        # Get a runtime database
+        context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
 
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
-        # If an error occurs, it will be raised using the following argument
-        self.endpoints_exceptions = {}
-
-        # The batch window
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=context.parameters[
                 mm_constants.EventFieldType.BATCH_INTERVALS_DICT
@@ -300,7 +296,7 @@ class MonitoringApplicationController:
         )
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
-            project=project,
+            self.project_obj,
             kind=mm_constants.FileTargetKind.APPS_PARQUET,
         )
         self.storage_options = None
@@ -326,21 +322,23 @@ class MonitoringApplicationController:
 
     def run(self):
         """
-        Main method for run all the relevant monitoring application on each endpoint
+        Main method for run all the relevant monitoring applications on each endpoint
         """
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
-            application = mlrun.get_or_create_project(
-                self.project
-            ).list_model_monitoring_functions()
-            if application:
-                applications_names = list({app.metadata.name for app in application})
+            monitoring_functions = self.project_obj.list_model_monitoring_functions()
+            if monitoring_functions:
+                applications_names = list(
+                    {app.metadata.name for app in monitoring_functions}
+                )
             else:
-                logger.info("There are no monitoring application found in this project")
+                self.context.logger.info(
+                    "No monitoring functions found", project=self.project
+                )
                 applications_names = []
 
         except Exception as e:
-            logger.error("Failed to list endpoints", exc=e)
+            self.context.logger.error("Failed to list endpoints", exc=e)
             return
         if endpoints and applications_names:
             # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
@@ -377,9 +375,7 @@ class MonitoringApplicationController:
                     futures.append(future)
 
             for future in concurrent.futures.as_completed(futures):
-                res = future.result()
-                if res:
-                    self.endpoints_exceptions[res[0]] = res[1]
+                future.result()
 
             self._delete_old_parquet(endpoints=endpoints)
 
@@ -393,7 +389,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[tuple[str, Exception]]:
+    ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -447,22 +443,18 @@ class MonitoringApplicationController:
                         parquet_target_path = offline_response.vector.get_target_path()
 
                         if len(df) == 0:
-                            logger.warn(
-                                "Not enough model events since the beginning of the batch interval",
-                                featureset_name=m_fs.metadata.name,
+                            logger.info(
+                                "During this time window, the endpoint has not received any data",
                                 endpoint=endpoint[mm_constants.EventFieldType.UID],
-                                min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,
                             )
                             continue
 
-                    # Continue if not enough events provided since the deployment of the model endpoint
                     except FileNotFoundError:
                         logger.warn(
-                            "Parquet not found, probably due to not enough model events",
+                            "No parquets were written yet",
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
-                            min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         )
                         continue
 
@@ -496,12 +488,11 @@ class MonitoringApplicationController:
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )
-        except Exception as e:
-            logger.error(
+        except Exception:
+            logger.exception(
                 "Encountered an exception",
                 endpoint_id=endpoint[mm_constants.EventFieldType.UID],
             )
-            return endpoint_id, e
 
     def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
         """

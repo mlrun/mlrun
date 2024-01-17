@@ -212,11 +212,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
-        serving_fn.set_tracking(
-            tracking_policy=TrackingPolicy(
-                default_batch_intervals=f"*/{cls.app_interval} * * * *",
-            ),
-        )
+        serving_fn.set_tracking(tracking_policy=TrackingPolicy())
         if cls.image is not None:
             for attr in (
                 "stream_image",

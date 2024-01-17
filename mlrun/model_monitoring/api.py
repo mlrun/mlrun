@@ -613,7 +613,7 @@ def read_dataset_as_dataframe(
             label_columns = dataset.status.label_column
         # Get the features and parse to DataFrame:
         dataset = dataset.get_offline_features(
-            dataset.uri, drop_columns=drop_columns
+            drop_columns=drop_columns
         ).to_dataframe()
 
     elif isinstance(dataset, (list, np.ndarray)):

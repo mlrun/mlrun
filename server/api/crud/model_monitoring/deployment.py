@@ -277,6 +277,9 @@ class MonitoringDeployment:
                     project=project,
                 )
 
+        logger.info(
+            f"[DAVID] 111111"
+        )
         if not fn:
             # Create a monitoring batch job function object
             fn = self._get_model_monitoring_batch_function(
@@ -290,6 +293,9 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
 
+            logger.info(
+                f"[DAVID] 22222"
+            )
             if with_schedule:
                 if not overwrite:
                     try:

@@ -109,27 +109,21 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
 
 @pytest.mark.parametrize(
     "metric_class",
-    # HistogramDistanceMetric.__subclasses__(),
-    [
-        KullbackLeiblerDivergence,
-        # TotalVarianceDistance,
-        # HellingerDistance,
-    ],
+    HistogramDistanceMetric.__subclasses__(),
 )
-# @given(
-#     distrib=st.builds(
-#         _norm_arr,
-#         arrays(
-#             dtype=np.float64,
-#             elements=st.floats(min_value=0, max_value=1),
-#             shape=st.integers(min_value=1, max_value=500),
-#         ),
-#     )
-# )
+@given(
+    distrib=st.builds(
+        _norm_arr,
+        arrays(
+            dtype=np.float64,
+            elements=st.floats(min_value=0, max_value=1),
+            shape=st.integers(min_value=1, max_value=500),
+        ),
+    )
+)
 @pytest.mark.filterwarnings("error")
 def test_same_distrib_gives_zero_distance(
-    metric_class: Type[HistogramDistanceMetric],
-    distrib: np.ndarray = np.array([0.0, 1.0]),
+    metric_class: Type[HistogramDistanceMetric], distrib: np.ndarray
 ) -> None:
     return test_histogram_metric_calculation(
         metric_class=metric_class,

@@ -933,7 +933,7 @@ def _deploy_ingestion_service_v2(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fstore.deploy_ingestion_service(my_set, source, run_config=config)
+        my_set.deploy_ingestion_service(source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -1025,7 +1025,7 @@ def deploy_ingestion_service(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fstore.deploy_ingestion_service(my_set, source, run_config=config)
+        my_set.deploy_ingestion_service(source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -1036,8 +1036,7 @@ def deploy_ingestion_service(
 
     :return: URL to access the deployed ingestion service
     """
-    endpoint, _ = deploy_ingestion_service_v2(
-        featureset=featureset,
+    endpoint, _ = featureset.deploy_ingestion_service(
         source=source,
         targets=targets,
         name=name,

@@ -134,7 +134,7 @@ error stream. <br>
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-fstore.deploy_ingestion_service_v2(my_set, source, run_config=config)
+my_set.deploy_ingestion_service(source, run_config=config)
 ```
 
 To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
@@ -220,7 +220,7 @@ kafka_source = KafkaSource(
         
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```        
        
 
@@ -265,7 +265,7 @@ kafka_source = KafkaSource(
     
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```
 
 

@@ -1426,6 +1426,8 @@ class MlrunProject(ModelObj):
     ):
         """log an output artifact and optionally upload it to datastore
 
+        if the artifact already exists with the same key and tag, it will be overwritten.
+
         example::
 
             project.log_artifact(
@@ -1499,7 +1501,7 @@ class MlrunProject(ModelObj):
         """
         log a dataset artifact and optionally upload it to datastore.
 
-        if the dataset exists with the same key and tag, it will be overwritten.
+        if the dataset already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1578,6 +1580,8 @@ class MlrunProject(ModelObj):
         **kwargs,
     ):
         """log a model artifact and optionally upload it to datastore
+
+        if the model already exists with the same key and tag, it will be overwritten.
 
         example::
 

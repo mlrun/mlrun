@@ -19,6 +19,7 @@ from copy import deepcopy
 from datetime import datetime
 
 import fsspec
+import requests
 import v3io.dataplane
 
 import mlrun
@@ -144,6 +145,7 @@ class V3ioStore(DataStore):
             data = memoryview(data)
         except TypeError:
             pass
+        requests_session = requests.Session()
         while buffer_offset < buffer_size:
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
             http_put(
@@ -151,6 +153,7 @@ class V3ioStore(DataStore):
                 data[buffer_offset : buffer_offset + chunk_size],
                 append_header if buffer_offset else self.headers,
                 None,
+                requests_session,
             )
             buffer_offset += chunk_size
 

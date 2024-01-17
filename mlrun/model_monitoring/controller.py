@@ -627,8 +627,7 @@ class MonitoringApplicationController:
 
         # get offline features based on application start and end time.
         # store the result parquet by partitioning by controller end processing time
-        offline_response = fstore.get_offline_features(
-            feature_vector=vector,
+        offline_response = vector.get_offline_features(
             start_time=start_infer_time,
             end_time=end_infer_time,
             timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,

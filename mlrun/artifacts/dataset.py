@@ -177,7 +177,7 @@ class DatasetArtifact(Artifact):
         self.spec.label_column = label_column
 
         if df is not None:
-            if label_column not in df.columns:
+            if label_column and label_column not in df.columns:
                 raise mlrun.errors.MLRunValueError(
                     f"Provided dataframe doesn't include a column \"{label_column}\", so it can't be used as label"
                 )

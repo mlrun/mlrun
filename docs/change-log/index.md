@@ -82,7 +82,7 @@
 |ML-4642|The UI no longer gets stuck when there is a high number of query results. | 
 |ML-4690|Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) no longer causes the job to fail. |
 |ML-4920|Documentation: improve description of `log_artifact`. See {ref}`artifacts` and {py:meth}`~mlrun.projects.MlrunProject.log_artifact`.|
-|ML-4608| **what's mgs TS**|
+|ML-4608|The artifact `db_key` is now forwarded when registering an artifact.|
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
 |ML-4953|Can now build the image through the UI on an external registry.| 
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|

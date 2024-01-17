@@ -1025,7 +1025,6 @@ class MLClientCtx(object):
         if self._state != "completed":
             struct["status.state"] = self._state
 
-        # TODO: test that non logging workers do not override the labels
         if self.is_logging_worker():
             struct["metadata.labels"] = self._labels
 

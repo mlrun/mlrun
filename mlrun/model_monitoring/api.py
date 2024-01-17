@@ -578,8 +578,10 @@ def get_sample_set_statistics(
 
     # Turn other object types to DataFrame:
     # A DataFrame is necessary for executing the "drop features" operation.
-    #  TODO check about URI option.
-    if isinstance(sample_set, (mlrun.DataItem, list, tuple, dict, np.ndarray, pd.Series, pd.DataFrame)):
+    if isinstance(
+        sample_set,
+        (mlrun.DataItem, list, tuple, dict, np.ndarray, pd.Series, pd.DataFrame),
+    ):
         sample_set, _ = read_dataset_as_dataframe(
             dataset=sample_set,
             feature_columns=sample_set_columns,
@@ -587,7 +589,9 @@ def get_sample_set_statistics(
             label_columns=sample_set_label_columns,
         )
     else:
-        raise mlrun.errors.MLRunInvalidArgumentError(f"Parameter dataset has an unsupported type: {type(sample_set)}")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Parameter dataset has an unsupported type: {type(sample_set)}"
+        )
 
     # Return the sample set statistics:
     return get_df_stats(df=sample_set, options=InferOptions.Histogram)
@@ -604,8 +608,8 @@ def read_dataset_as_dataframe(
     parsed and validated as well.
 
     :param dataset:         A dataset that will be converted into a DataFrame.
-                            Can be either a list of lists, numpy.ndarray, dict, pd.Series, DataItem,
-                            URI or a FeatureVector.
+                            Can be either a list of lists, numpy.ndarray, dict, pd.Series, DataItem
+                            or a FeatureVector.
     :param feature_columns: List of feature columns that will be used to build the dataframe when dataset is from
                             type list or numpy array.
     :param label_columns:   The target label(s) of the column(s) in the dataset. for Regression or

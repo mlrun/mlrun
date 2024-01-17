@@ -130,7 +130,9 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
             )
         )
 
-    def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
+    def compute(
+        self, capping: Optional[float] = None, kld_scaling: float = 1e-4
+    ) -> float:
         """
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.

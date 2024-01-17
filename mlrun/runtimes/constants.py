@@ -162,7 +162,6 @@ class RunStates(object):
     def error_states():
         return [
             RunStates.error,
-            RunStates.aborting,
             RunStates.aborted,
         ]
 

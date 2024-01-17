@@ -553,6 +553,7 @@ class BaseRuntime(ModelObj):
         elif (
             not was_none
             and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state != mlrun.runtimes.constants.RunStates.aborting
             and last_state not in mlrun.runtimes.constants.RunStates.error_states()
         ):
             try:

@@ -396,7 +396,10 @@ class BaseLauncher(abc.ABC):
                 status=run.status.state,
                 name=run.metadata.name,
             )
-            if run.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            if (
+                run.status.state in mlrun.runtimes.constants.RunStates.error_states()
+                or run.status.state == mlrun.runtimes.constants.RunStates.aborting
+            ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(
                         "Run did not finish successfully",

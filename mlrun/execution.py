@@ -664,6 +664,8 @@ class MLClientCtx(object):
     ):
         """Log a dataset artifact and optionally upload it to datastore
 
+        if the dataset exists with the same key and tag, it will be overwritten.
+
         Example::
 
             raw_data = {

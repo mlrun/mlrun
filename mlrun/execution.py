@@ -434,6 +434,12 @@ class MLClientCtx(object):
             context.set_label("framework", "sklearn")
 
         """
+        if not self.is_logging_worker():
+            logger.warning(
+                "Setting labels is only supported in the logging worker, ignoring"
+            )
+            return
+
         if replace or not self._labels.get(key):
             self._labels[key] = str(value)
 
@@ -908,7 +914,7 @@ class MLClientCtx(object):
                 "uid": self._uid,
                 "iteration": self._iteration,
                 "project": self._project,
-                "labels": self._cleanse_labels(),
+                "labels": self._labels,
                 "annotations": self._annotations,
             },
             "spec": {
@@ -1005,7 +1011,6 @@ class MLClientCtx(object):
                 _struct[key] = val
 
         struct = {
-            "metadata.labels": self._cleanse_labels(),
             "metadata.annotations": self._annotations,
             "spec.parameters": self._parameters,
             "spec.outputs": self._outputs,
@@ -1019,6 +1024,10 @@ class MLClientCtx(object):
         # multiple executions for a single run (e.g. mpi)
         if self._state != "completed":
             struct["status.state"] = self._state
+
+        # TODO: test that non logging workers do not override the labels
+        if self.is_logging_worker():
+            struct["metadata.labels"] = self._labels
 
         set_if_not_none(struct, "status.error", self._error)
         set_if_not_none(struct, "status.commit", self._commit)
@@ -1090,15 +1099,6 @@ class MLClientCtx(object):
             with open(self._tmpfile, "w") as fp:
                 fp.write(data)
                 fp.close()
-
-    def _cleanse_labels(self):
-        """Remove labels that should not be stored to the corresponding run"""
-        labels = deepcopy(self._labels)
-        # Remove host (pod name) label if it's not a logging worker:
-        if not self.is_logging_worker():
-            labels.pop("host", None)
-
-        return labels
 
 
 def _cast_result(value):

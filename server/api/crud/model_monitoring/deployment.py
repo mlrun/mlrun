@@ -290,9 +290,6 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
 
-            # Get the function uri
-            function_uri = fn.save(versioned=True)
-
             if with_schedule:
                 if not overwrite:
                     try:
@@ -311,6 +308,9 @@ class MonitoringDeployment:
                             f"Deploying {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
+                # Save & Get the function uri
+                function_uri = fn.save(versioned=True)
+
                 # Submit batch scheduled job
                 self._submit_schedule_batch_job(
                     project=project,
@@ -321,6 +321,10 @@ class MonitoringDeployment:
                     tracking_offset=tracking_offset,
                     function_name=function_name,
                 )
+            else:
+                # Save unschedule function
+                fn.save(versioned=True)
+
         return fn
 
     def deploy_model_monitoring_writer_application(

@@ -196,6 +196,14 @@ async def delete_project(
         chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
 
+    if server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        # here in DELETE v1/projects, we can assume that if the request is from the leader, then the leader is
+        # iguazio <= 3.5.4. In this older version, the leader isn't waiting for the background task from v2 to complete.
+        # In order for this request not to time out, we want to force the request to not wait for completion and return
+        # 202 immediately. Later in the project deletion wrapper task, after the iguazio job is completed, we will
+        # wait for the project to be removed from the DB and complete the task.
+        wait_for_completion = False
+
     is_running_in_background = await run_in_threadpool(
         get_project_member().delete_project,
         db_session,

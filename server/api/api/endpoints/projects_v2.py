@@ -137,6 +137,10 @@ def _get_or_create_project_deletion_background_task(
            4. Finish LeaderDeletionJob
         4. Finish MLRunDeletionWrapperTask
     """
+    # The project deletion wrapper should wait for the project deletion to complete. This is a backwards compatibility
+    # feature for when working with iguazio <= 3.5.4 that does not support background tasks and therefore doesn't wait
+    # for the project deletion to complete.
+    wait_for_project_deletion = True
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
     # project. Otherwise, we create a wrapper background task for deletion of the project.
     background_task_kind_format = (
@@ -146,6 +150,7 @@ def _get_or_create_project_deletion_background_task(
         server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
+        wait_for_project_deletion = False
         background_task_kind_format = (
             server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
         )
@@ -171,6 +176,7 @@ def _get_or_create_project_deletion_background_task(
         project_name=project_name,
         deletion_strategy=deletion_strategy,
         auth_info=auth_info,
+        wait_for_project_deletion=wait_for_project_deletion,
     )
 
 
@@ -179,7 +185,20 @@ async def _delete_project(
     project_name: str,
     deletion_strategy: mlrun.common.schemas.DeletionStrategy,
     auth_info: mlrun.common.schemas.AuthInfo,
+    wait_for_project_deletion: bool,
 ):
+    def _verify_project_is_deleted():
+        try:
+            get_project_member().get_project(
+                db_session, project_name, auth_info.session
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return
+        else:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Project {project_name} was not deleted"
+            )
+
     await run_in_threadpool(
         get_project_member().delete_project,
         db_session,
@@ -189,4 +208,16 @@ async def _delete_project(
         auth_info,
         wait_for_completion=True,
     )
+
+    if wait_for_project_deletion:
+        await run_in_threadpool(
+            mlrun.utils.helpers.retry_until_successful(
+                5,
+                120,
+                logger,
+                False,
+                _verify_project_is_deleted,
+            )
+        )
+
     await get_project_member().post_delete_project(project_name)

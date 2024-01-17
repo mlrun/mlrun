@@ -2177,6 +2177,7 @@ class MlrunProject(ModelObj):
             == mm_constants.ModelMonitoringAppLabel.VAL
         ):
             self.remove_function(name=name)
+            mlrun.db.get_run_db().delete_function(name=name.lower())
             logger.info(f"{name} function has been removed from {self.name} project")
         else:
             raise logger.error(

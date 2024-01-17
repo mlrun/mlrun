@@ -553,7 +553,7 @@ class BaseStoreTarget(DataTargetBase):
         else:
             store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
-            file_system = store.get_filesystem(False)
+            file_system = store.filesystem
             if file_system.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
@@ -1407,7 +1407,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_path(self.get_target_path())
+        endpoint, uri = parse_path(self.path)
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )

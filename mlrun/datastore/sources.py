@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+import semver
 import v3io
 import v3io.dataplane
 from nuclio import KafkaTrigger
@@ -1018,6 +1019,20 @@ class KafkaSource(OnlineSource):
             max_workers=extra_attributes.pop("max_workers", 4),
         )
         function = function.add_trigger("kafka", trigger)
+
+        # ML-5499
+        bug_fix_version = "1.12.10"
+        if config.nuclio_version and semver.VersionInfo.parse(
+            config.nuclio_version
+        ) < semver.VersionInfo.parse(bug_fix_version):
+            warnings.warn(
+                f"Detected nuclio version {config.nuclio_version}, which is older "
+                f"than {bug_fix_version}. Forcing number of replicas of 1 in function '{function.metadata.name}'. "
+                f"To resolve this, please upgrade Nuclio."
+            )
+            function.spec.min_replicas = 1
+            function.spec.max_replicas = 1
+
         return function
 
 

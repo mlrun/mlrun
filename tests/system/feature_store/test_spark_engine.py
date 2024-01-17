@@ -1317,7 +1317,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
-                v3io = store.get_filesystem(False)
+                v3io = store.filesystem
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):

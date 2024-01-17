@@ -714,10 +714,10 @@ class LinkArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", LinkArtifactSpec)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyArtifact' will be removed in 1.6.0, use 'Artifact' instead",
+    reason="'LegacyArtifact' will be removed in 1.7.0, use 'Artifact' instead",
     category=FutureWarning,
 )
 class LegacyArtifact(ModelObj):
@@ -880,10 +880,10 @@ class LegacyArtifact(ModelObj):
         return generate_target_path(self, artifact_path, producer)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyDirArtifact' will be removed in 1.6.0, use 'DirArtifact' instead",
+    reason="'LegacyDirArtifact' will be removed in 1.7.0, use 'DirArtifact' instead",
     category=FutureWarning,
 )
 class LegacyDirArtifact(LegacyArtifact):
@@ -916,10 +916,10 @@ class LegacyDirArtifact(LegacyArtifact):
             mlrun.datastore.store_manager.object(url=target).upload(file_path)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyLinkArtifact' will be removed in 1.6.0, use 'LinkArtifact' instead",
+    reason="'LegacyLinkArtifact' will be removed in 1.7.0, use 'LinkArtifact' instead",
     category=FutureWarning,
 )
 class LegacyLinkArtifact(LegacyArtifact):

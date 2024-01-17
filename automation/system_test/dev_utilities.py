@@ -93,9 +93,9 @@ def get_ingress_controller_version():
     # Run the kubectl command and capture its output
     kubectl_cmd = "kubectl"
     namespace = "default-tenant"
-    grep_cmd = "grep shell.default-tenant"
+    grep_cmd = "grep mlrun-api.default-tenant"
     awk_cmd1 = "awk '{print $3}'"
-    awk_cmd2 = "awk -F shell.default-tenant '{print $2}'"
+    awk_cmd2 = "awk -F mlrun-api.default-tenant '{print $2}'"
     cmd = f"{kubectl_cmd} get ingress -n {namespace} | {grep_cmd} | {awk_cmd1} | {awk_cmd2}"
     result = subprocess.run(
         cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -129,6 +129,29 @@ def add_repos():
     for repo, url in repos.items():
         cmd = f"helm repo add {repo} {url}"
         subprocess.run(cmd.split(), check=True)
+
+
+def add_env_to_deployment(namespace, deployment_name, env_vars):
+    try:
+        # Build the kubectl command to patch the deployment with new environment variables
+        kubectl_command = [
+            "kubectl",
+            "patch",
+            "deployment",
+            deployment_name,
+            f"--namespace={namespace}",
+            "--type=json",
+            "--patch",
+            f'[{{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": {env_vars}}}]',
+        ]
+
+        # Execute the kubectl command
+        subprocess.run(kubectl_command, check=True)
+
+        print(f"Environment added/updated to the deployment '{deployment_name}'")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
 
 
 def install_redisinsight(ipadd):
@@ -175,16 +198,14 @@ def install_redisinsight(ipadd):
         full_domain = "redisinsight" + fqdn
         create_ingress_resource(full_domain, ipadd)
         deployment_name = "redisinsight"
-        container_name = "redisinsight-chart"
-        env_name = "RITRUSTEDORIGINS"
-        full_domain = full_domain
         pfull_domain = "https://" + full_domain
-        patch_command = (
-            f'kubectl patch deployment -n devtools {deployment_name} -p \'{{"spec":{{"template":{{"spec":{{'
-            f'"containers":[{{"name":"{container_name}","env":[{{"name":"{env_name}","value":"'
-            f"{pfull_domain}\"}}]}}]}}}}}}}}'"
+        env_vars = [
+            {"name": "RITRUSTEDORIGINS", "value": pfull_domain},
+            {"name": "RIPROXYENABLE", "value": "true"},
+        ]
+        add_env_to_deployment(
+            namespace="devtools", deployment_name=deployment_name, env_vars=env_vars
         )
-        subprocess.run(patch_command, shell=True)
         clean_command = "rm -rf redisinsight-chart-0.1.0.tgz*"
         subprocess.run(clean_command, shell=True)
     else:

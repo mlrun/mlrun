@@ -131,7 +131,7 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
-    _private_attributes = ("access_key", "secret_key")
+    _private_attributes = ("access_key_id", "secret_key")
     endpoint_url: typing.Optional[str] = None
     force_non_anonymous: typing.Optional[str] = None
     profile_name: typing.Optional[str] = None

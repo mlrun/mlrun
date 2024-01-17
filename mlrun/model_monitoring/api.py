@@ -612,9 +612,7 @@ def read_dataset_as_dataframe(
         if label_columns is None:
             label_columns = dataset.status.label_column
         # Get the features and parse to DataFrame:
-        dataset = mlrun.feature_store.get_offline_features(
-            dataset.uri, drop_columns=drop_columns
-        ).to_dataframe()
+        dataset = dataset.get_offline_features(drop_columns=drop_columns).to_dataframe()
 
     elif isinstance(dataset, (list, np.ndarray)):
         if not feature_columns:

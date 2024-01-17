@@ -194,6 +194,49 @@ class TestArtifacts:
         assert artifacts[0]["metadata"]["key"] == artifact_name_1
         assert artifacts[1]["metadata"]["key"] == artifact_name_2
 
+    def test_list_artifact_label_filter(self, db: DBInterface, db_session: Session):
+        total_artifacts = 5
+        for i in range(1, total_artifacts + 1):
+            artifact_name = f"artifact_name_{i}"
+            artifact_tree = f"tree_{i}"
+            artifact_labels = {"same_key": "same_value", f"label_{i}": f"value_{i}"}
+            artifact = self._generate_artifact(
+                artifact_name, tree=artifact_tree, labels=artifact_labels
+            )
+            db.store_artifact(
+                db_session,
+                artifact_name,
+                artifact,
+            )
+
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="same_key=same_value")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="same_key")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="~label")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="~LaBeL=~VALue")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="label_1=~Value")
+        assert len(artifacts) == 1
+
+        artifacts = db.list_artifacts(db_session, labels="label_1=value_1")
+        assert len(artifacts) == 1
+
+        artifacts = db.list_artifacts(db_session, labels="label_1=value_2")
+        assert len(artifacts) == 0
+
+        artifacts = db.list_artifacts(db_session, labels="label_2=~VALUE_2")
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == "artifact_name_2"
+
     def test_store_artifact_tagging(self, db: DBInterface, db_session: Session):
         artifact_1_key = "artifact_key_1"
         artifact_1_tree = "artifact_tree"
@@ -1341,7 +1384,9 @@ class TestArtifacts:
             )
 
     @staticmethod
-    def _generate_artifact(key, uid=None, kind="artifact", tree=None, project=None):
+    def _generate_artifact(
+        key, uid=None, kind="artifact", tree=None, project=None, labels=None
+    ):
         artifact = {
             "metadata": {"key": key},
             "spec": {"src_path": "/some/path"},
@@ -1356,6 +1401,8 @@ class TestArtifacts:
             artifact["metadata"]["tree"] = tree
         if project:
             artifact["metadata"]["project"] = project
+        if labels:
+            artifact["metadata"]["labels"] = labels
 
         return artifact
 

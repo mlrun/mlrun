@@ -143,8 +143,8 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
         t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, kld_scaling)
         u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, kld_scaling)
         result = t_u + u_t
-        if capping:
-            return capping if result == float("inf") else result
+        if capping and result == float("inf"):
+            return capping
         return result
 
 

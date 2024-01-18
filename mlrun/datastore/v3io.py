@@ -145,17 +145,18 @@ class V3ioStore(DataStore):
             data = memoryview(data)
         except TypeError:
             pass
-        requests_session = requests.Session()
-        while buffer_offset < buffer_size:
-            chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
-            http_put(
-                self.url + self._join(key),
-                data[buffer_offset : buffer_offset + chunk_size],
-                append_header if buffer_offset else self.headers,
-                None,
-                requests_session,
-            )
-            buffer_offset += chunk_size
+
+        with requests.Session() as requests_session:
+            while buffer_offset < buffer_size:
+                chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+                http_put(
+                    self.url + self._join(key),
+                    data[buffer_offset : buffer_offset + chunk_size],
+                    append_header if buffer_offset else self.headers,
+                    None,
+                    requests_session,
+                )
+                buffer_offset += chunk_size
 
     def put(self, key, data, append=False):
         return self._put(key, data)

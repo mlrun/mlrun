@@ -1153,7 +1153,7 @@ async def _delete_project(
                 project_name
             ),
         )
-        if not active_task:
+        if active_task:
             raise mlrun.errors.MLRunInternalServerError(
                 f"Project {project_name} was not deleted"
             )

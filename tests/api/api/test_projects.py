@@ -59,6 +59,7 @@ from server.api.db.sqldb.models import (
 
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
+LIST_FUNCTION_API = "projects/{project}/functions"
 
 
 @pytest.fixture(params=["leader", "follower"])
@@ -558,7 +559,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_name = "project-name"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    response = client.get("funcs", params={"project": project_name})
+    response = client.get(LIST_FUNCTION_API.format(project=project_name))
     assert response.status_code == HTTPStatus.OK.value
     distinct_function_names = {
         function["metadata"]["name"] for function in response.json()["funcs"]

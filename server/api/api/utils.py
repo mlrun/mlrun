@@ -24,6 +24,7 @@ from os import environ
 from pathlib import Path
 
 import kubernetes.client
+import sqlalchemy.orm
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -37,7 +38,9 @@ import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.utils.auth.verifier
+import server.api.utils.background_tasks
 import server.api.utils.clients.iguazio
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
@@ -49,6 +52,7 @@ from server.api.db.sqldb.db import SQLDB
 from server.api.rundb.sqldb import SQLRunDB
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.logs_dir import get_logs_dir
+from server.api.utils.singletons.project_member import get_project_member
 from server.api.utils.singletons.scheduler import get_scheduler
 
 
@@ -1058,3 +1062,117 @@ def artifact_project_and_resource_name_extractor(artifact):
         artifact.get("metadata").get("project", mlrun.mlconf.default_project),
         artifact.get("spec")["db_key"],
     )
+
+
+def get_or_create_project_deletion_background_task(
+    project_name: str, deletion_strategy: str, background_tasks, db_session, auth_info
+) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    """
+    This method is responsible for creating a background task for deleting a project.
+    The project deletion flow is as follows:
+        When MLRun is leader:
+        1. Create a background task for deleting the project
+        2. The background task will delete the project resources and then project itself
+        When MLRun is a follower:
+        Due to the nature of the project deletion flow, we need to wrap the task as:
+            MLRunDeletionWrapperTask(LeaderDeletionJob(MLRunDeletionTask))
+        1. Create MLRunDeletionWrapperTask
+        2. MLRunDeletionWrapperTask will send a request to the projects leader to delete the project
+        3. MLRunDeletionWrapperTask will wait for the project to be deleted using LeaderDeletionJob job id
+           During (In leader):
+           1. Create LeaderDeletionJob
+           2. LeaderDeletionJob will send a second delete project request to the follower
+           3. LeaderDeletionJob will wait for the project to be deleted using the MLRunDeletionTask task id
+              During (Back here in follower):
+              1. Create MLRunDeletionTask
+              2. MLRunDeletionTask will delete the project resources and then project itself.
+              3. Finish MLRunDeletionTask
+           4. Finish LeaderDeletionJob
+        4. Finish MLRunDeletionWrapperTask
+    """
+    # The project deletion wrapper should wait for the project deletion to complete. This is a backwards compatibility
+    # feature for when working with iguazio <= 3.5.4 that does not support background tasks and therefore doesn't wait
+    # for the project deletion to complete.
+    wait_for_project_deletion = True
+    # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
+    # project. Otherwise, we create a wrapper background task for deletion of the project.
+    background_task_kind_format = (
+        server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper
+    )
+    if (
+        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
+        or mlrun.mlconf.httpdb.projects.leader == "mlrun"
+    ):
+        wait_for_project_deletion = False
+        background_task_kind_format = (
+            server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
+        )
+
+    background_task_kind = background_task_kind_format.format(project_name)
+    try:
+        return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+            background_task_kind,
+            raise_on_not_found=True,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        logger.debug(
+            "Existing background task not found, creating new one",
+            background_task_kind=background_task_kind,
+        )
+
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_tasks,
+        background_task_kind,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+        _delete_project,
+        db_session=db_session,
+        project_name=project_name,
+        deletion_strategy=deletion_strategy,
+        auth_info=auth_info,
+        wait_for_project_deletion=wait_for_project_deletion,
+    )
+
+
+async def _delete_project(
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    wait_for_project_deletion: bool,
+):
+    def _verify_project_is_deleted():
+        background_task_handler = (
+            server.api.utils.background_tasks.InternalBackgroundTasksHandler()
+        )
+        active_task = background_task_handler.get_active_background_task_by_kind(
+            server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
+                project_name
+            ),
+        )
+        if not active_task:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Project {project_name} was not deleted"
+            )
+
+    await run_in_threadpool(
+        get_project_member().delete_project,
+        db_session,
+        project_name,
+        deletion_strategy,
+        auth_info.projects_role,
+        auth_info,
+        wait_for_completion=True,
+    )
+
+    if wait_for_project_deletion:
+        await run_in_threadpool(
+            mlrun.utils.helpers.retry_until_successful(
+                5,
+                120,
+                logger,
+                False,
+                _verify_project_is_deleted,
+            )
+        )
+
+    await get_project_member().post_delete_project(project_name)

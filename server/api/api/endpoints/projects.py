@@ -16,11 +16,13 @@ import http
 import typing
 
 import fastapi
+import semver
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import server.api.api.deps
+import server.api.api.utils
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
@@ -166,6 +168,7 @@ async def get_project(
     },
 )
 async def delete_project(
+    background_tasks: fastapi.BackgroundTasks,
     name: str,
     request: fastapi.Request,
     deletion_strategy: mlrun.common.schemas.DeletionStrategy = fastapi.Header(
@@ -196,13 +199,25 @@ async def delete_project(
         chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
 
-    if server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        # here in DELETE v1/projects, we can assume that if the request is from the leader, then the leader is
-        # iguazio <= 3.5.4. In this older version, the leader isn't waiting for the background task from v2 to complete.
-        # In order for this request not to time out, we want to force the request to not wait for completion and return
-        # 202 immediately. Later in the project deletion wrapper task, after the iguazio job is completed, we will
-        # wait for the project to be removed from the DB and complete the task.
-        wait_for_completion = False
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
+    if (
+        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
+        and igz_version
+        and igz_version < semver.VersionInfo.parse("3.5.5")
+    ):
+        # here in DELETE v1/projects, if the leader is iguazio < 3.5.5, the leader isn't waiting for the background
+        # task from v2 to complete. In order for this request not to time out, we want to start the background task
+        # for deleting the project and return 202 to the leader. Later, in the project deletion wrapper task, we will
+        # wait for this background task to complete before marking the task as done.
+        await run_in_threadpool(
+            server.api.api.utils.get_or_create_project_deletion_background_task,
+            name,
+            deletion_strategy,
+            background_tasks,
+            db_session,
+            auth_info,
+        )
+        return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     is_running_in_background = await run_in_threadpool(
         get_project_member().delete_project,

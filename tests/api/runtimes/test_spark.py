@@ -777,3 +777,30 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             str(exc.value) == "Sparkjob does not support loading source code on run, "
             "use func.with_source_archive(pull_at_runtime=False)"
         )
+
+    def test_run_with_handler_validation(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        # set default output path
+        mlrun.mlconf.artifact_path = "v3io:///tmp"
+
+        # generate runtime and set source code to load on run
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        runtime.metadata.name = "test-spark-runtime"
+        runtime.metadata.project = self.project
+
+        runtime.spec.default_handler = "my_handler"
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            runtime.run(auth_info=mlrun.common.schemas.AuthInfo())
+        assert (
+            str(exc.value)
+            == "Sparkjob does not support handlers or default handler (spec.default_handler or handler parameter)"
+        )
+
+        runtime.spec.default_handler = None
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            runtime.run(auth_info=mlrun.common.schemas.AuthInfo(), handler="my_handler")
+        assert (
+            str(exc.value)
+            == "Sparkjob does not support handlers or default handler (spec.default_handler or handler parameter)"
+        )

@@ -430,6 +430,11 @@ with ctx:
                 "Sparkjob must contain driver requests"
             )
 
+        if runtime.spec.default_handler or run.spec.handler:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob does not support handlers or default handler (spec.default_handler or handler parameter)"
+            )
+
     @staticmethod
     def _parse_cpu_resource_string(cpu):
         if isinstance(cpu, str) and cpu.endswith("m"):

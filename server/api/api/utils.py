@@ -24,6 +24,7 @@ from os import environ
 from pathlib import Path
 
 import kubernetes.client
+import semver
 import sqlalchemy.orm
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -1090,10 +1091,19 @@ def get_or_create_project_deletion_background_task(
            4. Finish LeaderDeletionJob
         4. Finish MLRunDeletionWrapperTask
     """
-    # The project deletion wrapper should wait for the project deletion to complete. This is a backwards compatibility
-    # feature for when working with iguazio <= 3.5.4 that does not support background tasks and therefore doesn't wait
-    # for the project deletion to complete.
-    wait_for_project_deletion = True
+    wait_for_project_deletion = False
+
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
+    if (
+        not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
+        and igz_version
+        and igz_version < semver.VersionInfo.parse("3.5.5")
+    ):
+        # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
+        # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
+        # therefore doesn't wait for the project deletion to complete.
+        wait_for_project_deletion = True
+
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
     # project. Otherwise, we create a wrapper background task for deletion of the project.
     background_task_kind_format = (
@@ -1103,7 +1113,6 @@ def get_or_create_project_deletion_background_task(
         server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
-        wait_for_project_deletion = False
         background_task_kind_format = (
             server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
         )

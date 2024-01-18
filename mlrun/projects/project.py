@@ -1499,9 +1499,9 @@ class MlrunProject(ModelObj):
         **kwargs,
     ) -> DatasetArtifact:
         """
-        log a dataset artifact and optionally upload it to datastore.
+        Log a dataset artifact and optionally upload it to datastore.
 
-        if the dataset already exists with the same key and tag, it will be overwritten.
+        If the dataset already exists with the same key and tag, it will be overwritten.
 
         example::
 

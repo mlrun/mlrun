@@ -599,7 +599,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: lint
-lint:
+lint: # Run all pre-commit hooks on all the tracked files
 	pre-commit run --all-files
 
 .PHONY: lint-go

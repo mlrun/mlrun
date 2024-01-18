@@ -3555,13 +3555,13 @@ class MlrunProject(ModelObj):
                 return
 
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid '{param_name}': '{file_path}'.  Got a remote URL without a file suffix."
+                f"Invalid '{param_name}': '{file_path}'. Got a remote URL without a file suffix."
             )
 
         code_path = self.spec.get_code_path()
 
         # If the file path is a relative path, it is completed by joining it with the code_path.
-        code_path_relative = not path.isabs(code_path) and not file_path.startswith(
+        code_path_relative = not path.isabs(file_path) and not file_path.startswith(
             code_path
         )
         if code_path_relative:
@@ -3571,9 +3571,9 @@ class MlrunProject(ModelObj):
 
         if not path.isfile(abs_path):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid '{param_name}': '{file_path}'.  Got a path to a non-existing file."
+                f"Invalid '{param_name}': '{file_path}'. Got a path to a non-existing file."
                 f"Path must be absolute or relative to the project code path i.e. "
-                f"<project.spec.get_code_path()>/<{param_name}>)"
+                f"<project.spec.get_code_path()>/<{param_name}>)."
             )
 
 

@@ -411,7 +411,6 @@ class DBInterface(ABC):
         session,
         name: str = None,
         project_id: int = None,
-        with_for_update: bool = False,
     ) -> mlrun.common.schemas.Project:
         pass
 

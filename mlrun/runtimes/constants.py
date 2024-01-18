@@ -166,6 +166,17 @@ class RunStates(object):
         ]
 
     @staticmethod
+    def abortion_states():
+        return [
+            RunStates.aborted,
+            RunStates.aborting,
+        ]
+
+    @staticmethod
+    def error_and_abortion_states():
+        return list(set(RunStates.error_states()) | set(RunStates.abortion_states()))
+
+    @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 

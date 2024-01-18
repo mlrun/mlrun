@@ -1145,15 +1145,13 @@ async def _delete_project(
     wait_for_project_deletion: bool,
 ):
     def _verify_project_is_deleted():
-        background_task_handler = (
-            server.api.utils.background_tasks.InternalBackgroundTasksHandler()
-        )
-        active_task = background_task_handler.get_active_background_task_by_kind(
-            server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
-                project_name
-            ),
-        )
-        if active_task:
+        try:
+            get_project_member().get_project(
+                db_session, project_name, auth_info.session
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return
+        else:
             raise mlrun.errors.MLRunInternalServerError(
                 f"Project {project_name} was not deleted"
             )

@@ -248,7 +248,7 @@ The code prioritizes `gcp_credentials` over `credentials_path`.
 
 ```
 profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
-target = KafkaTar_name_get(path="ds://profile-name")
+target = KafkaTarget(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:

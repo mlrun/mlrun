@@ -398,6 +398,9 @@ def now_date(tz: timezone = timezone.utc) -> datetime:
     return datetime.now(tz=tz)
 
 
+datetime_now = now_date
+
+
 def to_date_str(d):
     if d:
         return d.isoformat()

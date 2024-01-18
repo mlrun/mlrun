@@ -2354,7 +2354,6 @@ class SQLDB(DBInterface):
         name: str = None,
         project_id: int = None,
         raise_on_not_found: bool = True,
-        with_for_update: bool = False,
     ) -> typing.Optional[Project]:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(

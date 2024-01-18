@@ -843,6 +843,56 @@ async def test_delete_project_job_cache(
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
+async def test_delete_project_removes_create_job_cache(
+    api_url: str,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    project = _generate_project(name=project_name)
+    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
+    session = "1234"
+
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session, job_id
+        ),
+    )
+
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session, job_id
+    )
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json={"data": _build_project_response(iguazio_client, project)},
+    )
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.create_project(
+            session,
+            project,
+            wait_for_completion=False,
+        )
+    )
+
+    assert is_running_in_background is True
+    assert iguazio_client._job_cache.get_create_job_id(project_name) is not None
+
+    # request to delete project, should clear the project from the client's cache
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session, job_id),
+    )
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name, wait_for_completion=True)
+    )
+    assert is_running_in_background is False
+    assert mocker.call_count == num_of_calls_until_completion
+    assert iguazio_client._job_cache.get_create_job_id(project_name) is None
+
+
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
 async def test_format_as_leader_project(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,

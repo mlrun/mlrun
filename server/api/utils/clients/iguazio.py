@@ -22,9 +22,11 @@ import json
 import threading
 import typing
 import urllib.parse
+import uuid
 
 import aiohttp
 import fastapi
+import humanfriendly
 import igz_mgmt.schemas.manual_events
 import requests.adapters
 from fastapi.concurrency import run_in_threadpool
@@ -115,11 +117,11 @@ class JobCache:
 
     def remove_delete_job(self, project: str):
         with self._delete_lock:
-            del self._delete_jobs_cache[project]
+            self._delete_jobs_cache.pop(project, None)
 
     def remove_create_job(self, project: str):
         with self._create_lock:
-            del self._create_jobs_cache[project]
+            self._create_jobs_cache.pop(project, None)
 
 
 class Client(
@@ -144,6 +146,9 @@ class Client(
         self._igz_clients = {}
 
         self._job_cache = JobCache()
+        self._job_cache_ttl = humanfriendly.parse_timespan(
+            mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl
+        )
         self._start_periodic_cache_invalidation()
 
     def verify_request_session(
@@ -273,8 +278,8 @@ class Client(
                 job_id = response.json()["data"]["id"]
                 self._job_cache.set_delete_job(name, job_id)
 
-                # clear create job cache if exists, if the project was still in the process of being created
-                # we would get a conflict error from Iguazio
+                # remove project from create job cache (idempotent),
+                # if the project was still in the process of being created we would get a conflict error from Iguazio
                 self._job_cache.remove_create_job(name)
 
             except requests.HTTPError as exc:
@@ -482,8 +487,8 @@ class Client(
             _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
             self._job_cache.set_create_job(name, job_id)
 
-            # clear delete job from cache if exists. if the project was still in the process of being deleted
-            # we would get a conflict error from Iguazio
+            # remove project from delete job cache (idempotent),
+            # if the project was still in the process of being created we would get a conflict error from Iguazio
             self._job_cache.remove_delete_job(name)
 
         if wait_for_completion:
@@ -863,13 +868,18 @@ class Client(
         mlrun.errors.raise_for_status(response, error_message)
 
     def _start_periodic_cache_invalidation(self):
-        interval = 20 * 60  #
-        # TODO: move configurable interval to mlrun config
-        # interval = int(config.iguazio_client_job_cache_invalidation_interval_seconds)
+        interval = humanfriendly.parse_timespan(
+            mlrun.mlconf.httpdb.projects.iguazio_client_periodic_cache_invalidation_interval
+        )
         if interval > 0:
             logger.info("Starting periodic job cache invalidation", interval=interval)
+            # run_function_periodically(
+            #     interval, self._invalidate_cache.__name__, False, self._invalidate_cache
+            # )
+            task_id = uuid.uuid4().hex
+            task_name = f"{self._invalidate_cache.__name__}_{task_id}"
             run_function_periodically(
-                interval, self._invalidate_cache.__name__, False, self._invalidate_cache
+                interval, task_name, False, self._invalidate_cache
             )
 
     def _invalidate_cache(self):
@@ -877,14 +887,11 @@ class Client(
         Invalidates cache by checking the timestamp of each cached create/delete job.
         If the job is older than the configured timeout, it is removed from the cache.
         """
-        # TODO: move configurable timeout to mlrun config
-        timout = datetime.timedelta(seconds=60)
-
         delete_jobs_cache = self._job_cache.get_delete_jobs_cache()
         create_jobs_cache = self._job_cache.get_create_jobs_cache()
 
         for project, job in list(delete_jobs_cache) + list(create_jobs_cache):
-            if datetime.datetime.now() - job["timestamp"] > timout:
+            if datetime.datetime.now() - job["timestamp"] > self._job_cache_ttl:
                 if project in delete_jobs_cache:
                     self._job_cache.remove_delete_job(project)
                 if project in create_jobs_cache:

@@ -311,7 +311,7 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request.isoformat(),
+            last_request=last_request.isoformat(), has_stream=True
         )
         assert last_updated
         assert (

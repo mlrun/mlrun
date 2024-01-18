@@ -206,7 +206,7 @@ class Projects(
                 )
 
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str, with_for_update: bool = False
+        self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.common.schemas.Project:
         return server.api.utils.singletons.db.get_db().get_project(session, name)
 

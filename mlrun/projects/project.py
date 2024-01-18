@@ -1424,9 +1424,9 @@ class MlrunProject(ModelObj):
         target_path=None,
         **kwargs,
     ):
-        """log an output artifact and optionally upload it to datastore
+        """Log an output artifact and optionally upload it to datastore
 
-        if the artifact already exists with the same key and tag, it will be overwritten.
+        If the artifact already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1579,9 +1579,9 @@ class MlrunProject(ModelObj):
         extra_data=None,
         **kwargs,
     ):
-        """log a model artifact and optionally upload it to datastore
+        """Log a model artifact and optionally upload it to datastore
 
-        if the model already exists with the same key and tag, it will be overwritten.
+        If the model already exists with the same key and tag, it will be overwritten.
 
         example::
 

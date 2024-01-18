@@ -185,6 +185,20 @@ async def delete_project(
         server.api.api.deps.get_db_session
     ),
 ):
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        # check if project exists
+        try:
+            # with for update locks the project row in the db, so that no other process can delete it
+            await run_in_threadpool(
+                server.api.crud.Projects().get_project,
+                db_session,
+                name,
+                with_for_update=True,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info("Project not found, nothing to delete", project=name)
+            return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
     if (
@@ -198,19 +212,6 @@ async def delete_project(
         )
         chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
-
-    # check if project exists
-    try:
-        # with for update locks the project row in the db, so that no other process can delete it
-        await run_in_threadpool(
-            server.api.crud.Projects().get_project,
-            db_session,
-            name,
-            with_for_update=True,
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        logger.info("Project not found, nothing to delete", project=name)
-        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if (

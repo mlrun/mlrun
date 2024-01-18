@@ -187,7 +187,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         if isinstance(param_value, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"Parameter '{param_name}' has an unsupported value of type"
-                f" 'pandas.DataFrame' remote execution. Top 3 records: \n{param_value.head(3)}\n"
+                f" 'pandas.DataFrame' in remote execution. Top 3 records: \n{param_value.head(3)}\n"
             )
         super()._validate_run_single_param(
             param_name=param_name, param_value=param_value

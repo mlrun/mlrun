@@ -91,7 +91,7 @@ class _BatchWindow:
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
-                last_update=self._stop,
+                last_updated=self._stop,
             )
             logger.debug("Error while getting last analyzed time", err=err)
             if self._first_request and self._stop:

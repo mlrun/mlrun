@@ -1224,18 +1224,18 @@ class MlrunProject(ModelObj):
         :param name:          Name of the workflow
         :param workflow_path: URL (remote) / Path (absolute or relative to the project code path i.e.
                 <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
-        :param embed:         add the workflow code into the project.yaml
-        :param engine:        workflow processing engine ("kfp", "local", "remote" or "remote:local")
-        :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
-        :param handler:       workflow function handler
+        :param embed:         Add the workflow code into the project.yaml
+        :param engine:        Workflow processing engine ("kfp", "local", "remote" or "remote:local")
+        :param args_schema:   List of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
+        :param handler:       Workflow function handler
         :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                               Note that "local" engine does not support this argument
-        :param ttl:           pipeline ttl in secs (after that the pods will be removed)
-        :param image:         image for workflow runner job, only for scheduled and remote workflows
-        :param args:          argument values (key=value, ..)
+        :param ttl:           Pipeline ttl in secs (after that the pods will be removed)
+        :param image:         Image for workflow runner job, only for scheduled and remote workflows
+        :param args:          Argument values (key=value, ..)
         """
 
         # validate the provided workflow_path

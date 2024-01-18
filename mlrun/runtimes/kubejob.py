@@ -203,7 +203,7 @@ class KubejobRuntime(KubeResource):
             and with_mlrun
         ):
             logger.info(
-                "running build to add mlrun package, set "
+                "Running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"
             )
         self.status.state = ""

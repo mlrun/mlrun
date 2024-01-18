@@ -720,7 +720,7 @@ def _build_function(
         logger.error(traceback.format_exc())
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
     try:
         # connect to run db
@@ -862,7 +862,7 @@ def _build_function(
         logger.error(traceback.format_exc())
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
     return fn, ready
 
@@ -872,7 +872,7 @@ def _parse_start_function_body(db_session, data):
     if not url:
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: functionUrl not specified",
+            reason="Runtime error: functionUrl not specified",
         )
 
     project, name, tag, hash_key = parse_versioned_object_uri(url)
@@ -882,7 +882,7 @@ def _parse_start_function_body(db_session, data):
     if not runtime:
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: function {url} not found",
+            reason=f"Runtime error: function {url} not found",
         )
 
     return new_function(runtime=runtime)

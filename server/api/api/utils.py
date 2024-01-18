@@ -179,7 +179,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,
-                    reason=f"runtime error: function {function_url} not found",
+                    reason=f"Runtime error: function {function_url} not found",
                 )
             function = new_function(runtime=function_record)
 
@@ -1029,7 +1029,7 @@ def submit_run_sync(
         logger.error(traceback.format_exc())
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
 
     logger.info("Run submission succeeded", run_uid=run_uid, function=fn.metadata.name)

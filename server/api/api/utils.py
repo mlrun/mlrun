@@ -1091,18 +1091,8 @@ def get_or_create_project_deletion_background_task(
            4. Finish LeaderDeletionJob
         4. Finish MLRunDeletionWrapperTask
     """
-    wait_for_project_deletion = False
-
     igz_version = mlrun.mlconf.get_parsed_igz_version()
-    if (
-        not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
-        and igz_version
-        and igz_version < semver.VersionInfo.parse("3.5.5")
-    ):
-        # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
-        # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
-        # therefore doesn't wait for the project deletion to complete.
-        wait_for_project_deletion = True
+    wait_for_project_deletion = False
 
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
     # project. Otherwise, we create a wrapper background task for deletion of the project.
@@ -1116,6 +1106,11 @@ def get_or_create_project_deletion_background_task(
         background_task_kind_format = (
             server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
         )
+    elif igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
+        # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
+        # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
+        # therefore doesn't wait for the project deletion to complete.
+        wait_for_project_deletion = True
 
     background_task_kind = background_task_kind_format.format(project_name)
     try:

@@ -203,9 +203,10 @@ async def delete_project(
     try:
         # with for update locks the project row in the db, so that no other process can delete it
         await run_in_threadpool(
-            server.api.crud.Projects().get_project(
-                db_session, name, with_for_update=True
-            )
+            server.api.crud.Projects().get_project,
+            db_session,
+            name,
+            with_for_update=True,
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)

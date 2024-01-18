@@ -1140,14 +1140,10 @@ class SQLDB(DBInterface):
         tags: typing.List[str] = None,
         commit: bool = True,
     ):
-        artifacts_keys = [str(artifact.key) for artifact in artifacts]
-        query = (
-            session.query(ArtifactV2.Tag)
-            .join(ArtifactV2)
-            .filter(
-                ArtifactV2.project == project,
-                ArtifactV2.key.in_(artifacts_keys),
-            )
+        artifacts_ids = [artifact.id for artifact in artifacts]
+        query = session.query(ArtifactV2.Tag).filter(
+            ArtifactV2.Tag.project == project,
+            ArtifactV2.Tag.obj_id.in_(artifacts_ids),
         )
         if tags:
             query = query.filter(ArtifactV2.Tag.name.in_(tags))

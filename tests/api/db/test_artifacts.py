@@ -194,6 +194,49 @@ class TestArtifacts:
         assert artifacts[0]["metadata"]["key"] == artifact_name_1
         assert artifacts[1]["metadata"]["key"] == artifact_name_2
 
+    def test_list_artifact_label_filter(self, db: DBInterface, db_session: Session):
+        total_artifacts = 5
+        for i in range(1, total_artifacts + 1):
+            artifact_name = f"artifact_name_{i}"
+            artifact_tree = f"tree_{i}"
+            artifact_labels = {"same_key": "same_value", f"label_{i}": f"value_{i}"}
+            artifact = self._generate_artifact(
+                artifact_name, tree=artifact_tree, labels=artifact_labels
+            )
+            db.store_artifact(
+                db_session,
+                artifact_name,
+                artifact,
+            )
+
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="same_key=same_value")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="same_key")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="~label")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="~LaBeL=~VALue")
+        assert len(artifacts) == total_artifacts
+
+        artifacts = db.list_artifacts(db_session, labels="label_1=~Value")
+        assert len(artifacts) == 1
+
+        artifacts = db.list_artifacts(db_session, labels="label_1=value_1")
+        assert len(artifacts) == 1
+
+        artifacts = db.list_artifacts(db_session, labels="label_1=value_2")
+        assert len(artifacts) == 0
+
+        artifacts = db.list_artifacts(db_session, labels="label_2=~VALUE_2")
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == "artifact_name_2"
+
     def test_store_artifact_tagging(self, db: DBInterface, db_session: Session):
         artifact_1_key = "artifact_key_1"
         artifact_1_tree = "artifact_tree"
@@ -493,6 +536,51 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
         assert len(artifacts) == 1
         artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+        assert len(artifacts) == 1
+
+    def test_overwrite_artifact_with_tag(self, db: DBInterface, db_session: Session):
+        project = "proj"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_uid"
+        artifact_tree_2 = "artifact_uid_2"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, kind=ArtifactCategories.model
+        )
+        artifact_body_2 = self._generate_artifact(
+            artifact_key, tree=artifact_tree_2, kind=ArtifactCategories.model
+        )
+        artifact_1_tag = "artifact-tag-1"
+        artifact_2_tag = "artifact-tag-2"
+
+        db.store_artifact(
+            db_session, artifact_key, artifact_body, tag=artifact_1_tag, project=project
+        )
+        db.store_artifact(
+            db_session,
+            artifact_key,
+            artifact_body_2,
+            tag=artifact_2_tag,
+            project=project,
+        )
+
+        identifier_1 = mlrun.common.schemas.ArtifactIdentifier(
+            kind=ArtifactCategories.model,
+            key=artifact_key,
+            uid=artifact_tree,
+            tag=artifact_1_tag,
+        )
+
+        # overwrite the tag for only one of the artifacts
+        db.overwrite_artifacts_with_tag(db_session, project, "new-tag", [identifier_1])
+
+        # verify that only the first artifact is with the new tag now
+        artifacts = db.list_artifacts(db_session, project=project, tag="new-tag")
+        assert len(artifacts) == 1
+        artifacts = db.list_artifacts(db_session, project=project, tag=artifact_1_tag)
+        assert len(artifacts) == 0
+
+        # verify that the second artifact's tag did not change
+        artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag)
         assert len(artifacts) == 1
 
     def test_delete_artifacts_tag_filter(self, db: DBInterface, db_session: Session):
@@ -1341,7 +1429,9 @@ class TestArtifacts:
             )
 
     @staticmethod
-    def _generate_artifact(key, uid=None, kind="artifact", tree=None, project=None):
+    def _generate_artifact(
+        key, uid=None, kind="artifact", tree=None, project=None, labels=None
+    ):
         artifact = {
             "metadata": {"key": key},
             "spec": {"src_path": "/some/path"},
@@ -1356,6 +1446,8 @@ class TestArtifacts:
             artifact["metadata"]["tree"] = tree
         if project:
             artifact["metadata"]["project"] = project
+        if labels:
+            artifact["metadata"]["labels"] = labels
 
         return artifact
 

@@ -550,7 +550,12 @@ class BaseRuntime(ModelObj):
             if err:
                 updates["status.error"] = err_to_str(err)
 
-        elif not was_none and last_state != "completed":
+        elif (
+            not was_none
+            and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state
+            not in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+        ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)
                 updates = runtime_cls._get_run_completion_updates(resp)

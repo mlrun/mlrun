@@ -134,7 +134,7 @@ error stream. <br>
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-fstore.deploy_ingestion_service_v2(my_set, source, run_config=config)
+my_set.deploy_ingestion_service(source, run_config=config)
 ```
 
 To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
@@ -192,7 +192,7 @@ either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this for
 source = SQLSource(table_name='my_table', 
                      db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
                      key_field='key',
-                     time_fields=['timestamp'], )
+                     parse_dates=['timestamp'])
  
  feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
  feature_set.set_targets([])
@@ -220,7 +220,7 @@ kafka_source = KafkaSource(
         
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```        
        
 
@@ -265,7 +265,7 @@ kafka_source = KafkaSource(
     
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```
 
 
@@ -325,7 +325,7 @@ You can pass the schema and the name of the table you want to create or the name
             schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
             create_table=True,
             primary_key_column='id',
-            time_fields=["time"]
+            parse_dates=["time"],
         )
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
 fs.ingest(feature_set, source=df, targets=[target])

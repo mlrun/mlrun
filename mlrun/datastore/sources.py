@@ -1027,7 +1027,7 @@ class KafkaSource(OnlineSource):
         ) < semver.VersionInfo.parse(bug_fix_version):
             warnings.warn(
                 f"Detected nuclio version {config.nuclio_version}, which is older "
-                f"than {bug_fix_version}. Forcing number of replicas of 1 in function '{function.metdata.name}'. "
+                f"than {bug_fix_version}. Forcing number of replicas of 1 in function '{function.metadata.name}'. "
                 f"To resolve this, please upgrade Nuclio."
             )
             function.spec.min_replicas = 1
@@ -1053,7 +1053,6 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        time_fields: List[str] = None,
         parse_dates: List[str] = None,
         **kwargs,
     ):
@@ -1078,17 +1077,8 @@ class SQLSource(BaseSourceDriver):
         :param table_name:      the name of the collection to access,
                                 from the current database
         :param spark_options:   additional spark read options
-        :param time_fields :    all the field to be parsed as timestamp.
         :param parse_dates :    all the field to be parsed as timestamp.
         """
-        if time_fields:
-            warnings.warn(
-                "'time_fields' is deprecated, use 'parse_dates' instead. "
-                "This will be removed in 1.6.0",
-                # TODO: Remove this in 1.6.0
-                FutureWarning,
-            )
-            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1096,7 +1086,7 @@ class SQLSource(BaseSourceDriver):
             )
         if time_field:
             if parse_dates:
-                time_fields.append(time_field)
+                parse_dates.append(time_field)
             else:
                 parse_dates = [time_field]
         attrs = {

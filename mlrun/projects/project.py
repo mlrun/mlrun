@@ -2167,7 +2167,7 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name):
-        """remove the specified model-monitoring-app function from the project
+        """remove the specified model-monitoring-app function from the project and from the db
 
         :param name: name of the model-monitoring-app function (under the project)
         """
@@ -2177,6 +2177,7 @@ class MlrunProject(ModelObj):
             == mm_constants.ModelMonitoringAppLabel.VAL
         ):
             self.remove_function(name=name)
+            mlrun.db.get_run_db().delete_function(name=name.lower())
             logger.info(f"{name} function has been removed from {self.name} project")
         else:
             raise logger.error(
@@ -3016,7 +3017,7 @@ class MlrunProject(ModelObj):
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
@@ -3102,7 +3103,7 @@ class MlrunProject(ModelObj):
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
 
@@ -3407,7 +3408,7 @@ class MlrunProject(ModelObj):
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used.
+        :param last: Deprecated - currently not used (will be removed in 1.8.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.

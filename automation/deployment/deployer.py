@@ -107,6 +107,7 @@ class CommunityEditionDeployer:
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
+        force_enable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
         disable_log_collector: bool = False,
@@ -130,6 +131,7 @@ class CommunityEditionDeployer:
         :param override_mlrun_ui_image: Override the default MLRun UI image
         :param override_jupyter_image: Override the default Jupyter image
         :param disable_pipelines: Disable the deployment of the pipelines component
+        :param force_enable_pipelines: Force the pipelines component to be installed
         :param disable_prometheus_stack: Disable the deployment of the Prometheus stack component
         :param disable_spark_operator: Disable the deployment of the Spark operator component
         :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
@@ -158,6 +160,7 @@ class CommunityEditionDeployer:
             override_mlrun_ui_image,
             override_jupyter_image,
             disable_pipelines,
+            force_enable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
             disable_log_collector,
@@ -349,6 +352,7 @@ class CommunityEditionDeployer:
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
+        force_enable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
         disable_log_collector: bool = False,
@@ -369,6 +373,7 @@ class CommunityEditionDeployer:
         :param override_mlrun_ui_image: Override MLRun UI image to use
         :param override_jupyter_image: Override Jupyter image to use
         :param disable_pipelines: Disable pipelines
+        :param force_enable_pipelines: Force the pipelines component to be installed
         :param disable_prometheus_stack: Disable Prometheus stack
         :param disable_spark_operator: Disable Spark operator
         :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
@@ -406,6 +411,7 @@ class CommunityEditionDeployer:
             override_mlrun_ui_image,
             override_jupyter_image,
             disable_pipelines,
+            force_enable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
             disable_log_collector,
@@ -456,6 +462,7 @@ class CommunityEditionDeployer:
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
+        force_enable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
         disable_log_collector: bool = False,
@@ -472,6 +479,7 @@ class CommunityEditionDeployer:
         :param override_mlrun_ui_image: Override MLRun UI image to use
         :param override_jupyter_image: Override Jupyter image to use
         :param disable_pipelines: Disable pipelines
+        :param force_enable_pipelines: Force the pipelines component to be installed
         :param disable_prometheus_stack: Disable Prometheus stack
         :param disable_spark_operator: Disable Spark operator
         :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
@@ -529,13 +537,32 @@ class CommunityEditionDeployer:
                 }
             )
 
+        if force_enable_pipelines and disable_pipelines:
+            error_message = "--force-enable-pipelines and --disable-pipelines may not be used together. Aborting"
+            self._log(
+                "error",
+                error_message,
+            )
+            raise ValueError(error_message)
+
         # TODO: We need to fix the pipelines metadata grpc server to work on arm
         if self._check_platform_architecture() == "arm":
             self._log(
                 "warning",
-                "Kubeflow Pipelines is not supported on ARM architecture. Disabling KFP installation.",
+                "Kubeflow Pipelines is not supported on ARM architectures",
             )
-            self._toggle_component_in_helm_values(helm_values, "pipelines", True)
+            if not force_enable_pipelines:
+                self._log(
+                    "warning",
+                    "Kubeflow Pipelines won't be installed",
+                )
+                self._toggle_component_in_helm_values(helm_values, "pipelines", True)
+            else:
+                self._log(
+                    "warning",
+                    "Kubeflow Pipelines will be installed, but it may not work. Proceed at your own risk",
+                )
+                self._toggle_component_in_helm_values(helm_values, "pipelines", False)
 
         self._log(
             "debug",

@@ -964,14 +964,14 @@ def submit_run_sync(
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
 
-            # if the task is pointing to a remote function (hub://), we need to save it to the db
+            # save the generated function enriched with the specific configuration to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
-            # access the db version of the function, and not the remote one (which can be changed between runs)
-            if "://" in task["spec"]["function"]:
-                function_uri = fn.save(versioned=True)
-                data.pop("function", None)
-                data.pop("function_url", None)
-                task["spec"]["function"] = function_uri.replace("db://", "")
+            # access the db version of the function, and not the original function with the default spec
+            # (which can be changed between runs)
+            function_uri = fn.save(versioned=True)
+            data.pop("function", None)
+            data.pop("function_url", None)
+            task["spec"]["function"] = function_uri.replace("db://", "")
 
             is_update = get_scheduler().store_schedule(
                 db_session,

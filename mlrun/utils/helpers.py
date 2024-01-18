@@ -394,8 +394,8 @@ def get_pretty_types_names(types):
     return types[0].__name__
 
 
-def now_date():
-    return datetime.now(timezone.utc)
+def now_date(tz: timezone = timezone.utc) -> datetime:
+    return datetime.now(tz=tz)
 
 
 def to_date_str(d):

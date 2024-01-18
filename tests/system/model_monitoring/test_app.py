@@ -368,6 +368,6 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         self._record_results()
 
-        time.sleep(1.4 * self.app_interval_seconds)
+        time.sleep(2.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)

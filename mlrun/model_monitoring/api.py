@@ -132,7 +132,6 @@ def record_results(
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
-    last_in_batch_set: typing.Optional[bool] = True,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -165,14 +164,6 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
-    :param last_in_batch_set:        This flag can (and should only) be used when the model endpoint does not have
-                                     model-monitoring set.
-                                     If set to `True` (the default), this flag marks the current monitoring window
-                                     (on this monitoring endpoint) is completed - the data inferred so far is assumed
-                                     to be the total data for this monitoring window.
-                                     You may want to set this flag to `False` if you want to record multiple results in
-                                     close time proximity ("batch set"). In this case, set this flag to `False` on all
-                                     but the last batch in the set.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 
@@ -206,25 +197,14 @@ def record_results(
         )
 
     if model_endpoint.spec.stream_path == "":
-        if last_in_batch_set:
-            logger.info(
-                "Updating the last request time to mark the current monitoring window as completed",
-                project=project,
-                endpoint_id=model_endpoint.metadata.uid,
-            )
-            bump_model_endpoint_last_request(
-                project=project, model_endpoint=model_endpoint, db=db
-            )
-    else:
-        if last_in_batch_set is not None:
-            logger.warning(
-                "`last_in_batch_set` is not `None`, but the model endpoint has a stream path. "
-                "Ignoring `last_in_batch_set`, as it is relevant only when the model "
-                "endpoint does not have a model monitoring infrastructure in place (i.e. stream path is "
-                " empty). Set `last_in_batch_set` to `None` to resolve this warning.",
-                project=project,
-                endpoint_id=model_endpoint.metadata.uid,
-            )
+        logger.info(
+            "Updating the last request time to mark the current monitoring window as completed",
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+        )
+        bump_model_endpoint_last_request(
+            project=project, model_endpoint=model_endpoint, db=db
+        )
 
     if trigger_monitoring_job:
         # Run the monitoring batch drift job

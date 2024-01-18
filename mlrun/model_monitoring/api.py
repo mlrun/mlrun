@@ -590,7 +590,7 @@ def get_sample_set_statistics(
         )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Parameter dataset has an unsupported type: {type(sample_set)}"
+            f"Parameter sample_set has an unsupported type: {type(sample_set)}"
         )
 
     # Return the sample set statistics:

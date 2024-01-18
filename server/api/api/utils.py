@@ -1169,14 +1169,12 @@ async def _delete_project(
     )
 
     if wait_for_project_deletion:
-        await run_in_threadpool(
-            mlrun.utils.helpers.retry_until_successful(
-                5,
-                120,
-                logger,
-                False,
-                _verify_project_is_deleted,
-            )
+        mlrun.utils.helpers.retry_until_successful(
+            5,
+            120,
+            logger,
+            False,
+            _verify_project_is_deleted,
         )
 
     await get_project_member().post_delete_project(project_name)

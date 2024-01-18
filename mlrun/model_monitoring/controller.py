@@ -638,16 +638,3 @@ class MonitoringApplicationController:
             ),
         )
         return offline_response
-
-
-def handler(context: mlrun.run.MLClientCtx) -> None:
-    """
-    Run model monitoring application processor
-
-    :param context: the MLRun context
-    """
-    monitor_app_controller = MonitoringApplicationController(
-        context=context,
-        project=context.project,
-    )
-    monitor_app_controller.run()

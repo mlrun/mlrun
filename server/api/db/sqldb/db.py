@@ -2041,9 +2041,15 @@ class SQLDB(DBInterface):
         )
 
     def get_project(
-        self, session: Session, name: str = None, project_id: int = None
+        self,
+        session: Session,
+        name: str = None,
+        project_id: int = None,
+        with_for_update: bool = False,
     ) -> mlrun.common.schemas.Project:
-        project_record = self._get_project_record(session, name, project_id)
+        project_record = self._get_project_record(
+            session, name, project_id, with_for_update=with_for_update
+        )
 
         return self._transform_project_record_to_schema(session, project_record)
 
@@ -2351,14 +2357,16 @@ class SQLDB(DBInterface):
         name: str = None,
         project_id: int = None,
         raise_on_not_found: bool = True,
+        with_for_update: bool = False,
     ) -> typing.Optional[Project]:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
             )
-        project_record = self._query(
-            session, Project, name=name, id=project_id
-        ).one_or_none()
+        project_record_query = self._query(session, Project, name=name, id=project_id)
+        if with_for_update:
+            project_record_query = project_record_query.with_for_update()
+        project_record = project_record_query.one_or_none()
         if not project_record:
             if not raise_on_not_found:
                 return None

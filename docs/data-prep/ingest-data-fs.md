@@ -192,7 +192,7 @@ either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this for
 source = SQLSource(table_name='my_table', 
                      db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
                      key_field='key',
-                     time_fields=['timestamp'], )
+                     parse_dates=['timestamp'], )
  
  feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
  feature_set.set_targets([])
@@ -325,7 +325,7 @@ You can pass the schema and the name of the table you want to create or the name
             schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
             create_table=True,
             primary_key_column='id',
-            time_fields=["time"]
+            parse_dates=["time"]
         )
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
 fs.ingest(feature_set, source=df, targets=[target])

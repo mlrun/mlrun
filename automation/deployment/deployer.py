@@ -48,8 +48,6 @@ class ExcecutionParams:
     def __init__(
         self,
         registry_url: str,
-        registry_username: str = None,
-        registry_password: str = None,
         registry_secret_name: str = None,
         chart_version: str = None,
         mlrun_version: str = None,
@@ -62,7 +60,6 @@ class ExcecutionParams:
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
         disable_log_collector: bool = False,
-        skip_registry_validation: bool = False,
         devel: bool = False,
         minikube: bool = False,
         sqlite: str = None,
@@ -70,8 +67,6 @@ class ExcecutionParams:
         custom_values: typing.List[str] = None,
     ):
         self.registry_url = registry_url
-        self.registry_username = registry_username
-        self.registry_password = registry_password
         self.registry_secret_name = registry_secret_name
         self.chart_version = chart_version
         self.mlrun_version = mlrun_version
@@ -84,7 +79,6 @@ class ExcecutionParams:
         self.disable_prometheus_stack = disable_prometheus_stack
         self.disable_spark_operator = disable_spark_operator
         self.disable_log_collector = disable_log_collector
-        self.skip_registry_validation = skip_registry_validation
         self.devel = devel
         self.minikube = minikube
         self.sqlite = sqlite
@@ -201,8 +195,6 @@ class CommunityEditionDeployer:
 
         ep = ExcecutionParams(
             registry_url,
-            registry_username,
-            registry_password,
             registry_secret_name,
             chart_version,
             mlrun_version,
@@ -215,7 +207,6 @@ class CommunityEditionDeployer:
             disable_prometheus_stack,
             disable_spark_operator,
             disable_log_collector,
-            skip_registry_validation,
             devel,
             minikube,
             sqlite,

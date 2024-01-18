@@ -665,9 +665,10 @@ def http_head(url, headers=None, auth=None):
     return response.headers
 
 
-def http_put(url, data, headers=None, auth=None):
+def http_put(url, data, headers=None, auth=None, session=None):
     try:
-        response = requests.put(
+        put_api = session.put if session else requests.put
+        response = put_api(
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as exc:

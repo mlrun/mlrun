@@ -31,6 +31,12 @@ from .v3io import V3ioStore
 in_memory_store = InMemoryStore()
 
 
+def get_local_file_schema():
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
+    return ["file"] + list(string.ascii_lowercase)
+
+
 def parse_url(url):
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()
@@ -54,9 +60,7 @@ def parse_url(url):
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)
 
-    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
-    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
-    if not schema or schema in ["file"] + list(string.ascii_lowercase):
+    if not schema or schema in get_local_file_schema():
         return FileStore
     elif schema == "s3":
         try:

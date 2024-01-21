@@ -25,6 +25,7 @@ import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.scheduler
+import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -311,22 +312,27 @@ class MonitoringDeployment:
 
                 # Submit batch scheduled job
                 try:
+                    # Save & Get the function uri
+                    function_uri = fn.save(versioned=True)
+
                     self._submit_schedule_batch_job(
                         project=project,
-                        function=fn,
+                        function_uri=function_uri,
                         db_session=db_session,
                         auth_info=auth_info,
                         tracking_policy=tracking_policy,
                         tracking_offset=tracking_offset,
                         function_name=function_name,
                     )
-                except ValueError as e:
-                    logger.warn(
-                        f"Can't deploy {function_name.replace('-', ' ')} scheduled job function due to :",
-                        error=e,
-                        project=project,
+                except Exception as exc:
+                    # Delete controller unschedule job
+                    server.api.utils.singletons.db.get_db().delete_function(
+                        session=db_session, project=project, name=fn.metadata.name
                     )
-                    db_session.delete(fn)
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Can't deploy {function_name.replace('-', ' ')} "
+                        f"scheduled job function due to : {mlrun.errors.err_to_str(exc)}",
+                    )
             else:
                 # Save & Get the function uri
                 fn.save(versioned=True)
@@ -518,7 +524,7 @@ class MonitoringDeployment:
     def _submit_schedule_batch_job(
         cls,
         project: str,
-        function: mlrun.runtimes.BaseRuntime,
+        function_uri: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
@@ -539,10 +545,10 @@ class MonitoringDeployment:
 
         """
 
-        # function_uri = function_uri.replace("db://", "")
+        function_uri = function_uri.replace("db://", "")
 
         task = mlrun.new_task(name=function_name, project=project)
-        task.spec.function = function
+        task.spec.function = function_uri
 
         schedule, batch_dict = cls._generate_schedule_and_interval_dict(
             function_name=function_name,

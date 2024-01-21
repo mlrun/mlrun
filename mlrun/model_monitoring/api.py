@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import hashlib
 import json
 import typing
@@ -25,7 +24,7 @@ import mlrun.common.helpers
 import mlrun.feature_store
 from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitoringMode
 from mlrun.data_types.infer import InferOptions, get_df_stats
-from mlrun.utils import logger
+from mlrun.utils import datetime_now, logger
 
 from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
@@ -367,21 +366,14 @@ def write_monitoring_df(
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now(
-            tz=datetime.timezone.utc
-        )
+        infer_results_df[EventFieldType.TIMESTAMP] = datetime_now()
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
     infer_results_df[EventFieldType.ENDPOINT_ID] = endpoint_id
-    infer_results_df.set_index(
-        EventFieldType.ENDPOINT_ID,
-        inplace=True,
-    )
+    infer_results_df.set_index(EventFieldType.ENDPOINT_ID, inplace=True)
 
-    mlrun.feature_store.ingest(
-        featureset=monitoring_feature_set, source=infer_results_df, overwrite=False
-    )
+    monitoring_feature_set.ingest(source=infer_results_df, overwrite=False)
 
 
 def _generate_model_endpoint(
@@ -444,7 +436,7 @@ def _generate_model_endpoint(
     model_endpoint.spec.monitoring_mode = monitoring_mode
     model_endpoint.status.first_request = (
         model_endpoint.status.last_request
-    ) = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    ) = datetime_now().isoformat()
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 
@@ -808,7 +800,7 @@ def log_result(
     result_set: pd.DataFrame,
     artifacts_tag: str,
     batch_id: str,
-):
+) -> None:
     # Log the result set:
     context.logger.info("Logging result set (x | prediction)...")
     context.log_dataset(
@@ -819,7 +811,7 @@ def log_result(
     )
     # Log the batch ID:
     if batch_id is None:
-        batch_id = hashlib.sha224(str(datetime.datetime.now()).encode()).hexdigest()
+        batch_id = hashlib.sha224(str(datetime_now()).encode()).hexdigest()
     context.log_result(
         key="batch_id",
         value=batch_id,

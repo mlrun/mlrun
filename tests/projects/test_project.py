@@ -875,6 +875,7 @@ def test_import_artifact_using_relative_path():
     artifact = project.import_artifact("artifact.yaml", "y")
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
+    assert artifact.spec.db_key == "y"
 
 
 @pytest.mark.parametrize(

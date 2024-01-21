@@ -1671,6 +1671,8 @@ class MlrunProject(ModelObj):
             artifact.metadata.project = self.metadata.name
             artifact.metadata.updated = None
             artifact.metadata.tag = tag or artifact.metadata.tag
+            if new_key:
+                artifact.spec.db_key = new_key
             return artifact
 
         # Obtaining the item's absolute path from the project context, in case the user provided a relative path

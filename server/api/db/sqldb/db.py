@@ -2037,7 +2037,10 @@ class SQLDB(DBInterface):
         )
 
     def get_project(
-        self, session: Session, name: str = None, project_id: int = None
+        self,
+        session: Session,
+        name: str = None,
+        project_id: int = None,
     ) -> mlrun.common.schemas.Project:
         project_record = self._get_project_record(session, name, project_id)
 

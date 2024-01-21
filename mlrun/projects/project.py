@@ -1674,7 +1674,8 @@ class MlrunProject(ModelObj):
             if new_key:
                 if artifact.spec.db_key:
                     logger.warning(
-                        f"Overwriting artifact old db_key '{artifact.spec.db_key}' with new key '{new_key}'"
+                        f"Overwriting artifact old db_key '{artifact.spec.db_key}' with new key '{new_key}' - "
+                        f"artifact can be fetched using the new key only"
                     )
                 artifact.spec.db_key = new_key
             return artifact

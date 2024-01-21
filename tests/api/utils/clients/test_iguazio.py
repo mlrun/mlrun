@@ -670,54 +670,6 @@ async def test_create_project_without_wait(
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
-async def test_create_project_job_cache(
-    api_url: str,
-    iguazio_client: server.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
-):
-    project_name = "project-name"
-    project = _generate_project(name=project_name)
-    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
-    session = "1234"
-
-    requests_mock.post(
-        f"{api_url}/api/projects",
-        json=functools.partial(
-            _verify_creation, iguazio_client, project, session, job_id
-        ),
-    )
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        json={"data": _build_project_response(iguazio_client, project)},
-    )
-    # create project without waiting, should add the project to the client's cache
-    is_running_in_background = await maybe_coroutine(
-        iguazio_client.create_project(
-            session,
-            project,
-            wait_for_completion=False,
-        )
-    )
-    assert is_running_in_background is True
-    assert iguazio_client._job_cache.get_create_job_id(project_name) == job_id
-
-    # request again, should wait on the same job id
-    mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session, job_id
-    )
-    is_running_in_background = await maybe_coroutine(
-        iguazio_client.create_project(
-            session,
-            project,
-            wait_for_completion=True,
-        )
-    )
-    assert is_running_in_background is False
-    assert mocker.call_count == num_of_calls_until_completion
-
-
-@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
-@pytest.mark.asyncio
 async def test_update_project(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
@@ -953,9 +905,7 @@ async def test_delete_project_job_is_done(
 @pytest.mark.parametrize(
     "iguazio_client_kind,cache_kind",
     [
-        ("async", "create"),
         ("async", "delete"),
-        ("sync", "create"),
         ("sync", "delete"),
     ],
 )

@@ -76,16 +76,14 @@ class SessionPlanes:
 
 class JobCache:
     """
-    Cache for create/delete project jobs.
+    Cache for delete project jobs.
     This cache is used to avoid consecutive create/delete jobs for the same project,
     while the jobs are still in progress.
     """
 
     def __init__(self, ttl: str):
         self._delete_jobs = {}
-        self._create_jobs = {}
         self._delete_locks = {}
-        self._create_locks = {}
 
         # this lock is used only for getting the project specific locks
         self._lock = threading.Lock()
@@ -98,16 +96,8 @@ class JobCache:
                 self._delete_locks[project] = threading.Lock()
             return self._delete_locks[project]
 
-    def get_create_lock(self, project: str):
-        if project not in self._create_locks:
-            self._create_locks[project] = threading.Lock()
-        return self._create_locks[project]
-
     def get_delete_job_id(self, project: str) -> typing.Optional[str]:
         return self._delete_jobs.get(project, {}).get("job_id")
-
-    def get_create_job_id(self, project: str) -> typing.Optional[str]:
-        return self._create_jobs.get(project, {}).get("job_id")
 
     def set_delete_job(self, project: str, job_id: str):
         self._delete_jobs[project] = {
@@ -116,38 +106,20 @@ class JobCache:
         }
 
         # schedule cache invalidation for delete job
-        self._schedule_cache_invalidation("delete", project, job_id)
-
-    def set_create_job(self, project: str, job_id: str):
-        self._create_jobs[project] = {
-            "job_id": job_id,
-            "timestamp": datetime.datetime.now(),
-        }
-
-        # schedule cache invalidation for create job
-        self._schedule_cache_invalidation("create", project, job_id)
+        self._schedule_cache_invalidation(project, job_id)
 
     def remove_delete_job(self, project: str):
         self._delete_jobs.pop(project, None)
 
-    def remove_create_job(self, project: str):
-        self._create_jobs.pop(project, None)
-
-    def invalidate_cache(self, cache_kind: str, project: str, job_id: str):
+    def invalidate_cache(self, project: str, job_id: str):
         # if current project job is the same as the scheduled job id, remove it from the cache
         # otherwise, it means that a new job was created for the project, and we don't want to remove it
-        if cache_kind == "delete":
-            with self.get_delete_lock(project):
-                if self.get_delete_job_id(project) == job_id:
-                    self.remove_delete_job(project)
-        else:
-            with self.get_create_lock(project):
-                if self.get_create_job_id(project) == job_id:
-                    self.remove_create_job(project)
+        with self.get_delete_lock(project):
+            if self.get_delete_job_id(project) == job_id:
+                self.remove_delete_job(project)
 
     def _schedule_cache_invalidation(
         self,
-        cache_kind: str,
         project: str,
         job_id: str,
     ):
@@ -156,9 +128,7 @@ class JobCache:
         except RuntimeError:
             event_loop = asyncio.new_event_loop()
 
-        event_loop.call_later(
-            self._ttl, self.invalidate_cache, cache_kind, project, job_id
-        )
+        event_loop.call_later(self._ttl, self.invalidate_cache, project, job_id)
 
 
 class Client(
@@ -323,7 +293,7 @@ class Client(
                 name=name,
                 job_id=job_id,
             )
-            self._job_cache.invalidate_cache("delete", name, job_id)
+            self._job_cache.invalidate_cache(name, job_id)
             return False
 
         return True
@@ -499,20 +469,7 @@ class Client(
         wait_for_completion: bool,
         **kwargs,
     ) -> bool:
-        with self._job_cache.get_create_lock(name):
-            # check if project is already being created
-            job_id = self._job_cache.get_create_job_id(name)
-
-            # the existing job might have already been completed, but the cache was not yet invalidated
-            # in that case, we want to create a new deletion job
-            if job_id and self._is_job_done(session, job_id):
-                self._job_cache.remove_create_job(name)
-                # set job_id to None so that a new job will be created
-                job_id = None
-
-            if not job_id:
-                _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
-                self._job_cache.set_create_job(name, job_id)
+        _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
 
         if wait_for_completion:
             self._logger.debug(
@@ -528,9 +485,7 @@ class Client(
                 name=name,
                 job_id=job_id,
             )
-            self._job_cache.remove_create_job(name)
             return False
-
         return True
 
     def _delete_project_in_iguazio(

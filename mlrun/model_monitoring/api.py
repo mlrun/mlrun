@@ -379,9 +379,7 @@ def write_monitoring_df(
         inplace=True,
     )
 
-    mlrun.feature_store.ingest(
-        featureset=monitoring_feature_set, source=infer_results_df, overwrite=False
-    )
+    monitoring_feature_set.ingest(source=infer_results_df, overwrite=False)
 
 
 def _generate_model_endpoint(

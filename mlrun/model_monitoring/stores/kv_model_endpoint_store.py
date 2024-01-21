@@ -295,7 +295,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             )
         except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
             # Frames might raise an exception if schema file does not exist.
-            logger.warning("Failed to delete TSDB schema file:", err=e)
+            logger.warning("Failed to delete TSDB schema file", err=e)
             pass
 
         # Final cleanup of tsdb path

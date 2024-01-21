@@ -90,11 +90,17 @@ def _get_or_create_migration_background_task(
         return None
 
     logger.info("Starting the migration process")
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
+    (
+        task,
+        _task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         server.api.utils.background_tasks.BackgroundTaskKinds.db_migrations,
         None,
         _perform_migration,
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        _task_name
     )
 
 

@@ -209,14 +209,14 @@ async def delete_project(
         # task from v2 to complete. In order for this request not to time out, we want to start the background task
         # for deleting the project and return 202 to the leader. Later, in the project deletion wrapper task, we will
         # wait for this background task to complete before marking the task as done.
-        await run_in_threadpool(
+        task, _ = await run_in_threadpool(
             server.api.api.utils.get_or_create_project_deletion_background_task,
             name,
             deletion_strategy,
-            background_tasks,
             db_session,
             auth_info,
         )
+        background_tasks.add_task(task)
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     is_running_in_background = await run_in_threadpool(

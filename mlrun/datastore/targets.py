@@ -1406,7 +1406,10 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_path(self.get_target_path())
+        path = self.get_target_path()
+        if not path:
+            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
+        endpoint, uri = parse_path(path)
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1475,6 +1478,11 @@ class KafkaTarget(BaseStoreTarget):
             bootstrap_servers = attributes.pop("bootstrap_servers", None)
             topic, bootstrap_servers = parse_kafka_url(
                 self.get_target_path(), bootstrap_servers
+            )
+
+        if not topic:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "KafkaTarget requires a path (topic)"
             )
 
         graph.add_step(

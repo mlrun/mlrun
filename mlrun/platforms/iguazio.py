@@ -608,8 +608,6 @@ def add_or_refresh_credentials(
 
 def parse_path(url, suffix="/"):
     """return endpoint and table path from url"""
-    if not url:
-        return None, ""
     parsed_url = urlparse(url)
     if parsed_url.netloc:
         scheme = parsed_url.scheme.lower()

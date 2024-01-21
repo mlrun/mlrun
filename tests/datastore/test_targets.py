@@ -13,6 +13,9 @@
 # limitations under the License.
 import os
 
+import pytest
+
+import mlrun.errors
 from mlrun.datastore import StreamTarget
 from mlrun.datastore.targets import KafkaTarget
 from mlrun.feature_store import FeatureSet
@@ -70,9 +73,8 @@ def test_stream_target_without_path():
     stream_target.run_id = "123"
     fset = FeatureSet(name="my-featureset")
     stream_target.set_resource(fset)
-    stream_target.add_writer_step(mock_graph, None, None, key_columns={})
-    # make sure that run ID wasn't added to the path
-    assert mock_graph.kwargs.get("stream_path") == ""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        stream_target.add_writer_step(mock_graph, None, None, key_columns={})
 
 
 # ML-5560
@@ -83,6 +85,5 @@ def test_kafka_target_without_path():
     kafka_target.run_id = "123"
     fset = FeatureSet(name="my-featureset")
     kafka_target.set_resource(fset)
-    kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
-    # make sure that run ID wasn't added to the path
-    assert mock_graph.kwargs.get("topic") == ""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        kafka_target.add_writer_step(mock_graph, None, None, key_columns={})

@@ -770,7 +770,7 @@ def _log_drift_artifacts(
     3 - Results of the total drift analysis
 
     :param context:             MLRun context. Will log the artifacts.
-    :param html_plot:           Path to the html file of the plot.
+    :param html_plot:           Body of the html file of the plot.
     :param metrics_per_feature: Dictionary in which the key is a feature name and the value is the drift numerical
                                 result.
     :param drift_status:        Boolean value that represents the final drift analysis result.
@@ -779,7 +779,9 @@ def _log_drift_artifacts(
 
     """
     context.log_artifact(
-        mlrun.artifacts.Artifact(body=html_plot, format="html", key="drift_table_plot"),
+        mlrun.artifacts.Artifact(
+            body=html_plot.encode("utf-8"), format="html", key="drift_table_plot"
+        ),
         tag=artifacts_tag,
     )
     context.log_artifact(

@@ -504,7 +504,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         except ApiException as exc:
             if exc.status == 404:
                 logger.info(
-                    "Project secret does not exist, nothing to delete.",
+                    "Project secret does not exist, nothing to delete",
                     secret_name=secret_name,
                 )
                 return None

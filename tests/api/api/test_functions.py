@@ -631,12 +631,12 @@ def test_build_function_masks_access_key(
         (
             "nuclio",
             HTTPStatus.BAD_REQUEST.value,
-            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+            "Runtime error: Function access key must be set (function.metadata.credentials.access_key)",
         ),
         (
             "serving",
             HTTPStatus.BAD_REQUEST.value,
-            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+            "Runtime error: Function access key must be set (function.metadata.credentials.access_key)",
         ),
     ],
 )

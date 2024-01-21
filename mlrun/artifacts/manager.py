@@ -13,9 +13,11 @@
 # limitations under the License.
 import pathlib
 import typing
-from os.path import isdir
+from os.path import exists, isdir
+from urllib.parse import urlparse
 
 import mlrun.config
+from mlrun.datastore.datastore import get_local_file_schema
 from mlrun.utils.helpers import template_artifact_path
 
 from ..utils import (
@@ -121,6 +123,22 @@ class ArtifactManager:
         self.input_artifacts = {}
         self.artifacts = {}
 
+    @staticmethod
+    def validate_artifact_location(item, path):
+        if isinstance(item, ModelArtifact):
+            return
+        parsed_url = urlparse(path)
+        schema = parsed_url.scheme
+        if schema and schema not in get_local_file_schema():
+            #  we are not checking remote path yet.
+            return
+        if schema.lower() == "file":
+            path = parsed_url.path
+        if not exists(path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to log an artifact, local path does not exists. path:{path}"
+            )
+
     def artifact_list(self, full=False):
         artifacts = []
         for artifact in self.artifacts.values():
@@ -184,6 +202,7 @@ class ArtifactManager:
 
         validate_artifact_key_name(key, "artifact.key")
         src_path = local_path or item.src_path  # TODO: remove src_path
+        ArtifactManager.validate_artifact_location(item=item, path=src_path)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
         item.format = format or item.format

@@ -20,7 +20,7 @@ import mlrun
 import mlrun.errors
 from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.errors import err_to_str
-
+from mlrun.utils.helpers import get_local_file_schema
 from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
@@ -29,12 +29,6 @@ from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
 in_memory_store = InMemoryStore()
-
-
-def get_local_file_schema():
-    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
-    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
-    return ["file"] + list(string.ascii_lowercase)
 
 
 def parse_url(url):

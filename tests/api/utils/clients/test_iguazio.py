@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import asyncio
 import datetime
 import functools
 import http
@@ -669,6 +670,54 @@ async def test_create_project_without_wait(
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
+async def test_create_project_job_cache(
+    api_url: str,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    project = _generate_project(name=project_name)
+    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
+    session = "1234"
+
+    requests_mock.post(
+        f"{api_url}/api/projects",
+        json=functools.partial(
+            _verify_creation, iguazio_client, project, session, job_id
+        ),
+    )
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json={"data": _build_project_response(iguazio_client, project)},
+    )
+    # create project without waiting, should add the project to the client's cache
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.create_project(
+            session,
+            project,
+            wait_for_completion=False,
+        )
+    )
+    assert is_running_in_background is True
+    assert iguazio_client._job_cache.get_create_job_id(project_name) == job_id
+
+    # request again, should wait on the same job id
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session, job_id
+    )
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.create_project(
+            session,
+            project,
+            wait_for_completion=True,
+        )
+    )
+    assert is_running_in_background is False
+    assert mocker.call_count == num_of_calls_until_completion
+
+
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
 async def test_update_project(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
@@ -825,10 +874,14 @@ async def test_delete_project_job_cache(
         f"{api_url}/api/projects",
         json=functools.partial(_verify_deletion, project_name, session, job_id),
     )
+
+    # delete project without waiting, should add the project to the client's cache
     is_running_in_background = await maybe_coroutine(
         iguazio_client.delete_project(session, project_name, wait_for_completion=False)
     )
     assert is_running_in_background is True
+    assert project_name in iguazio_client._job_cache._delete_jobs
+    assert iguazio_client._job_cache.get_delete_job_id(project_name) == job_id
 
     # request again, should wait on the same job id
     mocker, num_of_calls_until_completion = _mock_job_progress(
@@ -843,52 +896,95 @@ async def test_delete_project_job_cache(
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
-async def test_delete_project_removes_create_job_cache(
+async def test_delete_project_job_is_done(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
-    project = _generate_project(name=project_name)
-    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
+    job_id_1 = "928145d5-4037-40b0-98b6-19a76626d797"
+    job_id_2 = "123f45f4-f45s-45f4-45f4-45f4f4f4f4f4"
     session = "1234"
 
-    requests_mock.post(
+    # set job in the cache
+    iguazio_client._job_cache.set_delete_job(project_name, job_id_1)
+
+    # mock job is already done
+    requests_mock.delete(
         f"{api_url}/api/projects",
-        json=functools.partial(
-            _verify_creation, iguazio_client, project, session, job_id
-        ),
+        json=functools.partial(_verify_deletion, project_name, session, job_id_1),
     )
 
-    mocker, num_of_calls_until_completion = _mock_job_progress(
-        api_url, requests_mock, session, job_id
-    )
-    requests_mock.get(
-        f"{api_url}/api/projects/__name__/{project.metadata.name}",
-        json={"data": _build_project_response(iguazio_client, project)},
-    )
-    is_running_in_background = await maybe_coroutine(
-        iguazio_client.create_project(
+    def _mock_get_job(state, result, session, request, context):
+        context.status_code = http.HTTPStatus.OK.value
+        assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+        return {"data": {"attributes": {"state": state, "result": result}}}
+
+    responses = [
+        functools.partial(
+            _mock_get_job,
+            server.api.utils.clients.iguazio.JobStates.completed,
+            "",
             session,
-            project,
-            wait_for_completion=False,
-        )
+        ),
+    ]
+    status_mocker = requests_mock.get(
+        f"{api_url}/api/jobs/{job_id_1}",
+        response_list=[{"json": response} for response in responses],
+    )
+
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session, job_id_2),
+    )
+
+    # the "second" request to delete should replace the job id
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name, wait_for_completion=False)
     )
 
     assert is_running_in_background is True
-    assert iguazio_client._job_cache.get_create_job_id(project_name) is not None
+    assert status_mocker.call_count == 1
 
-    # request to delete project, should clear the project from the client's cache
-    requests_mock.delete(
-        f"{api_url}/api/projects",
-        json=functools.partial(_verify_deletion, project_name, session, job_id),
+    # assert the job id was replaced
+    assert iguazio_client._job_cache.get_delete_job_id(project_name) == job_id_2
+
+
+@pytest.mark.parametrize(
+    "iguazio_client_kind,cache_kind",
+    [
+        ("async", "create"),
+        ("async", "delete"),
+        ("sync", "create"),
+        ("sync", "delete"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_job_cache_scheduled_invalidation(
+    iguazio_client_kind: str, cache_kind: str
+):
+    mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl = "2 seconds"
+
+    if iguazio_client_kind == "async":
+        client = server.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = server.api.utils.clients.iguazio.Client()
+
+    project_name = "project-name"
+    job_id = "some-job-id"
+
+    client._job_cache.__getattribute__(f"set_{cache_kind}_job")(project_name, job_id)
+
+    assert (
+        client._job_cache.__getattribute__(f"get_{cache_kind}_job_id")(project_name)
+        == job_id
     )
-    is_running_in_background = await maybe_coroutine(
-        iguazio_client.delete_project(session, project_name, wait_for_completion=True)
+
+    await asyncio.sleep(3)
+    assert (
+        client._job_cache.__getattribute__(f"get_{cache_kind}_job_id")(project_name)
+        is None
     )
-    assert is_running_in_background is False
-    assert mocker.call_count == num_of_calls_until_completion
-    assert iguazio_client._job_cache.get_create_job_id(project_name) is None
 
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)

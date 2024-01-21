@@ -22,7 +22,6 @@ import json
 import threading
 import typing
 import urllib.parse
-import uuid
 
 import aiohttp
 import fastapi
@@ -37,7 +36,6 @@ import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.utils.projects.remotes.leader as project_leader
 from mlrun.utils import get_in, logger
-from server.api.utils.periodic import run_function_periodically
 
 
 class JobStates:
@@ -83,45 +81,78 @@ class JobCache:
     while the jobs are still in progress.
     """
 
-    def __init__(self):
-        self._delete_jobs_cache = {}
-        self._create_jobs_cache = {}
-        self._delete_lock = threading.Lock()
-        self._create_lock = threading.Lock()
+    def __init__(self, ttl: str):
+        self._delete_jobs = {}
+        self._create_jobs = {}
+        self._delete_locks = {}
+        self._create_locks = {}
 
-    def get_delete_jobs_cache(self) -> typing.Dict[str, dict]:
-        return self._delete_jobs_cache
+        self._ttl = humanfriendly.parse_timespan(ttl)
 
-    def get_create_jobs_cache(self) -> typing.Dict[str, dict]:
-        return self._create_jobs_cache
+    def get_delete_lock(self, project: str):
+        if project not in self._delete_locks:
+            self._delete_locks[project] = threading.Lock()
+        return self._delete_locks[project]
 
-    def get_delete_job_id(self, project: str) -> typing.Optional[dict]:
-        return self._delete_jobs_cache.get(project, {}).get("job_id")
+    def get_create_lock(self, project: str):
+        if project not in self._create_locks:
+            self._create_locks[project] = threading.Lock()
+        return self._create_locks[project]
 
-    def get_create_job_id(self, project: str) -> typing.Optional[dict]:
-        return self._create_jobs_cache.get(project, {}).get("job_id")
+    def get_delete_job_id(self, project: str) -> typing.Optional[str]:
+        return self._delete_jobs.get(project, {}).get("job_id")
 
-    def set_delete_job(self, project: str, job_id: dict):
-        with self._delete_lock:
-            self._delete_jobs_cache[project] = {
-                "job_id": job_id,
-                "timestamp": datetime.datetime.now(),
-            }
+    def get_create_job_id(self, project: str) -> typing.Optional[str]:
+        return self._create_jobs.get(project, {}).get("job_id")
+
+    def set_delete_job(self, project: str, job_id: str):
+        self._delete_jobs[project] = {
+            "job_id": job_id,
+            "timestamp": datetime.datetime.now(),
+        }
+
+        # schedule cache invalidation for delete job
+        self._schedule_cache_invalidation("delete", project, job_id)
 
     def set_create_job(self, project: str, job_id: str):
-        with self._delete_lock:
-            self._delete_jobs_cache[project] = {
-                "job_id": job_id,
-                "timestamp": datetime.datetime.now(),
-            }
+        self._create_jobs[project] = {
+            "job_id": job_id,
+            "timestamp": datetime.datetime.now(),
+        }
+
+        # schedule cache invalidation for create job
+        self._schedule_cache_invalidation("create", project, job_id)
 
     def remove_delete_job(self, project: str):
-        with self._delete_lock:
-            self._delete_jobs_cache.pop(project, None)
+        self._delete_jobs.pop(project, None)
 
     def remove_create_job(self, project: str):
-        with self._create_lock:
-            self._create_jobs_cache.pop(project, None)
+        self._create_jobs.pop(project, None)
+
+    def _schedule_cache_invalidation(
+        self,
+        cache_kind: str,
+        project: str,
+        job_id: str,
+    ):
+        def _invalidate():
+            # if current project job is the same as the scheduled job id, remove it from the cache
+            # otherwise, it means that a new job was created for the project, and we don't want to remove it
+            if cache_kind == "delete":
+                with self.get_delete_lock(project):
+                    if self.get_delete_job_id(project) == job_id:
+                        self.remove_delete_job(project)
+            else:
+                with self.get_create_lock(project):
+                    if self.get_create_job_id(project) == job_id:
+                        self.remove_create_job(project)
+
+        try:
+            event_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            event_loop = asyncio.new_event_loop()
+
+        event_loop.call_later(self._ttl, _invalidate)
 
 
 class Client(
@@ -145,11 +176,9 @@ class Client(
         self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
 
-        self._job_cache = JobCache()
-        self._job_cache_ttl = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl
+        self._job_cache = JobCache(
+            ttl=mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl,
         )
-        self._start_periodic_cache_invalidation()
 
     def verify_request_session(
         self, request: fastapi.Request
@@ -249,48 +278,25 @@ class Client(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
-        # check if project is already being deleted
-        job_id = self._job_cache.get_delete_job_id(name)
+        with self._job_cache.get_delete_lock(name):
+            # check if project is already being deleted
+            job_id = self._job_cache.get_delete_job_id(name)
 
-        if not job_id:
-            self._logger.debug(
-                "Deleting project in Iguazio",
-                name=name,
-                deletion_strategy=deletion_strategy,
-            )
-            body = self._transform_mlrun_project_to_iguazio_project(
-                mlrun.common.schemas.Project(
-                    metadata=mlrun.common.schemas.ProjectMetadata(name=name)
-                )
-            )
-            headers = {
-                "igz-project-deletion-strategy": deletion_strategy.to_iguazio_deletion_strategy(),
-            }
-            try:
-                response = self._send_request_to_api(
-                    "DELETE",
-                    "projects",
-                    "Failed deleting project in Iguazio",
-                    session,
-                    headers=headers,
-                    json=body,
-                )
-                job_id = response.json()["data"]["id"]
-                self._job_cache.set_delete_job(name, job_id)
+            # the existing job might have already been completed, but the cache was not yet invalidated
+            # in that case, we want to create a new deletion job
+            if job_id and self._is_job_done(session, job_id):
+                self._job_cache.remove_delete_job(name)
+                # set job_id to None so that a new job will be created
+                job_id = None
 
-                # remove project from create job cache (idempotent),
-                # if the project was still in the process of being created we would get a conflict error from Iguazio
-                self._job_cache.remove_create_job(name)
-
-            except requests.HTTPError as exc:
-                if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
-                    raise
-                self._logger.debug(
-                    "Project not found in Iguazio. Considering deletion as successful",
-                    name=name,
-                    deletion_strategy=deletion_strategy,
+            if not job_id:
+                job_id = self._delete_project_in_iguazio(
+                    session, name, deletion_strategy
                 )
-                return False
+                if not job_id:
+                    # project not found in iguazio. consider deletion as successful
+                    return False
+
         if wait_for_completion:
             self._logger.debug(
                 "Waiting for project deletion job in Iguazio",
@@ -307,6 +313,7 @@ class Client(
             )
             self._job_cache.remove_delete_job(name)
             return False
+
         return True
 
     def list_projects(
@@ -480,16 +487,20 @@ class Client(
         wait_for_completion: bool,
         **kwargs,
     ) -> bool:
-        # check if project is already being deleted
-        job_id = self._job_cache.get_create_job_id(name)
+        with self._job_cache.get_create_lock(name):
+            # check if project is already being created
+            job_id = self._job_cache.get_create_job_id(name)
 
-        if not job_id:
-            _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
-            self._job_cache.set_create_job(name, job_id)
+            # the existing job might have already been completed, but the cache was not yet invalidated
+            # in that case, we want to create a new deletion job
+            if job_id and self._is_job_done(session, job_id):
+                self._job_cache.remove_create_job(name)
+                # set job_id to None so that a new job will be created
+                job_id = None
 
-            # remove project from delete job cache (idempotent),
-            # if the project was still in the process of being created we would get a conflict error from Iguazio
-            self._job_cache.remove_delete_job(name)
+            if not job_id:
+                _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
+                self._job_cache.set_create_job(name, job_id)
 
         if wait_for_completion:
             self._logger.debug(
@@ -507,7 +518,50 @@ class Client(
             )
             self._job_cache.remove_create_job(name)
             return False
+
         return True
+
+    def _delete_project_in_iguazio(
+        self,
+        session: str,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+    ) -> typing.Optional[str]:
+        self._logger.debug(
+            "Deleting project in Iguazio",
+            name=name,
+            deletion_strategy=deletion_strategy,
+        )
+        body = self._transform_mlrun_project_to_iguazio_project(
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name)
+            )
+        )
+        headers = {
+            "igz-project-deletion-strategy": deletion_strategy.to_iguazio_deletion_strategy(),
+        }
+        try:
+            response = self._send_request_to_api(
+                "DELETE",
+                "projects",
+                "Failed deleting project in Iguazio",
+                session,
+                headers=headers,
+                json=body,
+            )
+            job_id = response.json()["data"]["id"]
+            self._job_cache.set_delete_job(name, job_id)
+
+            return job_id
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._logger.debug(
+                "Project not found in Iguazio. Considering deletion as successful",
+                name=name,
+                deletion_strategy=deletion_strategy,
+            )
+            return None
 
     def _post_project_to_iguazio(
         self,
@@ -568,10 +622,7 @@ class Client(
 
     def _wait_for_job_completion(self, session: str, job_id: str, error_message: str):
         def _verify_job_in_terminal_state():
-            response = self._send_request_to_api(
-                "GET", f"jobs/{job_id}", "Failed getting job from Iguazio", session
-            )
-            response_body = response.json()
+            response_body = self._get_job_from_iguazio(session, job_id)
             _job_state = response_body["data"]["attributes"]["state"]
             if _job_state not in JobStates.terminal_states():
                 raise Exception(f"Job in progress. State: {_job_state}")
@@ -598,6 +649,14 @@ class Client(
                 raise mlrun.errors.MLRunRuntimeError(error_message)
             raise mlrun.errors.err_for_status_code(status_code, error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
+
+    def _get_job_from_iguazio(
+        self, session: str, job_id: str
+    ) -> typing.Tuple[dict, str]:
+        response = self._send_request_to_api(
+            "GET", f"jobs/{job_id}", "Failed getting job from Iguazio", session
+        )
+        return response.json()
 
     def _send_request_to_api(
         self, method, path, error_message: str, session=None, **kwargs
@@ -867,35 +926,24 @@ class Client(
         self._logger.warning("Request to iguazio failed", **log_kwargs)
         mlrun.errors.raise_for_status(response, error_message)
 
-    def _start_periodic_cache_invalidation(self):
-        interval = humanfriendly.parse_timespan(
-            mlrun.mlconf.httpdb.projects.iguazio_client_periodic_cache_invalidation_interval
-        )
-        if interval > 0:
-            logger.info("Starting periodic job cache invalidation", interval=interval)
-            # run_function_periodically(
-            #     interval, self._invalidate_cache.__name__, False, self._invalidate_cache
-            # )
-            task_id = uuid.uuid4().hex
-            task_name = f"{self._invalidate_cache.__name__}_{task_id}"
-            run_function_periodically(
-                interval, task_name, False, self._invalidate_cache
+    def _is_job_done(self, session: str, job_id: str) -> bool:
+        """
+        Check if the iguazio job is done
+
+        :param session: iguazio session
+        :param job_id: iguazio job id
+        :return: True if the job is done, False otherwise
+        """
+        try:
+            response = self._get_job_from_iguazio(session, job_id)
+            return (
+                response["data"]["attributes"]["state"] in JobStates.terminal_states()
             )
-
-    def _invalidate_cache(self):
-        """
-        Invalidates cache by checking the timestamp of each cached create/delete job.
-        If the job is older than the configured timeout, it is removed from the cache.
-        """
-        delete_jobs_cache = self._job_cache.get_delete_jobs_cache()
-        create_jobs_cache = self._job_cache.get_create_jobs_cache()
-
-        for project, job in list(delete_jobs_cache) + list(create_jobs_cache):
-            if datetime.datetime.now() - job["timestamp"] > self._job_cache_ttl:
-                if project in delete_jobs_cache:
-                    self._job_cache.remove_delete_job(project)
-                if project in create_jobs_cache:
-                    self._job_cache.remove_create_job(project)
+        except requests.HTTPError as exc:
+            if exc.response.status_code == http.HTTPStatus.NOT_FOUND.value:
+                # job not found - consider it as done
+                return True
+            raise
 
 
 class AsyncClient(Client):

@@ -407,9 +407,7 @@ default_config = {
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
-            # TODO: find a better place than inside the httpdb config
             "iguazio_client_job_cache_ttl": "20 minutes",
-            "iguazio_client_periodic_cache_invalidation_interval": "2 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

@@ -235,6 +235,19 @@ def test_log_dataset_with_column_overflow(monkeypatch):
     assert artifact.status.header_original_length == 6
 
 
+def test_create_dataset_non_existing_label():
+    project = mlrun.new_project("artifact-experiment", save=False)
+    df = pandas.DataFrame(
+        {
+            "column_1": [0, 1, 2, 3, 4],
+            "column_2": [5, 6, 7, 8, 9],
+        }
+    )
+
+    with pytest.raises(mlrun.errors.MLRunValueError):
+        project.log_dataset("my_dataset", df=df, label_column="column_3")
+
+
 def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
     """
     To simplify testing the behavior of a large Dask DataFrame as a mlrun

@@ -128,7 +128,7 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <15"},
         "nbclassic": {">=0.2.8"},
-        "pandas": {">=1.2, <3"},
+        "pandas": {">=1.2, <2.2"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},

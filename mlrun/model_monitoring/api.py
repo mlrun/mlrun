@@ -374,10 +374,7 @@ def write_monitoring_df(
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
     infer_results_df[EventFieldType.ENDPOINT_ID] = endpoint_id
-    infer_results_df.set_index(
-        EventFieldType.ENDPOINT_ID,
-        inplace=True,
-    )
+    infer_results_df.set_index(EventFieldType.ENDPOINT_ID, inplace=True)
 
     monitoring_feature_set.ingest(source=infer_results_df, overwrite=False)
 

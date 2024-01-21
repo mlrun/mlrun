@@ -55,13 +55,17 @@ async def trigger_migrations(
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
     global current_migration_background_task_name
 
-    background_task = await run_in_threadpool(
+    task, task_name = await run_in_threadpool(
         _get_or_create_migration_background_task,
         current_migration_background_task_name,
-        background_tasks,
     )
-    if not background_task:
+    if not task:
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
+
+    background_tasks.add_task(task)
+    background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
+    )
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
     current_migration_background_task_name = background_task.metadata.name
@@ -69,8 +73,8 @@ async def trigger_migrations(
 
 
 def _get_or_create_migration_background_task(
-    task_name: str, background_tasks
-) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    task_name: str,
+) -> typing.Tuple[typing.Optional[typing.Callable], str]:
     if (
         mlrun.mlconf.httpdb.state
         == mlrun.common.schemas.APIStates.migrations_in_progress
@@ -87,20 +91,13 @@ def _get_or_create_migration_background_task(
         mlrun.mlconf.httpdb.state
         != mlrun.common.schemas.APIStates.waiting_for_migrations
     ):
-        return None
+        return None, ""
 
     logger.info("Starting the migration process")
-    (
-        task,
-        _task_name,
-    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         server.api.utils.background_tasks.BackgroundTaskKinds.db_migrations,
         None,
         _perform_migration,
-    )
-    background_tasks.add_task(task)
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
-        _task_name
     )
 
 

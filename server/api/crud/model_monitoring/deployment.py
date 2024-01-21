@@ -291,6 +291,9 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
 
+            # Save & Get the function uri
+            function_uri = fn.save(versioned=True)
+
             if with_schedule:
                 if not overwrite:
                     try:
@@ -312,9 +315,6 @@ class MonitoringDeployment:
 
                 # Submit batch scheduled job
                 try:
-                    # Save & Get the function uri
-                    function_uri = fn.save(versioned=True)
-
                     self._submit_schedule_batch_job(
                         project=project,
                         function_uri=function_uri,
@@ -333,9 +333,6 @@ class MonitoringDeployment:
                         f"Can't deploy {function_name.replace('-', ' ')} "
                         f"scheduled job function due to : {mlrun.errors.err_to_str(exc)}",
                     )
-            else:
-                # Save & Get the function uri
-                fn.save(versioned=True)
         return fn
 
     def deploy_model_monitoring_writer_application(

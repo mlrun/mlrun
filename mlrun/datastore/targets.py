@@ -1426,7 +1426,7 @@ class StreamTarget(BaseStoreTarget):
         raise NotImplementedError()
 
     def get_path(self):
-        return self.path
+        return TargetPathObject(self.path)
 
 
 class KafkaTarget(BaseStoreTarget):
@@ -1493,7 +1493,7 @@ class KafkaTarget(BaseStoreTarget):
         pass
 
     def get_path(self):
-        return self.path
+        return TargetPathObject(self.path)
 
 
 class TSDBTarget(BaseStoreTarget):

@@ -17,8 +17,7 @@ from os.path import exists, isdir
 from urllib.parse import urlparse
 
 import mlrun.config
-from mlrun.utils.helpers import get_local_file_schema
-from mlrun.utils.helpers import template_artifact_path
+from mlrun.utils.helpers import get_local_file_schema, template_artifact_path
 
 from ..utils import (
     is_legacy_artifact,

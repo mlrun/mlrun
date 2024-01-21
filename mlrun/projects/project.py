@@ -1672,6 +1672,10 @@ class MlrunProject(ModelObj):
             artifact.metadata.updated = None
             artifact.metadata.tag = tag or artifact.metadata.tag
             if new_key:
+                if artifact.spec.db_key:
+                    logger.warning(
+                        f"Overwriting artifact old db_key '{artifact.spec.db_key}' with new key '{new_key}'"
+                    )
                 artifact.spec.db_key = new_key
             return artifact
 

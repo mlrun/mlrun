@@ -125,6 +125,8 @@ class ArtifactManager:
 
     @staticmethod
     def validate_artifact_location(item, path):
+        if not path:
+            return
         if isinstance(item, ModelArtifact):
             return
         parsed_url = urlparse(path)

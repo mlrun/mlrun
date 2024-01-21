@@ -1406,7 +1406,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_path(self.path)
+        endpoint, uri = parse_path(self.get_target_path())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )

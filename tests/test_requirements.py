@@ -162,6 +162,10 @@ def test_requirement_specifiers_convention():
 
 
 def test_requirement_specifiers_inconsistencies():
+    """
+    This test exists to verify we don't have inconsistencies in requirement specifiers between different requirements
+    files
+    """
     requirement_specifiers_map = _generate_all_requirement_specifiers_map()
     inconsistent_specifiers_map = {}
     print(requirement_specifiers_map)
@@ -197,6 +201,9 @@ def test_requirement_specifiers_inconsistencies():
 
 
 def test_requirement_from_remote():
+    """
+    This test checks the functionality of parsing requirement specifiers from remotes
+    """
     requirement_specifiers_map = _parse_requirement_specifiers_list(
         [
             "some-package~=1.9, <1.17.50",
@@ -292,11 +299,6 @@ def _import_extras_requirements():
     return extras_requirements
 
 
-def _is_ignored_requirement_line(line):
-    line = line.strip()
-    return (not line) or (line[0] == "#")
-
-
 def _load_requirements(path):
     """
     Load dependencies from requirements file, exactly like `setup.py`
@@ -320,3 +322,8 @@ def _load_requirements(path):
             # append package
             deps.append(line)
         return deps
+
+
+def _is_ignored_requirement_line(line):
+    line = line.strip()
+    return (not line) or (line[0] == "#")

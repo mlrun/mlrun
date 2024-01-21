@@ -58,3 +58,31 @@ def test_kafka_target_path_is_without_run_id():
     kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
     # make sure that run ID wasn't added to the topic
     assert mock_graph.kwargs.get("topic") == topic
+
+
+# ML-5560
+def test_stream_target_without_path():
+    os.environ["V3IO_ACCESS_KEY"] = os.environ.get("V3IO_ACCESS_KEY", "placeholder")
+
+    mock_graph = MockGraph()
+    stream_target = StreamTarget(name="my-target")
+    assert stream_target.get_target_path() is None
+    stream_target.run_id = "123"
+    fset = FeatureSet(name="my-featureset")
+    stream_target.set_resource(fset)
+    stream_target.add_writer_step(mock_graph, None, None, key_columns={})
+    # make sure that run ID wasn't added to the path
+    assert mock_graph.kwargs.get("stream_path") == ""
+
+
+# ML-5560
+def test_kafka_target_without_path():
+    mock_graph = MockGraph()
+    kafka_target = KafkaTarget(name="my-target")
+    assert kafka_target.get_target_path() is None
+    kafka_target.run_id = "123"
+    fset = FeatureSet(name="my-featureset")
+    kafka_target.set_resource(fset)
+    kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
+    # make sure that run ID wasn't added to the path
+    assert mock_graph.kwargs.get("topic") == ""

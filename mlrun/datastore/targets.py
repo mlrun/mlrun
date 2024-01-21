@@ -1426,7 +1426,7 @@ class StreamTarget(BaseStoreTarget):
         raise NotImplementedError()
 
     def get_path(self):
-        return TargetPathObject(self.path) if self.path else None
+        return TargetPathObject(self.path or "")
 
 
 class KafkaTarget(BaseStoreTarget):
@@ -1473,7 +1473,9 @@ class KafkaTarget(BaseStoreTarget):
         else:
             attributes = copy(self.attributes)
             bootstrap_servers = attributes.pop("bootstrap_servers", None)
-            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+            topic, bootstrap_servers = parse_kafka_url(
+                self.get_target_path(), bootstrap_servers
+            )
 
         graph.add_step(
             name=self.name or "KafkaTarget",
@@ -1493,7 +1495,7 @@ class KafkaTarget(BaseStoreTarget):
         pass
 
     def get_path(self):
-        return TargetPathObject(self.path) if self.path else None
+        return TargetPathObject(self.path or "")
 
 
 class TSDBTarget(BaseStoreTarget):

@@ -66,7 +66,7 @@ def test_stream_target_without_path():
 
     mock_graph = MockGraph()
     stream_target = StreamTarget(name="my-target")
-    assert stream_target.get_target_path() is None
+    assert stream_target.get_target_path() == ""
     stream_target.run_id = "123"
     fset = FeatureSet(name="my-featureset")
     stream_target.set_resource(fset)
@@ -79,7 +79,7 @@ def test_stream_target_without_path():
 def test_kafka_target_without_path():
     mock_graph = MockGraph()
     kafka_target = KafkaTarget(name="my-target")
-    assert kafka_target.get_target_path() is None
+    assert kafka_target.get_target_path() == ""
     kafka_target.run_id = "123"
     fset = FeatureSet(name="my-featureset")
     kafka_target.set_resource(fset)

@@ -310,15 +310,23 @@ class MonitoringDeployment:
                         )
 
                 # Submit batch scheduled job
-                self._submit_schedule_batch_job(
-                    project=project,
-                    function=fn,
-                    db_session=db_session,
-                    auth_info=auth_info,
-                    tracking_policy=tracking_policy,
-                    tracking_offset=tracking_offset,
-                    function_name=function_name,
-                )
+                try:
+                    self._submit_schedule_batch_job(
+                        project=project,
+                        function=fn,
+                        db_session=db_session,
+                        auth_info=auth_info,
+                        tracking_policy=tracking_policy,
+                        tracking_offset=tracking_offset,
+                        function_name=function_name,
+                    )
+                except ValueError as e:
+                    logger.warn(
+                        f"Can't deploy {function_name.replace('-', ' ')} scheduled job function due to :",
+                        error=e,
+                        project=project,
+                    )
+                    db_session.delete(fn)
             else:
                 # Save & Get the function uri
                 fn.save(versioned=True)

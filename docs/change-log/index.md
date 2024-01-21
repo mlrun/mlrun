@@ -80,6 +80,7 @@
 |ML-4563|A local runtime that consumes more memory than the Jupyter service pod, and that previously caused a restart of the pod, can now be deleted. |
 |ML-4613|UI: Fixed the map type hint in the Batch Inference Parameters. |
 |ML-4642|The UI no longer gets stuck when there is a high number of query results. | 
+|ML-4678|When tagging a specific version of a model using the SDK, it does not clear the tags from the rest of the versions.|
 |ML-4690|Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) no longer causes the job to fail. |
 |ML-4920|Documentation: improve description of `log_artifact`. See {ref}`artifacts` and {py:meth}`~mlrun.projects.MlrunProject.log_artifact`.|
 |ML-4608|The artifact `db_key` is now forwarded when registering an artifact.|
@@ -857,7 +858,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
 |ML-4617|**Closed?**  Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
 |ML-4655|**in RN or not?**
-|ML-4678|**Closed?**  When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|First add a tag, (`replace=False`), then delete the old tag: `mlrun.get_run_db().tag_artifacts(project=project.name,artifacts=model1, tag_name="newtag", replace=False)`,`mlrun.get_run_db().delete_artifacts_tags(project=project.name, artifacts=[model1], tag_name=model1.metadata.tag)`  | v1.5.0 |
 |NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation. | v1.5.0 |
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|

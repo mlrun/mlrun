@@ -1259,8 +1259,15 @@ class RunObject(RunTemplate):
         """error string if failed"""
         if self.status:
             unknown_error = ""
-            if self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            if (
+                self.status.state
+                in mlrun.runtimes.constants.RunStates.abortion_states()
+            ):
+                unknown_error = "Run was aborted"
+
+            elif self.status.state in mlrun.runtimes.constants.RunStates.error_states():
                 unknown_error = "Unknown error"
+
             return (
                 self.status.error
                 or self.status.reason

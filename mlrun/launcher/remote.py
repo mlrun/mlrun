@@ -14,6 +14,7 @@
 import os
 from typing import Dict, List, Optional, Union
 
+import pandas as pd
 import requests
 
 import mlrun.common.schemas.schedule
@@ -180,3 +181,14 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             resp = runtime._get_db_run(run)
 
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)
+
+    @classmethod
+    def _validate_run_single_param(cls, param_name, param_value):
+        if isinstance(param_value, pd.DataFrame):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"Parameter '{param_name}' has an unsupported value of type"
+                f" 'pandas.DataFrame' in remote execution."
+            )
+        super()._validate_run_single_param(
+            param_name=param_name, param_value=param_value
+        )

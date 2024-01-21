@@ -19,6 +19,7 @@ from copy import deepcopy
 from datetime import datetime
 
 import fsspec
+import requests
 import v3io.dataplane
 
 import mlrun
@@ -73,18 +74,11 @@ class V3ioStore(DataStore):
         schema = "https" if self.secure else "http"
         return f"{schema}://{self.endpoint}"
 
-    def get_filesystem(self, silent=True):
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
-        try:
-            import v3iofs  # noqa
-        except ImportError as exc:
-            if not silent:
-                raise ImportError(
-                    "v3iofs or storey not installed, run pip install storey"
-                ) from exc
-            return None
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem
 
@@ -151,15 +145,18 @@ class V3ioStore(DataStore):
             data = memoryview(data)
         except TypeError:
             pass
-        while buffer_offset < buffer_size:
-            chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
-            http_put(
-                self.url + self._join(key),
-                data[buffer_offset : buffer_offset + chunk_size],
-                append_header if buffer_offset else self.headers,
-                None,
-            )
-            buffer_offset += chunk_size
+
+        with requests.Session() as requests_session:
+            while buffer_offset < buffer_size:
+                chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+                http_put(
+                    self.url + self._join(key),
+                    data[buffer_offset : buffer_offset + chunk_size],
+                    append_header if buffer_offset else self.headers,
+                    None,
+                    requests_session,
+                )
+                buffer_offset += chunk_size
 
     def put(self, key, data, append=False):
         return self._put(key, data)
@@ -207,7 +204,7 @@ class V3ioStore(DataStore):
         """Recursive rm file/folder
         Workaround for v3io-fs not supporting recursive directory removal"""
 
-        file_system = self.get_filesystem()
+        file_system = self.filesystem
         if isinstance(path, str):
             path = [path]
         maxdepth = maxdepth if not maxdepth else maxdepth - 1

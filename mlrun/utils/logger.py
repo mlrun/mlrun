@@ -131,10 +131,10 @@ class Logger(object):
     def level(self):
         return self._logger.level
 
-    def set_logger_level(self, level: Union[str, int]):
+    def set_logger_level(self, level: Union[str, int]) -> None:
         self._logger.setLevel(level)
 
-    def replace_handler_stream(self, handler_name: str, file: IO[str]):
+    def replace_handler_stream(self, handler_name: str, file: IO[str]) -> None:
         for handler in self._logger.handlers:
             if handler.name == handler_name:
                 handler.stream = file
@@ -193,11 +193,11 @@ def _create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Format
 
 
 def create_logger(
-    level: str = None,
+    level: Optional[str] = None,
     formatter_kind: str = FormatterKinds.HUMAN.name,
     name: str = "mlrun",
-    stream=stdout,
-):
+    stream: IO[str] = stdout,
+) -> Logger:
     level = level or config.log_level or "info"
 
     level = logging.getLevelName(level.upper())

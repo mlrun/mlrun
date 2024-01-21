@@ -113,7 +113,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 # we need to make sure we don't add it twice
                 and not workflow_path.startswith(context)
             ):
-                workflow_path = os.path.join(context, workflow_path)
+                workflow_path = os.path.join(context, workflow_path.lstrip("./"))
         return workflow_path
 
     def merge_args(self, extra_args):

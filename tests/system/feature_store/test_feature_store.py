@@ -514,7 +514,7 @@ class TestFeatureStore(TestMLRunSystem):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
-                v3io = store.get_filesystem(False)
+                v3io = store.filesystem
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -552,7 +552,7 @@ class TestFeatureStore(TestMLRunSystem):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
-                v3io = store.get_filesystem(False)
+                v3io = store.filesystem
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -2759,8 +2759,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service_v2(
-            featureset=fset,
+        fset.deploy_ingestion_service(
             source=v3io_source,
             run_config=run_config,
             targets=[ParquetTarget(flush_after_seconds=1)],
@@ -2967,8 +2966,8 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service_v2(
-            featureset=fset, source=source, run_config=run_config, targets=targets
+        fset.deploy_ingestion_service(
+            source=source, run_config=run_config, targets=targets
         )
 
         fset.reload()  # refresh to ingestion service updates
@@ -4629,7 +4628,7 @@ def verify_purge(fset, targets):
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             store, target_path = driver._get_store_and_path()
-            filesystem = store.get_filesystem(False)
+            filesystem = store.filesystem
             if filesystem is not None:
                 assert filesystem.exists(target_path)
             else:
@@ -4642,7 +4641,7 @@ def verify_purge(fset, targets):
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             store, target_path = driver._get_store_and_path()
-            filesystem = store.get_filesystem(False)
+            filesystem = store.filesystem
             if filesystem is not None:
                 assert not filesystem.exists(target_path)
             else:

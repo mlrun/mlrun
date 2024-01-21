@@ -24,6 +24,7 @@ import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
+from mlrun.runtimes.function_reference import FunctionReference
 
 
 def exec_run(args):
@@ -408,6 +409,31 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         ]
         _, ret_code = exec_run(args)
         assert ret_code is None
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_df_as_params(self, local):
+        df = pd.read_parquet(str(self.assets_path / "test_data.parquet"))
+        code = """
+def print_df(df):
+    print(df)
+"""
+        function_ref = FunctionReference(
+            kind="job",
+            code=code,
+            image="mlrun/mlrun",
+            name="test_df_as_param",
+        )
+
+        function = function_ref.to_function()
+        if local:
+            function.run(handler="print_df", params={"df": df}, local=True)
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as error:
+                function.run(handler="print_df", params={"df": df}, local=False)
+            assert (
+                "Parameter 'df' has an unsupported value of type 'pandas.DataFrame'"
+                in str(error.value)
+            )
 
     def test_function_handler_set_labels_and_annotations(self):
         code_path = str(self.assets_path / "handler.py")

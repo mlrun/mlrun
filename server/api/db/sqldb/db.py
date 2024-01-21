@@ -217,7 +217,7 @@ class SQLDB(DBInterface):
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):
         project = project or config.default_project
-        run = self._get_run(session, uid, project, iter)
+        run = self._get_run(session, uid, project, iter, with_for_update=True)
         if not run:
             run_uri = RunObject.create_uri(project, uid, iter)
             raise mlrun.errors.MLRunNotFoundError(f"Run {run_uri} not found")
@@ -1140,14 +1140,10 @@ class SQLDB(DBInterface):
         tags: typing.List[str] = None,
         commit: bool = True,
     ):
-        artifacts_keys = [str(artifact.key) for artifact in artifacts]
-        query = (
-            session.query(ArtifactV2.Tag)
-            .join(ArtifactV2)
-            .filter(
-                ArtifactV2.project == project,
-                ArtifactV2.key.in_(artifacts_keys),
-            )
+        artifacts_ids = [artifact.id for artifact in artifacts]
+        query = session.query(ArtifactV2.Tag).filter(
+            ArtifactV2.Tag.project == project,
+            ArtifactV2.Tag.obj_id.in_(artifacts_ids),
         )
         if tags:
             query = query.filter(ArtifactV2.Tag.name.in_(tags))
@@ -2041,7 +2037,10 @@ class SQLDB(DBInterface):
         )
 
     def get_project(
-        self, session: Session, name: str = None, project_id: int = None
+        self,
+        session: Session,
+        name: str = None,
+        project_id: int = None,
     ) -> mlrun.common.schemas.Project:
         project_record = self._get_project_record(session, name, project_id)
 
@@ -3566,11 +3565,12 @@ class SQLDB(DBInterface):
         query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
 
-    def _get_run(self, session, uid, project, iteration):
-        resp = self._query(
-            session, Run, uid=uid, project=project, iteration=iteration
-        ).one_or_none()
-        return resp
+    def _get_run(self, session, uid, project, iteration, with_for_update=False):
+        query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
+        if with_for_update:
+            query = query.populate_existing().with_for_update()
+
+        return query.one_or_none()
 
     def _delete_empty_labels(self, session, cls):
         session.query(cls).filter(cls.parent == NULL).delete()

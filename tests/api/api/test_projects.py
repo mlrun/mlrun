@@ -80,8 +80,14 @@ def test_redirection_from_worker_to_chief_delete_project(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}"
+    project_name = "test-project"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    )
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
         headers = {"x-mlrun-deletion-strategy": strategy.value}
         for test_case in [
@@ -104,7 +110,7 @@ def test_redirection_from_worker_to_chief_delete_project(
                 "expected_status": http.HTTPStatus.PRECONDITION_FAILED.value,
                 "expected_body": {
                     "detail": {
-                        "reason": f"Project {project} can not be deleted since related resources found: x"
+                        "reason": f"Project {project_name} can not be deleted since related resources found: x"
                     }
                 },
             },

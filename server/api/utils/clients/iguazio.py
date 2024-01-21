@@ -87,12 +87,16 @@ class JobCache:
         self._delete_locks = {}
         self._create_locks = {}
 
+        # this lock is used only for getting the project specific locks
+        self._lock = threading.Lock()
+
         self._ttl = humanfriendly.parse_timespan(ttl)
 
     def get_delete_lock(self, project: str):
-        if project not in self._delete_locks:
-            self._delete_locks[project] = threading.Lock()
-        return self._delete_locks[project]
+        with self._lock:
+            if project not in self._delete_locks:
+                self._delete_locks[project] = threading.Lock()
+            return self._delete_locks[project]
 
     def get_create_lock(self, project: str):
         if project not in self._create_locks:
@@ -129,30 +133,32 @@ class JobCache:
     def remove_create_job(self, project: str):
         self._create_jobs.pop(project, None)
 
+    def invalidate_cache(self, cache_kind: str, project: str, job_id: str):
+        # if current project job is the same as the scheduled job id, remove it from the cache
+        # otherwise, it means that a new job was created for the project, and we don't want to remove it
+        if cache_kind == "delete":
+            with self.get_delete_lock(project):
+                if self.get_delete_job_id(project) == job_id:
+                    self.remove_delete_job(project)
+        else:
+            with self.get_create_lock(project):
+                if self.get_create_job_id(project) == job_id:
+                    self.remove_create_job(project)
+
     def _schedule_cache_invalidation(
         self,
         cache_kind: str,
         project: str,
         job_id: str,
     ):
-        def _invalidate():
-            # if current project job is the same as the scheduled job id, remove it from the cache
-            # otherwise, it means that a new job was created for the project, and we don't want to remove it
-            if cache_kind == "delete":
-                with self.get_delete_lock(project):
-                    if self.get_delete_job_id(project) == job_id:
-                        self.remove_delete_job(project)
-            else:
-                with self.get_create_lock(project):
-                    if self.get_create_job_id(project) == job_id:
-                        self.remove_create_job(project)
-
         try:
             event_loop = asyncio.get_event_loop()
         except RuntimeError:
             event_loop = asyncio.new_event_loop()
 
-        event_loop.call_later(self._ttl, _invalidate)
+        event_loop.call_later(
+            self._ttl, self.invalidate_cache, cache_kind, project, job_id
+        )
 
 
 class Client(
@@ -284,10 +290,16 @@ class Client(
 
             # the existing job might have already been completed, but the cache was not yet invalidated
             # in that case, we want to create a new deletion job
-            if job_id and self._is_job_done(session, job_id):
-                self._job_cache.remove_delete_job(name)
-                # set job_id to None so that a new job will be created
-                job_id = None
+            if job_id:
+                try:
+                    if self._is_job_done(session, job_id):
+                        self._job_cache.remove_delete_job(name)
+                        # set job_id to None so that a new job will be created
+                        job_id = None
+                except mlrun.errors.MLRunNotFoundError:
+                    # job not found in iguazio. consider deletion as successful
+                    self._job_cache.remove_delete_job(name)
+                    job_id = None
 
             if not job_id:
                 job_id = self._delete_project_in_iguazio(
@@ -311,7 +323,7 @@ class Client(
                 name=name,
                 job_id=job_id,
             )
-            self._job_cache.remove_delete_job(name)
+            self._job_cache.invalidate_cache("delete", name, job_id)
             return False
 
         return True
@@ -941,8 +953,9 @@ class Client(
             )
         except requests.HTTPError as exc:
             if exc.response.status_code == http.HTTPStatus.NOT_FOUND.value:
-                # job not found - consider it as done
-                return True
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Job {job_id} not found in Iguazio"
+                )
             raise
 
 

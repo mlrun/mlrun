@@ -1582,7 +1582,7 @@ def is_ecr_url(registry: str) -> bool:
     return ".ecr." in registry and ".amazonaws.com" in registry
 
 
-def get_local_file_schema():
+def get_local_file_schema() -> List:
     # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
     # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     return ["file"] + list(string.ascii_lowercase)

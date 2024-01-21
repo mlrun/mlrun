@@ -1424,7 +1424,9 @@ class MlrunProject(ModelObj):
         target_path=None,
         **kwargs,
     ):
-        """log an output artifact and optionally upload it to datastore
+        """Log an output artifact and optionally upload it to datastore
+
+        If the artifact already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1497,7 +1499,9 @@ class MlrunProject(ModelObj):
         **kwargs,
     ) -> DatasetArtifact:
         """
-        log a dataset artifact and optionally upload it to datastore
+        Log a dataset artifact and optionally upload it to datastore.
+
+        If the dataset already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1575,7 +1579,9 @@ class MlrunProject(ModelObj):
         extra_data=None,
         **kwargs,
     ):
-        """log a model artifact and optionally upload it to datastore
+        """Log a model artifact and optionally upload it to datastore
+
+        If the model already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -3017,7 +3023,7 @@ class MlrunProject(ModelObj):
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
@@ -3103,7 +3109,7 @@ class MlrunProject(ModelObj):
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
 

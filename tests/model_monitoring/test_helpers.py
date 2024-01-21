@@ -39,6 +39,7 @@ from mlrun.model_monitoring.controller import (
 )
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
+    _MLRunNoRunsFoundError,
     bump_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
@@ -310,7 +311,7 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request.isoformat(),
+            last_request=last_request.isoformat(), has_stream=True
         )
         assert last_updated
         assert (
@@ -437,13 +438,28 @@ class TestBumpModelEndpointLastRequest:
         ), "The patched last request time should be bumped by the given delta"
 
     @staticmethod
+    def test_no_bump(
+        project: str,
+        model_endpoint: ModelEndpoint,
+        db: NopDB,
+    ) -> None:
+        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
+            with patch.object(db, "list_runs", return_value=[]):
+                bump_model_endpoint_last_request(
+                    project=project,
+                    model_endpoint=model_endpoint,
+                    db=db,
+                )
+        patch_patch_model_endpoint.assert_not_called()
+
+    @staticmethod
     @pytest.mark.parametrize(
         ("runs", "error_context", "expected_window"),
         [
             (
                 [],
                 pytest.raises(
-                    MLRunValueError, match="No model-monitoring-controller runs"
+                    _MLRunNoRunsFoundError, match="No model-monitoring-controller runs"
                 ),
                 None,
             ),

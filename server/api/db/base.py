@@ -407,7 +407,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_project(
-        self, session, name: str = None, project_id: int = None
+        self,
+        session,
+        name: str = None,
+        project_id: int = None,
     ) -> mlrun.common.schemas.Project:
         pass
 

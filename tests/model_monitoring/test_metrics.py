@@ -121,8 +121,9 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
         ),
     )
 )
+@pytest.mark.filterwarnings("error")
 def test_same_distrib_gives_zero_distance(
-    distrib: np.ndarray, metric_class: Type[HistogramDistanceMetric]
+    metric_class: Type[HistogramDistanceMetric], distrib: np.ndarray
 ) -> None:
     return test_histogram_metric_calculation(
         metric_class=metric_class,

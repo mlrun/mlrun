@@ -538,6 +538,51 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
         assert len(artifacts) == 1
 
+    def test_overwrite_artifact_with_tag(self, db: DBInterface, db_session: Session):
+        project = "proj"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_uid"
+        artifact_tree_2 = "artifact_uid_2"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, kind=ArtifactCategories.model
+        )
+        artifact_body_2 = self._generate_artifact(
+            artifact_key, tree=artifact_tree_2, kind=ArtifactCategories.model
+        )
+        artifact_1_tag = "artifact-tag-1"
+        artifact_2_tag = "artifact-tag-2"
+
+        db.store_artifact(
+            db_session, artifact_key, artifact_body, tag=artifact_1_tag, project=project
+        )
+        db.store_artifact(
+            db_session,
+            artifact_key,
+            artifact_body_2,
+            tag=artifact_2_tag,
+            project=project,
+        )
+
+        identifier_1 = mlrun.common.schemas.ArtifactIdentifier(
+            kind=ArtifactCategories.model,
+            key=artifact_key,
+            uid=artifact_tree,
+            tag=artifact_1_tag,
+        )
+
+        # overwrite the tag for only one of the artifacts
+        db.overwrite_artifacts_with_tag(db_session, project, "new-tag", [identifier_1])
+
+        # verify that only the first artifact is with the new tag now
+        artifacts = db.list_artifacts(db_session, project=project, tag="new-tag")
+        assert len(artifacts) == 1
+        artifacts = db.list_artifacts(db_session, project=project, tag=artifact_1_tag)
+        assert len(artifacts) == 0
+
+        # verify that the second artifact's tag did not change
+        artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag)
+        assert len(artifacts) == 1
+
     def test_delete_artifacts_tag_filter(self, db: DBInterface, db_session: Session):
         artifact_1_key = "artifact_key_1"
         artifact_2_key = "artifact_key_2"

@@ -35,7 +35,7 @@ from mlrun.model_monitoring.helpers import (
     get_monitoring_parquet_path,
     get_stream_path,
 )
-from mlrun.utils import create_logger, logger
+from mlrun.utils import create_logger, datetime_now, logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
 
@@ -84,13 +84,14 @@ class _BatchWindow:
             )
         except HttpResponseError as err:
             logger.info(
-                "No last analyzed time for this endpoint and application, "
-                "as this is probably the first time this application is running. ",
-                "Using the latest between first request time or last update time minus one day instead",
+                "No last analyzed time was found for this endpoint and "
+                "application, as this is probably the first time this "
+                "application is running. Using the latest between first "
+                "request time or last update time minus one day instead",
                 endpoint=self._endpoint,
                 application=self._application,
                 first_request=self._first_request,
-                last_update=self._stop,
+                last_updated=self._stop,
             )
             logger.debug("Error while getting last analyzed time", err=err)
             if self._first_request and self._stop:
@@ -204,19 +205,31 @@ class _BatchWindowGenerator:
         )
 
     @classmethod
-    def _get_last_updated_time(cls, last_request: Optional[str]) -> Optional[int]:
+    def _get_last_updated_time(
+        cls, last_request: Optional[str], has_stream: bool
+    ) -> Optional[int]:
         """
         Get the last updated time of a model endpoint.
         """
         if not last_request:
             return None
-        return int(
+        last_updated = int(
             cls._date_string2timestamp(last_request)
             - cast(
                 float,
                 mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             )
         )
+        if not has_stream:
+            # If the endpoint does not have a stream, `last_updated` should be
+            # the minimum between the current time and the last updated time.
+            # This compensates for the bumping mechanism - see
+            # `bump_model_endpoint_last_request`.
+            last_updated = min(int(datetime_now().timestamp()), last_updated)
+            logger.debug(
+                "The endpoint does not have a stream", last_updated=last_updated
+            )
+        return last_updated
 
     @classmethod
     def _normalize_first_request(
@@ -242,6 +255,7 @@ class _BatchWindowGenerator:
         application: str,
         first_request: Optional[str],
         last_request: Optional[str],
+        has_stream: bool,
     ) -> _BatchWindow:
         """
         Get the batch window for a specific endpoint and application.
@@ -253,7 +267,7 @@ class _BatchWindowGenerator:
             endpoint=endpoint,
             application=application,
             timedelta_seconds=self._timedelta,
-            last_updated=self._get_last_updated_time(last_request),
+            last_updated=self._get_last_updated_time(last_request, has_stream),
             first_request=self._normalize_first_request(first_request, endpoint),
         )
 
@@ -424,6 +438,7 @@ class MonitoringApplicationController:
                     application=application,
                     first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
                     last_request=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
+                    has_stream=endpoint[mm_constants.EventFieldType.STREAM_PATH] != "",
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():

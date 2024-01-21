@@ -37,6 +37,10 @@ class _BatchDict(typing.TypedDict):
     days: int
 
 
+class _MLRunNoRunsFoundError(Exception):
+    pass
+
+
 def get_stream_path(project: str = None, application_name: str = None):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
@@ -131,7 +135,7 @@ def _get_monitoring_time_window_from_controller_run(
     run_name = MonitoringFunctionNames.APPLICATION_CONTROLLER
     runs = db.list_runs(project=project, name=run_name, sort=True)
     if not runs:
-        raise MLRunValueError(f"No {run_name} runs were found")
+        raise _MLRunNoRunsFoundError(f"No {run_name} runs were found")
     last_run = runs[0]
     try:
         batch_dict = last_run["spec"]["parameters"]["batch_intervals_dict"]
@@ -161,9 +165,17 @@ def bump_model_endpoint_last_request(
             endpoint_id=model_endpoint.metadata.uid,
         )
         raise MLRunValueError("Model endpoint last request time is empty")
+    try:
+        time_window = _get_monitoring_time_window_from_controller_run(project, db)
+    except _MLRunNoRunsFoundError:
+        logger.debug(
+            "Not bumping model endpoint last request time - no controller runs were found"
+        )
+        return
+
     bumped_last_request = (
         datetime.datetime.fromisoformat(model_endpoint.status.last_request)
-        + _get_monitoring_time_window_from_controller_run(project, db)
+        + time_window
         + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )

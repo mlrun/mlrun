@@ -14,6 +14,7 @@
 import os
 
 from mlrun.datastore import StreamTarget
+from mlrun.datastore.targets import KafkaTarget
 from mlrun.feature_store import FeatureSet
 
 
@@ -27,16 +28,33 @@ class MockGraph:
         self.kwargs = kwargs
 
 
-# ML-5484
+# ML-5484, ML-5559
 def test_stream_target_path_is_without_run_id():
     os.environ["V3IO_ACCESS_KEY"] = os.environ.get("V3IO_ACCESS_KEY", "placeholder")
 
     mock_graph = MockGraph()
     path = "container/dir/subdir/"
-    stream_target = StreamTarget(name="my-target", path=f"v3io:///{path}")
+    url = f"v3io:///{path}"
+    stream_target = StreamTarget(name="my-target", path=url)
+    assert stream_target.get_target_path() == url
     stream_target.run_id = "123"
     fset = FeatureSet(name="my-featureset")
     stream_target.set_resource(fset)
     stream_target.add_writer_step(mock_graph, None, None, key_columns={})
     # make sure that run ID wasn't added to the path
     assert mock_graph.kwargs.get("stream_path") == path
+
+
+# ML-5484, ML-5559
+def test_kafka_target_path_is_without_run_id():
+    mock_graph = MockGraph()
+    topic = "my-kafka-topic"
+    url = f"v3io:///{topic}"
+    kafka_target = KafkaTarget(name="my-target", path=url)
+    assert kafka_target.get_target_path() == url
+    kafka_target.run_id = "123"
+    fset = FeatureSet(name="my-featureset")
+    kafka_target.set_resource(fset)
+    kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
+    # make sure that run ID wasn't added to the topic
+    assert mock_graph.kwargs.get("topic") == topic

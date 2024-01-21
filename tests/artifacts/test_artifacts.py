@@ -345,6 +345,24 @@ def test_log_artifact_with_target_path_and_upload_options():
 
 
 @pytest.mark.parametrize(
+    "local_path, fail", [("s3://path/file.txt", False), ("/not_exists/file.txt", True)]
+)
+def test_validate_artifact_location(local_path, fail):
+    artifact = mlrun.artifacts.Artifact(
+        key="some-artifact", body="asdasdasdasdas", format="parquet"
+    )
+    context = mlrun.get_or_create_ctx("test")
+    if fail:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
+            context.log_artifact(item=artifact, local_path=local_path)
+            assert "Failed to log an artifact, path does not exists." in str(
+                error.value
+            )
+    else:
+        context.log_artifact(item=artifact, local_path=local_path)
+
+
+@pytest.mark.parametrize(
     "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
     [
         (

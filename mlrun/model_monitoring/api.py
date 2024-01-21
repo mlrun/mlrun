@@ -578,9 +578,12 @@ def get_sample_set_statistics(
 
     # Turn other object types to DataFrame:
     # A DataFrame is necessary for executing the "drop features" operation.
+    dataset_types = list(DatasetType.__args__)
+    if typing.Any in dataset_types:
+        dataset_types.remove(typing.Any)
     if isinstance(
         sample_set,
-        (mlrun.DataItem, list, tuple, dict, np.ndarray, pd.Series, pd.DataFrame),
+        tuple(dataset_types),
     ):
         sample_set, _ = read_dataset_as_dataframe(
             dataset=sample_set,

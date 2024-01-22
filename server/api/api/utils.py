@@ -1144,18 +1144,6 @@ async def _delete_project(
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
 ):
-    def _verify_project_is_deleted():
-        try:
-            server.api.db.session.run_function_with_new_db_session(
-                get_project_member().get_project, project_name, auth_info.session
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            return
-        else:
-            raise mlrun.errors.MLRunInternalServerError(
-                f"Project {project_name} was not deleted"
-            )
-
     force_deleted = False
     try:
         await run_in_threadpool(
@@ -1187,12 +1175,28 @@ async def _delete_project(
         )
 
     elif wait_for_project_deletion:
-        mlrun.utils.helpers.retry_until_successful(
-            5,
-            120,
-            logger,
-            True,
-            _verify_project_is_deleted,
-        )
+        verify_project_is_deleted(project_name, auth_info)
 
     await get_project_member().post_delete_project(project_name)
+
+
+def verify_project_is_deleted(project_name, auth_info):
+    def _verify_project_is_deleted():
+        try:
+            server.api.db.session.run_function_with_new_db_session(
+                get_project_member().get_project, project_name, auth_info.session
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return
+        else:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Project {project_name} was not deleted"
+            )
+
+    mlrun.utils.helpers.retry_until_successful(
+        5,
+        120,
+        logger,
+        True,
+        _verify_project_is_deleted,
+    )

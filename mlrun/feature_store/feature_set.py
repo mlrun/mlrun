@@ -340,7 +340,7 @@ class FeatureSet(ModelObj):
 
             import mlrun.feature_store as fstore
             ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
-            fstore.ingest(ticks, df)
+            ticks.ingest(df)
 
         :param name:          name of the feature set
         :param description:   text description

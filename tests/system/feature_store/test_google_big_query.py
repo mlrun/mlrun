@@ -75,7 +75,7 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
             timestamp_key="trip_start_timestamp",
             engine="pandas",
         )
-        ingest_df = fstore.ingest(feature_set, source, targets)
+        ingest_df = feature_set.ingest(source, targets)
         assert ingest_df is not None
         assert len(ingest_df) == cls.max_results
         assert ingest_df.dtypes["pickup_latitude"] == "float64"

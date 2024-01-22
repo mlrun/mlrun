@@ -367,10 +367,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         # Ingest data
-        mlrun.feature_store.ingest(diabetes_set, train_set)
-        mlrun.feature_store.ingest(
-            label_set, target_set, targets=[mlrun.datastore.targets.ParquetTarget()]
-        )
+        diabetes_set.ingest(train_set)
+        label_set.ingest(target_set, targets=[mlrun.datastore.targets.ParquetTarget()])
 
         # Define feature vector and save it to MLRun's feature store DB
         fv = mlrun.feature_store.FeatureVector(

@@ -29,7 +29,7 @@ from pyspark.sql.types import (
 )
 
 # Copied from https://github.com/apache/spark/blob/v3.2.3/python/pyspark/sql/pandas/conversion.py, with
-# np.bool -> bool fix backported from pyspark v3.3.3.
+# np.bool -> bool and np.object -> object fix backported from pyspark v3.3.3.
 
 
 class PandasConversionMixin(object):
@@ -201,7 +201,7 @@ class PandasConversionMixin(object):
             if isinstance(field.dataType, IntegralType) and pandas_col.isnull().any():
                 dtype[fieldIdx] = np.float64
             if isinstance(field.dataType, BooleanType) and pandas_col.isnull().any():
-                dtype[fieldIdx] = np.object
+                dtype[fieldIdx] = object
 
         df = pd.DataFrame()
         for index, t in enumerate(dtype):

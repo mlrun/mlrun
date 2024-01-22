@@ -167,7 +167,6 @@ class SparkFeatureMerger(BaseMerger):
         if to_pandas:
             if self._pandas_df is None:
                 df = self._result_df
-                df.toPandas = PandasConversionMixin.toPandas
                 # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
                 # when we upgrade pyspark, we should check whether this workaround is still necessary
                 # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
@@ -185,11 +184,11 @@ class SparkFeatureMerger(BaseMerger):
                                 ),
                             )
                             type_conversion_dict[field.name] = "datetime64[ns]"
-                    df = df.toPandas()
+                    df = PandasConversionMixin.toPandas(df)
                     if type_conversion_dict:
                         df = df.astype(type_conversion_dict)
                 else:
-                    df = df.toPandas()
+                    df = PandasConversionMixin.toPandas(df)
                 self._pandas_df = df
                 self._set_indexes(self._pandas_df)
             return self._pandas_df

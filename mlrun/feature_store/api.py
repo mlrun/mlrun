@@ -427,38 +427,7 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
         return get_caller_globals()
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'ingest' will be removed in 1.8.0, use 'FeatureSet.ingest()' instead",
-    category=FutureWarning,
-)
 def ingest(
-    featureset: Union[FeatureSet, str] = None,
-    source=None,
-    targets: List[DataTargetBase] = None,
-    namespace=None,
-    return_df: bool = True,
-    infer_options: InferOptions = InferOptions.default(),
-    run_config: RunConfig = None,
-    mlrun_context=None,
-    spark_context=None,
-    overwrite=None,
-) -> Optional[pd.DataFrame]:
-    return _ingest(
-        featureset,
-        source,
-        targets,
-        namespace,
-        return_df,
-        infer_options,
-        run_config,
-        mlrun_context,
-        spark_context,
-        overwrite,
-    )
-
-
-def _ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
     targets: List[DataTargetBase] = None,

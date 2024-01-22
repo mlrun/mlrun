@@ -992,7 +992,7 @@ class FeatureSet(ModelObj):
         spark_context=None,
         overwrite=None,
     ) -> Optional[pd.DataFrame]:
-        return mlrun.feature_store.api._ingest(
+        return mlrun.feature_store.api.ingest(
             self,
             source,
             targets,

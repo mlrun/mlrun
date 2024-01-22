@@ -427,11 +427,6 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
         return get_caller_globals()
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'ingest' will be removed in 1.8.0, use 'FeatureSet.ingest()' instead",
-    category=FutureWarning,
-)
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,

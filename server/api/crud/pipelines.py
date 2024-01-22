@@ -46,7 +46,7 @@ class Pipelines(
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        name__contains: str = "",
+        name_contains: str = "",
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
@@ -82,7 +82,7 @@ class Pipelines(
                 run_project = self.resolve_project_from_pipeline(run_dict)
                 if run_project == project:
                     project_runs.append(run_dict)
-            runs = self._filter_runs_by_name(project_runs, project, name__contains)
+            runs = self._filter_runs_by_name(project_runs, name_contains)
             total_size = len(runs)
             next_page_token = None
         else:
@@ -94,7 +94,7 @@ class Pipelines(
                 filter=filter_,
             )
             runs = [run.to_dict() for run in response.runs or []]
-            runs = self._filter_runs_by_name(runs, project, name__contains)
+            runs = self._filter_runs_by_name(runs, name_contains)
             next_page_token = response.next_page_token
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
             # so don't pass it to the client in such case
@@ -441,13 +441,11 @@ class Pipelines(
                 return data.get("id", "")
         return ""
 
-    @staticmethod
-    def _filter_runs_by_name(runs: list, project_name: str, target_name: str) -> list:
+    def _filter_runs_by_name(self, runs: list, target_name: str) -> list:
         """Filter runs by their name while ignoring the project string on them
 
         :param runs: list of runs to be filtered
-        :param project_name: string to be disregarded while filtering
-        :param name: string that should be part of a valid run name
+        :param target_name: string that should be part of a valid run name
         :return: filtered list of runs
         """
         if not target_name:
@@ -455,8 +453,8 @@ class Pipelines(
 
         def filter_by(run):
             run_name = run.get("name", "")
-            if project_name != "*":
-                run_name = run_name.replace(project_name + "-", "")
+            if self.resolve_project_from_pipeline(run) != "*":
+                run_name = run_name.replace(self.resolve_project_from_pipeline(run) + "-", "")
             if target_name in run_name:
                 return True
             return False

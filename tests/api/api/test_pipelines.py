@@ -239,7 +239,7 @@ def test_list_pipelines_name_contains(
     response = client.get(
         f"projects/{project_name}/pipelines",
         params={
-            "name--contains": run_name_filter,
+            "name-contains": run_name_filter,
         },
     )
 

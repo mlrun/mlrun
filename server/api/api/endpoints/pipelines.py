@@ -42,7 +42,7 @@ async def list_pipelines(
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
-    name__contains: str = Query("", alias="name--contains"),
+    name_contains: str = Query("", alias="name-contains"),
     format_: mlrun.common.schemas.PipelinesFormat = Query(
         mlrun.common.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
@@ -77,7 +77,7 @@ async def list_pipelines(
             sort_by,
             page_token,
             filter_,
-            name__contains,
+            name_contains,
             computed_format,
             page_size,
         )

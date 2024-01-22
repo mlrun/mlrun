@@ -349,7 +349,7 @@ def get_drift_thresholds_if_not_none(
 def write_monitoring_df(
     endpoint_id: str,
     infer_results_df: pd.DataFrame,
-    infer_datetime: typing.Optional[datetime] = None,
+    infer_datetime: datetime,
     monitoring_feature_set: typing.Optional[mlrun.feature_store.FeatureSet] = None,
     feature_set_uri: str = "",
 ) -> None:
@@ -377,7 +377,7 @@ def write_monitoring_df(
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = infer_datetime or datetime_now()
+        infer_results_df[EventFieldType.TIMESTAMP] = infer_datetime
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process

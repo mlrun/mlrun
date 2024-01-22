@@ -38,6 +38,7 @@ import mlrun.utils.notifications.notification_pusher
 import server.api.constants
 import server.api.crud
 import server.api.db.base
+import server.api.db.session
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.iguazio
@@ -184,7 +185,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,
-                    reason=f"runtime error: function {function_url} not found",
+                    reason=f"Runtime error: function {function_url} not found",
                 )
             function = new_function(runtime=function_record)
 
@@ -1034,7 +1035,7 @@ def submit_run_sync(
         logger.error(traceback.format_exc())
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
 
     logger.info("Run submission succeeded", run_uid=run_uid, function=fn.metadata.name)
@@ -1066,8 +1067,8 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 
 def get_or_create_project_deletion_background_task(
-    project_name: str, deletion_strategy: str, background_tasks, db_session, auth_info
-) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    project_name: str, deletion_strategy: str, db_session, auth_info
+) -> typing.Tuple[typing.Callable, str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1125,7 +1126,6 @@ def get_or_create_project_deletion_background_task(
         )
 
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
         background_task_kind,
         mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
         _delete_project,
@@ -1146,8 +1146,8 @@ async def _delete_project(
 ):
     def _verify_project_is_deleted():
         try:
-            get_project_member().get_project(
-                db_session, project_name, auth_info.session
+            server.api.db.session.run_function_with_new_db_session(
+                get_project_member().get_project, project_name, auth_info.session
             )
         except mlrun.errors.MLRunNotFoundError:
             return
@@ -1171,7 +1171,7 @@ async def _delete_project(
             5,
             120,
             logger,
-            False,
+            True,
             _verify_project_is_deleted,
         )
 

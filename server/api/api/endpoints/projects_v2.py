@@ -99,13 +99,16 @@ async def delete_project(
         response.status_code = http.HTTPStatus.NO_CONTENT.value
         return server.api.crud.Projects().verify_project_is_empty(db_session, name)
 
-    background_task = await run_in_threadpool(
+    task, task_name = await run_in_threadpool(
         server.api.api.utils.get_or_create_project_deletion_background_task,
         name,
         deletion_strategy,
-        background_tasks,
         db_session,
         auth_info,
     )
+    background_tasks.add_task(task)
+
     response.status_code = http.HTTPStatus.ACCEPTED.value
-    return background_task
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
+    )

@@ -15,19 +15,6 @@
 import warnings
 from collections import Counter
 
-from pyspark.sql.types import (
-    BooleanType,
-    ByteType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    IntegralType,
-    LongType,
-    MapType,
-    ShortType,
-    TimestampType,
-)
-
 # Copied from https://github.com/apache/spark/blob/v3.2.3/python/pyspark/sql/pandas/conversion.py, with
 # np.bool -> bool and np.object -> object fix backported from pyspark v3.3.3.
 
@@ -70,6 +57,12 @@ class PandasConversionMixin(object):
 
         import numpy as np
         import pandas as pd
+        from pyspark.sql.types import (
+            BooleanType,
+            IntegralType,
+            MapType,
+            TimestampType,
+        )
 
         timezone = self.sql_ctx._conf.sessionLocalTimeZone()
 
@@ -249,6 +242,16 @@ class PandasConversionMixin(object):
         inferred incorrectly.
         """
         import numpy as np
+        from pyspark.sql.types import (
+            BooleanType,
+            ByteType,
+            DoubleType,
+            FloatType,
+            IntegerType,
+            LongType,
+            ShortType,
+            TimestampType,
+        )
 
         if type(dt) == ByteType:
             return np.int8

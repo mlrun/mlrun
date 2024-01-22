@@ -632,7 +632,7 @@ def read_dataset_as_dataframe(
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"No data has been found. Make sure you have applied `get_offline_features` "
-                f"on your feature vector {dataset.artifact_url} with valid target before passing "
+                f"on your feature vector {dataset.artifact_url} with a valid target before passing "
                 f"it as an input."
             )
         # Turn the DataITem to DataFrame:

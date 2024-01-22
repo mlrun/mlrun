@@ -26,6 +26,8 @@ Artifacts metadata is stored in the MLRun database.
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`
 - {ref}`logging_datasets`
+- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
+
 
 ## Viewing artifacts
 

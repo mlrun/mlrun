@@ -85,11 +85,17 @@ def create_internal_background_task(
     function = bump_counter
     if failed_task:
         function = failing_function
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "bump_counter",
         None,
         function,
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
 
 
@@ -101,8 +107,15 @@ def create_long_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     timeout: int = 5,
 ):
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks, "long_bump_counter", None, long_function, sleep_time=timeout
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        "long_bump_counter", None, long_function, sleep_time=timeout
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
 
 

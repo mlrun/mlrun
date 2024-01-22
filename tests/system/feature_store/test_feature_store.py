@@ -2759,8 +2759,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service_v2(
-            featureset=fset,
+        fset.deploy_ingestion_service(
             source=v3io_source,
             run_config=run_config,
             targets=[ParquetTarget(flush_after_seconds=1)],
@@ -2967,8 +2966,8 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service_v2(
-            featureset=fset, source=source, run_config=run_config, targets=targets
+        fset.deploy_ingestion_service(
+            source=source, run_config=run_config, targets=targets
         )
 
         fset.reload()  # refresh to ingestion service updates

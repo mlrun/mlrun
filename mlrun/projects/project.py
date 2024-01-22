@@ -1219,31 +1219,27 @@ class MlrunProject(ModelObj):
         image: str = None,
         **args,
     ):
-        """add or update a workflow, specify a name and the code path
+        """Add or update a workflow, specify a name and the code path
 
-        :param name:          name of the workflow
-        :param workflow_path: url/path for the workflow file
-        :param embed:         add the workflow code into the project.yaml
-        :param engine:        workflow processing engine ("kfp", "local", "remote" or "remote:local")
-        :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
-        :param handler:       workflow function handler
+        :param name:          Name of the workflow
+        :param workflow_path: URL (remote) / Path (absolute or relative to the project code path i.e.
+                <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
+        :param embed:         Add the workflow code into the project.yaml
+        :param engine:        Workflow processing engine ("kfp", "local", "remote" or "remote:local")
+        :param args_schema:   List of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
+        :param handler:       Workflow function handler
         :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                               Note that "local" engine does not support this argument
-        :param ttl:           pipeline ttl in secs (after that the pods will be removed)
-        :param image:         image for workflow runner job, only for scheduled and remote workflows
-        :param args:          argument values (key=value, ..)
+        :param ttl:           Pipeline ttl in secs (after that the pods will be removed)
+        :param image:         Image for workflow runner job, only for scheduled and remote workflows
+        :param args:          Argument values (key=value, ..)
         """
 
         # validate the provided workflow_path
-        if mlrun.utils.helpers.is_file_path_invalid(
-            self.spec.get_code_path(), workflow_path
-        ):
-            raise ValueError(
-                f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
-            )
+        self._validate_file_path(workflow_path, param_name="workflow_path")
 
         if engine and "local" in engine and schedule:
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
@@ -1424,7 +1420,9 @@ class MlrunProject(ModelObj):
         target_path=None,
         **kwargs,
     ):
-        """log an output artifact and optionally upload it to datastore
+        """Log an output artifact and optionally upload it to datastore
+
+        If the artifact already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1497,7 +1495,9 @@ class MlrunProject(ModelObj):
         **kwargs,
     ) -> DatasetArtifact:
         """
-        log a dataset artifact and optionally upload it to datastore
+        Log a dataset artifact and optionally upload it to datastore.
+
+        If the dataset already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1575,7 +1575,9 @@ class MlrunProject(ModelObj):
         extra_data=None,
         **kwargs,
     ):
-        """log a model artifact and optionally upload it to datastore
+        """Log a model artifact and optionally upload it to datastore
+
+        If the model already exists with the same key and tag, it will be overwritten.
 
         example::
 
@@ -1665,6 +1667,13 @@ class MlrunProject(ModelObj):
             artifact.metadata.project = self.metadata.name
             artifact.metadata.updated = None
             artifact.metadata.tag = tag or artifact.metadata.tag
+            if new_key:
+                if artifact.spec.db_key:
+                    logger.warning(
+                        f"Overwriting artifact old db_key '{artifact.spec.db_key}' with new key '{new_key}' - "
+                        f"artifact can be fetched using the new key only"
+                    )
+                artifact.spec.db_key = new_key
             return artifact
 
         # Obtaining the item's absolute path from the project context, in case the user provided a relative path
@@ -3017,7 +3026,7 @@ class MlrunProject(ModelObj):
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
@@ -3103,7 +3112,7 @@ class MlrunProject(ModelObj):
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
 
@@ -3536,6 +3545,49 @@ class MlrunProject(ModelObj):
         finally:
             if is_remote_enriched:
                 self.spec.repo.remotes[remote].set_url(clean_remote, enriched_remote)
+
+    def _validate_file_path(self, file_path: str, param_name: str):
+        """
+        The function checks if the given file_path is a valid path.
+        If the file_path is a relative path, it is completed by joining it with the self.spec.get_code_path()
+        Otherwise, the file_path is used as is.
+        Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
+        If the file_path has no suffix, it is considered invalid.
+
+        :param file_path:   The file path to be validated
+        :param param_name:  The name of the parameter that holds the file path
+        """
+        if not file_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{param_name} must be provided."
+            )
+
+        # If file path is remote, verify it is a file URL
+        if "://" in file_path:
+            if pathlib.Path(file_path).suffix:
+                return
+
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid '{param_name}': '{file_path}'. Got a remote URL without a file suffix."
+            )
+
+        code_path = self.spec.get_code_path()
+
+        # If the file path is a relative path, it is completed by joining it with the code_path.
+        code_path_relative = not path.isabs(file_path) and not file_path.startswith(
+            code_path
+        )
+        if code_path_relative:
+            abs_path = path.join(code_path, file_path.lstrip("./"))
+        else:
+            abs_path = file_path
+
+        if not path.isfile(abs_path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid '{param_name}': '{file_path}'. Got a path to a non-existing file."
+                f"Path must be absolute or relative to the project code path i.e. "
+                f"<project.spec.get_code_path()>/<{param_name}>)."
+            )
 
 
 def _set_as_current_default_project(project: MlrunProject):

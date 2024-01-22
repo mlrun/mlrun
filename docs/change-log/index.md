@@ -18,12 +18,12 @@
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
-|ML-4343|Datastore profiles (for managing datastore credentials) support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
+|ML-4343|Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
 
 ### Feature store
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4622|Feature set and feature vector APIs are now FeatureSet / FeatureVector class methods. See examples in [Cheat sheet - Feature store](../cheat-sheet.html#feature-store).| 
+|ML-4622|Feature set and feature vector APIs are now FeatureSet / FeatureVector class methods. See examples in [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
 
 ### Model monitoring 
 | ID     |Description                                                                                         |
@@ -35,17 +35,17 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods).
-|ML-3728|Add MLRun labels to pods that mediate job execution with KFP, to facilitate monitoring. Tech-Preview. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
+|ML-3728|Labels added to pods that mediate job execution with KFP, to facilitate monitoring. Tech-Preview. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
 |ML-4032|You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers). |
 |ML-4182|Support for asynchronous notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
-
+|ML-4623|You can now [Log a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).|
 
 ### UI
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-1855|New **Train Model** wizard. Tech Preview.                                                           |
 |ML-2336|You can now delete Jobs in the UI.                                                                 |
-|ML-4506|You can now delete artifacts , models, and datasets in the UI.                                        |
+|ML-4506|You can now delete artifacts, models, and datasets in the UI.                                        |
 |ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
 |ML-4687|The scrollbar color of the Jobs page was changed, for improved viewing of the browser search results. |
 |ML-4916|You can now add a tag when registering an artifact in the Register Artifact, Register Dataset, and Register Model dialogs. |
@@ -61,11 +61,11 @@
 ### Documentation
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-3663|New How to build a docker image externally using a dockerfile and then use it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
-|ML-4048|New Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).|
-|ML-5260|   `with_source_archive` |
+|ML-3663|New: How to build a docker image externally using a dockerfile and then use it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
+|ML-4048|New: Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).|
+|ML-5260|New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.html#load-code-at-runtime-using-a-non-default-source). |
 |NA|New: {ref}`project-setup`.|
-|NA|New Example of a serving function with Git integration. See {ref}`serving-function`.
+|NA|New: Example of a serving function with Git integration. See {ref}`serving-function`.
 
 
 ###  Closed issues
@@ -73,7 +73,7 @@
 |----------|---------------------------------------------------------------------------|
 |ML-1373|Incorrect service names do not result in stuck pods during ContainerCreating.|
 |ML-1835|The index record is not duplicated in the datasets metadata. | 
-|ML-3714|Runs that complete successfully do not show errors Kubeflow. |
+|ML-3714|Runs that complete successfully do not show errors in Kubeflow. |
 |ML-3856|Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest). See [Ingest data locally](../data-prep/ingest-data-fs.html#ingest-data-locally).|
 |ML-4093|Documentation: Improved description of [handlers](../runtimes/create-and-use-functions.html#using-set-function) and {ref}`functions`. |
 |ML-4370|Hyper-param and single runs no longer generate artifacts with the same name. |

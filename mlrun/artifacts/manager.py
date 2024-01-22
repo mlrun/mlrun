@@ -124,7 +124,7 @@ class ArtifactManager:
 
     @staticmethod
     def validate_artifact_location(item, path, body):
-        if body is not None:
+        if body is not None or item.get_body() is not None:
             return
         if not path:
             return

@@ -51,7 +51,7 @@ def test_ui_clear_cache_middleware(
     client.app.middleware_stack = client.app.build_middleware_stack()
 
     with unittest.mock.patch.object(
-            mlrun.utils.version.Version, "get", return_value={"version": backend_version}
+        mlrun.utils.version.Version, "get", return_value={"version": backend_version}
     ):
         response = client.get(
             "client-spec",

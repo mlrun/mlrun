@@ -58,7 +58,6 @@ class UiClearCacheMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
-
                 if (
                     ui_version
                     and ui_version != config.version

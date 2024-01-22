@@ -349,15 +349,15 @@ def test_log_artifact_with_target_path_and_upload_options():
 )
 def test_validate_artifact_location(local_path, fail):
     artifact = mlrun.artifacts.Artifact(
-        key="some-artifact", body="asdasdasdasdas", format="parquet"
+        "artifact-name",
     )
     context = mlrun.get_or_create_ctx("test")
     if fail:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
             context.log_artifact(item=artifact, local_path=local_path)
-            assert "Failed to log an artifact, path does not exists." in str(
-                error.value
-            )
+        assert "Failed to log an artifact, path does not exists." in str(
+            error.value
+        )
     else:
         context.log_artifact(item=artifact, local_path=local_path)
 

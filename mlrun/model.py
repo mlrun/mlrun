@@ -1722,7 +1722,7 @@ class DataTargetBase(ModelObj):
     ]
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):

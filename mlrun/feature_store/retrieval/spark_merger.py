@@ -21,6 +21,7 @@ from mlrun.datastore.targets import get_offline_target
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
+from .conversion import PandasConversionMixin
 
 
 class SparkFeatureMerger(BaseMerger):
@@ -164,16 +165,9 @@ class SparkFeatureMerger(BaseMerger):
 
     def get_df(self, to_pandas=True):
         if to_pandas:
-            import pyspark.sql.pandas.conversion
-            from _pytest.monkeypatch import MonkeyPatch
-
-            MonkeyPatch().setattr(
-                pyspark.sql.pandas.conversion,
-                "_to_corrected_pandas_type",
-                _to_corrected_pandas_type,
-            )
             if self._pandas_df is None:
                 df = self._result_df
+                df.toPandas = PandasConversionMixin.toPandas
                 # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
                 # when we upgrade pyspark, we should check whether this workaround is still necessary
                 # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
@@ -306,38 +300,3 @@ class SparkFeatureMerger(BaseMerger):
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
             return self.spark.createDataFrame(entity_rows)
         return entity_rows
-
-
-def _to_corrected_pandas_type(dt):
-    """See https://github.com/apache/spark/blob/v3.2.3/python/pyspark/sql/pandas/conversion.py#L218"""
-    import numpy as np
-    from pyspark.sql.types import (
-        BooleanType,
-        ByteType,
-        DoubleType,
-        FloatType,
-        IntegerType,
-        LongType,
-        ShortType,
-        TimestampType,
-    )
-
-    if isinstance(dt, ByteType):
-        return np.int8
-    elif isinstance(dt, ShortType):
-        return np.int16
-    elif isinstance(dt, IntegerType):
-        return np.int32
-    elif isinstance(dt, LongType):
-        return np.int64
-    elif isinstance(dt, FloatType):
-        return np.float32
-    elif isinstance(dt, DoubleType):
-        return np.float64
-    elif isinstance(dt, BooleanType):
-        # Backported this fix of np.bool -> bool from pyspark v3.3.3
-        return bool
-    elif isinstance(dt, TimestampType):
-        return np.datetime64
-    else:
-        return None

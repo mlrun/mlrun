@@ -123,7 +123,9 @@ class ArtifactManager:
         self.artifacts = {}
 
     @staticmethod
-    def validate_artifact_location(item, path):
+    def validate_artifact_location(item, path, body):
+        if body is not None:
+            return
         if not path:
             return
         if isinstance(item, ModelArtifact):
@@ -203,7 +205,7 @@ class ArtifactManager:
 
         validate_artifact_key_name(key, "artifact.key")
         src_path = local_path or item.src_path  # TODO: remove src_path
-        ArtifactManager.validate_artifact_location(item=item, path=src_path)
+        self.validate_artifact_location(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
         item.format = format or item.format

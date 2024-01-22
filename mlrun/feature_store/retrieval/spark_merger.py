@@ -164,9 +164,16 @@ class SparkFeatureMerger(BaseMerger):
 
     def get_df(self, to_pandas=True):
         if to_pandas:
+            import pyspark.sql.pandas.conversion
+            from _pytest.monkeypatch import MonkeyPatch
+
+            MonkeyPatch().setattr(
+                pyspark.sql.pandas.conversion,
+                "_to_corrected_pandas_type",
+                _to_corrected_pandas_type,
+            )
             if self._pandas_df is None:
                 df = self._result_df
-                df._to_corrected_pandas_type = _to_corrected_pandas_type
                 # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
                 # when we upgrade pyspark, we should check whether this workaround is still necessary
                 # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe

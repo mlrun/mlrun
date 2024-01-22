@@ -941,6 +941,25 @@ def test_project_with_parameters(
     assert response_body["spec"]["params"] == expected_params
 
 
+def test_delete_project_not_found_in_leader(
+    unprefixed_client: TestClient,
+    mock_project_leader_iguazio_client,
+) -> None:
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    response = unprefixed_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    response = unprefixed_client.delete(
+        f"v1/projects/{project.metadata.name}",
+    )
+    assert response.status_code == HTTPStatus.ACCEPTED.value
+
+
 def _create_resources_of_all_kinds(
     db_session: Session,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,

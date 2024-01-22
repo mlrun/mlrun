@@ -1156,17 +1156,37 @@ async def _delete_project(
                 f"Project {project_name} was not deleted"
             )
 
-    await run_in_threadpool(
-        get_project_member().delete_project,
-        db_session,
-        project_name,
-        deletion_strategy,
-        auth_info.projects_role,
-        auth_info,
-        wait_for_completion=True,
-    )
+    force_deleted = False
+    try:
+        await run_in_threadpool(
+            get_project_member().delete_project,
+            db_session,
+            project_name,
+            deletion_strategy,
+            auth_info.projects_role,
+            auth_info,
+            wait_for_completion=True,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
+        if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+            logger.warning(
+                "Project not found in leader, ensuring project is deleted in mlrun",
+                project_name=project_name,
+                exc=err_to_str(exc),
+            )
+            force_deleted = True
 
-    if wait_for_project_deletion:
+    if force_deleted:
+        # In this case the wrapper delete project job is the one deleting the project because it
+        # doesn't exist in the leader.
+        await run_in_threadpool(
+            server.api.crud.Projects().delete_project,
+            db_session,
+            project_name,
+            deletion_strategy,
+        )
+
+    elif wait_for_project_deletion:
         mlrun.utils.helpers.retry_until_successful(
             5,
             120,

@@ -217,11 +217,14 @@ class Client(
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
             self._logger.debug(
-                "Project not found in Iguazio. Considering deletion as successful",
+                "Project not found in Iguazio",
                 name=name,
                 deletion_strategy=deletion_strategy,
             )
-            return False
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
+
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]

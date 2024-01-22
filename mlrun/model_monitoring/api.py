@@ -15,6 +15,7 @@
 import hashlib
 import json
 import typing
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -187,10 +188,12 @@ def record_results(
     )
     logger.debug("Model endpoint", endpoint=model_endpoint.to_dict())
 
+    timestamp = datetime_now()
     if infer_results_df is not None:
         # Write the monitoring parquet to the relevant model endpoint context
         write_monitoring_df(
             feature_set_uri=model_endpoint.status.monitoring_feature_set_uri,
+            infer_datetime=timestamp,
             endpoint_id=model_endpoint.metadata.uid,
             infer_results_df=infer_results_df,
         )
@@ -339,9 +342,10 @@ def get_drift_thresholds_if_not_none(
 def write_monitoring_df(
     endpoint_id: str,
     infer_results_df: pd.DataFrame,
-    monitoring_feature_set: mlrun.feature_store.FeatureSet = None,
+    infer_datetime: typing.Optional[datetime] = None,
+    monitoring_feature_set: typing.Optional[mlrun.feature_store.FeatureSet] = None,
     feature_set_uri: str = "",
-):
+) -> None:
     """Write infer results dataframe to the monitoring parquet target of the current model endpoint. The dataframe will
     be written using feature set ingest process. Please make sure that you provide either a valid monitoring feature
     set (with parquet target) or a valid monitoring feature set uri.
@@ -366,7 +370,7 @@ def write_monitoring_df(
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = datetime_now()
+        infer_results_df[EventFieldType.TIMESTAMP] = infer_datetime or datetime_now()
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process

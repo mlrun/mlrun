@@ -913,7 +913,7 @@ async def test_delete_project_job_is_done(
 async def test_job_cache_scheduled_invalidation(
     iguazio_client_kind: str, cache_kind: str
 ):
-    mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl = "2 seconds"
+    mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl = "1 seconds"
 
     if iguazio_client_kind == "async":
         client = server.api.utils.clients.iguazio.AsyncClient()

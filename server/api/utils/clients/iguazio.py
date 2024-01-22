@@ -262,7 +262,7 @@ class Client(
             # in that case, we want to create a new deletion job
             if job_id:
                 try:
-                    if self._is_job_done(session, job_id):
+                    if self._is_job_terminated(session, job_id):
                         self._job_cache.remove_delete_job(name)
                         # set job_id to None so that a new job will be created
                         job_id = None
@@ -278,6 +278,8 @@ class Client(
                 if not job_id:
                     # project not found in iguazio. consider deletion as successful
                     return False
+
+                self._job_cache.set_delete_job(name, job_id)
 
         if wait_for_completion:
             self._logger.debug(
@@ -517,8 +519,6 @@ class Client(
                 json=body,
             )
             job_id = response.json()["data"]["id"]
-            self._job_cache.set_delete_job(name, job_id)
-
             return job_id
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
@@ -589,11 +589,11 @@ class Client(
 
     def _wait_for_job_completion(self, session: str, job_id: str, error_message: str):
         def _verify_job_in_terminal_state():
-            response_body = self._get_job_from_iguazio(session, job_id)
-            _job_state = response_body["data"]["attributes"]["state"]
+            job_response_body = self._get_job_from_iguazio(session, job_id)
+            _job_state = job_response_body["data"]["attributes"]["state"]
             if _job_state not in JobStates.terminal_states():
                 raise Exception(f"Job in progress. State: {_job_state}")
-            return _job_state, response_body["data"]["attributes"]["result"]
+            return _job_state, job_response_body["data"]["attributes"]["result"]
 
         job_state, job_result = mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
@@ -617,9 +617,7 @@ class Client(
             raise mlrun.errors.err_for_status_code(status_code, error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
 
-    def _get_job_from_iguazio(
-        self, session: str, job_id: str
-    ) -> typing.Tuple[dict, str]:
+    def _get_job_from_iguazio(self, session: str, job_id: str) -> dict:
         response = self._send_request_to_api(
             "GET", f"jobs/{job_id}", "Failed getting job from Iguazio", session
         )
@@ -893,13 +891,13 @@ class Client(
         self._logger.warning("Request to iguazio failed", **log_kwargs)
         mlrun.errors.raise_for_status(response, error_message)
 
-    def _is_job_done(self, session: str, job_id: str) -> bool:
+    def _is_job_terminated(self, session: str, job_id: str) -> bool:
         """
-        Check if the iguazio job is done
+        Check if the iguazio job is terminated
 
         :param session: iguazio session
         :param job_id: iguazio job id
-        :return: True if the job is done, False otherwise
+        :return: True if the job is terminated, False otherwise
         """
         try:
             response = self._get_job_from_iguazio(session, job_id)

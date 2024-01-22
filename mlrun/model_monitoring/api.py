@@ -198,6 +198,13 @@ def record_results(
             infer_results_df=infer_results_df,
         )
 
+    # Update the last request time
+    db.patch_model_endpoint(
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        attributes={EventFieldType.LAST_REQUEST: timestamp},
+    )
+
     if model_endpoint.spec.stream_path == "":
         logger.info(
             "Updating the last request time to mark the current monitoring window as completed",

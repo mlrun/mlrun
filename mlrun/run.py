@@ -611,7 +611,7 @@ def code_to_function(
     Instantiated runtimes are considered 'functions' in mlrun, but they are
     anything from nuclio functions to generic kubernetes pods to spark jobs.
     Functions are meant to be focused, and as such limited in scope and size.
-    Typically a function can be expressed in a single python module with
+    Typically, a function can be expressed in a single python module with
     added support from custom docker images and commands for the environment.
     The returned runtime object can be further configured if more
     customization is required.

@@ -113,7 +113,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp.status_code == 200
 
         response = self._run_db.api_call(
-            "GET", "funcs", params={"project": self.project_name}
+            "GET",
+            f"projects/{self.project_name}/functions",
         )
 
         assert response.ok

@@ -60,13 +60,14 @@ def pipe_test():
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
-    custom_project_names_to_delete = []
     _logger_redirected = False
 
     def custom_setup(self):
-        pass
+        super().custom_setup()
+        self.custom_project_names_to_delete = []
 
     def custom_teardown(self):
+        super().custom_teardown()
         if self._logger_redirected:
             mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
             self._logger_redirected = False
@@ -78,8 +79,6 @@ class TestProject(TestMLRunSystem):
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
-        self.custom_project_names_to_delete = []
-
     @property
     def assets_path(self):
         return (
@@ -89,6 +88,12 @@ class TestProject(TestMLRunSystem):
 
     def _create_project(self, project_name, with_repo=False, overwrite=False):
         self.custom_project_names_to_delete.append(project_name)
+        self._logger.debug(
+            "Creating new project",
+            project_name=project_name,
+            with_repo=False,
+            overwrite=overwrite,
+        )
         proj = mlrun.new_project(
             project_name, str(self.assets_path), overwrite=overwrite
         )
@@ -113,6 +118,11 @@ class TestProject(TestMLRunSystem):
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
         proj.set_workflow("newflow", "./newflow.py", handler="newpipe")
         proj.spec.artifact_path = "v3io:///projects/{{run.project}}"
+        self._logger.debug(
+            "Saving project",
+            project_name=project_name,
+            project=proj.to_yaml(),
+        )
         proj.save()
         return proj
 
@@ -467,7 +477,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        self._logger.debug("set project function", project=project.to_yaml())
+        self._logger.debug("Set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -487,28 +497,35 @@ class TestProject(TestMLRunSystem):
 
     def test_kfp_runs_getting_deleted_on_project_deletion(self):
         project_name = "kfppipedelete"
-        self.custom_project_names_to_delete.append(project_name)
-
         project = self._create_project(project_name)
         self._initialize_sleep_workflow(project)
         project.run("main", engine="kfp")
 
         db = mlrun.get_run_db()
         project_pipeline_runs = db.list_pipelines(project=project_name)
+        self._logger.debug(
+            "Got project pipeline runs", runs_length=len(project_pipeline_runs.runs)
+        )
         # expecting to have pipeline run
         assert (
             project_pipeline_runs.runs
         ), "no pipeline runs found for project, expected to have pipeline run"
         # deleting project with deletion strategy cascade so it will delete any related resources ( pipelines as well )
+
+        self._logger.debug("Deleting project", project_name=project_name)
         db.delete_project(
             name=project_name,
             deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade,
         )
         # create the project again ( using new_project, instead of get_or_create_project so it won't create project
         # from project.yaml in the context that might contain project.yaml
+        self._logger.debug("Recreating project", project_name=project_name)
         mlrun.new_project(project_name)
 
         project_pipeline_runs = db.list_pipelines(project=project_name)
+        self._logger.debug(
+            "Got project pipeline runs", runs_length=len(project_pipeline_runs.runs)
+        )
         assert (
             not project_pipeline_runs.runs
         ), "pipeline runs found for project after deletion, expected to be empty"
@@ -1197,6 +1214,7 @@ class TestProject(TestMLRunSystem):
             image="mlrun/mlrun",
             handler="handler",
         )
+        self._logger.debug("Set project workflow", project=project.name)
         project.set_workflow("main", workflow_path)
 
     @pytest.mark.parametrize(

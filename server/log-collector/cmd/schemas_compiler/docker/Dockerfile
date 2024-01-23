@@ -13,7 +13,7 @@
 # limitations under the License.
 
 ARG PYTHON_VERSION=3.9
-ARG GO_VERSION=1.19
+ARG GO_VERSION=1.21
 
 FROM golang:${GO_VERSION}-alpine AS golang
 

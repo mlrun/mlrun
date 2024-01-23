@@ -775,11 +775,11 @@ async def test_delete_project(
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 
-    # assert ignoring (and not exploding) on not found
     requests_mock.delete(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
-    await maybe_coroutine(iguazio_client.delete_project(session, project_name))
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        await maybe_coroutine(iguazio_client.delete_project(session, project_name))
 
     # TODO: not sure really needed
     # assert correctly propagating 412 errors (will be returned when project has resources)

@@ -524,11 +524,13 @@ class Client(
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
             self._logger.debug(
-                "Project not found in Iguazio. Considering deletion as successful",
+                "Project not found in Iguazio",
                 name=name,
                 deletion_strategy=deletion_strategy,
             )
-            return None
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
 
     def _post_project_to_iguazio(
         self,

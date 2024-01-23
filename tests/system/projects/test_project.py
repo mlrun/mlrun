@@ -1017,7 +1017,7 @@ class TestProject(TestMLRunSystem):
         project.save()
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
 
-    @pytest.mark.parametrize("pull_state_mode", ["disabled"])
+    @pytest.mark.parametrize("pull_state_mode", ["disabled", "enabled"])
     def test_abort_step_in_workflow(self, pull_state_mode):
         project_name = "test-abort-step"
         self.custom_project_names_to_delete.append(project_name)

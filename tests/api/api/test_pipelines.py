@@ -210,7 +210,7 @@ def test_list_pipelines_time_fields_default(
         ("test-project", "test", ["id1", "id2", "id3", "id4"]),
         ("test-project", "another", ["id4"]),
         ("test-project", "test-project-", []),
-        ("*", "project", ["id1", "id2", "id3", "id4"]),
+        ("*", "project", ["id1", "id2"]),
         ("*", "workflow", ["id3", "id4"]),
     ],
 )
@@ -223,7 +223,7 @@ def test_list_pipelines_name_contains(
     expected_runs_ids: list,
 ) -> None:
     server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value=project_name
+        return_value="test-project"
     )
     runs = _generate_list_runs_project_name_mocks()
     expected_page_size = (

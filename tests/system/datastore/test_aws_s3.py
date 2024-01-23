@@ -131,7 +131,7 @@ class TestAwsS3(TestMLRunSystem):
             entities=[fstore.Entity("Column1")],
         )
 
-        fstore.ingest(fset, source=parquet_source, targets=targets)
+        fset.ingest(source=parquet_source, targets=targets)
         result = ParquetSource(path=target_path).to_dataframe(
             columns=("Column1", "Column2")
         )

@@ -136,7 +136,7 @@ def test_check_permissions(rundb_mock, monkeypatch):
             entity_columns=[Entity("string")],
         )
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        fstore.ingest(data_set1, data, infer_options=fstore.InferOptions.default())
+        data_set1.ingest(data, infer_options=fstore.InferOptions.default())
 
     features = ["fs1.*"]
     feature_vector = fstore.FeatureVector("test", features)

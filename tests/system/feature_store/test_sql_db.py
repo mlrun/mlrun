@@ -20,7 +20,7 @@ import pytest
 import sqlalchemy as db
 
 import mlrun
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SQLSource
 from mlrun.datastore.targets import SQLTarget
 from mlrun.feature_store.steps import OneHotEncoder
@@ -126,11 +126,11 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             parse_dates=parse_dates,
         )
 
-        feature_set = fs.FeatureSet(
-            f"fs-{source_name}", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set = fstore.FeatureSet(
+            f"fs-{source_name}", entities=[fstore.Entity(key)], engine=fset_engine
         )
         feature_set.set_targets([])
-        df = fs.ingest(feature_set, source=source)
+        df = feature_set.ingest(source=source)
         origin_df.set_index(keys=[key], inplace=True)
         assert df.equals(origin_df)
 
@@ -164,21 +164,21 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             key_field=key,
             parse_dates=["time"] if source_name == "quotes" else None,
         )
-        feature_set = fs.FeatureSet(
-            f"fs-{source_name}", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set = fstore.FeatureSet(
+            f"fs-{source_name}", entities=[fstore.Entity(key)], engine=fset_engine
         )
         one_hot_encoder_mapping = {
             encoder_col: list(origin_df[encoder_col].unique()),
         }
         feature_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
-        df = fs.ingest(feature_set, source=source)
+        df = feature_set.ingest(source=source)
 
         # reference source
-        feature_set_ref = fs.FeatureSet(
-            f"fs-{source_name}-ref", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set_ref = fstore.FeatureSet(
+            f"fs-{source_name}-ref", entities=[fstore.Entity(key)], engine=fset_engine
         )
         feature_set_ref.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
-        df_ref = fs.ingest(feature_set_ref, origin_df)
+        df_ref = feature_set_ref.ingest(origin_df)
 
         assert df.equals(df_ref)
 
@@ -207,21 +207,23 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         # test source
         source = SQLSource(table_name=source_name, key_field=key, parse_dates=["time"])
-        feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
+        feature_set = fstore.FeatureSet(
+            f"fs-{source_name}", entities=[fstore.Entity(key)]
+        )
         feature_set.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"
         )
-        df = fs.ingest(feature_set, source=source)
+        df = feature_set.ingest(source=source)
 
         # reference source
-        feature_set_ref = fs.FeatureSet(
+        feature_set_ref = fstore.FeatureSet(
             f"fs-{source_name}-ref",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
         )
         feature_set_ref.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"
         )
-        df_ref = fs.ingest(feature_set_ref, origin_df)
+        df_ref = feature_set_ref.ingest(origin_df)
 
         assert df.equals(df_ref)
 
@@ -240,10 +242,10 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             primary_key_column=key,
             parse_dates=["time"],
         )
-        feature_set = fs.FeatureSet(
-            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set = fstore.FeatureSet(
+            f"fs-{target_name}-tr", entities=[fstore.Entity(key)], engine=fset_engine
         )
-        fs.ingest(feature_set, source=origin_df, targets=[target])
+        feature_set.ingest(source=origin_df, targets=[target])
         df = target.as_df()
 
         origin_df.set_index(key, inplace=True)
@@ -273,10 +275,10 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             primary_key_column=key,
             parse_dates=["time"] if target_name == "trades" else None,
         )
-        feature_set = fs.FeatureSet(
-            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set = fstore.FeatureSet(
+            f"fs-{target_name}-tr", entities=[fstore.Entity(key)], engine=fset_engine
         )
-        fs.ingest(feature_set, source=origin_df, targets=[target])
+        feature_set.ingest(source=origin_df, targets=[target])
         df = target.as_df()
 
         origin_df.set_index(key, inplace=True)
@@ -301,14 +303,14 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             primary_key_column=key,
             parse_dates=["time"],
         )
-        feature_set = fs.FeatureSet(
-            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set = fstore.FeatureSet(
+            f"fs-{target_name}-tr", entities=[fstore.Entity(key)], engine=fset_engine
         )
-        feature_set_ref = fs.FeatureSet(
-            f"fs-{target_name}-ref", entities=[fs.Entity(key)], engine=fset_engine
+        feature_set_ref = fstore.FeatureSet(
+            f"fs-{target_name}-ref", entities=[fstore.Entity(key)], engine=fset_engine
         )
-        fs.ingest(feature_set, source=origin_df, targets=[target])
-        fs.ingest(feature_set_ref, source=origin_df)
+        feature_set.ingest(source=origin_df, targets=[target])
+        feature_set_ref.ingest(source=origin_df)
         columns = [*schema.keys()]
         columns.remove(key)
 
@@ -317,10 +319,10 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             f"fs-{target_name}-ref.{columns[-1]}",
             f"fs-{target_name}-ref.{columns[-2]}",
         ]
-        vector = fs.FeatureVector(
+        vector = fstore.FeatureVector(
             f"{target_name}-vec", features_ref, description="my test vector"
         )
-        service_ref = fs.get_online_feature_service(vector)
+        service_ref = fstore.get_online_feature_service(vector)
         ref_output = service_ref.get([{key: 1}], as_list=True)
 
         # test
@@ -328,10 +330,10 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             f"fs-{target_name}-tr.{columns[-1]}",
             f"fs-{target_name}-tr.{columns[-2]}",
         ]
-        vector = fs.FeatureVector(
+        vector = fstore.FeatureVector(
             f"{target_name}-vec", features, description="my test vector"
         )
-        with fs.get_online_feature_service(vector) as svc:
+        with fstore.get_online_feature_service(vector) as svc:
             output = svc.get([{key: 1}], as_list=True)
             assert ref_output == output
 
@@ -361,15 +363,14 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         )
 
         targets = [target]
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             "sample_training_posts",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             description="feature set",
             engine=fset_engine,
         )
 
-        ingest_df = fs.ingest(
-            feature_set,
+        ingest_df = feature_set.ingest(
             source=source,
             targets=targets,
         )

@@ -21,6 +21,7 @@ from mlrun.datastore.targets import get_offline_target
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
+from .conversion import PandasConversionMixin
 
 
 class SparkFeatureMerger(BaseMerger):
@@ -183,11 +184,11 @@ class SparkFeatureMerger(BaseMerger):
                                 ),
                             )
                             type_conversion_dict[field.name] = "datetime64[ns]"
-                    df = df.toPandas()
+                    df = PandasConversionMixin.toPandas(df)
                     if type_conversion_dict:
                         df = df.astype(type_conversion_dict)
                 else:
-                    df = df.toPandas()
+                    df = PandasConversionMixin.toPandas(df)
                 self._pandas_df = df
                 self._set_indexes(self._pandas_df)
             return self._pandas_df

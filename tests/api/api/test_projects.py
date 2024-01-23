@@ -58,6 +58,8 @@ from server.api.db.sqldb.models import (
 )
 
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
+FUNCTIONS_API = "projects/{project}/functions/{name}"
+LIST_FUNCTION_API = "projects/{project}/functions"
 
 
 @pytest.fixture(params=["leader", "follower"])
@@ -536,7 +538,8 @@ def test_delete_project_deletion_strategy_check(
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
     response = client.post(
-        f"func/{project.metadata.name}/{function_name}", json=function
+        FUNCTIONS_API.format(project=project.metadata.name, name=function_name),
+        json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
 
@@ -562,7 +565,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_name = "project-name"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    response = client.get("funcs", params={"project": project_name})
+    response = client.get(LIST_FUNCTION_API.format(project=project_name))
     assert response.status_code == HTTPStatus.OK.value
     distinct_function_names = {
         function["metadata"]["name"] for function in response.json()["funcs"]
@@ -879,7 +882,9 @@ def test_projects_crud(
     # add function to project 1
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
-    response = client.post(f"func/{name1}/{function_name}", json=function)
+    response = client.post(
+        FUNCTIONS_API.format(project=name1, name=function_name), json=function
+    )
     assert response.status_code == HTTPStatus.OK.value
 
     # delete - restricted strategy, will fail because function exists
@@ -901,7 +906,7 @@ def test_projects_crud(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure function is gone
-    response = client.get(f"func/{name1}/{function_name}")
+    response = client.get(FUNCTIONS_API.format(project=name1, name=function_name))
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
@@ -1439,7 +1444,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
                 "spec": {"some_field": str(uuid4())},
             }
             response = client.post(
-                f"func/{project_name}/{function_name}",
+                FUNCTIONS_API.format(project=project_name, name=function_name),
                 json=function,
                 params={"versioned": True},
             )

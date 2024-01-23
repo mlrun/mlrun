@@ -59,7 +59,7 @@ class RequestLoggerMiddleware:
         path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
             scope
         )
-        scope["state"]["request_id"] = request_id
+        scope.setdefault("state", {}).setdefault("request_id", request_id)
         start_time = time.perf_counter_ns()
         should_log = not any(
             silent_logging_path in path_with_query_string

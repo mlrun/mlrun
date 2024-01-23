@@ -57,21 +57,21 @@ class UiClearCacheMiddleware:
         )
 
         async def send_wrapper(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                if (
-                    ui_version
-                    and ui_version != config.version
-                    and not self._is_development_version()
-                ):
-                    response_headers = MutableHeaders(scope=message)
+            if (
+                message["type"] == "http.response.start"
+                and ui_version
+                and ui_version != config.version
+                and not self._is_development_version()
+            ):
+                response_headers = MutableHeaders(scope=message)
 
-                    # clear site cache
-                    response_headers.append("Clear-Site-Data", '"cache"')
-                    # tell ui to reload
-                    response_headers.append(
-                        mlrun.common.schemas.constants.HeaderNames.ui_clear_cache,
-                        "true",
-                    )
+                # clear site cache
+                response_headers.append("Clear-Site-Data", '"cache"')
+                # tell ui to reload
+                response_headers.append(
+                    mlrun.common.schemas.constants.HeaderNames.ui_clear_cache,
+                    "true",
+                )
             await send(message)
 
         return await self.app(scope, receive, send_wrapper)

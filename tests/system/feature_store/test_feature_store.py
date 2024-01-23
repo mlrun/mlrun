@@ -1423,7 +1423,9 @@ class TestFeatureStore(TestMLRunSystem):
         name = f"measurements_{uuid.uuid4()}"
 
         # write to kv
-        data_set = fstore.FeatureSet(name, entities=[Entity("first_name")])
+        data_set = fstore.FeatureSet(
+            name, entities=[Entity("first_name")], timestamp_key="time"
+        )
 
         data_set.add_aggregation(
             name="bids",
@@ -1439,8 +1441,14 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector = fstore.FeatureVector("my-vec", features)
         with fstore.get_online_feature_service(vector) as svc:
-            resp = svc.get([{"first_name": "moshe"}])
-            expected = {"bids_sum_1h": 2000.0, "last_name": "cohen"}
+            resp = svc.get(
+                [{"first_name": "moshe", "time": test_base_time.isoformat()}]
+            )
+            expected = {
+                "bids_sum_1h": 2000.0,
+                "last_name": "cohen",
+                "time": "2020-12-01T17:33:15",
+            }
             assert resp[0] == expected
 
     _split_graph_expected_default = pd.DataFrame(

@@ -354,8 +354,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         stocks_set.graph.to("MyMap", full_event=True)
 
         target = ParquetTarget(flush_after_seconds=10)
-        fstore.ingest(
-            featureset=stocks_set,
+        stocks_set.ingest(
             source=stocks_df[0:row_divide],
             targets=[target],
             infer_options=fstore.InferOptions.default(),

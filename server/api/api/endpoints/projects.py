@@ -201,10 +201,7 @@ async def delete_project(
 
     # we need to implement the `check` deletion strategy here, since we don't want
     # to spawn a background task for this, only to return a response
-    if (
-        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
-        and deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
-    ):
+    if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
         server.api.crud.Projects().verify_project_is_empty(db_session, name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 

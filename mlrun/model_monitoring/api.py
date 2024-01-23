@@ -628,14 +628,14 @@ def read_dataset_as_dataframe(
             not dataset.url
             and dataset.artifact_url
             and mlrun.datastore.parse_store_uri(dataset.artifact_url)[0]
-            == "feature-vectors"
+            == mlrun.utils.StorePrefix.FeatureVector
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"No data has been found. Make sure you have applied `get_offline_features` "
                 f"on your feature vector {dataset.artifact_url} with a valid target before passing "
                 f"it as an input."
             )
-        # Turn the DataITem to DataFrame:
+        # Turn the DataItem to DataFrame:
         dataset = dataset.as_df()
     else:
         # Parse the object (should be a pd.DataFrame / pd.Series, dictionary) into a DataFrame:

@@ -19,6 +19,7 @@ import uuid
 
 import uvicorn.protocols.utils
 from starlette.datastructures import MutableHeaders
+from starlette.types import Message
 from uvicorn._types import (
     ASGI3Application,
     ASGIReceiveCallable,
@@ -76,36 +77,38 @@ class RequestLoggerMiddleware:
                 uri=path_with_query_string,
             )
 
-        try:
-            await self.app(scope, receive, send)
-        except Exception as exc:
-            self._logger.warning(
-                "Request handling failed. Sending response",
-                # User middleware (like this one) runs after the exception handling middleware,
-                # the only thing running after it is starletter's ServerErrorMiddleware which is responsible
-                # for catching any un-handled exception and transforming it to 500 response.
-                # therefore we can statically assign status code to 500
-                status_code=500,
-                request_id=request_id,
-                uri=path_with_query_string,
-                method=scope["method"],
-                exc=mlrun.errors.err_to_str(exc),
-                traceback=traceback.format_exc(),
-            )
-            raise
-        finally:
-            # convert from nanoseconds to milliseconds
-            elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
-            if should_log:
-                self._logger.debug(
-                    "Sending response",
-                    # status_code=response.status_code,
-                    request_id=request_id,
-                    elapsed_time_in_ms=elapsed_time_in_ms,
-                    uri=path_with_query_string,
-                    method=scope["method"],
-                    headers=self._log_headers(headers),
-                )
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                try:
+                    await send(message)
+                except Exception as exc:
+                    self._logger.warning(
+                        "Request handling failed. Sending response",
+                        status_code=message["status"],
+                        request_id=request_id,
+                        uri=path_with_query_string,
+                        method=scope["method"],
+                        exc=mlrun.errors.err_to_str(exc),
+                        traceback=traceback.format_exc(),
+                    )
+                    raise
+                finally:
+                    # convert from nanoseconds to milliseconds
+                    elapsed_time_in_ms = (
+                        (time.perf_counter_ns() - start_time) / 1000 / 1000
+                    )
+                    if should_log:
+                        self._logger.debug(
+                            "Sending response",
+                            status_code=message["status"],
+                            request_id=request_id,
+                            elapsed_time_in_ms=elapsed_time_in_ms,
+                            uri=path_with_query_string,
+                            method=scope["method"],
+                            headers=self._log_headers(headers),
+                        )
+
+        return await self.app(scope, receive, send_wrapper)
 
     def _resolve_client_address(self, scope):
         # uvicorn expects this to be a tuple while starlette test client sets it to be a list

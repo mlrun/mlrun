@@ -161,13 +161,18 @@ class ThreadedAsyncClient(httpx.AsyncClient):
 async def async_client() -> typing.Generator:
     """
     Async client that runs in a separate thread.
-    When posting with the client, the request is sent on a different thread, and the the method returns a future.
+    When posting with the client, the request is sent on a different thread, and the method returns a future.
     To get the response, call result() on the future.
     Example:
         result = await async_client.post(...)
         response = result.result()
     """
     main.app.include_router(test_router, prefix="/test")
+
+    # some middlewares are not compatible with the implementation of threaded async client,
+    # so we remove them
+    main.app.user_middleware = []
+    main.app.build_middleware_stack()
     async with ThreadedAsyncClient(app=main.app, base_url="https://mlrun") as client:
         yield client
 

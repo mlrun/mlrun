@@ -81,17 +81,6 @@ class RequestLoggerMiddleware:
             if message["type"] == "http.response.start":
                 try:
                     await send(message)
-                except Exception as exc:
-                    self._logger.warning(
-                        "Request handling failed. Sending response",
-                        status_code=message["status"],
-                        request_id=request_id,
-                        uri=path_with_query_string,
-                        method=scope["method"],
-                        exc=mlrun.errors.err_to_str(exc),
-                        traceback=traceback.format_exc(),
-                    )
-                    raise
                 finally:
                     # convert from nanoseconds to milliseconds
                     elapsed_time_in_ms = (
@@ -108,7 +97,23 @@ class RequestLoggerMiddleware:
                             headers=self._log_headers(headers),
                         )
 
-        return await self.app(scope, receive, send_wrapper)
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception as exc:
+            self._logger.warning(
+                "Request handling failed. Sending response",
+                # User middleware (like this one) runs after the exception handling middleware,
+                # the only thing running after it is starletter's ServerErrorMiddleware which is responsible
+                # for catching any un-handled exception and transforming it to 500 response.
+                # therefore we can statically assign status code to 500
+                status_code=500,
+                request_id=request_id,
+                uri=path_with_query_string,
+                method=scope["method"],
+                exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
+            )
+            raise
 
     def _resolve_client_address(self, scope):
         # uvicorn expects this to be a tuple while starlette test client sets it to be a list

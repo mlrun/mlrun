@@ -111,15 +111,15 @@ app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
-# middlewares
+# middlewares, order matter
 app.add_middleware(
     server.api.middlewares.EnsureBackendVersionMiddleware,
     backend_version=config.version,
 )
-app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 app.add_middleware(
     server.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
 )
+app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
 @app.exception_handler(Exception)

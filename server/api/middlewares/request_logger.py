@@ -78,10 +78,10 @@ class RequestLoggerMiddleware:
             )
 
         async def send_wrapper(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                try:
-                    await send(message)
-                finally:
+            try:
+                await send(message)
+            finally:
+                if message["type"] == "http.response.start":
                     # convert from nanoseconds to milliseconds
                     elapsed_time_in_ms = (
                         (time.perf_counter_ns() - start_time) / 1000 / 1000

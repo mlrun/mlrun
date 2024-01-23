@@ -168,11 +168,6 @@ async def async_client() -> typing.Generator:
         response = result.result()
     """
     main.app.include_router(test_router, prefix="/test")
-
-    # some middlewares are not compatible with the implementation of threaded async client,
-    # so we remove them
-    main.app.user_middleware = []
-    main.app.build_middleware_stack()
     async with ThreadedAsyncClient(app=main.app, base_url="https://mlrun") as client:
         yield client
 
@@ -383,7 +378,7 @@ def test_get_internal_background_task_in_chief_exists(
 async def test_internal_background_task_already_running(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
-    timeout = 1
+    timeout = 3
     curr_call_counter = call_counter
 
     # if we await the first future before sending the second request, the second request will be sent after the whole

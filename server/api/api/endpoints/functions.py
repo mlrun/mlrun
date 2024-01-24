@@ -718,11 +718,7 @@ def _build_function(
         launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
 
         fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.nuclio_runtimes():
-            server.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn,
-                auth_info,
-            )
+        if is_nuclio_runtime:
             monitoring_application = (
                 fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
                 == mm_constants.ModelMonitoringAppLabel.VAL

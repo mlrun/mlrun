@@ -784,7 +784,6 @@ def _deploy_nuclio_runtime(
                 fn,
                 model_monitoring_access_key,
                 monitoring_application,
-                serving_to_monitor,
             )
         if monitoring_application:
             fn = _deploy_monitoring_application(
@@ -806,7 +805,6 @@ def _deploy_serving_monitoring(
     fn,
     model_monitoring_access_key,
     monitoring_application,
-    serving_to_monitor,
 ):
     try:
         # Handle model monitoring
@@ -845,8 +843,7 @@ def _deploy_serving_monitoring(
 
     except Exception as exc:
         logger.warning(
-            f"Failed deploying model monitoring infrastructure for the "
-            f"{'project' if serving_to_monitor else f'{fn.metadata.name} application'}",
+            "Failed deploying model monitoring infrastructure for the project application",
             project=fn.metadata.project,
             exc=exc,
             traceback=traceback.format_exc(),

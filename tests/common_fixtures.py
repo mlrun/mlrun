@@ -43,7 +43,7 @@ import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
-from mlrun.runtimes.function import NuclioStatus
+from mlrun.runtimes.nuclio.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path

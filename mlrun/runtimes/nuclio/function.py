@@ -34,23 +34,22 @@ import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
-
-from ..config import config as mlconf
-from ..errors import err_to_str
-from ..kfpops import deploy_op
-from ..lists import RunList
-from ..model import RunObject
-from ..platforms.iguazio import (
+from mlrun.config import config as mlconf
+from mlrun.errors import err_to_str
+from mlrun.kfpops import deploy_op
+from mlrun.lists import RunList
+from mlrun.model import RunObject
+from mlrun.platforms.iguazio import (
     VolumeMount,
     mount_v3io,
     parse_path,
     split_path,
     v3io_cred,
 )
-from ..utils import get_in, logger, update_in
-from .base import FunctionStatus, RunError
-from .pod import KubeResource, KubeResourceSpec
-from .utils import get_item_name, log_std
+from mlrun.runtimes.base import FunctionStatus, RunError
+from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
+from mlrun.runtimes.utils import get_item_name, log_std
+from mlrun.utils import get_in, logger, update_in
 
 
 def validate_nuclio_version_compatibility(*min_versions):

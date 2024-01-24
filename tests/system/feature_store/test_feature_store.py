@@ -4005,6 +4005,15 @@ class TestFeatureStore(TestMLRunSystem):
             check_index_type=False,
         )
 
+    def test_ingest_value_with_quote(self):
+        df = pd.DataFrame({"num": [0, 1, 2], "color": ["gre'en", 'bl"ue', "red"]})
+        fset = fstore.FeatureSet(
+            "test-fset", entities=[fstore.Entity("num")], engine="storey"
+        )
+        result = fstore.ingest(fset, df, run_config=fstore.RunConfig(local=True))
+        result.reset_index(drop=False, inplace=True)
+        assert_frame_equal(df, result)
+
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("with_graph", [True, False])

@@ -124,16 +124,18 @@ class ArtifactManager:
 
     @staticmethod
     def ensure_artifact_source_file_exists(item, path, body):
+        # If the body exists, the source path does not have to be exists.
         if body is not None or item.get_body() is not None:
             return
         if not path:
             return
+        #  ModelArtifact is a directory.
         if isinstance(item, ModelArtifact):
             return
         parsed_url = urlparse(path)
         schema = parsed_url.scheme
+        #  we are not checking remote paths yet.
         if schema and schema not in get_local_file_schema():
-            #  we are not checking remote path yet.
             return
         if schema.lower() == "file":
             path = parsed_url.path

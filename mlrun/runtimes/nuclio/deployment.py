@@ -14,19 +14,12 @@
 import mlrun.runtimes
 
 
-class DeploymentRuntime(mlrun.runtimes.KubeResource):
+class DeploymentRuntime(mlrun.runtimes.RemoteRuntime):
     kind = "deployment"
 
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
-        self._reverse_proxy = None
+        # TODO: verify min_nuclio_versions
 
-    def _init_reverse_proxy(self):
-        reverse_proxy = mlrun.new_function(
-            name=self.metadata.name,
-            project=self.metadata.project,
-            kind=mlrun.runtimes.RuntimeKinds.remote,
-            command="./something/here",
-            image="mlrun/mlrun",
-        )
-        self._reverse_proxy = reverse_proxy
+    def _init_side_car(self):
+        pass

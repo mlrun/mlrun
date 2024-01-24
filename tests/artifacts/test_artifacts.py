@@ -13,11 +13,13 @@
 # limitations under the License.
 #
 import pathlib
+import tempfile
 import typing
 import unittest.mock
 import uuid
 from contextlib import nullcontext as does_not_raise
 
+import pandas as pd
 import pytest
 
 import mlrun
@@ -345,7 +347,14 @@ def test_log_artifact_with_target_path_and_upload_options():
 
 
 @pytest.mark.parametrize(
-    "local_path, fail", [("s3://path/file.txt", False), ("/not_exists/file.txt", True)]
+    "local_path, fail",
+    [
+        ("s3://path/file.txt", False),
+        ("", False),
+        ("file://", False),
+        ("file:///not_exists/file.txt", True),
+        ("/not_exists/file.txt", True),
+    ],
 )
 def test_ensure_artifact_source_file_exists(local_path, fail):
     artifact = mlrun.artifacts.Artifact(
@@ -357,7 +366,16 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
             context.log_artifact(item=artifact, local_path=local_path)
         assert "Failed to log an artifact, path does not exists." in str(error.value)
     else:
-        context.log_artifact(item=artifact, local_path=local_path)
+        if not local_path or local_path == "file://":
+            df = pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]})
+            with tempfile.NamedTemporaryFile(suffix=".pq", delete=True) as temp_file:
+                path = temp_file.name
+                df.to_parquet(temp_file.name)
+                if local_path == "file://":
+                    path = local_path + path
+                context.log_artifact(item=artifact, local_path=temp_file.name)
+        else:
+            context.log_artifact(item=artifact, local_path=local_path)
 
 
 @pytest.mark.parametrize(

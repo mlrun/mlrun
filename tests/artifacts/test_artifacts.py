@@ -347,7 +347,7 @@ def test_log_artifact_with_target_path_and_upload_options():
 @pytest.mark.parametrize(
     "local_path, fail", [("s3://path/file.txt", False), ("/not_exists/file.txt", True)]
 )
-def test_validate_artifact_location(local_path, fail):
+def test_ensure_artifact_source_file_exists(local_path, fail):
     artifact = mlrun.artifacts.Artifact(
         "artifact-name",
     )

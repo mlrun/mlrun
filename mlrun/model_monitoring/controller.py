@@ -24,8 +24,8 @@ from v3io.dataplane.response import HttpResponseError
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.data_types.infer
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget

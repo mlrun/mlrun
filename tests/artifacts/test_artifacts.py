@@ -370,7 +370,7 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
             df = pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]})
             with tempfile.NamedTemporaryFile(suffix=".pq", delete=True) as temp_file:
                 path = temp_file.name
-                df.to_parquet(temp_file.name)
+                df.to_parquet(path)
                 if local_path == "file://":
                     path = local_path + path
                 context.log_artifact(item=artifact, local_path=temp_file.name)

@@ -452,8 +452,8 @@ class Pipelines(
             return runs
 
         def filter_by(run):
-            run_name = run.get("name", "").replace(
-                self.resolve_project_from_pipeline(run) + "-", ""
+            run_name = run.get("name", "").removeprefix(
+                self.resolve_project_from_pipeline(run) + "-"
             )
             if target_name in run_name:
                 return True

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import hashlib
 import json
 import typing
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ import mlrun.common.helpers
 import mlrun.feature_store
 from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitoringMode
 from mlrun.data_types.infer import InferOptions, get_df_stats
-from mlrun.utils import logger
+from mlrun.utils import datetime_now, logger
 
 from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
@@ -132,7 +132,6 @@ def record_results(
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
-    last_in_batch_set: typing.Optional[bool] = True,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -165,14 +164,6 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
-    :param last_in_batch_set:        This flag can (and should only) be used when the model endpoint does not have
-                                     model-monitoring set.
-                                     If set to `True` (the default), this flag marks the current monitoring window
-                                     (on this monitoring endpoint) is completed - the data inferred so far is assumed
-                                     to be the total data for this monitoring window.
-                                     You may want to set this flag to `False` if you want to record multiple results in
-                                     close time proximity ("batch set"). In this case, set this flag to `False` on all
-                                     but the last batch in the set.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 
@@ -197,34 +188,32 @@ def record_results(
     )
     logger.debug("Model endpoint", endpoint=model_endpoint.to_dict())
 
+    timestamp = datetime_now()
     if infer_results_df is not None:
         # Write the monitoring parquet to the relevant model endpoint context
         write_monitoring_df(
             feature_set_uri=model_endpoint.status.monitoring_feature_set_uri,
+            infer_datetime=timestamp,
             endpoint_id=model_endpoint.metadata.uid,
             infer_results_df=infer_results_df,
         )
 
+    # Update the last request time
+    db.patch_model_endpoint(
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        attributes={EventFieldType.LAST_REQUEST: timestamp},
+    )
+
     if model_endpoint.spec.stream_path == "":
-        if last_in_batch_set:
-            logger.info(
-                "Updating the last request time to mark the current monitoring window as completed",
-                project=project,
-                endpoint_id=model_endpoint.metadata.uid,
-            )
-            bump_model_endpoint_last_request(
-                project=project, model_endpoint=model_endpoint, db=db
-            )
-    else:
-        if last_in_batch_set is not None:
-            logger.warning(
-                "`last_in_batch_set` is not `None`, but the model endpoint has a stream path. "
-                "Ignoring `last_in_batch_set`, as it is relevant only when the model "
-                "endpoint does not have a model monitoring infrastructure in place (i.e. stream path is "
-                " empty). Set `last_in_batch_set` to `None` to resolve this warning.",
-                project=project,
-                endpoint_id=model_endpoint.metadata.uid,
-            )
+        logger.info(
+            "Updating the last request time to mark the current monitoring window as completed",
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+        )
+        bump_model_endpoint_last_request(
+            project=project, model_endpoint=model_endpoint, db=db
+        )
 
     if trigger_monitoring_job:
         # Run the monitoring batch drift job
@@ -360,9 +349,10 @@ def get_drift_thresholds_if_not_none(
 def write_monitoring_df(
     endpoint_id: str,
     infer_results_df: pd.DataFrame,
-    monitoring_feature_set: mlrun.feature_store.FeatureSet = None,
+    infer_datetime: datetime,
+    monitoring_feature_set: typing.Optional[mlrun.feature_store.FeatureSet] = None,
     feature_set_uri: str = "",
-):
+) -> None:
     """Write infer results dataframe to the monitoring parquet target of the current model endpoint. The dataframe will
     be written using feature set ingest process. Please make sure that you provide either a valid monitoring feature
     set (with parquet target) or a valid monitoring feature set uri.
@@ -387,21 +377,14 @@ def write_monitoring_df(
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now(
-            tz=datetime.timezone.utc
-        )
+        infer_results_df[EventFieldType.TIMESTAMP] = infer_datetime
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
     infer_results_df[EventFieldType.ENDPOINT_ID] = endpoint_id
-    infer_results_df.set_index(
-        EventFieldType.ENDPOINT_ID,
-        inplace=True,
-    )
+    infer_results_df.set_index(EventFieldType.ENDPOINT_ID, inplace=True)
 
-    mlrun.feature_store.ingest(
-        featureset=monitoring_feature_set, source=infer_results_df, overwrite=False
-    )
+    monitoring_feature_set.ingest(source=infer_results_df, overwrite=False)
 
 
 def _generate_model_endpoint(
@@ -464,7 +447,7 @@ def _generate_model_endpoint(
     model_endpoint.spec.monitoring_mode = monitoring_mode
     model_endpoint.status.first_request = (
         model_endpoint.status.last_request
-    ) = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    ) = datetime_now().isoformat()
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 
@@ -543,7 +526,11 @@ def _generate_job_params(
 
 
 def get_sample_set_statistics(
-    sample_set: DatasetType = None, model_artifact_feature_stats: dict = None
+    sample_set: DatasetType = None,
+    model_artifact_feature_stats: dict = None,
+    sample_set_columns: typing.Optional[typing.List] = None,
+    sample_set_drop_columns: typing.Optional[typing.List] = None,
+    sample_set_label_columns: typing.Optional[typing.List] = None,
 ) -> dict:
     """
     Get the sample set statistics either from the given sample set or the statistics logged with the model while
@@ -552,7 +539,11 @@ def get_sample_set_statistics(
     :param sample_set:                   A sample dataset to give to compare the inputs in the drift analysis.
     :param model_artifact_feature_stats: The `feature_stats` attribute in the spec of the model artifact, where the
                                          original sample set statistics of the model was used.
-
+    :param sample_set_columns: The column names of sample_set.
+    :param sample_set_drop_columns: ``str`` / ``int`` or a list of ``str`` / ``int`` that
+                                    represent the column names / indices to drop.
+    :param sample_set_label_columns: The target label(s) of the column(s) in the dataset. for Regression or
+                                     Classification tasks.
     :returns: The sample set statistics.
 
     raises MLRunInvalidArgumentError: If no sample set or statistics were given.
@@ -568,9 +559,25 @@ def get_sample_set_statistics(
         # Return the statistics logged with the model:
         return model_artifact_feature_stats
 
-    # Turn the DataItem to DataFrame:
-    if isinstance(sample_set, mlrun.DataItem):
-        sample_set, _ = read_dataset_as_dataframe(dataset=sample_set)
+    # Turn other object types to DataFrame:
+    # A DataFrame is necessary for executing the "drop features" operation.
+    dataset_types = list(DatasetType.__args__)
+    if typing.Any in dataset_types:
+        dataset_types.remove(typing.Any)
+    if isinstance(
+        sample_set,
+        tuple(dataset_types),
+    ):
+        sample_set, _ = read_dataset_as_dataframe(
+            dataset=sample_set,
+            feature_columns=sample_set_columns,
+            drop_columns=sample_set_drop_columns,
+            label_columns=sample_set_label_columns,
+        )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Parameter sample_set has an unsupported type: {type(sample_set)}"
+        )
 
     # Return the sample set statistics:
     return get_df_stats(df=sample_set, options=InferOptions.Histogram)
@@ -587,7 +594,8 @@ def read_dataset_as_dataframe(
     parsed and validated as well.
 
     :param dataset:         A dataset that will be converted into a DataFrame.
-                            Can be either a list of lists, dict, URI or a FeatureVector.
+                            Can be either a list of lists, numpy.ndarray, dict, pd.Series, DataItem
+                            or a FeatureVector.
     :param feature_columns: List of feature columns that will be used to build the dataframe when dataset is from
                             type list or numpy array.
     :param label_columns:   The target label(s) of the column(s) in the dataset. for Regression or
@@ -612,9 +620,7 @@ def read_dataset_as_dataframe(
         if label_columns is None:
             label_columns = dataset.status.label_column
         # Get the features and parse to DataFrame:
-        dataset = mlrun.feature_store.get_offline_features(
-            dataset.uri, drop_columns=drop_columns
-        ).to_dataframe()
+        dataset = dataset.get_offline_features(drop_columns=drop_columns).to_dataframe()
 
     elif isinstance(dataset, (list, np.ndarray)):
         if not feature_columns:
@@ -629,7 +635,18 @@ def read_dataset_as_dataframe(
                 "`drop_columns` must be an integer / list of integers if provided as a list."
             )
     elif isinstance(dataset, mlrun.DataItem):
-        # Turn the DataITem to DataFrame:
+        if (
+            not dataset.url
+            and dataset.artifact_url
+            and mlrun.datastore.parse_store_uri(dataset.artifact_url)[0]
+            == mlrun.utils.StorePrefix.FeatureVector
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"No data has been found. Make sure you have applied `get_offline_features` "
+                f"on your feature vector {dataset.artifact_url} with a valid target before passing "
+                f"it as an input."
+            )
+        # Turn the DataItem to DataFrame:
         dataset = dataset.as_df()
     else:
         # Parse the object (should be a pd.DataFrame / pd.Series, dictionary) into a DataFrame:
@@ -750,7 +767,7 @@ def _log_drift_artifacts(
     3 - Results of the total drift analysis
 
     :param context:             MLRun context. Will log the artifacts.
-    :param html_plot:           Path to the html file of the plot.
+    :param html_plot:           Body of the html file of the plot.
     :param metrics_per_feature: Dictionary in which the key is a feature name and the value is the drift numerical
                                 result.
     :param drift_status:        Boolean value that represents the final drift analysis result.
@@ -759,7 +776,9 @@ def _log_drift_artifacts(
 
     """
     context.log_artifact(
-        mlrun.artifacts.Artifact(body=html_plot, format="html", key="drift_table_plot"),
+        mlrun.artifacts.Artifact(
+            body=html_plot.encode("utf-8"), format="html", key="drift_table_plot"
+        ),
         tag=artifacts_tag,
     )
     context.log_artifact(
@@ -803,7 +822,7 @@ def log_result(
     result_set: pd.DataFrame,
     artifacts_tag: str,
     batch_id: str,
-):
+) -> None:
     # Log the result set:
     context.logger.info("Logging result set (x | prediction)...")
     context.log_dataset(
@@ -814,7 +833,7 @@ def log_result(
     )
     # Log the batch ID:
     if batch_id is None:
-        batch_id = hashlib.sha224(str(datetime.datetime.now()).encode()).hexdigest()
+        batch_id = hashlib.sha224(str(datetime_now()).encode()).hexdigest()
     context.log_result(
         key="batch_id",
         value=batch_id,

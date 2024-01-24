@@ -709,7 +709,7 @@ class DropFeatures(StepToDict, MLRunStep):
                                         )
             # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
-            df_pandas = fstore.ingest(feature_set, data)
+            df_pandas = feature_set.ingest(data)
 
         """
         super().__init__(**kwargs)

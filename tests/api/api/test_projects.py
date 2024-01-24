@@ -58,6 +58,8 @@ from server.api.db.sqldb.models import (
 )
 
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
+FUNCTIONS_API = "projects/{project}/functions/{name}"
+LIST_FUNCTION_API = "projects/{project}/functions"
 
 
 @pytest.fixture(params=["leader", "follower"])
@@ -80,8 +82,14 @@ def test_redirection_from_worker_to_chief_delete_project(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}"
+    project_name = "test-project"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    )
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
         headers = {"x-mlrun-deletion-strategy": strategy.value}
         for test_case in [
@@ -104,7 +112,7 @@ def test_redirection_from_worker_to_chief_delete_project(
                 "expected_status": http.HTTPStatus.PRECONDITION_FAILED.value,
                 "expected_body": {
                     "detail": {
-                        "reason": f"Project {project} can not be deleted since related resources found: x"
+                        "reason": f"Project {project_name} can not be deleted since related resources found: x"
                     }
                 },
             },
@@ -530,7 +538,8 @@ def test_delete_project_deletion_strategy_check(
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
     response = client.post(
-        f"func/{project.metadata.name}/{function_name}", json=function
+        FUNCTIONS_API.format(project=project.metadata.name, name=function_name),
+        json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
 
@@ -556,7 +565,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_name = "project-name"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    response = client.get("funcs", params={"project": project_name})
+    response = client.get(LIST_FUNCTION_API.format(project=project_name))
     assert response.status_code == HTTPStatus.OK.value
     distinct_function_names = {
         function["metadata"]["name"] for function in response.json()["funcs"]
@@ -873,7 +882,9 @@ def test_projects_crud(
     # add function to project 1
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
-    response = client.post(f"func/{name1}/{function_name}", json=function)
+    response = client.post(
+        FUNCTIONS_API.format(project=name1, name=function_name), json=function
+    )
     assert response.status_code == HTTPStatus.OK.value
 
     # delete - restricted strategy, will fail because function exists
@@ -895,7 +906,7 @@ def test_projects_crud(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure function is gone
-    response = client.get(f"func/{name1}/{function_name}")
+    response = client.get(FUNCTIONS_API.format(project=name1, name=function_name))
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
@@ -933,6 +944,38 @@ def test_project_with_parameters(
 
     # validate that the parameters are as expected
     assert response_body["spec"]["params"] == expected_params
+
+
+@pytest.mark.parametrize(
+    "delete_api_version",
+    [
+        "v1",
+        "v2",
+    ],
+)
+def test_delete_project_not_found_in_leader(
+    unprefixed_client: TestClient,
+    mock_project_leader_iguazio_client,
+    delete_api_version: str,
+) -> None:
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    response = unprefixed_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    response = unprefixed_client.delete(
+        f"{delete_api_version}/projects/{project.metadata.name}",
+    )
+    assert response.status_code == HTTPStatus.ACCEPTED.value
+
+    response = unprefixed_client.get(
+        f"v1/projects/{project.metadata.name}",
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def _create_resources_of_all_kinds(
@@ -1433,7 +1476,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
                 "spec": {"some_field": str(uuid4())},
             }
             response = client.post(
-                f"func/{project_name}/{function_name}",
+                FUNCTIONS_API.format(project=project_name, name=function_name),
                 json=function,
                 params={"versioned": True},
             )

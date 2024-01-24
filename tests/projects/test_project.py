@@ -875,6 +875,7 @@ def test_import_artifact_using_relative_path():
     artifact = project.import_artifact("artifact.yaml", "y")
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
+    assert artifact.spec.db_key == "y"
 
 
 @pytest.mark.parametrize(
@@ -1108,10 +1109,11 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         (
             "./",
             pytest.raises(
-                ValueError,
+                mlrun.errors.MLRunInvalidArgumentError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': './'. Got a path to a non-existing file.Path must be absolute or "
+                        "relative to the project code path i.e. <project.spec.get_code_path()>/<workflow_path>)."
                     )
                 ),
             ),
@@ -1119,10 +1121,10 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         (
             "https://test",
             pytest.raises(
-                ValueError,
+                mlrun.errors.MLRunInvalidArgumentError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': 'https://test'. Got a remote URL without a file suffix."
                     )
                 ),
             ),
@@ -1130,19 +1132,17 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         (
             "",
             pytest.raises(
-                ValueError,
-                match=str(
-                    re.escape(
-                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
-                    )
-                ),
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=str(re.escape("workflow_path must be provided.")),
             ),
         ),
         ("https://test.py", does_not_raise()),
         # relative path
         ("./workflow.py", does_not_raise()),
+        ("./assets/handler.py", does_not_raise()),
         # only file name
         ("workflow.py", does_not_raise()),
+        ("assets/handler.py", does_not_raise()),
         # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
@@ -1150,9 +1150,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         ),
     ],
 )
-def test_set_workflow_with_invalid_path(
-    chdir_to_test_location, workflow_path, exception
-):
+def test_set_workflow_path_validation(chdir_to_test_location, workflow_path, exception):
     proj = mlrun.new_project("proj", save=False)
     with exception:
         proj.set_workflow("main", workflow_path)

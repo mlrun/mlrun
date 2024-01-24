@@ -501,7 +501,7 @@ class RemoteRuntime(KubeResource):
         consumer_group = kwargs.pop("consumerGroup", None)
         if consumer_group:
             logger.warning(
-                "consumerGroup kwargs value is ignored. use group argument instead"
+                "'consumerGroup' kwargs value is ignored. use group argument instead"
             )
 
         container, path = split_path(stream_path)
@@ -600,7 +600,7 @@ class RemoteRuntime(KubeResource):
             save_record = True
 
         logger.info(
-            "successfully deployed function",
+            "Successfully deployed function",
             internal_invocation_urls=self.status.internal_invocation_urls,
             external_invocation_urls=self.status.external_invocation_urls,
         )
@@ -943,7 +943,7 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("invoking function", method=method, path=path)
+            logger.info("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(
@@ -985,7 +985,7 @@ class RemoteRuntime(KubeResource):
                 raise RunError(f"Cannot run, function in state {state}")
             state, _, _ = self._get_state(raise_on_exception=True)
             if state != "ready":
-                logger.info("starting nuclio build!")
+                logger.info("Starting nuclio build!")
                 self.deploy()
 
     def _run(self, runobj: RunObject, execution):
@@ -1088,12 +1088,12 @@ class RemoteRuntime(KubeResource):
                     stop = generator.eval_stop_condition(run_results)
                     if stop:
                         logger.info(
-                            f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                            f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                         )
                         break
 
                 if num_errors > generator.max_errors:
-                    logger.error("max errors reached, stopping iterations!")
+                    logger.error("Max errors reached, stopping iterations!")
                     stop = True
                     break
 

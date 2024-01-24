@@ -45,6 +45,11 @@ def test_ui_clear_cache_middleware(
     backend_version: str,
     clear_cache: bool,
 ) -> None:
+    for middleware in client.app.user_middleware:
+        if "UiClearCacheMiddleware" in str(middleware.cls):
+            middleware.options["backend_version"] = backend_version
+    client.app.middleware_stack = client.app.build_middleware_stack()
+
     with unittest.mock.patch.object(
         mlrun.utils.version.Version, "get", return_value={"version": backend_version}
     ):
@@ -72,11 +77,12 @@ def test_ui_clear_cache_middleware(
 def test_ensure_be_version_middleware(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    with unittest.mock.patch.object(
-        mlrun.utils.version.Version, "get", return_value={"version": "dummy-version"}
-    ) as mock_version_get:
-        response = client.get("client-spec")
-        assert (
-            response.headers[mlrun.common.schemas.constants.HeaderNames.backend_version]
-            == mock_version_get.return_value["version"]
-        )
+    for middleware in client.app.user_middleware:
+        if "backend_version" in middleware.options:
+            middleware.options["backend_version"] = "dummy-version"
+    client.app.middleware_stack = client.app.build_middleware_stack()
+    response = client.get("client-spec")
+    assert (
+        response.headers[mlrun.common.schemas.constants.HeaderNames.backend_version]
+        == "dummy-version"
+    )

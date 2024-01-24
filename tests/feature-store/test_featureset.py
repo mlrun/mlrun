@@ -25,7 +25,7 @@ from mlrun.model import DataSource, DataTargetBase
 @mock.patch("mlrun.feature_store.api._ingest")
 def test_ingest_method(mock_ingest):
     # Create an instance of FeatureSet
-    fs = FeatureSet()
+    fset = FeatureSet()
 
     # Define your test inputs
     test_source = "test_source"
@@ -39,7 +39,7 @@ def test_ingest_method(mock_ingest):
     test_overwrite = True
 
     # Call the ingest method
-    fs.ingest(
+    fset.ingest(
         source=test_source,
         targets=test_targets,
         namespace=test_namespace,
@@ -53,7 +53,7 @@ def test_ingest_method(mock_ingest):
 
     # Assert that mlrun.feature_store.api.ingest was called with the correct parameters
     mock_ingest.assert_called_once_with(
-        fs,
+        fset,
         test_source,
         test_targets,
         test_namespace,
@@ -69,7 +69,7 @@ def test_ingest_method(mock_ingest):
 @mock.patch("mlrun.feature_store.api._preview")
 def test_preview_method(mock_preview):
     # Create an instance of FeatureSet
-    fs = FeatureSet()
+    fset = FeatureSet()
 
     # Define your test inputs
     test_source = "test_source"
@@ -80,7 +80,7 @@ def test_preview_method(mock_preview):
     test_sample_size = 100
 
     # Call the preview method
-    fs.preview(
+    fset.preview(
         source=test_source,
         entity_columns=test_entity_columns,
         namespace=test_namespace,
@@ -91,7 +91,7 @@ def test_preview_method(mock_preview):
 
     # Assert that mlrun.feature_store.api.preview was called with the correct parameters
     mock_preview.assert_called_once_with(
-        fs,
+        fset,
         test_source,
         test_entity_columns,
         test_namespace,
@@ -104,7 +104,7 @@ def test_preview_method(mock_preview):
 @mock.patch("mlrun.feature_store.api._deploy_ingestion_service_v2")
 def test_deploy_ingestion_service(mock_deploy):
     # Create an instance of FeatureSet
-    fs = FeatureSet()
+    fset = FeatureSet()
 
     # Define your test inputs
     test_source = DataSource()  # Assuming DataSource is a valid class
@@ -117,7 +117,7 @@ def test_deploy_ingestion_service(mock_deploy):
     test_verbose = True
 
     # Call the deploy_ingestion_service method
-    fs.deploy_ingestion_service(
+    fset.deploy_ingestion_service(
         source=test_source,
         targets=test_targets,
         name=test_name,
@@ -125,7 +125,7 @@ def test_deploy_ingestion_service(mock_deploy):
         verbose=test_verbose,
     )
 
-    # Assert that mlrun.feature_store.api.deploy_ingestion_service_v2 was called with the correct parameters
+    # Assert that deploy_ingestion_service was called with the correct parameters
     mock_deploy.assert_called_once_with(
-        fs, test_source, test_targets, test_name, test_run_config, test_verbose
+        fset, test_source, test_targets, test_name, test_run_config, test_verbose
     )

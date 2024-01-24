@@ -131,7 +131,7 @@ def run_merge_job(
         local=run_config.local,
         watch=run_config.watch,
     )
-    logger.info(f"feature vector merge job started, run id = {run.uid()}")
+    logger.info(f"Feature vector merge job started, run id = {run.uid()}")
     return RemoteVectorResponse(vector, run, with_indexes, drop_columns)
 
 
@@ -202,7 +202,7 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
     if entity_rows:
         entity_rows = entity_rows.as_df()
 
-    context.logger.info(f"starting vector merge task to {vector.uri}")
+    context.logger.info(f"Starting vector merge task to {vector.uri}")
     merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
                  query=query, order_by=order_by, start_time=start_time, end_time=end_time,

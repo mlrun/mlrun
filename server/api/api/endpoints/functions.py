@@ -63,12 +63,6 @@ from server.api.utils.singletons.scheduler import get_scheduler
 router = APIRouter()
 
 
-@router.post(
-    "/func/{project}/{name}",
-    deprecated=True,
-    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/functions/{name} instead",
-)
 @router.post("/projects/{project}/functions/{name}")
 async def store_function(
     request: Request,
@@ -116,12 +110,6 @@ async def store_function(
     }
 
 
-@router.get(
-    "/func/{project}/{name}",
-    deprecated=True,
-    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/functions/{name} instead",
-)
 @router.get("/projects/{project}/functions/{name}")
 async def get_function(
     project: str,
@@ -203,12 +191,6 @@ async def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get(
-    "/funcs",
-    deprecated=True,
-    description="/funcs is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/functions instead",
-)
 @router.get("/projects/{project}/functions")
 async def list_functions(
     project: str = None,
@@ -720,7 +702,7 @@ def _build_function(
         logger.error(traceback.format_exc())
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
     try:
         # connect to run db
@@ -862,7 +844,7 @@ def _build_function(
         logger.error(traceback.format_exc())
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
     return fn, ready
 
@@ -872,7 +854,7 @@ def _parse_start_function_body(db_session, data):
     if not url:
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: functionUrl not specified",
+            reason="Runtime error: functionUrl not specified",
         )
 
     project, name, tag, hash_key = parse_versioned_object_uri(url)
@@ -882,7 +864,7 @@ def _parse_start_function_body(db_session, data):
     if not runtime:
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: function {url} not found",
+            reason=f"Runtime error: function {url} not found",
         )
 
     return new_function(runtime=runtime)

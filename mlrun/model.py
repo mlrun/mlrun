@@ -1259,8 +1259,15 @@ class RunObject(RunTemplate):
         """error string if failed"""
         if self.status:
             unknown_error = ""
-            if self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            if (
+                self.status.state
+                in mlrun.runtimes.constants.RunStates.abortion_states()
+            ):
+                unknown_error = "Run was aborted"
+
+            elif self.status.state in mlrun.runtimes.constants.RunStates.error_states():
                 unknown_error = "Unknown error"
+
             return (
                 self.status.error
                 or self.status.reason
@@ -1715,7 +1722,7 @@ class DataTargetBase(ModelObj):
     ]
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):

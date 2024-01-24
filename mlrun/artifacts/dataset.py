@@ -177,6 +177,10 @@ class DatasetArtifact(Artifact):
         self.spec.label_column = label_column
 
         if df is not None:
+            if label_column and label_column not in df.columns:
+                raise mlrun.errors.MLRunValueError(
+                    f"Provided dataframe doesn't include a column \"{label_column}\", so it can't be used as label"
+                )
             if hasattr(df, "dask"):
                 # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
                 if (df.memory_usage(deep=True).sum().compute() / 1e9) < max_ddf_size:
@@ -283,14 +287,16 @@ class DatasetArtifact(Artifact):
         if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
 
-        # reset index while dropping existing index
-        # that way it wont create another index if one already there
-        preview_df = preview_df.reset_index(drop=True)
+        preview_df = preview_df.reset_index()
         artifact.status.header_original_length = len(preview_df.columns)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()
         artifact.status.preview = preview_df.values.tolist()
+        # Table schema parsing doesn't require a column named "index"
+        # to align its output with previously generated header and preview data
+        if "index" in preview_df.columns:
+            preview_df.drop("index", axis=1, inplace=True)
         artifact.spec.schema = build_table_schema(preview_df)
 
         # set artifact stats if stats is explicitly set to true, or if stats is None and the dataframe is small
@@ -344,10 +350,10 @@ class DatasetArtifact(Artifact):
         self.status.stats = stats
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyTableArtifact' will be removed in 1.6.0, use 'TableArtifact' instead",
+    reason="'LegacyTableArtifact' will be removed in 1.7.0, use 'TableArtifact' instead",
     category=FutureWarning,
 )
 class LegacyTableArtifact(LegacyArtifact):
@@ -400,10 +406,10 @@ class LegacyTableArtifact(LegacyArtifact):
         return csv_buffer.getvalue()
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyDatasetArtifact' will be removed in 1.6.0, use 'DatasetArtifact' instead",
+    reason="'LegacyDatasetArtifact' will be removed in 1.7.0, use 'DatasetArtifact' instead",
     category=FutureWarning,
 )
 class LegacyDatasetArtifact(LegacyArtifact):
@@ -513,11 +519,16 @@ class LegacyDatasetArtifact(LegacyArtifact):
 
         if artifact.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index(drop=True)
+
+        preview_df = preview_df.reset_index()
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.header = preview_df.columns.values.tolist()
         artifact.preview = preview_df.values.tolist()
+        # Table schema parsing doesn't require a column named "index"
+        # to align its output with previously generated header and preview data
+        if "index" in preview_df.columns:
+            preview_df.drop("index", axis=1, inplace=True)
         artifact.schema = build_table_schema(preview_df)
         if (
             stats

@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
-
 import json
 import logging
 import re
+
+from setuptools import setup
 
 import dependencies
 import packages
@@ -62,6 +59,14 @@ setup(
             "server",
         ]
     ),
+    keywords=[
+        "mlrun",
+        "mlops",
+        "data-science",
+        "machine-learning",
+        "experiment-tracking",
+    ],
+    python_requires=">=3.9, <3.12",
     install_requires=dependencies.base_requirements(),
     tests_require=dependencies.dev_requirements(),
     extras_require=dependencies.extra_requirements(),
@@ -73,7 +78,6 @@ setup(
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",

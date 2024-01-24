@@ -85,11 +85,17 @@ def create_internal_background_task(
     function = bump_counter
     if failed_task:
         function = failing_function
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "bump_counter",
         None,
         function,
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
 
 
@@ -101,8 +107,15 @@ def create_long_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     timeout: int = 5,
 ):
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks, "long_bump_counter", None, long_function, sleep_time=timeout
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        "long_bump_counter", None, long_function, sleep_time=timeout
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
 
 
@@ -148,7 +161,7 @@ class ThreadedAsyncClient(httpx.AsyncClient):
 async def async_client() -> typing.Generator:
     """
     Async client that runs in a separate thread.
-    When posting with the client, the request is sent on a different thread, and the the method returns a future.
+    When posting with the client, the request is sent on a different thread, and the method returns a future.
     To get the response, call result() on the future.
     Example:
         result = await async_client.post(...)
@@ -365,7 +378,7 @@ def test_get_internal_background_task_in_chief_exists(
 async def test_internal_background_task_already_running(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
-    timeout = 1
+    timeout = 3
     curr_call_counter = call_counter
 
     # if we await the first future before sending the second request, the second request will be sent after the whole

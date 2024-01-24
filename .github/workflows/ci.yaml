@@ -49,6 +49,8 @@ jobs:
         python -m pip install --upgrade pip~=23.2.1
         pip install pre-commit==3.6.0
     - name: Lint
+      env:
+        PRE_COMMIT_COLOR: always
       run: make lint
 
     # perform copyright check here, to avoid spinning up another runner needlessly

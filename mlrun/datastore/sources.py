@@ -27,6 +27,7 @@ from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
 import mlrun
+from mlrun.config import config
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource

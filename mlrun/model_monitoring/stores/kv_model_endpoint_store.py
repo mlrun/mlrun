@@ -296,12 +296,12 @@ class KVModelEndpointStore(ModelEndpointStore):
                 backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
                 table=filtered_path,
             )
-        except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
-            # Frames might raise an exception if schema file does not exist.
-            logger.warning(
-                "Failed to delete TSDB schema file", err=mlrun.errors.err_to_str(e)
-            )
-
+        except v3io_frames.errors.DeleteError as e:
+            if "No TSDB schema file found" not in str(e):
+                logger.warning(
+                    f"Failed to delete TSDB table '{filtered_path}'",
+                    err=mlrun.errors.err_to_str(e),
+                )
         # Final cleanup of tsdb path
         tsdb_path.replace("://u", ":///u")
         store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)

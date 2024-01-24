@@ -101,6 +101,7 @@ class RuntimeKinds(object):
     local = "local"
     handler = "handler"
     databricks = "databricks"
+    deployment = "deployment"
 
     @staticmethod
     def all():
@@ -115,6 +116,7 @@ class RuntimeKinds(object):
             RuntimeKinds.mpijob,
             RuntimeKinds.local,
             RuntimeKinds.databricks,
+            RuntimeKinds.deployment,
         ]
 
     @staticmethod
@@ -147,6 +149,7 @@ class RuntimeKinds(object):
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,
             RuntimeKinds.serving,
+            RuntimeKinds.deployment,
         ]
 
     @staticmethod

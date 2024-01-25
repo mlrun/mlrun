@@ -29,6 +29,7 @@ def v3io_cred(api="", user="", access_key=""):
         train = train_op(...)
         train.apply(use_v3io_cred())
     """
+
     # TODO: this is a guy that uses modifiers for mounting v3io
     def _use_v3io_cred(container_op: kfp.dsl.ContainerOp):
         from os import environ

@@ -91,7 +91,6 @@ class StoreyFeatureMerger(BaseMerger):
                 "storey.QueryByKey",
                 f"query-{name}",
                 features=column_names,
-                time_field=feature_set.spec.timestamp_key,
                 table=feature_set.uri,
                 key_field=entity_list,
                 aliases=aliases,

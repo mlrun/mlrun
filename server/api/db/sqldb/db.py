@@ -15,9 +15,9 @@
 import asyncio
 import collections
 import functools
+import pathlib
 import re
 import typing
-import pathlib
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -2463,7 +2463,11 @@ class SQLDB(DBInterface):
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
     ) -> str:
-        (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
+        (
+            uid,
+            tag,
+            feature_set_dict,
+        ) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
         )
 

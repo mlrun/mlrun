@@ -961,6 +961,28 @@ class RemoteRuntime(KubeResource):
             data = json.loads(data)
         return data
 
+    def with_sidecar(self, name: str, image: str, port: int = None):
+        """
+        Add a sidecar container to the function pod
+        :param name:    sidecar container name
+        :param image:   sidecar container image
+        :param port:    sidecar container port
+        """
+        self.spec.config.setdefault("spec.sidecars", [])
+        if not name or not image:
+            raise ValueError("name and image must be specified")
+
+        self.spec.config["spec.sidecars"][-1] = {"name": name, "image": image}
+        if port:
+            self.spec.config["spec.sidecars"][0]["ports"] = [
+                {
+                    "name": "http",
+                    "containerPort": port,
+                    "protocol": "TCP",
+                }
+            ]
+        return self
+
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:
             return False

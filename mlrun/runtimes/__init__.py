@@ -38,7 +38,7 @@ from .function import RemoteRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
-from .nuclio import nuclio_init_hook
+from .nuclio.deployment import DeploymentRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .serving import ServingRuntime, new_v2_model_server
 from .sparkjob import Spark3Runtime
@@ -228,6 +228,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
         RuntimeKinds.databricks: DatabricksRuntime,
+        RuntimeKinds.deployment: DeploymentRuntime,
     }
 
     return kind_runtime_map[kind]

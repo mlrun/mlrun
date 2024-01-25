@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.runtimes
+from mlrun.common.schemas import AuthInfo
 
 
 class DeploymentRuntime(mlrun.runtimes.RemoteRuntime):
@@ -20,6 +21,36 @@ class DeploymentRuntime(mlrun.runtimes.RemoteRuntime):
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
         # TODO: verify min_nuclio_versions
+        self.internal_app_port = 8080
 
-    def _init_side_car(self):
-        pass
+    def set_internal_app_port(self, port):
+        # TODO: move to spec?
+        self.internal_app_port = port
+
+    def deploy(
+        self,
+        dashboard="",
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: AuthInfo = None,
+        builder_env: dict = None,
+        force_build: bool = False,
+    ):
+        self._init_sidecar()
+        super().deploy(
+            dashboard,
+            project,
+            tag,
+            verbose,
+            auth_info,
+            builder_env,
+            force_build,
+        )
+
+    def _init_sidecar(self):
+        self.with_sidecar(
+            f"{self.metadata.name}-sidecar", self.spec.image, self.internal_app_port
+        )
+        self.spec.image = ".mlrun/mlrun"
+        # TODO: move other fields

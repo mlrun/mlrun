@@ -124,7 +124,7 @@ class ArtifactManager:
 
     @staticmethod
     def ensure_artifact_source_file_exists(item, path, body):
-        # If the body exists, the source path does not have to be exists.
+        # If the body exists, the source path does not have to exists.
         if body is not None or item.get_body() is not None:
             return
         if not path:

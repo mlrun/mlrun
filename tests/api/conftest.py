@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 import unittest.mock
 from tempfile import NamedTemporaryFile, TemporaryDirectory
@@ -28,11 +29,13 @@ import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.db.factory
 import mlrun.launcher.factory
+import mlrun.utils.singleton
 import server.api.crud
 import server.api.launcher
 import server.api.rundb.sqldb
 import server.api.runtime_handlers.mpijob
 import server.api.utils.clients.iguazio
+import server.api.utils.projects.remotes.leader as project_leader
 import server.api.utils.runtimes.nuclio
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
@@ -337,3 +340,81 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         server.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch
     )
     yield k8s_secrets_mock
+
+
+class MockedProjectFollowerIguazioClient(
+    project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton
+):
+    def __init__(self):
+        self._db_session = None
+
+    def create_project(
+        self,
+        session: str,
+        project: mlrun.common.schemas.Project,
+        wait_for_completion: bool = True,
+    ) -> bool:
+        server.api.crud.Projects().create_project(self._db_session, project)
+        return False
+
+    def update_project(
+        self,
+        session: str,
+        name: str,
+        project: mlrun.common.schemas.Project,
+    ):
+        pass
+
+    def delete_project(
+        self,
+        session: str,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
+    ) -> bool:
+        raise mlrun.errors.MLRunNotFoundError("Project not found")
+
+    def list_projects(
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+    ) -> typing.Tuple[
+        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
+    ]:
+        return [], None
+
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.common.schemas.Project:
+        pass
+
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
+        pass
+
+    def get_project_owner(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.common.schemas.ProjectOwner:
+        pass
+
+
+@pytest.fixture()
+def mock_project_leader_iguazio_client(db: sqlalchemy.orm.Session):
+    """
+    This fixture mocks the project leader iguazio client.
+    """
+    mlrun.config.config.httpdb.projects.leader = "iguazio"
+    mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
+    old_iguazio_client = server.api.utils.clients.iguazio.Client
+    server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
+    server.api.utils.singletons.project_member.initialize_project_member()
+    MockedProjectFollowerIguazioClient()._db_session = db
+
+    yield
+
+    server.api.utils.clients.iguazio.Client = old_iguazio_client

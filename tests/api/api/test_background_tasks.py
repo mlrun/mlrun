@@ -161,7 +161,7 @@ class ThreadedAsyncClient(httpx.AsyncClient):
 async def async_client() -> typing.Generator:
     """
     Async client that runs in a separate thread.
-    When posting with the client, the request is sent on a different thread, and the the method returns a future.
+    When posting with the client, the request is sent on a different thread, and the method returns a future.
     To get the response, call result() on the future.
     Example:
         result = await async_client.post(...)
@@ -378,7 +378,7 @@ def test_get_internal_background_task_in_chief_exists(
 async def test_internal_background_task_already_running(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
-    timeout = 1
+    timeout = 3
     curr_call_counter = call_counter
 
     # if we await the first future before sending the second request, the second request will be sent after the whole

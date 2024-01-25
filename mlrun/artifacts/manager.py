@@ -124,7 +124,7 @@ class ArtifactManager:
 
     @staticmethod
     def ensure_artifact_source_file_exists(item, path, body):
-        # If the body exists, the source path does not have to be exists.
+        # If the body exists, the source path does not have to exists.
         if body is not None or item.get_body() is not None:
             return
         if not path:
@@ -141,7 +141,7 @@ class ArtifactManager:
             path = parsed_url.path
         if not exists(path):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Failed to log an artifact, path does not exists. path:{path}"
+                f"Failed to log an artifact, file does not exists at path {path}"
             )
 
     def artifact_list(self, full=False):

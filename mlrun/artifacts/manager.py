@@ -141,7 +141,7 @@ class ArtifactManager:
             path = parsed_url.path
         if not exists(path):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Failed to log an artifact, path does not exists. path:{path}"
+                f"Failed to log an artifact, file does not exists at path {path}"
             )
 
     def artifact_list(self, full=False):

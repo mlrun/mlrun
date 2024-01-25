@@ -34,9 +34,9 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-async def projects_follower() -> typing.Generator[
-    server.api.utils.projects.follower.Member, None, None
-]:
+async def projects_follower() -> (
+    typing.Generator[server.api.utils.projects.follower.Member, None, None]
+):
     logger.info("Creating projects follower")
     mlrun.config.config.httpdb.projects.leader = "nop"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"

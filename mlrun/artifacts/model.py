@@ -19,9 +19,9 @@ import yaml
 from deprecated import deprecated
 
 import mlrun
+import mlrun.datastore
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
 from ..utils import StorePrefix, is_relative_path
@@ -43,6 +43,15 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_weights",
         "feature_stats",
         "model_target_file",
+    ]
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "metrics",
+        "parameters",
+        "inputs",
+        "outputs",
+        "feature_vector",
+        "feature_weights",
+        "feature_stats",
     ]
 
     def __init__(
@@ -138,7 +147,6 @@ class ModelArtifact(Artifact):
         model_dir=None,
         **kwargs,
     ):
-
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:
@@ -309,7 +317,6 @@ class ModelArtifact(Artifact):
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
-
             # resolving target_path for the model spec
             _, spec_target_path = self.resolve_body_target_hash_path(
                 body=spec_body, artifact_path=artifact_path
@@ -330,14 +337,13 @@ class ModelArtifact(Artifact):
         spec_target_path = spec_target_path or path.join(
             self.spec.target_path, model_spec_filename
         )
-        store_manager.object(url=spec_target_path).put(spec_body)
+        mlrun.datastore.store_manager.object(url=spec_target_path).put(spec_body)
 
     def _upload_body_or_file(
         self,
         artifact_path: str,
         target_model_path: str = None,
     ):
-
         body = self.spec.get_body()
         if body:
             if not target_model_path:
@@ -384,10 +390,10 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyModelArtifact' will be removed in 1.6.0, use 'ModelArtifact' instead",
+    reason="'LegacyModelArtifact' will be removed in 1.7.0, use 'ModelArtifact' instead",
     category=FutureWarning,
 )
 class LegacyModelArtifact(LegacyArtifact):
@@ -432,7 +438,6 @@ class LegacyModelArtifact(LegacyArtifact):
         model_target_file=None,
         **kwargs,
     ):
-
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         self._inputs: ObjectList = None
         self._outputs: ObjectList = None
@@ -507,7 +512,6 @@ class LegacyModelArtifact(LegacyArtifact):
             self.labels["framework"] = self.framework
 
     def upload(self):
-
         target_model_path = path.join(self.target_path, self.model_file)
         body = self.get_body()
         if body:
@@ -521,7 +525,7 @@ class LegacyModelArtifact(LegacyArtifact):
         upload_extra_data(self, self.extra_data)
 
         spec_path = path.join(self.target_path, model_spec_filename)
-        store_manager.object(url=spec_path).put(self.to_yaml())
+        mlrun.datastore.store_manager.object(url=spec_path).put(self.to_yaml())
 
 
 def _get_src_path(model_spec: ModelArtifact, filename):
@@ -559,8 +563,8 @@ def get_model(model_dir, suffix=""):
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
 
-    if is_store_uri(model_dir):
-        model_spec, target = store_manager.get_store_artifact(model_dir)
+    if mlrun.datastore.is_store_uri(model_dir):
+        model_spec, target = mlrun.datastore.store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path
@@ -578,7 +582,7 @@ def get_model(model_dir, suffix=""):
     elif model_dir.endswith(suffix):
         model_file = model_dir
     else:
-        dirobj = store_manager.object(url=model_dir)
+        dirobj = mlrun.datastore.store_manager.object(url=model_dir)
         model_dir_list = dirobj.listdir()
         if model_spec_filename in model_dir_list:
             model_spec = _load_model_spec(path.join(model_dir, model_spec_filename))
@@ -595,7 +599,7 @@ def get_model(model_dir, suffix=""):
     if not model_file:
         raise ValueError(f"cant resolve model file for {model_dir} suffix{suffix}")
 
-    obj = store_manager.object(url=model_file)
+    obj = mlrun.datastore.store_manager.object(url=model_file)
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
@@ -605,7 +609,7 @@ def get_model(model_dir, suffix=""):
 
 
 def _load_model_spec(spec_path):
-    data = store_manager.object(url=spec_path).get()
+    data = mlrun.datastore.store_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 
@@ -621,7 +625,7 @@ def _get_file_path(base_path: str, name: str, isdir=False):
 def _get_extra(target, extra_data, is_dir=False):
     extra_dataitems = {}
     for k, v in extra_data.items():
-        extra_dataitems[k] = store_manager.object(
+        extra_dataitems[k] = mlrun.datastore.store_manager.object(
             url=_get_file_path(target, v, isdir=is_dir), key=k
         )
     return extra_dataitems
@@ -676,8 +680,8 @@ def update_model(
 
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
-    elif is_store_uri(model_artifact):
-        model_spec, _ = store_manager.get_store_artifact(model_artifact)
+    elif mlrun.datastore.is_store_uri(model_artifact):
+        model_spec, _ = mlrun.datastore.store_manager.get_store_artifact(model_artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -715,14 +719,14 @@ def update_model(
         # the model spec yaml should not include the tag, as the same model can be used with different tags,
         # and the tag is not part of the model spec but the metadata of the model artifact
         model_spec_yaml = _remove_tag_from_spec_yaml(model_spec)
-        store_manager.object(url=spec_path).put(model_spec_yaml)
+        mlrun.datastore.store_manager.object(url=spec_path).put(model_spec_yaml)
 
     model_spec.db_key = model_spec.db_key or model_spec.key
     if store_object:
         mlrun.get_run_db().store_artifact(
             model_spec.db_key,
             model_spec.to_dict(),
-            model_spec.tree,
+            tree=model_spec.tree,
             iter=model_spec.iter,
             project=model_spec.project,
         )

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import json
-from typing import List
 
 import pytest
 
@@ -108,16 +107,14 @@ def test_sklearn_api_evaluation(rundb_mock, algorithm_functionality: str):
     _, dummy_y = get_dataset(
         algorithm_functionality=algorithm_functionality, for_training=False
     )
-    expected_artifacts = (
-        [  # Count only pre and post prediction artifacts (evaluation artifacts).
-            plan
-            for plan in LGBMArtifactsLibrary.get_plans(model=dummy_model, y=dummy_y)
-            if not (
-                plan.is_ready(stage=MLPlanStages.POST_FIT, is_probabilities=False)
-                or plan.is_ready(stage=MLPlanStages.PRE_FIT, is_probabilities=False)
-            )
-        ]
-    )
+    expected_artifacts = [  # Count only pre and post prediction artifacts (evaluation artifacts).
+        plan
+        for plan in LGBMArtifactsLibrary.get_plans(model=dummy_model, y=dummy_y)
+        if not (
+            plan.is_ready(stage=MLPlanStages.POST_FIT, is_probabilities=False)
+            or plan.is_ready(stage=MLPlanStages.PRE_FIT, is_probabilities=False)
+        )
+    ]
     expected_results = MetricsLibrary.get_metrics(model=dummy_model, y=dummy_y)
 
     # Validate artifacts:

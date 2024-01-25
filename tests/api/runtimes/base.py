@@ -551,18 +551,14 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         (
             _,
             kwargs,
-        ) = (
-            server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
-        )
+        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["body"]
 
     def _get_create_custom_object_namespace_arg(self):
         (
             _,
             kwargs,
-        ) = (
-            server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
-        )
+        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["namespace"]
 
     def _get_create_pod_namespace_arg(self):

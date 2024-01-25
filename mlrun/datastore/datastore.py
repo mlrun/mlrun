@@ -18,7 +18,7 @@ from mergedeep import merge
 
 import mlrun
 import mlrun.errors
-from mlrun.datastore.datastore_profile import TemporaryClientDatastoreProfiles
+from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
@@ -193,14 +193,7 @@ class StoreManager:
         store_key = f"{schema}://{endpoint}"
 
         if schema == "ds":
-            profile_name = endpoint
-            datastore_profile = TemporaryClientDatastoreProfiles().get(profile_name)
-            if not datastore_profile:
-                project_name = urlparse(url).username or mlrun.mlconf.default_project
-                datastore_profile = mlrun.db.get_run_db(
-                    secrets=self._secrets
-                ).get_datastore_profile(profile_name, project_name)
-
+            datastore_profile = datastore_profile_read(url)
             if secrets and datastore_profile.secrets():
                 secrets = merge(secrets, datastore_profile.secrets())
             else:

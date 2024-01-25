@@ -25,7 +25,6 @@ from tests.system.demos.base import TestDemo
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestChurn(TestDemo):
-
     project_name = "churn-project"
     use_gpus = False
 

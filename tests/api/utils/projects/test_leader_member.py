@@ -28,9 +28,9 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-async def projects_leader() -> typing.Generator[
-    server.api.utils.projects.leader.Member, None, None
-]:
+async def projects_leader() -> (
+    typing.Generator[server.api.utils.projects.leader.Member, None, None]
+):
     logger.info("Creating projects leader")
     mlrun.config.config.httpdb.projects.leader = "nop-self-leader"
     mlrun.config.config.httpdb.projects.followers = "nop,nop2"

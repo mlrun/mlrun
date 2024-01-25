@@ -177,17 +177,21 @@ class BaseLauncher(abc.ABC):
 
     def _validate_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():
-
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively
                 self._validate_run_params(param_value)
+            self._validate_run_single_param(
+                param_name=param_name, param_value=param_value
+            )
 
-            # verify that integer parameters don't exceed a int64
-            if isinstance(param_value, int) and abs(param_value) >= 2**63:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Parameter {param_name} value {param_value} exceeds int64"
-                )
+    @classmethod
+    def _validate_run_single_param(cls, param_name, param_value):
+        # verify that integer parameters don't exceed a int64
+        if isinstance(param_value, int) and abs(param_value) >= 2**63:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Parameter {param_name} value {param_value} exceeds int64"
+            )
 
     @staticmethod
     def _create_run_object(task):
@@ -323,7 +327,7 @@ class BaseLauncher(abc.ABC):
                             run.spec.output_path = project.spec.artifact_path
                     except mlrun.errors.MLRunNotFoundError:
                         logger.warning(
-                            f"project {project_name} is not saved in DB yet, "
+                            f"Project {project_name} is not saved in DB yet, "
                             f"enriching output path with default artifact path: {mlrun.mlconf.artifact_path}"
                         )
 
@@ -331,9 +335,8 @@ class BaseLauncher(abc.ABC):
                 run.spec.output_path = mlrun.mlconf.artifact_path
 
         if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace("{{run.uid}}", meta.uid)
-            run.spec.output_path = mlrun.utils.helpers.fill_project_path_template(
-                run.spec.output_path, run.metadata.project
+            run.spec.output_path = mlrun.utils.helpers.template_artifact_path(
+                run.spec.output_path, run.metadata.project, meta.uid
             )
 
         notifications = notifications or run.spec.notifications or []
@@ -398,10 +401,10 @@ class BaseLauncher(abc.ABC):
                 status=run.status.state,
                 name=run.metadata.name,
             )
-            if run.status.state in [
-                mlrun.runtimes.constants.RunStates.error,
-                mlrun.runtimes.constants.RunStates.aborted,
-            ]:
+            if (
+                run.status.state
+                in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+            ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(
                         "Run did not finish successfully",

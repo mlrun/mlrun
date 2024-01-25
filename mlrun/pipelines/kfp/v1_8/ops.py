@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import getpass
 import json
 import os
 import os.path
@@ -313,7 +312,6 @@ def mlrun_op(
     code_env = None
     function_name = ""
     if function:
-
         if not func_url:
             if function.kind in ["", "local"]:
                 image = image or function.spec.image
@@ -380,10 +378,7 @@ def mlrun_op(
     returns = returns or []
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
-        labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
-    if "owner" not in labels:
-        labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
+    mlrun.runtimes.utils.enrich_run_labels(labels)
 
     if name:
         cmd += ["--name", name]
@@ -492,7 +487,6 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
@@ -855,7 +849,6 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         if getattr(function.spec, "node_selector"):
             container_op.node_selector = function.spec.node_selector

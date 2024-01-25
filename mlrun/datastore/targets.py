@@ -17,7 +17,6 @@ import os
 import random
 import sys
 import time
-import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -79,6 +78,35 @@ def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
 
+def write_spark_dataframe_with_options(spark_options, df, mode):
+    sc = df.sql_ctx.sparkSession.sparkContext
+
+    original_hadoop_conf = {}
+    non_hadoop_spark_options = {}
+
+    hadoop_conf = sc._jsc.hadoopConfiguration()
+
+    for key, value in spark_options.items():
+        if key.startswith("spark.hadoop."):
+            key = key[len("spark.hadoop.") :]
+            # Save the original configuration
+            original_value = hadoop_conf.get(key, None)
+            original_hadoop_conf[key] = original_value
+            hadoop_conf.set(key, value)
+        else:
+            non_hadoop_spark_options[key] = value
+    try:
+        df.write.mode(mode).save(**non_hadoop_spark_options)
+    except Exception as e:
+        raise e
+    finally:
+        for key, value in original_hadoop_conf.items():
+            if value:
+                hadoop_conf.set(key, value)
+            else:
+                hadoop_conf.unset(key)
+
+
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets
     return [target.strip() for target in targets.split(",")]
@@ -96,7 +124,7 @@ def get_default_targets(offline_only=False):
 def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
     run_id = generate_target_run_id()
     for target in targets:
-        if overwrite or not (target.name in targets_in_status.keys()):
+        if overwrite or target.name not in targets_in_status.keys():
             target.run_id = run_id
         else:
             target.run_id = targets_in_status[target.name].run_id
@@ -192,7 +220,7 @@ def validate_target_list(targets):
 
     if not targets:
         return
-    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
         [
             target.kind
@@ -498,7 +526,7 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
-            df.write.mode("overwrite").save(**options)
+            write_spark_dataframe_with_options(options, df, "overwrite")
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
             store, target_path = self._get_store_and_path()
@@ -524,7 +552,7 @@ class BaseStoreTarget(DataTargetBase):
         else:
             store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
-            file_system = store.get_filesystem(False)
+            file_system = store.filesystem
             if file_system.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
@@ -898,7 +926,7 @@ class ParquetTarget(BaseStoreTarget):
 
         def delete_update_last_written(*arg, **kargs):
             result = original_to_dict(*arg, **kargs)
-            del result["class_args"]["update_last_written"]
+            result["class_args"].pop("update_last_written", None)
             return result
 
         # update_last_written is not serializable (ML-5108)
@@ -926,12 +954,12 @@ class ParquetTarget(BaseStoreTarget):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
+            storage_spark_options = store.get_spark_options()
             path = store.url + path
             result = {
-                "path": store_path_to_spark(path),
+                "path": store_path_to_spark(path, storage_spark_options),
                 "format": "parquet",
             }
-            storage_spark_options = store.get_spark_options()
             result = {**result, **storage_spark_options}
         else:
             result = {
@@ -1068,13 +1096,13 @@ class CSVTarget(BaseStoreTarget):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
+            storage_spark_options = store.get_spark_options()
             path = store.url + path
             result = {
-                "path": store_path_to_spark(path),
+                "path": store_path_to_spark(path, storage_spark_options),
                 "format": "csv",
                 "header": "true",
             }
-            storage_spark_options = store.get_spark_options()
             return {**result, **storage_spark_options}
         else:
             return {
@@ -1196,7 +1224,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
-            df.write.mode("overwrite").save(**options)
+            write_spark_dataframe_with_options(options, df, "overwrite")
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
@@ -1378,7 +1406,10 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_path(self.get_target_path())
+        path = self.get_target_path()
+        if not path:
+            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
+        endpoint, uri = parse_path(path)
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1396,6 +1427,9 @@ class StreamTarget(BaseStoreTarget):
 
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
+
+    def get_path(self):
+        return TargetPathObject(self.path or "")
 
 
 class KafkaTarget(BaseStoreTarget):
@@ -1442,7 +1476,14 @@ class KafkaTarget(BaseStoreTarget):
         else:
             attributes = copy(self.attributes)
             bootstrap_servers = attributes.pop("bootstrap_servers", None)
-            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+            topic, bootstrap_servers = parse_kafka_url(
+                self.get_target_path(), bootstrap_servers
+            )
+
+        if not topic:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "KafkaTarget requires a path (topic)"
+            )
 
         graph.add_step(
             name=self.name or "KafkaTarget",
@@ -1460,6 +1501,9 @@ class KafkaTarget(BaseStoreTarget):
 
     def purge(self):
         pass
+
+    def get_path(self):
+        return TargetPathObject(self.path or "")
 
 
 class TSDBTarget(BaseStoreTarget):
@@ -1651,7 +1695,6 @@ class SQLTarget(BaseStoreTarget):
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
-        time_fields: List[str] = None,
         varchar_len: int = 50,
         parse_dates: List[str] = None,
     ):
@@ -1689,20 +1732,11 @@ class SQLTarget(BaseStoreTarget):
         :param create_table:                pass True if you want to create new table named by
                                             table_name with schema on current database.
         :param create_according_to_data:    (not valid)
-        :param time_fields :    all the field to be parsed as timestamp.
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         :param parse_dates :    all the field to be parsed as timestamp.
         """
 
         create_according_to_data = False  # TODO: open for user
-        if time_fields:
-            warnings.warn(
-                "'time_fields' is deprecated, use 'parse_dates' instead. "
-                "This will be removed in 1.6.0",
-                # TODO: Remove this in 1.6.0
-                FutureWarning,
-            )
-            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None or table_name is None:
             attr = {}

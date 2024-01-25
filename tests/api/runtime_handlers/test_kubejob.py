@@ -318,7 +318,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 )
 
                 # verifying monitoring was debounced
-                if type(expected_reached_state) == list:
+                if isinstance(expected_reached_state, list):
                     self._assert_run_reached_state(
                         db, self.project, self.run_uid, expected_reached_state[idx]
                     )
@@ -632,7 +632,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
             seconds=server.api.utils.helpers.time_string_to_seconds(
-                mlrun.mlconf.function.spec.state_thresholds.default.running
+                mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
         )
         self._store_run(
@@ -702,7 +702,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_updates = [run["run_updates"] for run in stale_runs]
         expected_run_updates = []
-        for state in ["pending_scheduled", "running", "image_pull_backoff"]:
+        for state in ["pending_scheduled", "executing", "image_pull_backoff"]:
             expected_run_updates.append(
                 {
                     "status.error": f"Run aborted due to exceeded state threshold: {state}",
@@ -731,7 +731,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "server.api.db.sqldb.db.SQLDB.read_run",
             unittest.mock.Mock(return_value=run),
         ) as mock_read_run:
-
             for _ in range(expected_monitor_cycles_to_reach_expected_state):
                 self.runtime_handler.monitor_runs(get_db(), db)
 
@@ -758,7 +757,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         with unittest.mock.patch(
             "server.api.db.sqldb.db.SQLDB.read_run", unittest.mock.Mock()
         ) as mock_read_run:
-
             for _ in range(expected_monitor_cycles_to_reach_expected_state):
                 self.runtime_handler.monitor_runs(get_db(), db)
 

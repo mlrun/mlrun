@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import typing
 
 
@@ -61,7 +62,7 @@ class ThresholdStates:
     # where it is scheduled, or initialization tasks specified in the pod's configuration are not yet completed.
     pending_scheduled = "pending_scheduled"
     pending_not_scheduled = "pending_not_scheduled"
-    running = "running"
+    executing = "executing"
     image_pull_backoff = "image_pull_backoff"
 
     @staticmethod
@@ -69,7 +70,7 @@ class ThresholdStates:
         return [
             ThresholdStates.pending_scheduled,
             ThresholdStates.pending_not_scheduled,
-            ThresholdStates.running,
+            ThresholdStates.executing,
             ThresholdStates.image_pull_backoff,
         ]
 
@@ -84,7 +85,7 @@ class ThresholdStates:
                 return ThresholdStates.pending_not_scheduled
 
         elif pod_phase == PodPhases.running:
-            return ThresholdStates.running
+            return ThresholdStates.executing
 
         return None
 
@@ -134,6 +135,7 @@ class RunStates(object):
     pending = "pending"
     unknown = "unknown"
     aborted = "aborted"
+    aborting = "aborting"
 
     @staticmethod
     def all():
@@ -145,6 +147,7 @@ class RunStates(object):
             RunStates.pending,
             RunStates.unknown,
             RunStates.aborted,
+            RunStates.aborting,
         ]
 
     @staticmethod
@@ -156,8 +159,46 @@ class RunStates(object):
         ]
 
     @staticmethod
+    def error_states():
+        return [
+            RunStates.error,
+            RunStates.aborted,
+        ]
+
+    @staticmethod
+    def abortion_states():
+        return [
+            RunStates.aborted,
+            RunStates.aborting,
+        ]
+
+    @staticmethod
+    def error_and_abortion_states():
+        return list(set(RunStates.error_states()) | set(RunStates.abortion_states()))
+
+    @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
+
+    @staticmethod
+    def not_allowed_for_deletion_states():
+        return [
+            RunStates.running,
+            RunStates.pending,
+            # TODO: add aborting state once we have it
+        ]
+
+
+class RunLabels(enum.Enum):
+    owner = "owner"
+    v3io_user = "v3io_user"
+
+    @staticmethod
+    def all():
+        return [
+            RunLabels.owner,
+            RunLabels.v3io_user,
+        ]
 
 
 class SparkApplicationStates:

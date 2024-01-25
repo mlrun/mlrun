@@ -120,7 +120,6 @@ async def test_retry_on_exception(
     chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
-
     # ensure the session to make sure the retry options are set
     await chief_client._ensure_session()
     retry_attempts = chief_client._session.retry_options.attempts

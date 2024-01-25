@@ -128,7 +128,6 @@ class Spark3JobSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
     ):
-
         super().__init__(
             command=command,
             args=args,

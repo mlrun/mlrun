@@ -208,7 +208,10 @@ class KVModelEndpointStore(ModelEndpointStore):
             items = cursor.all()
 
         except Exception as exc:
-            logger.warning("Failed retrieving raw data from kv table", exc=exc)
+            logger.warning(
+                "Failed retrieving raw data from kv table",
+                exc=mlrun.errors.err_to_str(exc),
+            )
             return endpoint_list
 
         # Create a list of model endpoints unique ids
@@ -293,11 +296,12 @@ class KVModelEndpointStore(ModelEndpointStore):
                 backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
                 table=filtered_path,
             )
-        except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
-            # Frames might raise an exception if schema file does not exist.
-            logger.warning("Failed to delete TSDB schema file:", err=e)
-            pass
-
+        except v3io_frames.errors.DeleteError as e:
+            if "No TSDB schema file found" not in str(e):
+                logger.warning(
+                    f"Failed to delete TSDB table '{filtered_path}'",
+                    err=mlrun.errors.err_to_str(e),
+                )
         # Final cleanup of tsdb path
         tsdb_path.replace("://u", ":///u")
         store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)

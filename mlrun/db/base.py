@@ -59,14 +59,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_runs(
         self,
-        name="",
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project="",
-        labels=None,
-        state="",
-        sort=True,
-        last=0,
-        iter=False,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime.datetime = None,
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
@@ -91,11 +91,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     @abstractmethod
@@ -111,11 +113,12 @@ class RunDBInterface(ABC):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     @abstractmethod
@@ -203,8 +206,8 @@ class RunDBInterface(ABC):
                     key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
                     # we are passing tree as uid when storing an artifact, so if uid is not defined,
                     # pass the tree as uid
-                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid")
-                    or mlrun.utils.get_in_artifact(artifact_obj, "tree"),
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
+                    producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )
@@ -419,6 +422,19 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
+        pass
+
+    @abstractmethod
     def list_pipelines(
         self,
         project: str,
@@ -626,6 +642,9 @@ class RunDBInterface(ABC):
         project: str = None,
         mask_params: bool = True,
     ):
+        pass
+
+    def get_log_size(self, uid, project=""):
         pass
 
     def watch_log(self, uid, project="", watch=True, offset=0):

@@ -735,9 +735,7 @@ categorical_fset = fstore.FeatureSet(
     description="Categorical columns for heart disease dataset"
 )
 
-fstore.ingest(
-    featureset=categorical_fset,
-    source=ParquetSource(path="./data/heart_disease_categorical.parquet")
+categorical_fset.ingest(source=ParquetSource(path="./data/heart_disease_categorical.parquet")
 )
 ```
 
@@ -753,7 +751,7 @@ storey_set = fstore.FeatureSet(
     description="Heart disease data via storey engine",
     engine="storey"
 )
-fstore.ingest(featureset=storey_set, source=DataFrameSource(df=data))
+storey_set.ingest(source=DataFrameSource(df=data))
 
 # Pandas engine
 pandas_set = fstore.FeatureSet(
@@ -762,7 +760,7 @@ pandas_set = fstore.FeatureSet(
     description="Heart disease data via pandas engine",
     engine="pandas"
 )
-fstore.ingest(featureset=pandas_set, source=DataFrameSource(df=data))
+pandas_set.ingest(source=DataFrameSource(df=data))
 
 # Spark engine
 from pyspark.sql import SparkSession
@@ -774,7 +772,7 @@ spark_set = fstore.FeatureSet(
     description="Heart disease data via spark engine",
     engine="spark"
 )
-fstore.ingest(featureset=spark_set, source=CSVSource(path=v3io_data_path), spark_context=spark)
+spark_set.ingest(source=CSVSource(path=v3io_data_path), spark_context=spark)
 ```
 
 #### Ingestion methods
@@ -785,33 +783,33 @@ Docs: [Ingest data locally](./data-prep/ingest-data-fs.html#ingest-data-locally)
 # Local
 from mlrun.datastore.sources import CSVSource
 
-df = fstore.ingest(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
+fs=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+df = fs.ingest(    
     source=CSVSource("mycsv", path="stocks.csv")
 )
 
 # Job
 from mlrun.datastore.sources import ParquetSource
 
-df = fstore.ingest(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
-    source=ParquetSource("mypq", path="stocks.parquet"),
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+df = fs.ingest(    
+    source=ParquetSource("mypq", path="stocks.parquet")
     run_config=fstore.RunConfig(image='mlrun/mlrun')
-)
+	)
 
 # Real-Time
 from mlrun.datastore.sources import HttpSource
 
-url, _ = fstore.deploy_ingestion_service_v2(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+url, _ = fs.deploy_ingestion_service(
     source=HttpSource(key_field="ticker"),
     run_config=fstore.RunConfig(image='mlrun/mlrun', kind="serving")
 )
 
 # Incremental
 cron_trigger = "* */1 * * *" # will run every hour
-fstore.ingest(
-    featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+fset.ingest(
     source=ParquetSource("mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger),
     run_config=fstore.RunConfig(image='mlrun/mlrun')
 )

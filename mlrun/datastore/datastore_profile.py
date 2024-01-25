@@ -131,18 +131,18 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
-    _private_attributes = ("access_key", "secret_key")
+    _private_attributes = ("access_key_id", "secret_key")
     endpoint_url: typing.Optional[str] = None
     force_non_anonymous: typing.Optional[str] = None
     profile_name: typing.Optional[str] = None
     assume_role_arn: typing.Optional[str] = None
-    access_key: typing.Optional[str] = None
+    access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
 
     def secrets(self) -> dict:
         res = {}
-        if self.access_key:
-            res["AWS_ACCESS_KEY_ID"] = self.access_key
+        if self.access_key_id:
+            res["AWS_ACCESS_KEY_ID"] = self.access_key_id
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:
@@ -224,7 +224,13 @@ class DatastoreProfileGCS(DatastoreProfile):
     type: str = pydantic.Field("gcs")
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
-    gcp_credentials: typing.Optional[str] = None
+    gcp_credentials: typing.Optional[typing.Union[str, typing.Dict]] = None
+
+    @pydantic.validator("gcp_credentials", pre=True, always=True)
+    def convert_dict_to_json(cls, v):
+        if isinstance(v, dict):
+            return json.dumps(v)
+        return v
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
@@ -302,7 +308,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             {
                 k: v
                 for k, v in profile.dict().items()
-                if not str(k) in profile._private_attributes
+                if str(k) not in profile._private_attributes
             }
         )
 
@@ -344,6 +350,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "kafka_source": DatastoreProfileKafkaSource,
             "dbfs": DatastoreProfileDBFS,
             "gcs": DatastoreProfileGCS,
+            "az": DatastoreProfileAzureBlob,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
@@ -396,24 +403,3 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
     It's beneficial for testing purposes.
     """
     TemporaryClientDatastoreProfiles().add(profile)
-
-
-def datastore_profile_embed_url_scheme(url):
-    profile = datastore_profile_read(url)
-    parsed_url = urlparse(url)
-    scheme = profile.type
-    # Add scheme as a password to the network location part
-    netloc = f"{parsed_url.username or ''}:{scheme}@{parsed_url.netloc}"
-
-    # Construct the new URL
-    new_url = urlunparse(
-        [
-            parsed_url.scheme,
-            netloc,
-            parsed_url.path,
-            parsed_url.params,
-            parsed_url.query,
-            parsed_url.fragment,
-        ]
-    )
-    return new_url

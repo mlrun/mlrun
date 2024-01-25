@@ -25,6 +25,7 @@ __all__ = [
     "RemoteSparkRuntime",
     "Spark3Runtime",
     "DatabricksRuntime",
+    "KubeResource",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version
@@ -34,7 +35,7 @@ from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
 from .function import RemoteRuntime
-from .kubejob import KubejobRuntime  # noqa
+from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
 from .nuclio import nuclio_init_hook

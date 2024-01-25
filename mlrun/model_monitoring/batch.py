@@ -117,20 +117,21 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
     def _calc_kl_div(
         actual_dist: np.array, expected_dist: np.array, kld_scaling: float
     ) -> float:
-        """Return the assymetric KL divergence"""
+        """Return the asymmetric KL divergence"""
+        # We take 0*log(0) == 0 for this calculation
+        mask = actual_dist != 0
+        actual_dist = actual_dist[mask]
+        expected_dist = expected_dist[mask]
         return np.sum(
-            np.where(
-                actual_dist != 0,
-                (actual_dist)
-                * np.log(
-                    actual_dist
-                    / np.where(expected_dist != 0, expected_dist, kld_scaling)
-                ),
-                0,
-            )
+            actual_dist
+            * np.log(
+                actual_dist / np.where(expected_dist != 0, expected_dist, kld_scaling)
+            ),
         )
 
-    def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
+    def compute(
+        self, capping: Optional[float] = None, kld_scaling: float = 1e-4
+    ) -> float:
         """
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.
@@ -141,8 +142,8 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
         t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, kld_scaling)
         u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, kld_scaling)
         result = t_u + u_t
-        if capping:
-            return capping if result == float("inf") else result
+        if capping and result == float("inf"):
+            return capping
         return result
 
 
@@ -526,12 +527,14 @@ class BatchProcessor:
         )
 
         # Get drift thresholds from the model monitoring configuration
+        # fmt: off
         self.default_possible_drift_threshold = (
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
         self.default_drift_detected_threshold = (
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
+        # fmt: on
 
         # Get a runtime database
 
@@ -618,9 +621,9 @@ class BatchProcessor:
 
         if not mlrun.mlconf.is_ce_mode():
             # Create v3io stream based on the input stream
-            response = self.v3io.create_stream(
+            response = self.v3io.stream.create(
                 container=self.stream_container,
-                path=self.stream_path,
+                stream_path=self.stream_path,
                 shard_count=1,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
                 access_key=self.v3io_access_key,
@@ -762,6 +765,11 @@ class BatchProcessor:
                 endpoint[
                     mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS
                 ]
+            )
+            # Pad the original feature stats to accommodate current data out
+            # of the original range (unless already padded)
+            mlrun.common.model_monitoring.helpers.pad_features_hist(
+                mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)
             )
 
             # Get the current stats:
@@ -905,7 +913,7 @@ class BatchProcessor:
         drift_status: mlrun.common.schemas.model_monitoring.DriftStatus,
         drift_measure: float,
         drift_result: Dict[str, Dict[str, Any]],
-        timestamp: pd._libs.tslibs.timestamps.Timestamp,
+        timestamp: pd.Timestamp,
     ):
         """Update drift results in input stream.
 
@@ -944,10 +952,7 @@ class BatchProcessor:
         # Update the results in tsdb:
         tsdb_drift_measures = {
             "endpoint_id": endpoint_id,
-            "timestamp": pd.to_datetime(
-                timestamp,
-                format=mlrun.common.schemas.model_monitoring.EventFieldType.TIME_FORMAT,
-            ),
+            "timestamp": timestamp,
             "record_type": "drift_measures",
             "tvd_mean": drift_result["tvd_mean"],
             "kld_mean": drift_result["kld_mean"],
@@ -958,7 +963,7 @@ class BatchProcessor:
             self.frames.write(
                 backend="tsdb",
                 table=self.tsdb_path,
-                dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
+                dfs=pd.DataFrame.from_records([tsdb_drift_measures]),
                 index_cols=["timestamp", "endpoint_id", "record_type"],
             )
         except v3io_frames.errors.Error as err:

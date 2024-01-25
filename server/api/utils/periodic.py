@@ -49,7 +49,7 @@ def run_function_periodically(
     replace: bool,
     function,
     *args,
-    **kwargs
+    **kwargs,
 ):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)

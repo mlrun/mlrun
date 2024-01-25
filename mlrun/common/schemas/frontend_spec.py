@@ -52,6 +52,7 @@ class FeatureFlags(pydantic.BaseModel):
 
 class FrontendSpec(pydantic.BaseModel):
     jobs_dashboard_url: typing.Optional[str]
+    model_monitoring_dashboard_url: typing.Optional[str]
     abortable_function_kinds: typing.List[str] = []
     feature_flags: FeatureFlags
     default_function_priority_class_name: typing.Optional[str]
@@ -68,7 +69,4 @@ class FrontendSpec(pydantic.BaseModel):
     default_function_preemption_mode: str
     feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
     allowed_artifact_path_prefixes_list: typing.List[str]
-
-    # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
-    ce_mode: typing.Optional[str]
     ce: typing.Optional[dict]

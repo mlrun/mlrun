@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import getpass
 import hashlib
 import json
 import os
 import re
+import typing
 from io import StringIO
 from sys import stderr
 
@@ -24,13 +26,13 @@ import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
+from mlrun.artifacts import TableArtifact
+from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-
-from ..artifacts import TableArtifact
-from ..config import config
-from ..utils import get_in, helpers, logger, verify_field_regex
-from .generators import selector
+from mlrun.runtimes.constants import RunLabels
+from mlrun.runtimes.generators import selector
+from mlrun.utils import get_in, helpers, logger, verify_field_regex
 
 
 class RunError(Exception):
@@ -94,7 +96,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
             project = runobj.metadata.project or ""
             db.store_log(uid, project, out.encode(), append=True)
     if err:
-        logger.error(f"exec error - {err_to_str(err)}")
+        logger.error(f"Exec error - {err_to_str(err)}")
         print(err, file=stderr)
         if not silent:
             raise RunError(err)
@@ -455,3 +457,19 @@ def enrich_function_from_dict(function, function_dict):
             else:
                 setattr(function.spec, attribute, override_value)
     return function
+
+
+def enrich_run_labels(
+    labels: dict,
+    labels_to_enrich: typing.List[RunLabels] = None,
+):
+    labels_enrichment = {
+        RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
+        RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
+    }
+    labels_to_enrich = labels_to_enrich or RunLabels.all()
+    for label in labels_to_enrich:
+        enrichment = labels_enrichment.get(label)
+        if label.value not in labels and enrichment:
+            labels[label.value] = enrichment
+    return labels

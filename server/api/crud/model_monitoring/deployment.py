@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import pathlib
 import typing
 
 import sqlalchemy.orm
 from fastapi import Depends
 
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
@@ -27,6 +26,7 @@ import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.scheduler
+import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -292,7 +292,7 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
 
-            # Get the function uri
+            # Save & Get the function uri
             function_uri = fn.save(versioned=True)
 
             if with_schedule:
@@ -313,16 +313,27 @@ class MonitoringDeployment:
                             f"Deploying {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
+
                 # Submit batch scheduled job
-                self._submit_schedule_batch_job(
-                    project=project,
-                    function_uri=function_uri,
-                    db_session=db_session,
-                    auth_info=auth_info,
-                    tracking_policy=tracking_policy,
-                    tracking_offset=tracking_offset,
-                    function_name=function_name,
-                )
+                try:
+                    self._submit_schedule_batch_job(
+                        project=project,
+                        function_uri=function_uri,
+                        db_session=db_session,
+                        auth_info=auth_info,
+                        tracking_policy=tracking_policy,
+                        tracking_offset=tracking_offset,
+                        function_name=function_name,
+                    )
+                except Exception as exc:
+                    # Delete controller unschedule job
+                    server.api.utils.singletons.db.get_db().delete_function(
+                        session=db_session, project=project, name=fn.metadata.name
+                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Can't deploy {function_name.replace('-', ' ')} "
+                        f"scheduled job function due to : {mlrun.errors.err_to_str(exc)}",
+                    )
         return fn
 
     def deploy_model_monitoring_writer_application(
@@ -418,12 +429,15 @@ class MonitoringDeployment:
         )
 
         # Create a new serving function for the streaming process
-        function = mlrun.code_to_function(
-            name="model-monitoring-stream",
-            project=project,
-            filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
-            kind="serving",
-            image=tracking_policy.stream_image,
+        function = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name="model-monitoring-stream",
+                project=project,
+                filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=tracking_policy.stream_image,
+            ),
         )
 
         # Create monitoring serving graph
@@ -541,7 +555,7 @@ class MonitoringDeployment:
         )
 
         task.spec.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
         ] = batch_dict
 
         data = {
@@ -698,13 +712,13 @@ class MonitoringDeployment:
         if function_name in mm_constants.MonitoringFunctionNames.all():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                     project
                 ),
                 server.api.crud.secrets.Secrets().generate_client_project_secret_key(
                     server.api.crud.secrets.SecretsClientType.model_monitoring,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                    mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 ),
             )
 

@@ -35,7 +35,6 @@ tests_dir = Path(__file__).absolute().parents[3]
 
 
 def my_job(context, p1=1, p2="a-string"):
-
     # access input metadata, values, files, and secrets (passwords)
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")

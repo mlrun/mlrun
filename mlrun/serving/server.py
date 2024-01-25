@@ -40,8 +40,6 @@ from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import (
     event_id_key,
     event_path_key,
-    legacy_event_id_key,
-    legacy_event_path_key,
 )
 
 
@@ -257,18 +255,10 @@ class GraphServer(ModelObj):
         context = context or server_context
         event.content_type = event.content_type or self.default_content_type or ""
         if event.headers:
-            # TODO: remove old event id and path keys in 1.6.0
-            if event_id_key in event.headers or legacy_event_id_key in event.headers:
-                event.id = event.headers.get(event_id_key) or event.headers.get(
-                    legacy_event_id_key
-                )
-            if (
-                event_path_key in event.headers
-                or legacy_event_path_key in event.headers
-            ):
-                event.path = event.headers.get(event_path_key) or event.headers.get(
-                    legacy_event_path_key
-                )
+            if event_id_key in event.headers:
+                event.id = event.headers.get(event_id_key)
+            if event_path_key in event.headers:
+                event.path = event.headers.get(event_path_key)
 
         if isinstance(event.body, (str, bytes)) and (
             not event.content_type or event.content_type in ["json", "application/json"]
@@ -357,7 +347,7 @@ def v2_serving_init(context, namespace=None):
     if hasattr(context, "platform") and hasattr(
         context.platform, "set_termination_callback"
     ):
-        context.logger.debug(
+        context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )
 
@@ -367,6 +357,23 @@ def v2_serving_init(context, namespace=None):
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
+
+    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+        context.logger.info(
+            "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
+        )
+
+        def drain_callback():
+            context.logger.info("Drain callback called")
+            server.wait_for_completion()
+            context.logger.info(
+                "Termination of async flow is completed. Rerunning async flow."
+            )
+            # Rerun the flow without reconstructing it
+            server.graph._run_async_flow()
+            context.logger.info("Async flow restarted")
+
+        context.platform.set_drain_callback(drain_callback)
 
 
 def v2_serving_handler(context, event, get_body=False):

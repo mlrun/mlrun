@@ -144,7 +144,7 @@ class TestAzureBlobSystem(TestMLRunSystem):
         fset = fstore.FeatureSet(
             name="az_system_test", entities=[fstore.Entity("name")]
         )
-        fstore.ingest(fset, source, targets=targets)
+        fset.ingest(source, targets=targets)
         target_path = fset.get_target_path()
 
         result = source_class(path=target_path).to_dataframe()
@@ -153,3 +153,6 @@ class TestAzureBlobSystem(TestMLRunSystem):
         assert_frame_equal(
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
+        fset.purge_targets([t.name for t in targets])
+        with pytest.raises(FileNotFoundError):
+            source_class(path=target_path).to_dataframe()

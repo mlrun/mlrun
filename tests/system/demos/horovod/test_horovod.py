@@ -27,7 +27,6 @@ from tests.system.demos.base import TestDemo
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestHorovodTFv2(TestDemo):
-
     project_name = "horovod-project"
 
     def create_demo_project(self) -> mlrun.projects.MlrunProject:

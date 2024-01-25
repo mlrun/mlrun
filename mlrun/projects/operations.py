@@ -274,7 +274,7 @@ def build_function(
     if not overwrite_build_params:
         # TODO: change overwrite_build_params default to True in 1.8.0
         warnings.warn(
-            "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
             mlrun.utils.OverwriteBuildParamsWarning,
         )
 

@@ -373,7 +373,7 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
                 df.to_parquet(path)
                 if local_path == "file://":
                     path = local_path + path
-                context.log_artifact(item=artifact, local_path=temp_file.name)
+                context.log_artifact(item=artifact, local_path=path)
         else:
             context.log_artifact(item=artifact, local_path=local_path)
 

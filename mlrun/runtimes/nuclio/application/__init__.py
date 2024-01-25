@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.runtimes
+from mlrun.common.schemas import AuthInfo
 
 from .application import ApplicationRuntime

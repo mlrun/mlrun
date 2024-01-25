@@ -1175,7 +1175,11 @@ async def _delete_project(
         )
 
     elif wait_for_project_deletion:
-        verify_project_is_deleted(project_name, auth_info)
+        await run_in_threadpool(
+            verify_project_is_deleted,
+            project_name,
+            auth_info,
+        )
 
     await get_project_member().post_delete_project(project_name)
 

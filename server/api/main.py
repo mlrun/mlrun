@@ -174,12 +174,21 @@ async def setup_api():
     initialize_logs_dir()
     initialize_db()
 
+    # chief do stuff
     if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        server.api.initial_data.init_data()
+
+    # worker
+    elif (
         config.httpdb.clusterization.worker.sync_with_chief.mode
         == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
         and config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.worker
     ):
+        # in the background, wait for chief to reach online state
         _start_chief_clusterization_spec_sync_loop()
 
     if config.httpdb.state == mlrun.common.schemas.APIStates.online:
@@ -544,6 +553,10 @@ async def _verify_log_collection_stopped_on_startup():
 
 
 def _start_chief_clusterization_spec_sync_loop():
+    # put it here first, because we need to set it before the periodic function starts
+    # so the worker will be aligned with the chief state
+    config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
+
     interval = int(config.httpdb.clusterization.worker.sync_with_chief.interval)
     if interval > 0:
         logger.info("Starting chief clusterization spec sync loop", interval=interval)
@@ -604,6 +617,7 @@ async def _align_worker_state_with_chief_state(
             "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
             state=config.httpdb.state,
         )
+
     config.httpdb.state = chief_state
     # if reached terminal state we cancel the periodic function
     # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
@@ -792,23 +806,5 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
                 )
 
 
-def main():
-    if (
-        config.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        server.api.initial_data.init_data()
-    elif (
-        config.httpdb.clusterization.worker.sync_with_chief.mode
-        == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-        and config.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.worker
-    ):
-        # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
-        config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
-
-    uvicorn.run(logger, httpdb_config=config.httpdb)
-
-
 if __name__ == "__main__":
-    main()
+    uvicorn.run(logger, httpdb_config=config.httpdb)

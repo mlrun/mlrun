@@ -17,6 +17,8 @@ import collections
 import functools
 import re
 import typing
+import pathlib
+import urllib.parse
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
@@ -143,7 +145,10 @@ class SQLDB(DBInterface):
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
-        pass
+        if self.dsn and self.dsn.startswith("sqlite:///"):
+            logger.info("Creating sqlite db file", dsn=self.dsn)
+            parsed = urllib.parse.urlparse(self.dsn)
+            pathlib.Path(parsed.path[1:]).parent.mkdir(parents=True, exist_ok=True)
 
     # ---- Logs ----
     def store_log(
@@ -2458,11 +2463,7 @@ class SQLDB(DBInterface):
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
     ) -> str:
-        (
-            uid,
-            tag,
-            feature_set_dict,
-        ) = self._validate_and_enrich_record_for_creation(
+        (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
         )
 

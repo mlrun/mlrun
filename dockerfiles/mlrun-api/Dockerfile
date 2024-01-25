@@ -63,9 +63,21 @@ ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
+ENV MLRUN_IS_API_SERVER=true
+ENV MLRUN_IGNORE_ENV_FILE=true
+
 COPY . .
 
 RUN python -m pip install .[complete-api]
+
 VOLUME /mlrun/db
 
-CMD ["python",  "-m",  "server.api",  "db"]
+CMD [
+    "uvicorn",
+    "server.api.main:app",
+    "--proxy-headers",
+    "--host", "0.0.0.0",
+    "--port", "$MLRUN_httpdb__port",
+    "--timeout-keep-alive", "${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE:-11}",
+    "--log-cofig", "server/api/uvicorn_log_config.ini"
+]

@@ -2927,7 +2927,7 @@ class SQLDB(DBInterface):
                 update_labels(feature, labels)
                 feature_set.features.append(feature)
             elif feature_name not in features_to_remove:
-                # check if the existing feature's labels were changed, and update them if needed
+                # get the existing feature from the feature set
                 feature = next(
                     (
                         feature
@@ -2936,11 +2936,9 @@ class SQLDB(DBInterface):
                     ),
                     None,
                 )
+                # update it with the new labels in case they were changed
                 labels = feature_dict.get("labels") or {}
-                if not server.api.utils.helpers.are_object_labels_equal_to_labels_dict(
-                    feature.labels, labels
-                ):
-                    update_labels(feature, labels)
+                update_labels(feature, labels)
 
     @staticmethod
     def _update_feature_set_entities(feature_set: FeatureSet, entity_dicts: List[dict]):

@@ -122,22 +122,3 @@ def is_request_from_leader(
     if projects_role and projects_role.value == leader_name:
         return True
     return False
-
-
-def are_object_labels_equal_to_labels_dict(
-    object_labels_list: list, labels_dict: dict
-) -> bool:
-    """
-    Compare object labels list to labels dict
-    :param object_labels_list: a sqlalchemy InstrumentedList, which is a list of Label objects
-                               with name and value fields
-    :param labels_dict: a dict of labels
-    :return: True if the labels are equal in both, False otherwise
-    """
-    if len(object_labels_list) != len(labels_dict):
-        return False
-
-    for label in object_labels_list:
-        if label.name not in labels_dict or labels_dict[label.name] != label.value:
-            return False
-    return True

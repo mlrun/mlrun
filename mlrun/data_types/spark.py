@@ -14,12 +14,14 @@
 #
 from datetime import datetime
 from os import environ
+from typing import Dict
 
 import numpy as np
 import pytz
 from pyspark.sql.functions import to_utc_timestamp
 from pyspark.sql.types import BooleanType, DoubleType, TimestampType
 
+import mlrun
 from mlrun.utils import logger
 
 from .data_types import InferOptions, spark_to_value_type
@@ -230,6 +232,27 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
                     stats[stat] = bool(val)
 
     return results_dict
+
+
+def spark_session_update_hadoop_options(session, spark_options) -> Dict[str, str]:
+    hadoop_conf = session.sparkContext._jsc.hadoopConfiguration()
+    non_hadoop_spark_options = {}
+
+    for key, value in spark_options.items():
+        if key.startswith("spark.hadoop."):
+            key = key[len("spark.hadoop.") :]
+            original_value = hadoop_conf.get(key, None)
+            if original_value and original_value != value:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The 'spark.hadoop.{key}' value is in conflict due to a discrepancy "
+                    "with a previously established setting.\n"
+                    f"This issue arises if 'spark.hadoop.{key}' has been preset in the Spark session,"
+                    "or when using datastore profiles with differing security settings for this particular key."
+                )
+            hadoop_conf.set(key, value)
+        else:
+            non_hadoop_spark_options[key] = value
+    return non_hadoop_spark_options
 
 
 class SparkDataInfer:

@@ -79,32 +79,12 @@ def generate_target_run_id():
 
 
 def write_spark_dataframe_with_options(spark_options, df, mode):
-    sc = df.sql_ctx.sparkSession.sparkContext
-
-    original_hadoop_conf = {}
-    non_hadoop_spark_options = {}
-
-    hadoop_conf = sc._jsc.hadoopConfiguration()
-
-    for key, value in spark_options.items():
-        if key.startswith("spark.hadoop."):
-            key = key[len("spark.hadoop.") :]
-            # Save the original configuration
-            original_value = hadoop_conf.get(key, None)
-            original_hadoop_conf[key] = original_value
-            hadoop_conf.set(key, value)
-        else:
-            non_hadoop_spark_options[key] = value
-    try:
-        df.write.mode(mode).save(**non_hadoop_spark_options)
-    except Exception as e:
-        raise e
-    finally:
-        for key, value in original_hadoop_conf.items():
-            if value:
-                hadoop_conf.set(key, value)
-            else:
-                hadoop_conf.unset(key)
+    non_hadoop_spark_options = (
+        mlrun.data_types.spark.spark_session_update_hadoop_options(
+            df.sql_ctx.sparkSession, spark_options
+        )
+    )
+    df.write.mode(mode).save(**non_hadoop_spark_options)
 
 
 def default_target_names():

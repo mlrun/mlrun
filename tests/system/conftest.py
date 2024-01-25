@@ -73,7 +73,7 @@ def post_report_session_finish_to_slack(
     mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
     run_url = os.getenv(
-        "MLRUN_SYSTEM_TEST_GITHUB_RUN_URL",
+        "MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL",
         "https://github.com/mlrun/mlrun/actions/workflows/system-tests-enterprise.yml",
     )
     total_executed_tests = session.testscollected

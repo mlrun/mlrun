@@ -2936,9 +2936,10 @@ class SQLDB(DBInterface):
                     ),
                     None,
                 )
-                # update it with the new labels in case they were changed
-                labels = feature_dict.get("labels") or {}
-                update_labels(feature, labels)
+                if feature:
+                    # update it with the new labels in case they were changed
+                    labels = feature_dict.get("labels") or {}
+                    update_labels(feature, labels)
 
     @staticmethod
     def _update_feature_set_entities(feature_set: FeatureSet, entity_dicts: List[dict]):

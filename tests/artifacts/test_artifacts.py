@@ -364,7 +364,7 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
     if fail:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
             context.log_artifact(item=artifact, local_path=local_path)
-        assert "Failed to log an artifact, path does not exists." in str(error.value)
+        assert "Failed to log an artifact, file does not exists" in str(error.value)
     else:
         if not local_path or local_path == "file://":
             df = pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]})

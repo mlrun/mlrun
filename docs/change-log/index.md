@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.0](v1-6-0-date)
+- [v1.6.0](v1-6-0-14-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -13,37 +13,38 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
-## v1.6.0 (date)
+## v1.6.0 (14 February 2024)
 
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
+|ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
 |ML-4343|Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
 
 ### Feature store
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4622|Feature set and feature vector APIs are now FeatureSet / FeatureVector class methods. See examples in [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
+|ML-4622|Feature set and feature vector APIs are now part of the project APIs. See examples in [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
 
 ### Model monitoring 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4620|New Grafana Model Monitoring Applications dashboard that includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). Most of the presented stats are taken from the V3IO TSDB. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+|ML-4620|New Grafana Model Monitoring Applications dashboard that includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Aopplication summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
 
 ### Runtimes
 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods).
-|ML-3728|Labels added to pods that mediate job execution with KFP, to facilitate monitoring. Tech-Preview. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
+|ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods) and {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`.
+|ML-3728|Labels added to pods that are running as part of KFP to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
 |ML-4032|You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers). |
-|ML-4182|Support for asynchronous notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
+|ML-4182|Support for notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
 |ML-4623|You can now [Log a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).|
 
 ### UI
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-1855|New **Train Model** wizard. Tech Preview.                                                           |
+|ML-1855|New **Train Model** wizard.                                                           |
 |ML-2336|You can now delete Jobs in the UI.                                                                 |
 |ML-4506|You can now delete artifacts, models, and datasets in the UI.                                        |
 |ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
@@ -54,8 +55,7 @@
 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
-|ML-3921|mlrun is now installed in the same pip install command along with the user requirements during deploy, resulting in better compatibility with external packages.|
+|ML-3921|The Docker image for installation of mlrun was modified, resulting in better compatibility with external packages.|
 |ML-5193|Supports Pandas 2.0.                                                                               |
 
 ### Documentation

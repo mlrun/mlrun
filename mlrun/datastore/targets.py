@@ -1428,9 +1428,6 @@ class StreamTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
-    def get_path(self):
-        return TargetPathObject(self.path or "")
-
 
 class KafkaTarget(BaseStoreTarget):
     kind = TargetTypes.kafka
@@ -1501,9 +1498,6 @@ class KafkaTarget(BaseStoreTarget):
 
     def purge(self):
         pass
-
-    def get_path(self):
-        return TargetPathObject(self.path or "")
 
 
 class TSDBTarget(BaseStoreTarget):

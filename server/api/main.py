@@ -97,9 +97,9 @@ app = fastapi.FastAPI(
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
-    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
-    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
+    openapi_url=f"{API_PREFIX}/openapi.json",
+    docs_url=f"{API_PREFIX}/docs",
+    redoc_url=f"{API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
     lifespan=lifespan,
 )

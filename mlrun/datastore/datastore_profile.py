@@ -32,6 +32,9 @@ class DatastoreProfile(pydantic.BaseModel):
     name: str
     _private_attributes: typing.List = ()
 
+    class Config:
+        extra = pydantic.Extra.forbid
+
     @pydantic.validator("name")
     def lower_case(cls, v):
         return v.lower()

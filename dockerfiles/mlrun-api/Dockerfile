@@ -79,5 +79,5 @@ CMD [ \
     --host 0.0.0.0 \
     --port ${MLRUN_httpdb__port} \
     --timeout-keep-alive ${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE:-11} \
-    --log-config server/api/uvicorn_log_config.ini" \
+    --log-config server/api/uvicorn_log_config.yaml" \
 ]

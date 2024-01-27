@@ -45,7 +45,7 @@ class HumanReadableFormatter(logging.Formatter):
     def format(self, record) -> str:
         record_with = self._record_with(record)
         more = f": {record_with}" if record_with else ""
-        return f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}"
+        return f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage().rstrip()}{more}"
 
     def _record_with(self, record):
         record_with = getattr(record, "with", {})

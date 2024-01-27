@@ -1,0 +1,25 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+  default:
+     "()": mlrun.utils.HumanReadableFormatter
+handlers:
+  default:
+    formatter: default
+    class: logging.StreamHandler
+loggers:
+  uvicorn.error:
+    level: INFO
+    handlers:
+      - default
+    propagate: no
+  uvicorn.access:
+    level: WARNING
+    handlers:
+      - default
+    propagate: no
+root:
+  level: INFO
+  handlers:
+    - default
+  propagate: no

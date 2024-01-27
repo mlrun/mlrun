@@ -29,7 +29,19 @@ class _BaseFormatter(logging.Formatter):
         def default(obj):
             if isinstance(obj, pydantic.BaseModel):
                 return obj.dict()
-            raise TypeError
+
+            # EAFP all the way.
+            # Leave the unused "exc" in for debugging ease
+            try:
+                return obj.__log__()
+            except Exception as exc:  # noqa
+                try:
+                    return obj.__repr__()
+                except Exception as exc:  # noqa
+                    try:
+                        return str(obj)
+                    except Exception as exc:
+                        raise TypeError from exc
 
         return orjson.dumps(
             json_object,

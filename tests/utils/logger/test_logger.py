@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import dataclasses
 import datetime
 from io import StringIO
 from typing import Generator
@@ -23,9 +24,12 @@ from mlrun.utils.helpers import now_date
 from mlrun.utils.logger import FormatterKinds, Logger, create_logger
 
 
-class SomeObject(pydantic.BaseModel):
-    name: str
-    date: datetime.datetime
+class ArbitraryClassForLogging:
+    def __init__(self, name):
+        self.name = name
+
+    def __log__(self):
+        return {"name": self.name}
 
 
 @pytest.fixture(params=[formatter_kind.name for formatter_kind in list(FormatterKinds)])
@@ -46,16 +50,45 @@ def test_regular(make_stream_logger):
     assert "SomeText" in stream.getvalue()
 
 
-def test_log_pydantic(make_stream_logger):
+def test_log_arbitrary_structures(make_stream_logger):
+    @dataclasses.dataclass
+    class DataclassObj:
+        name: str
+        date: datetime.datetime
+
+    class UnboundClass:
+        pass
+
+    class SomePydanticObject(pydantic.BaseModel):
+        name: str
+        date: datetime.datetime
+
     stream, test_logger = make_stream_logger
     now_date_instance = now_date()
+    another_now_date_instance = now_date(tz=datetime.timezone.min)
     test_logger.debug(
-        "object-in-more", so=SomeObject(name="some-name", date=now_date_instance)
+        "object-in-more",
+        so=SomePydanticObject(name="some-name", date=now_date_instance),
+        dc=DataclassObj(name="another-name", date=another_now_date_instance),
+        uc=UnboundClass(),
+        ac=ArbitraryClassForLogging(name="ArbitraryClassForLogging"),
     )
     log_line = stream.getvalue().strip()
     assert "object-in-more" in log_line
+
+    # pydantic
     assert now_date_instance.isoformat() in log_line
     assert '"name":"some-name"' in log_line
+
+    # dataclass
+    assert another_now_date_instance.isoformat() in log_line
+    assert '"name":"another-name"' in log_line
+
+    # unbound class
+    assert "UnboundClass" in log_line
+
+    # arbitrary class
+    assert "ArbitraryClassForLogging" in log_line
 
 
 def test_log_level(make_stream_logger):

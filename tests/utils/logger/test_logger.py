@@ -12,12 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 from io import StringIO
 from typing import Generator
 
+import pydantic
 import pytest
 
+from mlrun.utils.helpers import now_date
 from mlrun.utils.logger import FormatterKinds, Logger, create_logger
+
+
+class SomeObject(pydantic.BaseModel):
+    name: str
+    date: datetime.datetime
 
 
 @pytest.fixture(params=[formatter_kind.name for formatter_kind in list(FormatterKinds)])
@@ -36,6 +44,18 @@ def test_regular(make_stream_logger):
     stream, test_logger = make_stream_logger
     test_logger.debug("SomeText")
     assert "SomeText" in stream.getvalue()
+
+
+def test_log_pydantic(make_stream_logger):
+    stream, test_logger = make_stream_logger
+    now_date_instance = now_date()
+    test_logger.debug(
+        "object-in-more", so=SomeObject(name="some-name", date=now_date_instance)
+    )
+    log_line = stream.getvalue().strip()
+    assert "object-in-more" in log_line
+    assert now_date_instance.isoformat() in log_line
+    assert '"name":"some-name"' in log_line
 
 
 def test_log_level(make_stream_logger):

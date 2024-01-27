@@ -12,22 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 from enum import Enum
 from sys import stdout
 from traceback import format_exception
 from typing import IO, Optional, Union
 
+import orjson
+import pydantic
+
 from mlrun.config import config
 
 
-class JSONFormatter(logging.Formatter):
-    def __init__(self):
-        super(JSONFormatter, self).__init__()
-        self._json_encoder = json.JSONEncoder()
+class _BaseFormatter(logging.Formatter):
+    def _json_dump(self, json_object):
+        def default(obj):
+            if isinstance(obj, pydantic.BaseModel):
+                return obj.dict()
+            raise TypeError
 
-    def format(self, record):
+        return orjson.dumps(
+            json_object,
+            option=orjson.OPT_NAIVE_UTC
+            | orjson.OPT_SERIALIZE_NUMPY
+            | orjson.OPT_SORT_KEYS,
+            default=default,
+        ).decode()
+
+
+class JSONFormatter(_BaseFormatter):
+    def format(self, record) -> str:
         record_with = getattr(record, "with", {})
         if record.exc_info:
             record_with.update(exc_info=format_exception(*record.exc_info))
@@ -38,14 +52,22 @@ class JSONFormatter(logging.Formatter):
             "with": record_with,
         }
 
-        return self._json_encoder.encode(record_fields)
+        return self._json_dump(record_fields)
 
 
-class HumanReadableFormatter(logging.Formatter):
+class HumanReadableFormatter(_BaseFormatter):
     def format(self, record) -> str:
+        more = self._resolve_more(record)
+        return (
+            f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] "
+            f"{record.getMessage().rstrip()}{more}"
+        )
+
+    def _resolve_more(self, record):
         record_with = self._record_with(record)
-        more = f": {record_with}" if record_with else ""
-        return f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}"
+        record_with_encoded = self._json_dump(record_with) if record_with else ""
+        more = f": {record_with_encoded}" if record_with_encoded else ""
+        return more
 
     def _record_with(self, record):
         record_with = getattr(record, "with", {})
@@ -56,8 +78,7 @@ class HumanReadableFormatter(logging.Formatter):
 
 class HumanReadableExtendedFormatter(HumanReadableFormatter):
     def format(self, record) -> str:
-        record_with = self._record_with(record)
-        more = f": {record_with}" if record_with else ""
+        more = self._resolve_more(record)
         return (
             "> "
             f"{self.formatTime(record, self.datefmt)} "

@@ -73,11 +73,11 @@ RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
 
 CMD [ \
-    "uvicorn", \
-    "server.api.main:app", \
-    "--proxy-headers", \
-    "--host", "0.0.0.0", \
-    "--port", "${MLRUN_httpdb__port}", \
-    "--timeout-keep-alive", "${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE:-11}", \
-    "--log-config", "server/api/uvicorn_log_config.ini" \
+    "sh", "-c", \
+    "uvicorn server.api.main:app \
+    --proxy-headers \
+    --host 0.0.0.0 \
+    --port ${MLRUN_httpdb__port} \
+    --timeout-keep-alive ${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE:-11} \
+    --log-config server/api/uvicorn_log_config.ini" \
 ]

@@ -1726,6 +1726,10 @@ class DataTargetBase(ModelObj):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):
+        # polymorphism won't work here, because from_dict always returns an instance of the base type (DataTargetBase)
+        if self.kind in ["stream", "kafka"]:
+            return TargetPathObject(self.path or "")
+
         if self.path:
             is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
             return TargetPathObject(self.path, self.run_id, is_single_file)

@@ -8,4 +8,3 @@ venv
 venv*
 __pycache__
 .idea
-dockerfiles/**/Dockerfile

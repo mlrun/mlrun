@@ -34,6 +34,7 @@ from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -43,32 +44,13 @@ from .utils import (
 
 
 def load_spark_dataframe_with_options(session, spark_options, format=None):
-    original_hadoop_conf = {}
-    hadoop_conf = session.sparkContext._jsc.hadoopConfiguration()
-    non_hadoop_spark_options = {}
-
-    for key, value in spark_options.items():
-        if key.startswith("spark.hadoop."):
-            key = key[len("spark.hadoop.") :]
-            # Save the original configuration
-            original_value = hadoop_conf.get(key, None)
-            original_hadoop_conf[key] = original_value
-            hadoop_conf.set(key, value)
-        else:
-            non_hadoop_spark_options[key] = value
-    try:
-        if format:
-            df = session.read.format(format).load(**non_hadoop_spark_options)
-        else:
-            df = session.read.load(**non_hadoop_spark_options)
-    except Exception as e:
-        raise e
-    finally:
-        for key, value in original_hadoop_conf.items():
-            if value:
-                hadoop_conf.set(key, value)
-            else:
-                hadoop_conf.unset(key)
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        session, spark_options
+    )
+    if format:
+        df = session.read.format(format).load(**non_hadoop_spark_options)
+    else:
+        df = session.read.load(**non_hadoop_spark_options)
     return df
 
 

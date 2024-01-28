@@ -1598,15 +1598,27 @@ class BaseRuntimeHandler(ABC):
                 )
 
         logger.info("Updating run state", run_state=run_state)
-        run.setdefault("status", {})["state"] = run_state
-        run["status"]["last_update"] = now_date().isoformat()
-        run["status"]["reason"] = ""
-        run["status"]["error"] = ""
-        db.store_run(db_session, run, uid, project)
+        run_updates = {
+            "status.state": run_state,
+            "status.last_update": now_date().isoformat(),
+            # run is not in terminal state, so reset reason and error
+            "status.reason": "",
+            "status.error": "",
+        }
+        run = db.update_run(db_session, run_updates, uid, project)
 
         return True, run_state, run
 
-    def _ensure_run(self, db, db_session, name, project, run, search_run, uid):
+    def _ensure_run(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        name: str,
+        project: str,
+        run: dict,
+        search_run: bool,
+        uid: str,
+    ):
         if run is None:
             run = {}
         if not run and search_run:
@@ -1629,6 +1641,9 @@ class BaseRuntimeHandler(ABC):
                     "labels": {"kind": self.kind},
                 }
             }
+            if search_run:
+                db.store_run(db_session, run, uid, project)
+
         return run
 
     @staticmethod

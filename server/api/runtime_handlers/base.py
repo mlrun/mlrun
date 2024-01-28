@@ -1605,7 +1605,7 @@ class BaseRuntimeHandler(ABC):
             "status.reason": "",
             "status.error": "",
         }
-        db.update_run(db_session, run_updates, uid, project)
+        run = db.update_run(db_session, run_updates, uid, project)
 
         return True, run_state, run
 

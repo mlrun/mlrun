@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun.runtimes
 from mlrun.common.schemas import AuthInfo
+from mlrun.runtimes import RemoteRuntime
 
 
-class DeploymentRuntime(mlrun.runtimes.RemoteRuntime):
+class DeploymentRuntime(RemoteRuntime):
     kind = "deployment"
 
     def __init__(self, spec=None, metadata=None):

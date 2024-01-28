@@ -752,7 +752,7 @@ def code_to_function(
             )
 
         # TODO: Change
-        filename = "./runtimes/deployment/handler.py"
+        filename = Path(__file__).parent / "./runtimes/deployment/handler.py"
         handler = "handler"
 
     is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)

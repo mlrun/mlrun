@@ -206,6 +206,7 @@ class NuclioSpec(KubeResourceSpec):
         self.readiness_timeout_before_failure = readiness_timeout_before_failure
         self.service_type = service_type
         self.add_templated_ingress_host_mode = add_templated_ingress_host_mode
+        self.state_thresholds = None  # not supported in nuclio
 
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 4

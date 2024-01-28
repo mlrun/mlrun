@@ -720,13 +720,17 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels
 
-    def resolve_nuclio_subkind(kind):
-        is_nuclio = kind.startswith("nuclio")
-        subkind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
-        if kind == RuntimeKinds.serving:
-            is_nuclio = True
-            subkind = serving_subkind
-        return is_nuclio, subkind
+    def resolve_nuclio_sub_kind(_kind):
+        _is_nuclio = _kind.startswith("nuclio")
+        _sub_kind = (
+            _kind[_kind.find(":") + 1 :] if _is_nuclio and ":" in _kind else None
+        )
+        if _kind == RuntimeKinds.serving:
+            _is_nuclio = True
+            _sub_kind = serving_subkind
+        elif _kind == RuntimeKinds.deployment:
+            _is_nuclio = True
+        return _is_nuclio, _sub_kind
 
     if (
         not embed_code
@@ -734,21 +738,31 @@ def code_to_function(
         and (not filename or filename.endswith(".ipynb"))
     ):
         raise ValueError(
-            "a valid code file must be specified "
+            "A valid code file must be specified "
             "when not using the embed_code option"
         )
 
     if kind == RuntimeKinds.databricks and not embed_code:
-        raise ValueError("databricks tasks only support embed_code=True")
+        raise ValueError("Databricks tasks only support embed_code=True")
 
-    is_nuclio, subkind = resolve_nuclio_subkind(kind)
+    if kind == RuntimeKinds.deployment:
+        if filename or handler:
+            raise ValueError(
+                "Invalid options specified for deployment kind: filename and/or handler"
+            )
+
+        # TODO: Change
+        filename = "./runtimes/deployment/handler.py"
+        handler = "handler"
+
+    is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = nuclio.build_file(
         filename,
         name=name,
         handler=handler or "handler",
-        kind=subkind,
+        kind=sub_kind,
         ignored_tags=ignored_tags,
     )
     spec["spec"]["env"].append(
@@ -761,14 +775,14 @@ def code_to_function(
     if not kind and spec_kind not in ["", "Function"]:
         kind = spec_kind.lower()
 
-        # if its a nuclio subkind, redo nb parsing
-        is_nuclio, subkind = resolve_nuclio_subkind(kind)
+        # if its a nuclio sub kind, redo nb parsing
+        is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)
         if is_nuclio:
             name, spec, code = nuclio.build_file(
                 filename,
                 name=name,
                 handler=handler or "handler",
-                kind=subkind,
+                kind=sub_kind,
                 ignored_tags=ignored_tags,
             )
 
@@ -782,15 +796,15 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
-        if subkind == serving_subkind:
+        if sub_kind == serving_subkind:
             r = ServingRuntime()
         elif kind == RuntimeKinds.deployment:
             r = ApplicationRuntime()
         else:
             r = RemoteRuntime()
-            r.spec.function_kind = subkind
-        # default_handler is only used in :mlrun subkind, determine the handler to invoke in function.run()
-        r.spec.default_handler = handler if subkind == "mlrun" else ""
+            r.spec.function_kind = sub_kind
+        # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
+        r.spec.default_handler = handler if sub_kind == "mlrun" else ""
         r.spec.function_handler = (
             handler if handler and ":" in handler else get_in(spec, "spec.handler")
         )
@@ -800,7 +814,7 @@ def code_to_function(
         if nuclio_runtime and not nuclio_runtime.startswith("py"):
             r.spec.nuclio_runtime = nuclio_runtime
         if not name:
-            raise ValueError("name must be specified")
+            raise ValueError("Missing required parameter: name")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
         r.spec.build.origin_filename = filename or (name + ".ipynb")

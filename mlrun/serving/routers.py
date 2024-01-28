@@ -29,6 +29,7 @@ import mlrun
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
 from mlrun.utils import logger, now_date
+import mlrun.feature_store as fs
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
@@ -1162,7 +1163,7 @@ class EnrichmentModelRouter(ModelRouter):
 
     def post_init(self, mode="sync"):
         super().post_init(mode)
-        self._feature_service = mlrun.feature_store.get_online_feature_service(
+        self._feature_service = fs.FeatureVector.get_online_feature_service(
             feature_vector=self.feature_vector_uri,
             impute_policy=self.impute_policy,
         )
@@ -1305,7 +1306,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
 
     def post_init(self, mode="sync"):
         super().post_init(mode)
-        self._feature_service = mlrun.feature_store.get_online_feature_service(
+        self._feature_service = fs.FeatureVector.get_online_feature_service(
             feature_vector=self.feature_vector_uri,
             impute_policy=self.impute_policy,
         )

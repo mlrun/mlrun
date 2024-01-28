@@ -730,7 +730,6 @@ def code_to_function(
             _sub_kind = serving_subkind
         elif _kind == RuntimeKinds.deployment:
             _is_nuclio = True
-            _sub_kind = RuntimeKinds.deployment
         return _is_nuclio, _sub_kind
 
     if (
@@ -801,7 +800,7 @@ def code_to_function(
     if is_nuclio:
         if sub_kind == serving_subkind:
             r = ServingRuntime()
-        elif sub_kind == RuntimeKinds.deployment:
+        elif kind == RuntimeKinds.deployment:
             r = DeploymentRuntime()
         else:
             r = RemoteRuntime()

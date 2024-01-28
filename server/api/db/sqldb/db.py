@@ -914,6 +914,7 @@ class SQLDB(DBInterface):
                 .filter(
                     ArtifactV2.producer_id != artifact.producer_id,
                 )
+                .with_for_update()
             )
 
             # delete the tags
@@ -937,6 +938,7 @@ class SQLDB(DBInterface):
                     ArtifactV2.producer_id == artifact.producer_id,
                     ArtifactV2.iteration == artifact.iteration,
                 )
+                .with_for_update()
             )
 
             tag = query.one_or_none()

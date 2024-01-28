@@ -22,7 +22,7 @@ lost. The mechanism of Window ACK provides a solution for such
 stateful event processing.
 
 ```{admonition} Note
-For statefeul functions, each worker has its own state.
+For statefull functions, each worker has its own state. See, for example, {py:meth}`~storey.transformations.MapWithState`.
 ```
 
 With Window ACK, the consumer group's committed offset is delayed by one window, committing the offset at (processed event num – window). 
@@ -36,9 +36,9 @@ graph structure and should be calculated accordingly. The following sections exp
 
 A consumer function is essentially a Nuclio function with a stream trigger. As part of the trigger, you can set a consumer group.  
 
-When the consumer function is part of a graph then the number of replicas per function depends on the  source:
-- StreamSource: The number of replicas is derived from the number of shards and is therefore nonconfigurable. The same applies to the number of workers in each replica, which is set to 1 and is not configurable.  
-- KafkaSource: For Nuclio earlier than 1.12.10, it is 1 and non-configurable. For 1.12.10 and later, the number of replicas is set with, for example:
+The number of replicas per function depends on the  source:
+- `StreamSource`: The number of replicas is derived from the number of shards and is therefore nonconfigurable. Furthermore, the number of workers in each replica is set to 1 and also is not configurable.  
+- `KafkaSource`: For Nuclio earlier than 1.12.10, it is 1 and non-configurable. For 1.12.10 and later, the number of replicas is set with, for example:
    - `function.spec.min_replicas = 2`. Default = 1
    - `function.spec.max_replicas = 3`. Default = 4	
    

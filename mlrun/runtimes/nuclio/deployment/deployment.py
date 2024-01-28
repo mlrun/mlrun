@@ -49,6 +49,7 @@ class DeploymentRuntime(RemoteRuntime):
         )
 
     def _init_sidecar(self):
+        # TODO: avoid double init
         self.with_sidecar(
             f"{self.metadata.name}-sidecar", self.spec.image, self.internal_app_port
         )

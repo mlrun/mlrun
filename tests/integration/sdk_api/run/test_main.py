@@ -15,6 +15,7 @@ import datetime
 import os
 import pathlib
 import sys
+import tempfile
 import traceback
 from base64 import b64encode
 from subprocess import PIPE, run
@@ -254,20 +255,25 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "--some-arg",
                 ],
                 True,
-                "'status':'completed'",
+                '"status":"completed"',
             ],
         ],
     )
     def test_main_run_args_validation(self, op, args, raise_on_error, expected_output):
-        out = self._exec_main(
-            op,
-            args,
-            raise_on_error=raise_on_error,
-        )
-        if not raise_on_error:
-            out = out.stderr.decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = [
+                "--out-path",
+                tmpdir,
+            ] + args
+            out = self._exec_main(
+                op,
+                args,
+                raise_on_error=raise_on_error,
+            )
+            if not raise_on_error:
+                out = out.stderr.decode("utf-8")
 
-        assert out.find(expected_output) != -1, out
+            assert out.find(expected_output) != -1, out
 
     def test_main_run_args_from_env(self):
         os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")

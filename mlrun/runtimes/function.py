@@ -193,6 +193,7 @@ class NuclioSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
 
         self.base_spec = base_spec or {}
@@ -206,6 +207,7 @@ class NuclioSpec(KubeResourceSpec):
         self.readiness_timeout_before_failure = readiness_timeout_before_failure
         self.service_type = service_type
         self.add_templated_ingress_host_mode = add_templated_ingress_host_mode
+        self.state_thresholds = None  # not supported in nuclio
 
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 4

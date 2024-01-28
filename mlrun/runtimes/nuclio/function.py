@@ -969,7 +969,7 @@ class RemoteRuntime(KubeResource):
         if not name or not image:
             raise ValueError("name and image must be specified")
 
-        self.spec.config["spec.sidecars"][-1] = {"name": name, "image": image}
+        self.spec.config["spec.sidecars"].append({"name": name, "image": image})
         if port:
             self.spec.config["spec.sidecars"][0]["ports"] = [
                 {

@@ -216,7 +216,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                 [
                     "--bad-flag",
                     "--name",
-                    "test_main_run_basic",
+                    "test-main-run-basic",
                     "--dump",
                     f"{examples_path}/training.py",
                 ],
@@ -228,7 +228,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             # bad flag with no command
             [
                 "run",
-                ["--name", "test_main_run_basic", "--bad-flag"],
+                ["--name", "test-main-run-basic", "--bad-flag"],
                 False,
                 "Error: Invalid value for '[URL]': URL (--bad-flag) cannot start with '-', "
                 "ensure the command options are typed correctly. Preferably use '--' to separate options and "
@@ -237,7 +237,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             # bad flag after -- separator
             [
                 "run",
-                ["--name", "test_main_run_basic", "--", "-notaflag"],
+                ["--name", "test-main-run-basic", "--", "-notaflag"],
                 False,
                 "Error: Invalid value for '[URL]': URL (-notaflag) cannot start with '-', "
                 "ensure the command options are typed correctly. Preferably use '--' to separate options and "
@@ -248,7 +248,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "run",
                 [
                     "--name",
-                    "test_main_run_basic",
+                    "test-main-run-basic",
                     "--",
                     f"{examples_path}/training.py",
                     "--some-arg",

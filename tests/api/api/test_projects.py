@@ -954,7 +954,7 @@ def test_project_with_parameters(
     ],
 )
 def test_delete_project_not_found_in_leader(
-    unprefixed_client: TestClient,
+    unversioned_client: TestClient,
     mock_project_leader_iguazio_client,
     delete_api_version: str,
 ) -> None:
@@ -963,16 +963,16 @@ def test_delete_project_not_found_in_leader(
         spec=mlrun.common.schemas.ProjectSpec(),
     )
 
-    response = unprefixed_client.post("v1/projects", json=project.dict())
+    response = unversioned_client.post("v1/projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
-    response = unprefixed_client.delete(
+    response = unversioned_client.delete(
         f"{delete_api_version}/projects/{project.metadata.name}",
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
 
-    response = unprefixed_client.get(
+    response = unversioned_client.get(
         f"v1/projects/{project.metadata.name}",
     )
     assert response.status_code == HTTPStatus.NOT_FOUND.value

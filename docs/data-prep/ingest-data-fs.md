@@ -90,6 +90,17 @@ source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 ingest(measurements, source, targets)
 ```
+You can **update a feature set** either by overwriting its data (`overwrite=true`), or by appending data (`overwrite=false`). 
+To append data you need to reuse the feature set that was used in previous ingestions 
+that was saved in the DB (and not create a new feature set on every ingest).<br>
+For example:
+```python
+    my_fset = fstore.get_feature_set("my_fset")
+except mlrun.errors.MLRunNotFoundError:
+    my_fset = FeatureSet("my_fset", entities=[Entity("key")])
+
+my_fset.ingest(overwrite=false)
+```
 
 To learn more about ingest, go to {py:class}`~mlrun.feature_store.ingest`.
 
@@ -123,7 +134,7 @@ error stream. <br>
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-fstore.deploy_ingestion_service_v2(my_set, source, run_config=config)
+my_set.deploy_ingestion_service(source, run_config=config)
 ```
 
 To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
@@ -135,10 +146,12 @@ and the subsequent jobs ingest only the deltas since the previous run (from the 
 Example:
 
 ```
-cron_trigger = "* */1 * * *" #runs every hour
-source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
-feature_set = fstore.FeatureSet(name=name, entities=[fstore.Entity("first_name")], timestamp_key="time",)
-fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
+cron_trigger = "* */1 * * *" # will run every hour
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+fs.ingest(
+    source=ParquetSource("mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger),
+    run_config=fstore.RunConfig(image='mlrun/mlrun')
+)
 ```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the 
@@ -179,7 +192,7 @@ either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this for
 source = SQLSource(table_name='my_table', 
                      db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
                      key_field='key',
-                     time_fields=['timestamp'], )
+                     parse_dates=['timestamp'])
  
  feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
  feature_set.set_targets([])
@@ -207,7 +220,7 @@ kafka_source = KafkaSource(
         
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```        
        
 
@@ -252,7 +265,7 @@ kafka_source = KafkaSource(
     
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```
 
 
@@ -312,7 +325,7 @@ You can pass the schema and the name of the table you want to create or the name
             schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
             create_table=True,
             primary_key_column='id',
-            time_fields=["time"]
+            parse_dates=["time"],
         )
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
 fs.ingest(feature_set, source=df, targets=[target])

@@ -152,11 +152,17 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          pip install -r automation/requirements.txt
+          # needed for updating the version file prior to publishing
+          python -m pip install -r automation/requirements.txt
+          
+          # TODO: move to a separated requirements file
+          python -m pip install \
+            build~=1.0 \
+            wheel~=0.42 \
+            twine~=4.0
       - name: Build & push to pypi
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
-          pip install twine wheel
           export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
           export TWINE_PASSWORD=${{ secrets.PYPI_PASSWORD }}
           MLRUN_VERSION="$INPUT_VERSION" make publish-package

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -369,7 +370,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         (
             "image_pull_backoff",
             "pending_scheduled",
-            "running",
+            "executing",
         ),
     )
     def test_state_thresholds(self, db: Session, client: TestClient, threshold_state):
@@ -383,20 +384,23 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         stale_run_name = "my-spark-stale"
         new_run_name = "my-spark-new"
 
+        threshold_in_seconds = server.api.utils.helpers.time_string_to_seconds(
+            getattr(
+                mlrun.mlconf.function.spec.state_thresholds.default,
+                threshold_state,
+            )
+        )
+        # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
+        mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            threshold_in_seconds * 2
+        )
+
         # create the runs
         for uid, name, start_time in [
             (
                 stale_job_uid,
                 stale_run_name,
-                datetime.now(timezone.utc)
-                - timedelta(
-                    seconds=server.api.utils.helpers.time_string_to_seconds(
-                        getattr(
-                            mlrun.mlconf.function.spec.state_thresholds.default,
-                            threshold_state,
-                        )
-                    )
-                ),
+                datetime.now(timezone.utc) - timedelta(seconds=threshold_in_seconds),
             ),
             (new_job_uid, new_run_name, datetime.now(timezone.utc)),
         ]:
@@ -426,7 +430,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             (new_job_uid, new_run_name),
         ]:
             pod_phase = (
-                PodPhases.pending if threshold_state != "running" else PodPhases.running
+                PodPhases.pending
+                if threshold_state != "executing"
+                else PodPhases.running
             )
             driver_pod = self._generate_pod(
                 pod_name,
@@ -478,8 +484,62 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         assert len(stale_runs) == 1
         assert stale_job_uid in [run["uid"] for run in stale_runs]
         assert stale_runs[0]["run_updates"] == {
-            "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+            "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
         }
+
+    @pytest.mark.parametrize(
+        "force",
+        (
+            True,
+            False,
+        ),
+    )
+    def test_delete_resources_stateless_crd(
+        self, db: Session, client: TestClient, force
+    ):
+        stateless_crd = copy.deepcopy(self.completed_crd_dict)
+        stateless_crd["status"]["applicationState"]["state"] = None
+        list_namespaced_crds_calls = [
+            [stateless_crd],
+        ]
+
+        list_namespaced_pods_calls = []
+        if force:
+            # additional time for wait for pods deletion
+            list_namespaced_crds_calls.append([self.completed_crd_dict])
+            list_namespaced_pods_calls = [
+                # for the get_logger_pods with proper selector
+                [self.driver_pod],
+                # additional time for wait for pods deletion - simulate pods gone
+                [],
+            ]
+            self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_list_namespaced_config_map([self.config_map])
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, force=force)
+
+        # deletion was skipped
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [] if not force else [stateless_crd["metadata"]["name"]],
+            [] if not force else stateless_crd["metadata"]["namespace"],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
+        )
+
+        if force:
+            self._assert_list_namespaced_pods_calls(
+                self.runtime_handler,
+                len(list_namespaced_pods_calls),
+                self.pod_label_selector,
+            )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.created
+        )
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(

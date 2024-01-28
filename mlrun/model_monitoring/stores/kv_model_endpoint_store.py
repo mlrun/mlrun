@@ -69,6 +69,8 @@ class KVModelEndpointStore(ModelEndpointStore):
             attributes=endpoint,
         )
 
+        self._infer_kv_schema()
+
     def update_model_endpoint(
         self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]
     ):
@@ -206,7 +208,10 @@ class KVModelEndpointStore(ModelEndpointStore):
             items = cursor.all()
 
         except Exception as exc:
-            logger.warning("Failed retrieving raw data from kv table", exc=exc)
+            logger.warning(
+                "Failed retrieving raw data from kv table",
+                exc=mlrun.errors.err_to_str(exc),
+            )
             return endpoint_list
 
         # Create a list of model endpoints unique ids
@@ -280,11 +285,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             )
 
         # Cleanup TSDB
-        frames = mlrun.utils.v3io_clients.get_frames_client(
-            token=self.access_key,
-            address=mlrun.mlconf.v3io_framesd,
-            container=self.container,
-        )
+        frames = self._get_frames_client()
 
         # Generate the required tsdb paths
         tsdb_path, filtered_path = self._generate_tsdb_paths()
@@ -295,11 +296,12 @@ class KVModelEndpointStore(ModelEndpointStore):
                 backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
                 table=filtered_path,
             )
-        except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
-            # Frames might raise an exception if schema file does not exist.
-            logger.warning("Failed to delete TSDB schema file:", err=e)
-            pass
-
+        except v3io_frames.errors.DeleteError as e:
+            if "No TSDB schema file found" not in str(e):
+                logger.warning(
+                    f"Failed to delete TSDB table '{filtered_path}'",
+                    err=mlrun.errors.err_to_str(e),
+                )
         # Final cleanup of tsdb path
         tsdb_path.replace("://u", ":///u")
         store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
@@ -424,6 +426,29 @@ class KVModelEndpointStore(ModelEndpointStore):
             full_path
         )
         return tsdb_path, filtered_path
+
+    def _infer_kv_schema(self):
+        """
+        Create KV schema file if not exist. This schema is being used by the Grafana dashboards.
+        """
+
+        schema_file = self.client.kv.new_cursor(
+            container=self.container,
+            table_path=self.path,
+            filter_expression='__name==".#schema"',
+        )
+
+        if not schema_file.all():
+            logger.info("Generate a new V3IO KV schema file", kv_table_path=self.path)
+            frames_client = self._get_frames_client()
+            frames_client.execute(backend="kv", table=self.path, command="infer_schema")
+
+    def _get_frames_client(self):
+        return mlrun.utils.v3io_clients.get_frames_client(
+            token=self.access_key,
+            address=mlrun.mlconf.v3io_framesd,
+            container=self.container,
+        )
 
     @staticmethod
     def _build_kv_cursor_filter_expression(

@@ -60,13 +60,14 @@ def pipe_test():
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
-    custom_project_names_to_delete = []
     _logger_redirected = False
 
     def custom_setup(self):
-        pass
+        super().custom_setup()
+        self.custom_project_names_to_delete = []
 
     def custom_teardown(self):
+        super().custom_teardown()
         if self._logger_redirected:
             mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
             self._logger_redirected = False
@@ -78,8 +79,6 @@ class TestProject(TestMLRunSystem):
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
-        self.custom_project_names_to_delete = []
-
     @property
     def assets_path(self):
         return (
@@ -89,6 +88,12 @@ class TestProject(TestMLRunSystem):
 
     def _create_project(self, project_name, with_repo=False, overwrite=False):
         self.custom_project_names_to_delete.append(project_name)
+        self._logger.debug(
+            "Creating new project",
+            project_name=project_name,
+            with_repo=False,
+            overwrite=overwrite,
+        )
         proj = mlrun.new_project(
             project_name, str(self.assets_path), overwrite=overwrite
         )
@@ -113,6 +118,11 @@ class TestProject(TestMLRunSystem):
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
         proj.set_workflow("newflow", "./newflow.py", handler="newpipe")
         proj.spec.artifact_path = "v3io:///projects/{{run.project}}"
+        self._logger.debug(
+            "Saving project",
+            project_name=project_name,
+            project=proj.to_yaml(),
+        )
         proj.save()
         return proj
 
@@ -176,19 +186,19 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
 
         # test the list_runs/artifacts/functions methods
-        runs_list = project2.list_runs(name="test", labels={"workflow": run.run_id})
+        runs_list = project2.list_runs(name="test", labels=f"workflow={run.run_id}")
         runs = runs_list.to_objects()
         assert runs[0].status.state == "completed"
         assert runs[0].metadata.name == "test"
         runs_list.compare(filename=f"{projects_dir}/compare.html")
-        artifacts = project2.list_artifacts(tag=run.run_id).to_objects()
+        artifacts = project2.list_artifacts(tree=run.run_id).to_objects()
 
         # model, prep_data_cleaned_data, test_evaluation-confusion-matrix, test_evaluation-roc-curves,
         # test_evaluation-test_set, train_confusion-matrix, train_feature-importance, train_roc-curves, test_set
         assert len(artifacts) == 9
         assert artifacts[0].producer["workflow"] == run.run_id
 
-        models = project2.list_models(tag=run.run_id)
+        models = project2.list_models(tree=run.run_id)
         assert len(models) == 1
         assert models[0].producer["workflow"] == run.run_id
 
@@ -467,7 +477,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        self._logger.debug("set project function", project=project.to_yaml())
+        self._logger.debug("Set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -487,28 +497,35 @@ class TestProject(TestMLRunSystem):
 
     def test_kfp_runs_getting_deleted_on_project_deletion(self):
         project_name = "kfppipedelete"
-        self.custom_project_names_to_delete.append(project_name)
-
         project = self._create_project(project_name)
         self._initialize_sleep_workflow(project)
         project.run("main", engine="kfp")
 
         db = mlrun.get_run_db()
         project_pipeline_runs = db.list_pipelines(project=project_name)
+        self._logger.debug(
+            "Got project pipeline runs", runs_length=len(project_pipeline_runs.runs)
+        )
         # expecting to have pipeline run
         assert (
             project_pipeline_runs.runs
         ), "no pipeline runs found for project, expected to have pipeline run"
         # deleting project with deletion strategy cascade so it will delete any related resources ( pipelines as well )
+
+        self._logger.debug("Deleting project", project_name=project_name)
         db.delete_project(
             name=project_name,
             deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade,
         )
         # create the project again ( using new_project, instead of get_or_create_project so it won't create project
         # from project.yaml in the context that might contain project.yaml
+        self._logger.debug("Recreating project", project_name=project_name)
         mlrun.new_project(project_name)
 
         project_pipeline_runs = db.list_pipelines(project=project_name)
+        self._logger.debug(
+            "Got project pipeline runs", runs_length=len(project_pipeline_runs.runs)
+        )
         assert (
             not project_pipeline_runs.runs
         ), "pipeline runs found for project after deletion, expected to be empty"
@@ -678,7 +695,7 @@ class TestProject(TestMLRunSystem):
         out = exec_project(args)
         self._logger.debug("executed project", out=out)
         assert (
-            out.find("pipeline run finished, state=Succeeded") != -1
+            out.find("Pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
 
     def test_run_cli_watch_with_timeout(self):
@@ -1119,6 +1136,67 @@ class TestProject(TestMLRunSystem):
 
         shutil.rmtree(project_dir, ignore_errors=True)
 
+    def test_load_project_with_artifact_db_key(self):
+        project_1_name = "test-load-with-artifact"
+        project_2_name = project_1_name + "-2"
+        project_3_name = project_1_name + "-3"
+        self.custom_project_names_to_delete.extend(
+            [project_1_name, project_2_name, project_3_name]
+        )
+
+        context = "./load"
+        project = mlrun.get_or_create_project(project_1_name, context=context)
+
+        # create artifact with an explicit db_key
+        artifact_key = "artifact_key"
+        artifact_db_key = "artifact_db_key"
+        project.log_artifact(artifact_key, db_key=artifact_db_key, body="test")
+
+        # validate that the artifact is in the db
+        artifacts = project.list_artifacts(name=artifact_db_key)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # set the artifact on the project with a new key and save
+        artifact_new_key = "artifact_new_key"
+        project.set_artifact(
+            key=artifact_new_key, artifact=Artifact.from_dict(artifacts[0])
+        )
+        project.save()
+
+        # create a project from the same spec
+        project2 = mlrun.load_project(context=context, name=project_2_name)
+
+        # validate that the artifact was saved with the db_key
+        artifacts = project2.list_artifacts(name=artifact_db_key)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_new_key
+
+        # create another artifact with an explicit db_key
+        artifact_db_key_2 = f"{artifact_db_key}_2"
+        artifact_key_2 = f"{artifact_key}_2"
+        project.log_artifact(
+            f"{artifact_key_2}", db_key=artifact_db_key_2, body="test-again"
+        )
+
+        artifacts = project.list_artifacts(name=artifact_db_key_2)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key_2
+
+        # export the artifact and set it on the project with the export path
+        artifact_path = os.path.join(os.getcwd(), context, "test-artifact.yaml")
+        art = Artifact.from_dict(artifacts[0])
+        art.export(artifact_path)
+        another_artifact_key = "another_artifact_key"
+        project.set_artifact(another_artifact_key, artifact=artifact_path)
+        project.save()
+
+        # create a new project from the same spec, and validate the artifact was loaded properly
+        project3 = mlrun.load_project(context=context, name=project_3_name)
+        artifacts = project3.list_artifacts(name=artifact_db_key_2)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == another_artifact_key
+
     def _initialize_sleep_workflow(self, project: mlrun.projects.MlrunProject):
         code_path = str(self.assets_path / "sleep.py")
         workflow_path = str(self.assets_path / "workflow.py")
@@ -1136,6 +1214,7 @@ class TestProject(TestMLRunSystem):
             image="mlrun/mlrun",
             handler="handler",
         )
+        self._logger.debug("Set project workflow", project=project.name)
         project.set_workflow("main", workflow_path)
 
     @pytest.mark.parametrize(

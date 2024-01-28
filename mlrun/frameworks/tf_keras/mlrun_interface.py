@@ -15,8 +15,7 @@
 import importlib
 import os
 from abc import ABC
-from types import ModuleType
-from typing import List, Set, Tuple, Union
+from typing import List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -149,7 +148,12 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             kwargs["validation_data"] = kwargs.get("validation_data", None)
 
             # Call the pre fit method:
-            (callbacks, verbose, steps_per_epoch, validation_steps,) = self._pre_fit(
+            (
+                callbacks,
+                verbose,
+                steps_per_epoch,
+                validation_steps,
+            ) = self._pre_fit(
                 callbacks=kwargs["callbacks"],
                 verbose=kwargs["verbose"],
                 steps_per_epoch=kwargs["steps_per_epoch"],

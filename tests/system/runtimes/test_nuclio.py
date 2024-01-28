@@ -113,7 +113,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp.status_code == 200
 
         response = self._run_db.api_call(
-            "GET", "funcs", params={"project": self.project_name}
+            "GET",
+            f"projects/{self.project_name}/functions",
         )
 
         assert response.ok
@@ -144,7 +145,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         v3io_client = v3io.dataplane.Client(
             endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
         )
-        v3io_client.delete_stream(
+        v3io_client.stream.delete(
             self.stream_container,
             self.stream_path,
             raise_for_status=RaiseForStatus.never,
@@ -332,7 +333,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_kafka_source_with_avro(self, kafka_fixture):
-
         row_divide = 3
         stocks_df = pd.DataFrame(
             {
@@ -355,8 +355,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         stocks_set.graph.to("MyMap", full_event=True)
 
         target = ParquetTarget(flush_after_seconds=10)
-        fstore.ingest(
-            featureset=stocks_set,
+        stocks_set.ingest(
             source=stocks_df[0:row_divide],
             targets=[target],
             infer_options=fstore.InferOptions.default(),
@@ -378,11 +377,13 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             filename=str(self.assets_path / "map_avro.py"),
         )
 
+        func.spec.min_replicas = 1
+        func.spec.max_replicas = 1
+
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()
         )
-        stocks_set_endpoint, _ = fstore.deploy_ingestion_service_v2(
-            featureset=stocks_set,
+        stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,
             targets=[target],
             run_config=run_config,

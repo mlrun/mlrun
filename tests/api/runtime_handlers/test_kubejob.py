@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import typing
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -206,10 +207,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             {
                 "runs_monitoring_interval": 0,
                 "debouncing_interval": None,
-                "list_namespaced_pods_calls": [[]],
+                "list_namespaced_pods_calls": [[], []],
                 "interval_time_to_add_to_run_update_time": 0,
                 "start_run_states": RunStates.non_terminal_states(),
                 "expected_reached_state": RunStates.error,
+                "monitor_cycles": 1,
             },
             # monitoring interval and debouncing interval are configured which means debouncing interval will
             # be the debounce period, run is still in the debounce period that's why expecting not to override state
@@ -228,10 +230,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             {
                 "runs_monitoring_interval": 30,
                 "debouncing_interval": 100,
-                "list_namespaced_pods_calls": [[], [], []],
+                "list_namespaced_pods_calls": [[], [], [], []],
                 "interval_time_to_add_to_run_update_time": -200,
                 "start_run_states": RunStates.non_terminal_states(),
                 "expected_reached_state": RunStates.error,
+                "monitor_cycles": 3,
             },
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
@@ -239,10 +242,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             {
                 "runs_monitoring_interval": 30,
                 "debouncing_interval": None,
-                "list_namespaced_pods_calls": [[], [], []],
+                "list_namespaced_pods_calls": [[], [], [], []],
                 "interval_time_to_add_to_run_update_time": -65,
                 "start_run_states": RunStates.non_terminal_states(),
                 "expected_reached_state": RunStates.error,
+                "monitor_cycles": 3,
             },
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
@@ -275,6 +279,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 "expected_reached_state", RunStates.running
             )
             start_run_states = test_case.get("start_run_states", [RunStates.running])
+            monitor_cycles = test_case.get(
+                "monitor_cycles", len(list_namespaced_pods_calls)
+            )
             for idx in range(len(start_run_states)):
                 self.run["status"]["state"] = start_run_states[idx]
 
@@ -302,17 +309,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 self._mock_list_namespaced_pods(list_namespaced_pods_calls)
 
                 # Triggering monitor cycle
-                expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-                self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-                for i in range(expected_number_of_list_pods_calls):
+                for i in range(monitor_cycles):
                     self.runtime_handler.monitor_runs(get_db(), db)
 
+                expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
                 self._assert_list_namespaced_pods_calls(
                     self.runtime_handler, expected_number_of_list_pods_calls
                 )
 
                 # verifying monitoring was debounced
-                if type(expected_reached_state) == list:
+                if isinstance(expected_reached_state, list):
                     self._assert_run_reached_state(
                         db, self.project, self.run_uid, expected_reached_state[idx]
                     )
@@ -626,7 +632,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
             seconds=server.api.utils.helpers.time_string_to_seconds(
-                mlrun.mlconf.function.spec.state_thresholds.default.running
+                mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
         )
         self._store_run(
@@ -696,13 +702,93 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_updates = [run["run_updates"] for run in stale_runs]
         expected_run_updates = []
-        for state in ["pending_scheduled", "running", "image_pull_backoff"]:
+        for state in ["pending_scheduled", "executing", "image_pull_backoff"]:
             expected_run_updates.append(
                 {
-                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                    "status.error": f"Run aborted due to exceeded state threshold: {state}",
                 }
             )
         assert stale_run_updates == expected_run_updates
+
+    @pytest.mark.asyncio
+    async def test_monitor_stale_run(self, db: Session, client: TestClient):
+        # set list run time period to be negative so that list runs will not find the run
+        config.monitoring.runs.list_runs_time_period_in_days = -1
+        list_namespaced_pods_calls = [
+            [self.completed_job_pod],
+            # additional time for the get_logger_pods
+            [self.completed_job_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_pods_calls - 1
+        )
+
+        run = get_db().read_run(db, self.run_uid, self.project)
+        with unittest.mock.patch(
+            "server.api.db.sqldb.db.SQLDB.read_run",
+            unittest.mock.Mock(return_value=run),
+        ) as mock_read_run:
+            for _ in range(expected_monitor_cycles_to_reach_expected_state):
+                self.runtime_handler.monitor_runs(get_db(), db)
+
+            mock_read_run.assert_called_once()
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
+
+    @pytest.mark.asyncio
+    async def test_monitor_no_search_run(self, db: Session, client: TestClient):
+        # tests the opposite of test_monitor_stale_run - that the run is listed, and we don't try to read it
+        list_namespaced_pods_calls = [
+            [self.completed_job_pod],
+            # additional time for the get_logger_pods
+            [self.completed_job_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_pods_calls - 1
+        )
+
+        with unittest.mock.patch(
+            "server.api.db.sqldb.db.SQLDB.read_run", unittest.mock.Mock()
+        ) as mock_read_run:
+            for _ in range(expected_monitor_cycles_to_reach_expected_state):
+                self.runtime_handler.monitor_runs(get_db(), db)
+
+            mock_read_run.assert_not_called()
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
+
+    @pytest.mark.asyncio
+    async def test_monitor_run_debouncing_resource_not_found(
+        self, db: Session, client: TestClient
+    ):
+        config.monitoring.runs.missing_runtime_resources_debouncing_interval = 0
+        self.run["status"]["state"] = RunStates.running
+
+        server.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+
+        # Mocking once that the pod is not found, and then that it is found
+        list_namespaced_pods_calls = [[], [self.completed_job_pod]]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring was debounced
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, len(list_namespaced_pods_calls)
+        )
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

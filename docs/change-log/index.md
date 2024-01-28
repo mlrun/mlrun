@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
+- [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
 - [v1.2.3](#v1-2-3-15-may-2023) | [v1.2.2](#v1-2-2-8-may-2023) | [v1.2.1](#v1-2-1-8-january-2023) | [v1.2.0](#v1-2-0-1-december-2022)
@@ -10,12 +10,20 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
 
+
+## v1.5.2 (30 November 2023)
+
+###  Closed issues
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-4960|Fixed browser caching so the **Members** tab is always presented for projects.|
+
 ## v1.5.1 (2 November 2023)
 
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-3840|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
+|ML-3480|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
 |ML-4839/4844|Running `project.build_image` now always reads the requirements.txt file. |
 |ML-4860  |Fixed creating and running functions with no parameters from the UI.      |
 |ML-4872 |Fixed synchronizing functions from project yaml.                          |
@@ -779,8 +787,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | NA |                 v1.5.0|   
 |ML-4855|MLRun supports TensorFlow up to 2.13.1.
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
-|ML-4960|Under some conditions, due to caching done in the browser, the **Members** tab is not presented for projects.            | NA |                 v1.5.0| 
-
 
 ## Deprecations and removed code
 

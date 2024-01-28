@@ -73,7 +73,8 @@ class RedisStore(DataStore):
 
         return self._redis
 
-    def get_filesystem(self, silent):
+    @property
+    def filesystem(self):
         return None  # no support for fsspec
 
     def supports_isdir(self):

@@ -49,7 +49,6 @@ class BaseRuntimeHandler(ABC):
     kind = "base"
     class_modes: Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
-    pod_grace_period_seconds = 0
 
     @abstractmethod
     def run(
@@ -74,9 +73,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support listing runtime resources in non k8s env
-        if (
-            not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
+        if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return {}
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
@@ -123,9 +120,7 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if (
-            not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
+        if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
@@ -172,18 +167,21 @@ class BaseRuntimeHandler(ABC):
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
+        logger.debug(
+            "Deleting runtime object resources",
+            object_id=object_id,
+            label_selector=label_selector,
+            force=force,
+            grace_period=grace_period,
+        )
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session) -> List[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
-        crd_group, crd_version, crd_plural = self._get_crd_info()
-        runtime_resource_is_crd = False
-        if crd_group and crd_version and crd_plural:
-            runtime_resource_is_crd = True
-            runtime_resources = self._list_crd_objects(namespace, label_selector)
-        else:
-            runtime_resources = self._list_pods(namespace, label_selector)
+        runtime_resources, runtime_resource_is_crd = self._get_runtime_resources(
+            label_selector, namespace
+        )
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
@@ -437,6 +435,17 @@ class BaseRuntimeHandler(ABC):
             runtime.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
 
     @staticmethod
+    def are_resources_coupled_to_run_object() -> bool:
+        """
+        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Function of the job kind
+        a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
+        and every Run is being executed using this cluster, i.e. no resources are created for the Run.
+        This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
+        aspects of the Run (like its state) should be taken into consideration on resources deletion
+        """
+        return False
+
+    @staticmethod
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
         """
@@ -526,9 +535,7 @@ class BaseRuntimeHandler(ABC):
                 # if found resource there is no need to continue
                 return
             last_update_str = run.get("status", {}).get("last_update")
-            debounce_period = (
-                config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
-            )
+            debounce_period = config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
             if last_update_str is None:
                 logger.info(
                     "Runs monitoring found run in non-terminal state without last update time set, "
@@ -560,6 +567,28 @@ class BaseRuntimeHandler(ABC):
                     debounce_period=debounce_period,
                 )
             else:
+                # search for the resource once again for mitigation
+                label_selector = self.resolve_label_selector(
+                    project=project,
+                    object_id=run_uid,
+                    class_mode=RuntimeClassMode.run,
+                )
+                namespace = (
+                    server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+                )
+                runtime_resources, _ = self._get_runtime_resources(
+                    label_selector, namespace
+                )
+                if runtime_resources:
+                    logger.debug(
+                        "Monitoring did not discover a runtime resource that corresponded to a run in a "
+                        "non-terminal state. but resource was discovered on second attempt. Debouncing",
+                        project=project,
+                        uid=run_uid,
+                        db_run_state=db_run_state,
+                    )
+                    return
+
                 logger.info(
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
@@ -569,6 +598,16 @@ class BaseRuntimeHandler(ABC):
                 ] = "A runtime resource related to this run could not be found"
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
+
+    def _get_runtime_resources(self, label_selector, namespace):
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        if crd_group and crd_version and crd_plural:
+            runtime_resource_is_crd = True
+            runtime_resources = self._list_crd_objects(namespace, label_selector)
+        else:
+            runtime_resource_is_crd = False
+            runtime_resources = self._list_pods(namespace, label_selector)
+        return runtime_resources, runtime_resource_is_crd
 
     def _add_object_label_selector_if_needed(
         self,
@@ -727,17 +766,6 @@ class BaseRuntimeHandler(ABC):
         return "", "", ""
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        """
-        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Function of the job kind
-        a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
-        and every Run is being executed using this cluster, i.e. no resources are created for the Run.
-        This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
-        aspects of the Run (like its state) should be taken into consideration on resources deletion
-        """
-        return False
-
-    @staticmethod
     def _expect_pods_without_uid() -> bool:
         return False
 
@@ -798,13 +826,26 @@ class BaseRuntimeHandler(ABC):
                 timeout=timeout,
                 interval=self.wait_for_deletion_interval,
             )
-            mlrun.utils.retry_until_successful(
-                self.wait_for_deletion_interval,
-                timeout,
-                logger,
-                True,
-                _verify_pods_removed,
-            )
+            try:
+                mlrun.utils.retry_until_successful(
+                    self.wait_for_deletion_interval,
+                    timeout,
+                    logger,
+                    True,
+                    _verify_pods_removed,
+                )
+            except mlrun.errors.MLRunRetryExhaustedError as exc:
+                logger.warning(
+                    "Failed waiting for pods deletion, force deleting pods",
+                    exc=err_to_str(exc),
+                )
+                for deleted_pod_name in deleted_pod_names:
+                    # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in
+                    # terminating state, so we're forcing deletion after the grace period passed in this case.
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                        deleted_pod_name, namespace, grace_period_seconds=0
+                    )
+
             logger.debug(
                 "Successfully waited for pods deletion",
                 timeout=timeout,
@@ -820,7 +861,7 @@ class BaseRuntimeHandler(ABC):
         # if they are not coupled we are not able to wait - simply return
         # NOTE - there are surely smarter ways to do this, without depending on the run object, but as of writing this
         # none of the runtimes using CRDs are like that, so not handling it now
-        if not self._are_resources_coupled_to_run_object():
+        if not self.are_resources_coupled_to_run_object():
             return
 
         def _verify_crds_underlying_pods_removed():
@@ -918,7 +959,7 @@ class BaseRuntimeHandler(ABC):
 
                 # if resources are tightly coupled to the run object - we want to perform some actions on the run object
                 # before deleting them
-                if self._are_resources_coupled_to_run_object():
+                if self.are_resources_coupled_to_run_object():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
                             db, db_session, pod_dict, run_state
@@ -932,7 +973,7 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                    pod.metadata.name, namespace, self.pod_grace_period_seconds
+                    pod.metadata.name, namespace
                 )
                 deleted_pods.append(pod_dict)
             except Exception as exc:
@@ -977,6 +1018,14 @@ class BaseRuntimeHandler(ABC):
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(crd_object)
+
+                    if not desired_run_state and not force:
+                        logger.warning(
+                            "Could not resolve run state from CRD object. Skipping deletion",
+                            crd_object_name=crd_object["metadata"]["name"],
+                        )
+                        continue
+
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -992,7 +1041,7 @@ class BaseRuntimeHandler(ABC):
 
                     # if resources are tightly coupled to the run object - we want to perform some actions on the run
                     # object before deleting them
-                    if self._are_resources_coupled_to_run_object():
+                    if self.are_resources_coupled_to_run_object():
                         try:
                             self._pre_deletion_runtime_resource_run_actions(
                                 db,
@@ -1051,8 +1100,10 @@ class BaseRuntimeHandler(ABC):
             project=project,
             uid=uid,
         )
-        self._ensure_run_state(db, db_session, project, uid, name, run_state)
-        self._ensure_run_logs_collected(db, db_session, project, uid)
+        _, _, run = self._ensure_run_state(
+            db, db_session, project, uid, name, run_state
+        )
+        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1089,7 +1140,21 @@ class BaseRuntimeHandler(ABC):
     def _list_runs_for_monitoring(
         self, db: DBInterface, db_session: Session, states: list = None
     ):
-        runs = db.list_runs(db_session, project="*", states=states)
+        last_update_time_from = None
+        if config.monitoring.runs.list_runs_time_period_in_days:
+            last_update_time_from = (
+                datetime.now()
+                - timedelta(
+                    days=int(config.monitoring.runs.list_runs_time_period_in_days)
+                )
+            ).isoformat()
+
+        runs = db.list_runs(
+            db_session,
+            project="*",
+            states=states,
+            last_update_time_from=last_update_time_from,
+        )
         project_run_uid_map = {}
         run_with_missing_data = []
         duplicated_runs = []
@@ -1158,7 +1223,7 @@ class BaseRuntimeHandler(ABC):
 
         run = project_run_uid_map.get(project, {}).get(uid)
         run = self._ensure_run(
-            db, db_session, name, project, run, search_run=False, uid=uid
+            db, db_session, name, project, run, search_run=True, uid=uid
         )
         (
             run_state,
@@ -1168,7 +1233,7 @@ class BaseRuntimeHandler(ABC):
         )
 
         # If threshold exceeded, an abort run job will be triggered.
-        if threshold_exceeded:
+        if threshold_exceeded or not run_state:
             return
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1187,7 +1252,7 @@ class BaseRuntimeHandler(ABC):
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
         if updated_run_state in RunStates.terminal_states():
-            self._ensure_run_logs_collected(db, db_session, project, uid)
+            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
         self,
@@ -1205,7 +1270,7 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            if in_terminal_state:
+            if in_terminal_state or not run_state:
                 return run_state, False
 
             run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})
@@ -1274,7 +1339,7 @@ class BaseRuntimeHandler(ABC):
 
         # Threshold exceeded, add run to stale runs list
         logger.warning(
-            "Runtime resource exceeded state threshold. Run will be aborted.",
+            "Runtime resource exceeded state threshold. Run will be aborted",
             runtime_resource_name=pod["metadata"]["name"],
             run_state=run_state,
             pod_phase=pod_phase,
@@ -1283,7 +1348,7 @@ class BaseRuntimeHandler(ABC):
             namespace=namespace,
         )
         run_updates = {
-            "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+            "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
         }
 
         stale_runs.append(
@@ -1454,14 +1519,14 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _ensure_run_logs_collected(
-        db: DBInterface, db_session: Session, project: str, uid: str
+        db: DBInterface, db_session: Session, project: str, uid: str, run: Dict = None
     ):
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
             # this stays for now for backwards compatibility in case we would not use the log collector but rather
             # the legacy method to pull logs
             logs_from_k8s = crud.Logs()._get_logs_legacy_method(
-                db_session, project, uid, source=LogSources.K8S
+                db_session, project, uid, source=LogSources.K8S, run=run
             )
             if logs_from_k8s:
                 logger.info("Storing run logs", project=project, uid=uid)
@@ -1478,20 +1543,28 @@ class BaseRuntimeHandler(ABC):
         name: str,
         run_state: str,
         run: Dict = None,
-        search_run=True,
+        search_run: bool = True,
     ) -> Tuple[bool, str, dict]:
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
+            if not run_state or db_run_state == run_state:
+                return False, db_run_state, run
 
-            if db_run_state == run_state:
+            if db_run_state == RunStates.aborting:
+                logger.debug(
+                    "Run is in aborting state. Not changing state",
+                    project=project,
+                    uid=uid,
+                    db_run_state=db_run_state,
+                    run_state=run_state,
+                )
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
             if db_run_state in RunStates.terminal_states():
-
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
                 if run_state not in RunStates.terminal_states():
@@ -1525,17 +1598,30 @@ class BaseRuntimeHandler(ABC):
                 )
 
         logger.info("Updating run state", run_state=run_state)
-        run.setdefault("status", {})["state"] = run_state
-        run["status"]["last_update"] = now_date().isoformat()
-        db.store_run(db_session, run, uid, project)
+        run_updates = {
+            "status.state": run_state,
+            "status.last_update": now_date().isoformat(),
+            # run is not in terminal state, so reset reason and error
+            "status.reason": "",
+            "status.error": "",
+        }
+        run = db.update_run(db_session, run_updates, uid, project)
 
         return True, run_state, run
 
-    @staticmethod
-    def _ensure_run(db, db_session, name, project, run, search_run, uid):
+    def _ensure_run(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        name: str,
+        project: str,
+        run: dict,
+        search_run: bool,
+        uid: str,
+    ):
         if run is None:
             run = {}
-        if search_run:
+        if not run and search_run:
             try:
                 run = db.read_run(db_session, uid, project)
             except mlrun.errors.MLRunNotFoundError:
@@ -1547,7 +1633,17 @@ class BaseRuntimeHandler(ABC):
                 uid=uid,
                 search_run=search_run,
             )
-            run = {"metadata": {"project": project, "name": name, "uid": uid}}
+            run = {
+                "metadata": {
+                    "project": project,
+                    "name": name,
+                    "uid": uid,
+                    "labels": {"kind": self.kind},
+                }
+            }
+            if search_run:
+                db.store_run(db_session, run, uid, project)
+
         return run
 
     @staticmethod

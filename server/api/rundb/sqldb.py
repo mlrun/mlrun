@@ -107,14 +107,14 @@ class SQLRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name=None,
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime.datetime = None,
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
@@ -129,8 +129,8 @@ class SQLRunDB(RunDBInterface):
         with_notifications: bool = False,
     ):
         return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
             server.api.crud.Runs().list_runs,
-            db_session=self.session,
             name=name,
             uid=uid,
             project=project,
@@ -151,8 +151,8 @@ class SQLRunDB(RunDBInterface):
             with_notifications=with_notifications,
         )
 
-    def del_run(self, uid, project=None, iter=None):
-        return self._transform_db_error(
+    async def del_run(self, uid, project=None, iter=None):
+        return await self._transform_db_error(
             server.api.crud.Runs().delete_run,
             self.session,
             uid,
@@ -160,8 +160,10 @@ class SQLRunDB(RunDBInterface):
             project,
         )
 
-    def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
-        return self._transform_db_error(
+    async def del_runs(
+        self, name=None, project=None, labels=None, state=None, days_ago=0
+    ):
+        return await self._transform_db_error(
             server.api.crud.Runs().delete_runs,
             self.session,
             name,
@@ -171,7 +173,9 @@ class SQLRunDB(RunDBInterface):
             days_ago,
         )
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().store_artifact,
             self.session,
@@ -181,16 +185,19 @@ class SQLRunDB(RunDBInterface):
             iter,
             tag,
             project,
+            tree,
         )
 
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         return self._transform_db_error(
             server.api.crud.Artifacts().get_artifact,
             self.session,
             key,
-            tag,
-            iter,
-            project,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=tree,
+            object_uid=uid,
         )
 
     def list_artifacts(
@@ -205,6 +212,7 @@ class SQLRunDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -222,9 +230,10 @@ class SQLRunDB(RunDBInterface):
             best_iteration=best_iteration,
             kind=kind,
             category=category,
+            producer_id=tree,
         )
 
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
             self.session,
@@ -724,12 +733,24 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
     ):
         return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
             server.api.crud.Hub().list_hub_sources,
-            self.session,
             item_name,
             tag,
             version,
         )
+
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
+        raise NotImplementedError()
 
     def list_pipelines(
         self,
@@ -888,6 +909,9 @@ class SQLRunDB(RunDBInterface):
         # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
         # done from ingest()
         pass
+
+    def get_log_size(self, uid, project=""):
+        raise NotImplementedError("Getting log size is not supported on the server")
 
     def watch_log(self, uid, project="", watch=True, offset=0):
         raise NotImplementedError("Watching logs is not supported on the server")

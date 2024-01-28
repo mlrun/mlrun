@@ -97,7 +97,7 @@ def test_invalid_name():
         # name cannot have / in it
         new_function().run(name="asd/asd", handler=my_func)
     assert (
-        "Field 'run.metadata.name' is malformed. asd/asd does not match required pattern"
+        "Field 'run.metadata.name' is malformed. 'asd/asd' does not match required pattern"
         in str(excinfo.value)
     )
 
@@ -215,11 +215,9 @@ def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
     )
 
     if kind == "dask":
-
         # don't start dask cluster
         func.spec.remote = False
     elif kind == "job":
-
         # mark as deployed
         func.spec.image = "some-image"
 

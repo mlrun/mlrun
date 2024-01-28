@@ -82,7 +82,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
         function = run.get("spec", {}).get("function", None)
         if function:
-
             # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
             # we only want the function name
             project_and_function = function.split("@")[0]
@@ -265,6 +264,7 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
             # 5 minutes, to resiliently handle delicate/slow k8s clusters
             "kubernetes.scheduler-service-wait-timeout": 60 * 5,
             "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.retry.count": 10,
         }
     )
 

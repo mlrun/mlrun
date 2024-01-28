@@ -32,11 +32,10 @@ class LocalFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset_name,
         featureset_timstamp,
-        featureset_df: list,
+        featureset_df,
         left_keys: list,
         right_keys: list,
     ):
-
         index_col_not_in_entity = "index" not in entity_df.columns
         index_col_not_in_featureset = "index" not in featureset_df.columns
         entity_df[entity_timestamp_column] = pd.to_datetime(
@@ -47,6 +46,14 @@ class LocalFeatureMerger(BaseMerger):
         )
         entity_df.sort_values(by=entity_timestamp_column, inplace=True)
         featureset_df.sort_values(by=featureset_timstamp, inplace=True)
+
+        featureset_df = self._normalize_timestamp_column(
+            entity_timestamp_column,
+            entity_df,
+            featureset_timstamp,
+            featureset_df,
+            featureset_name,
+        )
 
         merged_df = pd.merge_asof(
             entity_df,

@@ -33,9 +33,11 @@ import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
+import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.initial_data
+import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
@@ -43,9 +45,8 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
-from server.api.api.api import api_router
+from server.api.api.api import api_router, api_v2_router
 from server.api.db.session import close_session, create_session
-from server.api.middlewares import init_middlewares
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.periodic import (
     cancel_all_periodic_functions,
@@ -63,6 +64,7 @@ from server.api.utils.singletons.scheduler import get_scheduler, initialize_sche
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+V2_API_PREFIX = f"{API_PREFIX}/v2"
 
 # When pushing notifications, push notifications only for runs that entered a terminal state
 # since the last time we pushed notifications.
@@ -95,20 +97,29 @@ app = fastapi.FastAPI(
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
-    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
-    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
+    openapi_url=f"{API_PREFIX}/openapi.json",
+    docs_url=f"{API_PREFIX}/docs",
+    redoc_url=f"{API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
     lifespan=lifespan,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
+app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
 # so new users won't use the old un-versioned api.
 # /api points to /api/v1 since it is used externally, and we don't want to break it.
 # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
-init_middlewares(app)
+# middlewares, order matter
+app.add_middleware(
+    server.api.middlewares.EnsureBackendVersionMiddleware,
+    backend_version=config.version,
+)
+app.add_middleware(
+    server.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
+)
+app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
 @app.exception_handler(Exception)
@@ -700,6 +711,10 @@ async def _abort_stale_runs(stale_runs: typing.List[dict]):
     async def abort_run(stale_run):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
+            # mark abort as internal, it doesn't have a background task
+            stale_run[
+                "new_background_task_id"
+            ] = server.api.constants.internal_abort_task_id
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Runs().abort_run,

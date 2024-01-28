@@ -19,8 +19,8 @@ import inspect
 import itertools
 import json
 import os
-import pathlib
 import re
+import string
 import sys
 import time
 import typing
@@ -33,6 +33,7 @@ from typing import Any, List, Optional, Tuple
 
 import anyio
 import git
+import inflection
 import numpy as np
 import packaging.version
 import pandas
@@ -63,6 +64,10 @@ DB_SCHEMA = "store"
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
+
+class OverwriteBuildParamsWarning(FutureWarning):
+    pass
 
 
 # TODO: remove in 1.7.0
@@ -121,7 +126,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}:{tree}"
+            target = f"{target}@{tree}"
         return target
 
     return (
@@ -183,7 +188,7 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -193,7 +198,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -276,34 +281,6 @@ def get_regex_list_as_string(regex_list: List) -> str:
     return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
 
 
-def is_file_path_invalid(code_path: str, file_path: str) -> bool:
-    """
-    The function checks if the given file_path is a valid path.
-    If the file_path is a relative path, it is completed by joining it with the code_path.
-    Otherwise, the file_path is used as is.
-    Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
-    If the file_path has no suffix, it is considered invalid.
-
-    :param code_path: The base directory or code path to search for the file in case of relative file_path
-    :param file_path: The file path to be validated
-    :return: True if the file path is invalid, False otherwise
-    """
-    if not file_path:
-        return True
-
-    if file_path.startswith("./") or (
-        "://" not in file_path and os.path.basename(file_path) == file_path
-    ):
-        abs_path = os.path.join(code_path, file_path.lstrip("./"))
-    else:
-        abs_path = file_path
-
-    return (
-        not (os.path.isfile(abs_path) or "://" in file_path)
-        or not pathlib.Path(file_path).suffix
-    )
-
-
 def tag_name_regex_as_string() -> str:
     return get_regex_list_as_string(mlrun.utils.regex.tag_name)
 
@@ -333,7 +310,7 @@ def remove_image_protocol_prefix(image: str) -> str:
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"Field '{field_name}' should be of type '{expected_type.__name__}' "
             f"(got: {type(field_value).__name__} with value: {field_value})."
         )
 
@@ -355,16 +332,16 @@ def verify_dict_items_type(
     expected_values_types: list = None,
 ):
     if dictionary:
-        if type(dictionary) != dict:
+        if not isinstance(dictionary, dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} expected to be of type dict, got type : {type(dictionary)}"
+                f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )
         try:
             verify_list_items_type(dictionary.keys(), expected_keys_types)
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -389,8 +366,11 @@ def get_pretty_types_names(types):
     return types[0].__name__
 
 
-def now_date():
-    return datetime.now(timezone.utc)
+def now_date(tz: timezone = timezone.utc) -> datetime:
+    return datetime.now(tz=tz)
+
+
+datetime_now = now_date
 
 
 def to_date_str(d):
@@ -407,7 +387,7 @@ def normalize_name(name: str, verbose: bool = True):
         if verbose:
             warnings.warn(
                 "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing {name} underscores with dashes.",
+                f"Replacing '{name}' underscores with dashes.",
                 FutureWarning,
             )
         name = name.replace("_", "-")
@@ -518,14 +498,14 @@ def match_labels(labels, conditions):
 
     for condition in conditions:
         if "~=" in condition:
-            l, val = splitter("~=", condition)
-            match = match and val in l
+            left, val = splitter("~=", condition)
+            match = match and val in left
         elif "!=" in condition:
-            l, val = splitter("!=", condition)
-            match = match and val != l
+            left, val = splitter("!=", condition)
+            match = match and val != left
         elif "=" in condition:
-            l, val = splitter("=", condition)
-            match = match and val == l
+            left, val = splitter("=", condition)
+            match = match and val == left
         else:
             match = match and (condition.strip() in labels)
     return match
@@ -656,11 +636,24 @@ def dict_to_json(struct):
 
 
 def parse_artifact_uri(uri, default_project=""):
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    """
+    Parse artifact URI into project, key, tag, iter, tree
+    URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>]
+
+    :param uri:            uri to parse
+    :param default_project: default project name if not in URI
+    :returns: a tuple of:
+        [0] = project name
+        [1] = key
+        [2] = iteration
+        [3] = tag
+        [4] = tree
+    """
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
-            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
         )
     group_dict = match.groupdict()
     iteration = group_dict["iteration"]
@@ -669,14 +662,14 @@ def parse_artifact_uri(uri, default_project=""):
             iteration = int(iteration)
         except ValueError:
             raise ValueError(
-                f"illegal store path {uri}, iteration must be integer value"
+                f"illegal store path '{uri}', iteration must be integer value"
             )
     return (
         group_dict["project"] or default_project,
         group_dict["key"],
         iteration,
         group_dict["tag"],
-        group_dict["uid"],
+        group_dict["tree"],
     )
 
 
@@ -691,12 +684,14 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None):
+def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
+    if tree is not None:
+        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 
@@ -926,6 +921,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
     # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
@@ -934,6 +930,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
+
+    # restore original values
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
@@ -1065,7 +1063,7 @@ def retry_until_successful(
             f"Operation did not complete on time. last exception: {last_exception}"
         )
 
-    raise Exception(
+    raise mlrun.errors.MLRunRetryExhaustedError(
         f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
@@ -1138,7 +1136,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None
@@ -1199,7 +1199,7 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found"
+            f"state/function init failed, handler '{function}' not found"
         ) from exc
     return function_object
 
@@ -1252,6 +1252,26 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     return time_obj.isoformat()
 
 
+def enrich_datetime_with_tz_info(timestamp_string):
+    if not timestamp_string:
+        return timestamp_string
+
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
+    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+
+
+def has_timezone(timestamp):
+    try:
+        dt = parser.parse(timestamp) if isinstance(timestamp, str) else timestamp
+
+        # Check if the parsed datetime object has timezone information
+        return dt.tzinfo is not None
+    except ValueError:
+        return False
+
+
 def as_list(element: Any) -> List[Any]:
     return element if isinstance(element, list) else [element]
 
@@ -1271,7 +1291,20 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def fill_project_path_template(artifact_path, project):
+def template_artifact_path(artifact_path, project, run_uid="project"):
+    """
+    Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
+    If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
+    level artifact.
+    """
+    if not artifact_path:
+        return artifact_path
+    artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
+    artifact_path = _fill_project_path_template(artifact_path, project)
+    return artifact_path
+
+
+def _fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
     if artifact_path and (
@@ -1332,6 +1365,15 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def is_link_artifact(artifact):
+    if isinstance(artifact, dict):
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
+    else:
+        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
+
+
 def format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
@@ -1366,6 +1408,12 @@ def format_run(run: dict, with_project=False) -> dict:
         ):
             run[key] = None
 
+    # pipelines are yet to populate the status or workflow has failed
+    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # set to unknown to ensure a status is returned
+    if run["status"] is None:
+        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
+
     return run
 
 
@@ -1383,7 +1431,7 @@ def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
 
         if raise_on_missing:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"artifact {artifact} is missing metadata/spec/status"
+                f"artifact '{artifact}' is missing metadata/spec/status"
             )
         return default
 
@@ -1419,7 +1467,7 @@ def is_running_in_jupyter_notebook() -> bool:
 
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
-        raise ValueError(f"{field_name} must be numeric (str/int types)")
+        raise ValueError(f"'{field_name}' must be numeric (str/int types)")
     return int(field_value)
 
 
@@ -1520,3 +1568,21 @@ def iterate_list_by_chunks(
     iterator = iter(iterable_list)
     while chunk := list(itertools.islice(iterator, chunk_size)):
         yield chunk
+
+
+def to_parquet(df, *args, **kwargs):
+    # version set for pyspark compatibility, and is needed as of pyarrow 13 due to timestamp incompatibility
+    if "version" not in kwargs:
+        kwargs["version"] = "2.4"
+    df.to_parquet(*args, **kwargs)
+
+
+def is_ecr_url(registry: str) -> bool:
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    return ".ecr." in registry and ".amazonaws.com" in registry
+
+
+def get_local_file_schema() -> List:
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
+    return ["file"] + list(string.ascii_lowercase)

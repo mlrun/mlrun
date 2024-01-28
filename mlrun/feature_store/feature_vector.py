@@ -15,8 +15,9 @@ import collections
 import logging
 import typing
 from copy import copy
+from datetime import datetime
 from enum import Enum
-from typing import List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -36,6 +37,7 @@ from ..features import Entity, Feature
 from ..model import (
     DataSource,
     DataTarget,
+    DataTargetBase,
     ModelObj,
     ObjectDict,
     ObjectList,
@@ -44,6 +46,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
+from .common import RunConfig
 
 
 class FeatureVectorSpec(ModelObj):
@@ -318,9 +321,11 @@ class JoinGraph(ModelObj):
     def _start(self, other_operand: typing.Union[str, FeatureSet]):
         return self._join_operands(other_operand, JoinGraph.first_join_type)
 
-    def _init_all_join_keys(self, feature_set_objects, vector):
+    def _init_all_join_keys(
+        self, feature_set_objects, vector, entity_rows_keys: list[str] = None
+    ):
         for step in self.steps:
-            step.init_join_keys(feature_set_objects, vector)
+            step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
 
     @property
     def all_feature_sets_names(self):
@@ -397,17 +402,23 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
+        entity_rows_keys: List[str] = None,
     ):
-        self.left_keys = []
-        self.right_keys = []
+        if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
+            entity_rows_keys
+        ):
+            self.left_keys, self.right_keys = [
+                list(
+                    feature_set_objects[
+                        self.right_feature_set_name
+                    ].spec.entities.keys()
+                )
+            ] * 2
 
         if (
             self.join_type == JoinGraph.first_join_type
             or not self.left_feature_set_names
         ):
-            self.left_keys = self.right_keys = list(
-                feature_set_objects[self.right_feature_set_name].spec.entities.keys()
-            )
             self.join_type = (
                 "inner"
                 if self.join_type == JoinGraph.first_join_type
@@ -416,13 +427,20 @@ class _JoinStep(ModelObj):
             return
 
         for left_fset in self.left_feature_set_names:
-            left_keys, right_keys = self._check_relation(
-                vector.get_feature_set_relations(feature_set_objects[left_fset]),
-                list(feature_set_objects[left_fset].spec.entities),
+            current_left_keys = feature_set_objects[left_fset].extract_relation_keys(
                 feature_set_objects[self.right_feature_set_name],
+                vector.get_feature_set_relations(feature_set_objects[left_fset]),
             )
-            self.left_keys.extend(left_keys)
-            self.right_keys.extend(right_keys)
+            current_right_keys = list(
+                feature_set_objects[self.right_feature_set_name].spec.entities.keys()
+            )
+            for i in range(len(current_left_keys)):
+                if (
+                    current_left_keys[i] not in self.left_keys
+                    and current_right_keys[i] not in self.right_keys
+                ):
+                    self.left_keys.append(current_left_keys[i])
+                    self.right_keys.append(current_right_keys[i])
 
         if not self.left_keys:
             raise mlrun.errors.MLRunRuntimeError(
@@ -430,37 +448,24 @@ class _JoinStep(ModelObj):
                 f"{self.left_feature_set_names} to {self.right_feature_set_name}"
             )
 
-    @staticmethod
-    def _check_relation(
-        relation: typing.Dict[str, Union[str, Entity]],
-        entities: List[Entity],
-        right_fset_fields,
-    ):
-        right_feature_set_entity_list = right_fset_fields.spec.entities
 
-        if all(ent in entities for ent in right_feature_set_entity_list) and len(
-            right_feature_set_entity_list
-        ) == len(entities):
-            # entities wise
-            return list(right_feature_set_entity_list.keys()), list(
-                right_feature_set_entity_list.keys()
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError("storey not installed, use pip install storey") from exc
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
             )
-        curr_col_relation_list = list(
-            map(
-                lambda ent: (
-                    list(relation.keys())[list(relation.values()).index(ent)]
-                    if ent in list(relation.values())
-                    else False
-                ),
-                right_feature_set_entity_list,
-            )
-        )
-
-        if all(curr_col_relation_list):
-            # relation wise
-            return curr_col_relation_list, list(right_feature_set_entity_list.keys())
-
-        return [], []
 
 
 class FeatureVector(ModelObj):
@@ -721,6 +726,60 @@ class FeatureVector(ModelObj):
             feature_set_relations = self.spec.relations[name]
         return feature_set_relations
 
+    def get_offline_features(
+        self,
+        entity_rows=None,
+        entity_timestamp_column: str = None,
+        target: DataTargetBase = None,
+        run_config: RunConfig = None,
+        drop_columns: List[str] = None,
+        start_time: Union[str, datetime] = None,
+        end_time: Union[str, datetime] = None,
+        with_indexes: bool = False,
+        update_stats: bool = False,
+        engine: str = None,
+        engine_args: dict = None,
+        query: str = None,
+        order_by: Union[str, List[str]] = None,
+        spark_service: str = None,
+        timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+    ):
+        return mlrun.feature_store.api._get_offline_features(
+            self,
+            entity_rows,
+            entity_timestamp_column,
+            target,
+            run_config,
+            drop_columns,
+            start_time,
+            end_time,
+            with_indexes,
+            update_stats,
+            engine,
+            engine_args,
+            query,
+            order_by,
+            spark_service,
+            timestamp_for_filtering,
+        )
+
+    def get_online_feature_service(
+        self,
+        run_config: RunConfig = None,
+        fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+        impute_policy: dict = None,
+        update_stats: bool = False,
+        entity_keys: List[str] = None,
+    ):
+        return mlrun.feature_store.api._get_online_feature_service(
+            self,
+            run_config,
+            fixed_window_type,
+            impute_policy,
+            update_stats,
+            entity_keys,
+        )
+
 
 class OnlineVectorService:
     """get_online_feature_service response object"""
@@ -862,7 +921,7 @@ class OnlineVectorService:
                     for name in data.keys():
                         v = data[name]
                         if v is None or (
-                            type(v) == float and (np.isinf(v) or np.isnan(v))
+                            isinstance(v, float) and (np.isinf(v) or np.isnan(v))
                         ):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:
@@ -911,22 +970,3 @@ class OfflineVectorResponse:
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
         return self._merger.to_csv(target_path, **kw)
-
-
-class FixedWindowType(Enum):
-    CurrentOpenWindow = 1
-    LastClosedWindow = 2
-
-    def to_qbk_fixed_window_type(self):
-        try:
-            from storey import FixedWindowType as QueryByKeyFixedWindowType
-        except ImportError as exc:
-            raise ImportError("storey not installed, use pip install storey") from exc
-        if self == FixedWindowType.LastClosedWindow:
-            return QueryByKeyFixedWindowType.LastClosedWindow
-        elif self == FixedWindowType.CurrentOpenWindow:
-            return QueryByKeyFixedWindowType.CurrentOpenWindow
-        else:
-            raise NotImplementedError(
-                f"Provided fixed window type is not supported. fixed_window_type={self}"
-            )

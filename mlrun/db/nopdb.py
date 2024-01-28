@@ -75,14 +75,14 @@ class NopDB(RunDBInterface):
 
     def list_runs(
         self,
-        name="",
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project="",
-        labels=None,
-        state="",
-        sort=True,
-        last=0,
-        iter=False,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime.datetime = None,
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
@@ -104,10 +104,12 @@ class NopDB(RunDBInterface):
     def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
         pass
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     def list_artifacts(
@@ -122,10 +124,11 @@ class NopDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         pass
 
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -340,6 +343,18 @@ class NopDB(RunDBInterface):
         pass
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):
+        pass
+
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
         pass
 
     def list_pipelines(

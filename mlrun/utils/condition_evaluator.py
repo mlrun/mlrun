@@ -21,7 +21,6 @@ from mlrun.utils import logger
 def evaluate_condition_in_separate_process(
     condition: str, context: typing.Dict[str, typing.Any], timeout: int = 5
 ):
-
     if not condition:
         return True
 
@@ -52,7 +51,6 @@ def _evaluate_condition_wrapper(
 
 
 def _evaluate_condition(condition: str, context: typing.Dict[str, typing.Any]):
-
     import jinja2.sandbox
 
     jinja_env = jinja2.sandbox.SandboxedEnvironment()

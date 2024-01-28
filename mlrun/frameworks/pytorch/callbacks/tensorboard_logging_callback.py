@@ -48,7 +48,7 @@ class _MLRunSummaryWriter(SummaryWriter):
         :param run_name:               Not used in this SummaryWriter.
         """
         torch._C._log_api_usage_once("tensorboard.logging.add_hparams")
-        if type(hparam_dict) is not dict or type(metric_dict) is not dict:
+        if not isinstance(hparam_dict, dict) or not isinstance(metric_dict, dict):
             raise TypeError("hparam_dict and metric_dict should be dictionary.")
         exp, ssi, sei = hparams(hparam_dict, metric_dict)
         self._get_file_writer().add_summary(exp)
@@ -364,9 +364,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         return self._logger.weight_statistics
 
     @staticmethod
-    def get_default_weight_statistics_list() -> List[
-        Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
-    ]:
+    def get_default_weight_statistics_list() -> (
+        List[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
+    ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
 

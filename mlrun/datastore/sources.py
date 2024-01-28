@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+import semver
 import v3io
 import v3io.dataplane
 from nuclio import KafkaTrigger
@@ -33,12 +34,24 @@ from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
     select_columns_from_df,
     store_path_to_spark,
 )
+
+
+def load_spark_dataframe_with_options(session, spark_options, format=None):
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        session, spark_options
+    )
+    if format:
+        df = session.read.format(format).load(**non_hadoop_spark_options)
+    else:
+        df = session.read.load(**non_hadoop_spark_options)
+    return df
 
 
 def get_source_from_dict(source):
@@ -101,7 +114,7 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = session.read.load(**self.get_spark_options())
+            df = load_spark_dataframe_with_options(session, self.get_spark_options())
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
@@ -177,7 +190,7 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             path = store.url + path
         else:
@@ -193,17 +206,30 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        return {
-            "path": store_path_to_spark(self.path),
-            "format": "csv",
-            "header": "true",
-            "inferSchema": "true",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            storage_spark_options = store.get_spark_options()
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path, storage_spark_options),
+                "format": "csv",
+                "header": "true",
+                "inferSchema": "true",
+            }
+
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.path),
+                "format": "csv",
+                "header": "true",
+                "inferSchema": "true",
+            }
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
 
-        df = session.read.load(**self.get_spark_options())
+        df = load_spark_dataframe_with_options(session, self.get_spark_options())
 
         parse_dates = self._parse_dates or []
         if time_field and time_field not in parse_dates:
@@ -328,7 +354,7 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             path = store.url + path
         else:
@@ -345,10 +371,20 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        return {
-            "path": store_path_to_spark(self.path),
-            "format": "parquet",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            storage_spark_options = store.get_spark_options()
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path, storage_spark_options),
+                "format": "parquet",
+            }
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.path),
+                "format": "parquet",
+            }
 
     def to_dataframe(
         self,
@@ -576,7 +612,7 @@ class BigQuerySource(BaseSourceDriver):
         elif table:
             options["path"] = table
 
-        df = session.read.format("bigquery").load(**options)
+        df = load_spark_dataframe_with_options(session, options, "bigquery")
         if named_view:
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)
@@ -785,7 +821,7 @@ class OnlineSource(BaseSourceDriver):
         )
         src_class = source_class(
             context=context,
-            key_field=self.key_field,
+            key_field=self.key_field or key_field,
             full_event=True,
             explicit_ack=explicit_ack,
             **source_args,
@@ -847,9 +883,9 @@ class StreamSource(OnlineSource):
         endpoint, stream_path = parse_path(self.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         container, stream_path = split_path(stream_path)
-        res = v3io_client.create_stream(
+        res = v3io_client.stream.create(
             container=container,
-            path=stream_path,
+            stream_path=stream_path,
             shard_count=self.attributes["shards"],
             retention_period_hours=self.attributes["retention_in_hours"],
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -962,12 +998,24 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
+            max_workers=extra_attributes.pop("max_workers", 4),
         )
-        func = function.add_trigger("kafka", trigger)
-        replicas = 1 if not partitions else len(partitions)
-        func.spec.min_replicas = replicas
-        func.spec.max_replicas = replicas
-        return func
+        function = function.add_trigger("kafka", trigger)
+
+        # ML-5499
+        bug_fix_version = "1.12.10"
+        if config.nuclio_version and semver.VersionInfo.parse(
+            config.nuclio_version
+        ) < semver.VersionInfo.parse(bug_fix_version):
+            warnings.warn(
+                f"Detected nuclio version {config.nuclio_version}, which is older "
+                f"than {bug_fix_version}. Forcing number of replicas of 1 in function '{function.metadata.name}'. "
+                f"To resolve this, please upgrade Nuclio."
+            )
+            function.spec.min_replicas = 1
+            function.spec.max_replicas = 1
+
+        return function
 
 
 class SQLSource(BaseSourceDriver):
@@ -987,7 +1035,6 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        time_fields: List[str] = None,
         parse_dates: List[str] = None,
         **kwargs,
     ):
@@ -1012,17 +1059,8 @@ class SQLSource(BaseSourceDriver):
         :param table_name:      the name of the collection to access,
                                 from the current database
         :param spark_options:   additional spark read options
-        :param time_fields :    all the field to be parsed as timestamp.
         :param parse_dates :    all the field to be parsed as timestamp.
         """
-        if time_fields:
-            warnings.warn(
-                "'time_fields' is deprecated, use 'parse_dates' instead. "
-                "This will be removed in 1.6.0",
-                # TODO: Remove this in 1.6.0
-                FutureWarning,
-            )
-            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1030,7 +1068,7 @@ class SQLSource(BaseSourceDriver):
             )
         if time_field:
             if parse_dates:
-                time_fields.append(time_field)
+                parse_dates.append(time_field)
             else:
                 parse_dates = [time_field]
         attrs = {

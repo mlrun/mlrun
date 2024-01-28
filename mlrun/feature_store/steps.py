@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -254,7 +254,7 @@ class MapValues(StepToDict, MLRunStep):
         source_column_names = df.columns
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
-            if not self.get_ranges_key() in column_map:
+            if self.get_ranges_key() not in column_map:
                 if column not in source_column_names:
                     continue
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
@@ -330,7 +330,7 @@ class MapValues(StepToDict, MLRunStep):
     def validate_args(cls, feature_set, **kwargs):
         mapping = kwargs.get("mapping", [])
         for column, column_map in mapping.items():
-            if not cls.get_ranges_key() in column_map:
+            if cls.get_ranges_key() not in column_map:
                 types = set(
                     type(val)
                     for val in column_map.values()
@@ -411,7 +411,6 @@ class Imputer(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-
         for feature in event.columns:
             val = self.mapping.get(feature, self.default_value)
             if val is not None:
@@ -451,7 +450,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-
             one_hot_encoding = {
                 f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
                 for category in encoding
@@ -460,8 +458,10 @@ class OneHotEncoder(StepToDict, MLRunStep):
                 one_hot_encoding[
                     f"{feature}_{OneHotEncoder._sanitized_category(value)}"
                 ] = 1
-            else:
-                print(f"Warning, {value} is not a known value by the encoding")
+            elif self.logger:
+                self.logger.warn(
+                    f"OneHotEncoder does not have an encoding for value '{value}' of feature '{feature}'"
+                )
             return one_hot_encoding
 
         return {feature: value}
@@ -474,7 +474,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
         return encoded_values
 
     def _do_pandas(self, event):
-
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
@@ -634,11 +633,11 @@ class SetEventMetadata(MapClass):
 
     def __init__(
         self,
-        id_path: str = None,
-        key_path: str = None,
-        random_id: bool = None,
+        id_path: Optional[str] = None,
+        key_path: Optional[str] = None,
+        random_id: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Set the event metadata (id, key) from the event body
 
         set the event metadata fields (id and key) from the event body data structure
@@ -710,7 +709,7 @@ class DropFeatures(StepToDict, MLRunStep):
                                         )
             # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
-            df_pandas = fstore.ingest(feature_set, data)
+            df_pandas = feature_set.ingest(data)
 
         """
         super().__init__(**kwargs)

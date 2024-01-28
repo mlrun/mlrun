@@ -127,7 +127,6 @@ class TestNuclioRuntime(TestRuntimeBase):
     def _generate_runtime(
         self, kind=None, labels=None
     ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
-
         runtime = code_to_function(
             name=self.name,
             project=self.project,
@@ -886,7 +885,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
-
         mlconf.nuclio_version = "1.5.20"
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
@@ -949,7 +947,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert deploy_spec["priorityClassName"] == medium_priority_class_name
 
     def test_set_metadata_annotations(self, db: Session, client: TestClient):
-
         function = self._generate_runtime(self.runtime_kind)
         function.with_annotations({"annotation-key": "annotation-value"})
 
@@ -967,12 +964,12 @@ class TestNuclioRuntime(TestRuntimeBase):
         "client_version,client_python_version,nuclio_version,expected_nuclio_runtime",
         [
             ("1.2.0", None, "1.5.9", "python:3.6"),
-            ("1.2.0", None, "1.9.15", "python:3.7"),
+            ("1.2.0", None, "1.9.15", mlrun.mlconf.default_nuclio_runtime),
             (None, None, "1.5.9", "python:3.6"),
-            (None, None, "1.9.15", "python:3.7"),
+            (None, None, "1.9.15", mlrun.mlconf.default_nuclio_runtime),
             ("1.3.0", "3.7", "1.11.9", "python:3.7"),
             ("1.3.0", "3.9", "1.11.9", "python:3.9"),
-            ("1.3.0", "3.9", "1.5.9", "python:3.9"),
+            ("1.3.0", "3.9", "1.5.9", "python:3.6"),
             ("1.3.0-rc1", "3.9", "1.11.9", "python:3.9"),
             ("1.3.0-rc1", "3.7", "1.11.9", "python:3.7"),
             ("0.0.0-unstable", "3.7", "1.11.9", "python:3.7"),

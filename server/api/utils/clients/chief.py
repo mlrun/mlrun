@@ -57,6 +57,14 @@ class Client(
             "GET", f"background-tasks/{name}", request
         )
 
+    async def get_internal_background_tasks(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        """
+        internal background tasks are managed by the chief only
+        """
+        return await self._proxy_request_to_chief("GET", "background-tasks", request)
+
     async def trigger_migrations(
         self, request: fastapi.Request = None
     ) -> fastapi.Response:
@@ -157,15 +165,17 @@ class Client(
             "POST", "build/function", request, json
         )
 
-    async def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
+    async def delete_project(
+        self, name, request: fastapi.Request, api_version: typing.Optional[str] = None
+    ) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
         that is why we re-route requests to chief
         """
         # timeout is greater than default as delete project can take a while because it deletes all the
-        # project resources (depends on the deletion strategy)
+        # project resources (depends on the deletion strategy and api version)
         return await self._proxy_request_to_chief(
-            "DELETE", f"projects/{name}", request, timeout=120
+            "DELETE", f"projects/{name}", request, timeout=120, version=api_version
         )
 
     async def get_clusterization_spec(
@@ -202,12 +212,26 @@ class Client(
             json,
         )
 
+    async def create_model_monitoring_controller(
+        self, project: str, request: fastapi.Request, json: dict
+    ):
+        """
+        Model monitoring controller includes a scheduled job which is handled by the chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST",
+            f"projects/{project}/jobs/model-monitoring-controller",
+            request,
+            json,
+        )
+
     async def _proxy_request_to_chief(
         self,
         method,
         path,
         request: fastapi.Request = None,
         json: dict = None,
+        version: str = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -218,6 +242,7 @@ class Client(
         async with self._send_request_to_api(
             method=method,
             path=path,
+            version=version,
             raise_on_failure=raise_on_failure,
             **request_kwargs,
         ) as chief_response:
@@ -248,7 +273,6 @@ class Client(
         request_kwargs.get("headers", {}).pop("content-length", None)
 
         for cookie_name in list(request_kwargs.get("cookies", {}).keys()):
-
             # defensive programming - to avoid setting reserved cookie names and explode
             # e.g.: when setting "domain" cookie, it will explode, see python internal http client for more details.
             if http.cookies.Morsel().isReservedKey(cookie_name):
@@ -258,7 +282,6 @@ class Client(
             # we will url-encode them (aka quote), so the value would be safe against such escaping.
             # e.g.: instead of having "x":"y" being escaped to "\"x\":\"y\"", it will be escaped to "%22x%22:%22y%22"
             elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
-
                 # unquote first, to avoid double quoting ourselves, in case the cookie is already quoted
                 unquoted_session = urllib.parse.unquote(
                     request_kwargs["cookies"][cookie_name]
@@ -287,10 +310,16 @@ class Client(
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api(
-        self, method, path, raise_on_failure: bool = False, **kwargs
+        self,
+        method,
+        path,
+        version: str = None,
+        raise_on_failure: bool = False,
+        **kwargs,
     ) -> aiohttp.ClientResponse:
+        version = version or mlrun.mlconf.api_base_version
         await self._ensure_session()
-        url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
+        url = f"{self._api_url}/api/{version}/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20

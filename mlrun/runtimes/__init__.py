@@ -25,6 +25,7 @@ __all__ = [
     "RemoteSparkRuntime",
     "Spark3Runtime",
     "DatabricksRuntime",
+    "KubeResource",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version
@@ -34,7 +35,7 @@ from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
 from .function import RemoteRuntime
-from .kubejob import KubejobRuntime  # noqa
+from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
 from .nuclio import nuclio_init_hook
@@ -203,7 +204,9 @@ class RuntimeKinds(object):
     def requires_image_name_for_execution(kind):
         if RuntimeKinds.is_local_runtime(kind):
             return False
-        return kind not in [RuntimeKinds.spark]
+
+        # both spark and remote spark uses different mechanism for assigning images
+        return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
 
 
 def get_runtime_class(kind: str):

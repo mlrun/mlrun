@@ -216,6 +216,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         if (
             not runtime.spec.image
+            and not runtime.requires_build()
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
         ):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
@@ -226,7 +227,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
     ):
-
         # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
         # config and params passed in the auth_info.
         # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.

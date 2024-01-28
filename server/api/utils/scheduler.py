@@ -615,7 +615,6 @@ class Scheduler:
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
-
         schedule_access_key_secret_key = (
             server.api.crud.Secrets().generate_client_project_secret_key(
                 server.api.crud.SecretsClientType.schedules,
@@ -799,9 +798,7 @@ class Scheduler:
                 access_key = None
                 username = None
                 need_to_update_credentials = False
-                if (
-                    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
-                ):
+                if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
                     )
@@ -886,7 +883,6 @@ class Scheduler:
             if job:
                 schedule.next_run_time = job.next_run_time
             else:
-
                 # if the job does not exist, there is no next run time (the job has finished)
                 schedule.next_run_time = None
 
@@ -1037,7 +1033,6 @@ class Scheduler:
         schedule_concurrency_limit,
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
-
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
         scheduled_object.pop("schedule", None)
@@ -1112,7 +1107,6 @@ class Scheduler:
                 not auth_info.access_key
                 and server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             ):
-
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",
                     project_name=project_name,

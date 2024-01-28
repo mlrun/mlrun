@@ -53,5 +53,5 @@ class DeploymentRuntime(RemoteRuntime):
             f"{self.metadata.name}-sidecar", self.spec.image, self.internal_app_port
         )
         self.set_env("SERVING_PORT", self.internal_app_port)
-        # self.spec.image = ".mlrun/mlrun"
+        self.spec.image = ""
         # TODO: move other fields

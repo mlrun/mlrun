@@ -25,3 +25,4 @@ def test_deploy_deployment_runtime(rundb_mock):
         }
     ]
     assert fn.get_env("SERVING_PORT") == "8080"
+    assert fn.spec.image == ""

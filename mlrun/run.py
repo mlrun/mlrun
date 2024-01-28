@@ -730,6 +730,7 @@ def code_to_function(
             _sub_kind = serving_subkind
         elif _kind == RuntimeKinds.deployment:
             _is_nuclio = True
+            _sub_kind = RuntimeKinds.deployment
         return _is_nuclio, _sub_kind
 
     if (
@@ -752,7 +753,9 @@ def code_to_function(
             )
 
         # TODO: Change
-        filename = Path(__file__).parent / "./runtimes/deployment/handler.py"
+        filename = str(
+            Path(__file__).parent / "./runtimes/nuclio/deployment/handler.py"
+        )
         handler = "handler"
 
     is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)

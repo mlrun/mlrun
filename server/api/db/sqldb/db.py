@@ -2916,7 +2916,8 @@ class SQLDB(DBInterface):
         ]
 
         for feature_dict in feature_dicts:
-            if feature_dict["name"] in features_to_add:
+            feature_name = feature_dict["name"]
+            if feature_name in features_to_add:
                 labels = feature_dict.get("labels") or {}
                 feature = Feature(
                     name=feature_dict["name"],
@@ -2925,6 +2926,20 @@ class SQLDB(DBInterface):
                 )
                 update_labels(feature, labels)
                 feature_set.features.append(feature)
+            elif feature_name not in features_to_remove:
+                # get the existing feature from the feature set
+                feature = next(
+                    (
+                        feature
+                        for feature in feature_set.features
+                        if feature.name == feature_name
+                    ),
+                    None,
+                )
+                if feature:
+                    # update it with the new labels in case they were changed
+                    labels = feature_dict.get("labels") or {}
+                    update_labels(feature, labels)
 
     @staticmethod
     def _update_feature_set_entities(feature_set: FeatureSet, entity_dicts: List[dict]):

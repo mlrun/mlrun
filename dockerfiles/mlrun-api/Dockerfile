@@ -73,8 +73,13 @@ RUN python -m pip install .[complete-api]
 
 VOLUME /mlrun/db
 
+# use tini as entrypoint to allow signal handling
+# and avoid zombie processes
+ENTRYPOINT ["tini", "--"]
+
+# use bash to allow variable substitution
 CMD [ \
-    "tini", "--", \
+    "bash", "-c", \
     "uvicorn server.api.main:app \
     --proxy-headers \
     --host 0.0.0.0 \

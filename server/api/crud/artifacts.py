@@ -59,7 +59,7 @@ class Artifacts(
         if mlrun.utils.helpers.is_legacy_artifact(artifact):
             artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
                 artifact
-            )
+            ).to_dict()
 
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,

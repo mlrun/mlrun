@@ -22,7 +22,7 @@ lost. The mechanism of Window ACK provides a solution for such
 stateful event processing.
 
 ```{admonition} Note
-For statefull functions, each worker has its own state. See, for example, {py:meth}`~storey.transformations.MapWithState`.
+For stateful functions, each worker has its own state. See, for example, {py:meth}`~storey.transformations.MapWithState`.
 ```
 
 With Window ACK, the consumer group's committed offset is delayed by one window, committing the offset at (processed event num – window). 

@@ -775,6 +775,9 @@ class RemoteRuntime(KubeResource):
             ] = self.metadata.credentials.access_key
         return runtime_env
 
+    def _get_serving_spec(self):
+        return None
+
     def _get_nuclio_config_spec_env(self):
         env_dict = {}
         external_source_env_dict = {}

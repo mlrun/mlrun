@@ -21,6 +21,7 @@ import nuclio.utils
 import requests
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
@@ -183,6 +184,39 @@ def _compile_function_config(
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function)
 
+    project = function.metadata.project or mlrun.mlconf.default_project
+    tag = function.metadata.tag
+
+    serving_spec_volume = None
+    serving_spec = function._get_serving_spec()
+    if serving_spec is not None:
+        # since environment variables have a limited size,
+        # large serving specs are stored in config maps that are mounted to the pod
+        if len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
+            function_name = mlrun.runtimes.nuclio.function.get_fullname(
+                function.metadata.name, project, tag
+            )
+            k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+            confmap_name = k8s_helper.ensure_configmap(
+                mlrun.common.constants.MLRUN_MODEL_CONF,
+                function_name,
+                {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
+                labels={mlrun.common.constants.MLRUN_CREATED_LABEL: "true"},
+            )
+            volume_name = mlrun.common.constants.MLRUN_MODEL_CONF
+            volume_mount = {
+                "name": volume_name,
+                "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
+                "readOnly": True,
+            }
+
+            serving_spec_volume = {
+                "volume": {"name": volume_name, "configMap": {"name": confmap_name}},
+                "volumeMount": volume_mount,
+            }
+        else:
+            env_dict["SERVING_SPEC_ENV"] = serving_spec
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -195,8 +229,6 @@ def _compile_function_config(
         function, nuclio_spec, client_version, client_python_version
     )
 
-    project = function.metadata.project or "default"
-    tag = function.metadata.tag
     handler = function.spec.function_handler
 
     _set_build_params(function, nuclio_spec, builder_env, project, auth_info)
@@ -247,6 +279,9 @@ def _compile_function_config(
 
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
     function_name = _set_function_name(function, config, project, tag)
+
+    if serving_spec_volume is not None:
+        mlrun.utils.update_in(config, "spec.volumes", serving_spec_volume, append=True)
 
     return function_name, project, config
 

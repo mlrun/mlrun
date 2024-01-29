@@ -564,9 +564,11 @@ class RemoteRuntime(KubeResource):
             self.metadata.tag = tag
 
         if dashboard:
+            # TODO: remove in 1.8.0
             warnings.warn(
                 "'dashboard' parameter is no longer supported on client side, "
-                "it is being configured through the MLRun API.",
+                "it is being configured through the MLRun API. It will be removed in 1.8.0.",
+                FutureWarning,
             )
 
         save_record = False

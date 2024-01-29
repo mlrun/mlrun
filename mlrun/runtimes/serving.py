@@ -643,7 +643,6 @@ class ServingRuntime(RemoteRuntime):
             logger.info(f"deploy root function {self.metadata.name} ...")
 
         return super().deploy(
-            dashboard,
             project,
             tag,
             verbose,

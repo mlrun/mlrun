@@ -37,6 +37,7 @@ LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
+  tini \
   gcc \
   git-core \
   procps \
@@ -73,7 +74,7 @@ RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
 
 CMD [ \
-    "sh", "-c", \
+    "tini", "--", \
     "uvicorn server.api.main:app \
     --proxy-headers \
     --host 0.0.0.0 \

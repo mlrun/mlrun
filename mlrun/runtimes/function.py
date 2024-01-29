@@ -530,7 +530,6 @@ class RemoteRuntime(KubeResource):
 
     def deploy(
         self,
-        dashboard="",
         project="",
         tag="",
         verbose=False,
@@ -540,7 +539,6 @@ class RemoteRuntime(KubeResource):
     ):
         """Deploy the nuclio function to the cluster
 
-        :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
@@ -564,12 +562,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-
-        if dashboard:
-            warnings.warn(
-                "'dashboard' parameter is no longer supported on client side, "
-                "it is being configured through the MLRun API.",
-            )
 
         save_record = False
         # Attempt auto-mounting, before sending to remote build
@@ -811,7 +803,6 @@ class RemoteRuntime(KubeResource):
 
     def deploy_step(
         self,
-        dashboard="",
         project="",
         models=None,
         env=None,
@@ -821,7 +812,6 @@ class RemoteRuntime(KubeResource):
     ):
         """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead
 
-        :param dashboard:      DEPRECATED. Keep empty to allow auto-detection by MLRun API.
         :param project:        project name, defaults to function project
         :param models:         model name and paths
         :param env:            dict of environment variables
@@ -854,7 +844,6 @@ class RemoteRuntime(KubeResource):
             name,
             self,
             func_url=url,
-            dashboard=dashboard,
             project=project,
             models=models,
             env=env,
@@ -884,7 +873,7 @@ class RemoteRuntime(KubeResource):
         :param body:     request body (str, bytes or a dict for json requests)
         :param method:   HTTP method (GET, PUT, ..)
         :param headers:  key/value dict with http headers
-        :param dashboard: nuclio dashboard address
+        :param dashboard: nuclio dashboard address (deprecated)
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
@@ -892,6 +881,14 @@ class RemoteRuntime(KubeResource):
                                      see this link for more information:
                                      https://requests.readthedocs.io/en/latest/api/#requests.request
         """
+        if dashboard:
+            # TODO: remove in 1.8.0
+            warnings.warn(
+                "'dashboard' parameter is no longer supported on client side, "
+                "it is being configured through the MLRun API. It will be removed in 1.8.0.",
+                FutureWarning,
+            )
+
         if not method:
             method = "POST" if body else "GET"
 
@@ -1231,7 +1228,6 @@ def get_nuclio_deploy_status(
     name,
     project,
     tag,
-    dashboard="",
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
@@ -1243,13 +1239,12 @@ def get_nuclio_deploy_status(
     :param name:                function name
     :param project:             project name
     :param tag:                 function tag
-    :param dashboard:           DEPRECATED. Keep empty to allow auto-detection by MLRun API.
     :param last_log_timestamp:  last log timestamp
     :param verbose:             print logs
     :param resolve_address:     whether to resolve function address
     :param auth_info:           authentication information
     """
-    api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
+    api_address = find_dashboard_url(mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
     get_err_message = f"Failed to get function {name} deploy status"
 

@@ -269,7 +269,7 @@ def test_ensemble_get_metadata_of_models():
     expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
 
-    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    mlrun.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/m1")
     expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
@@ -653,18 +653,18 @@ def test_mock_deploy():
     mlrun.mlconf.mock_nuclio_deployment = ""
 
     # test mock deployment is working
-    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    mlrun.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     # test mock deployment is working via project object
-    project.deploy_function(fn, dashboard="bad-address", mock=True)
+    project.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     # test that it tries real deployment when turned off
     with pytest.raises(Exception):
-        mlrun.deploy_function(fn, dashboard="bad-address")
+        mlrun.deploy_function(fn)
         fn.invoke("/v2/models/my/infer", testdata)
 
     # set the mock through the config
@@ -737,7 +737,7 @@ def test_deploy_with_dashboard_argument():
         return_value=(None, None),
     )
 
-    mlrun.deploy_function(fn, dashboard="bad-address")
+    mlrun.deploy_function(fn)
 
     # test that the remote builder was called even with dashboard argument
     assert db_instance.remote_builder.call_count == 1

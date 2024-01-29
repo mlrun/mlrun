@@ -14,6 +14,7 @@
 
 import dataclasses
 import json
+import re
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Tuple, Union
 
@@ -37,7 +38,8 @@ class ModelMonitoringApplicationResult:
     Class representing the result of a custom model monitoring application.
 
     :param name:           (str) Name of the application result. This name must be
-                            unique for each metric in a single application.
+                            unique for each metric in a single application
+                            (name must be of the format [a-zA-Z_][a-zA-Z0-9_]*).
     :param value:          (float) Value of the application result.
     :param kind:           (ResultKindApp) Kind of application result.
     :param status:         (ResultStatusApp) Status of the application result.
@@ -49,6 +51,13 @@ class ModelMonitoringApplicationResult:
     kind: mm_constant.ResultKindApp
     status: mm_constant.ResultStatusApp
     extra_data: dict = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
+        if not re.fullmatch(pat, self.name):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
+            )
 
     def to_dict(self):
         """

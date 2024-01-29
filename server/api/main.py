@@ -37,6 +37,7 @@ import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.initial_data
+import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
@@ -46,7 +47,6 @@ from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
 from server.api.api.api import api_router, api_v2_router
 from server.api.db.session import close_session, create_session
-from server.api.middlewares import init_middlewares
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.periodic import (
     cancel_all_periodic_functions,
@@ -97,9 +97,9 @@ app = fastapi.FastAPI(
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
-    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
-    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
+    openapi_url=f"{API_PREFIX}/openapi.json",
+    docs_url=f"{API_PREFIX}/docs",
+    redoc_url=f"{API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
     lifespan=lifespan,
 )
@@ -111,7 +111,15 @@ app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
-init_middlewares(app)
+# middlewares, order matter
+app.add_middleware(
+    server.api.middlewares.EnsureBackendVersionMiddleware,
+    backend_version=config.version,
+)
+app.add_middleware(
+    server.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
+)
+app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
 @app.exception_handler(Exception)

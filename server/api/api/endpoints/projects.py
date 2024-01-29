@@ -199,6 +199,12 @@ async def delete_project(
         chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
 
+    # we need to implement the `check` deletion strategy here, since we don't want
+    # to spawn a background task for this, only to return a response
+    if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+        server.api.crud.Projects().verify_project_is_empty(db_session, name)
+        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if (
         server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
@@ -219,18 +225,49 @@ async def delete_project(
         background_tasks.add_task(task)
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
-    is_running_in_background = await run_in_threadpool(
-        get_project_member().delete_project,
-        db_session,
-        name,
-        deletion_strategy,
-        auth_info.projects_role,
-        auth_info,
-        wait_for_completion=wait_for_completion,
-    )
-    if is_running_in_background:
+    is_running_in_background = False
+    force_delete = False
+    try:
+        is_running_in_background = await run_in_threadpool(
+            get_project_member().delete_project,
+            db_session,
+            name,
+            deletion_strategy,
+            auth_info.projects_role,
+            auth_info,
+            wait_for_completion=wait_for_completion,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
+        if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+            logger.debug(
+                "Project no found in leader, ensuring project deleted in mlrun",
+                err=mlrun.errors.err_to_str(exc),
+            )
+            force_delete = True
+
+    if force_delete:
+        # In this case the wrapper delete project request is the one deleting the project because it
+        # doesn't exist in the leader.
+        await run_in_threadpool(
+            server.api.crud.Projects().delete_project,
+            db_session,
+            name,
+            deletion_strategy,
+        )
+
+    elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+
+    else:
+        # For iguzio < 3.5.5, the project deletion job is triggered while zebo does not wait for it to complete.
+        # We wait for it here to make sure we respond with a proper status code.
+        await run_in_threadpool(
+            server.api.api.utils.verify_project_is_deleted, name, auth_info
+        )
+
     await get_project_member().post_delete_project(name)
+    if force_delete:
+        return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 

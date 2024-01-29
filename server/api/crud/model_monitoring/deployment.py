@@ -25,6 +25,7 @@ import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.scheduler
+import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -290,7 +291,7 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
 
-            # Get the function uri
+            # Save & Get the function uri
             function_uri = fn.save(versioned=True)
 
             if with_schedule:
@@ -311,16 +312,27 @@ class MonitoringDeployment:
                             f"Deploying {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
+
                 # Submit batch scheduled job
-                self._submit_schedule_batch_job(
-                    project=project,
-                    function_uri=function_uri,
-                    db_session=db_session,
-                    auth_info=auth_info,
-                    tracking_policy=tracking_policy,
-                    tracking_offset=tracking_offset,
-                    function_name=function_name,
-                )
+                try:
+                    self._submit_schedule_batch_job(
+                        project=project,
+                        function_uri=function_uri,
+                        db_session=db_session,
+                        auth_info=auth_info,
+                        tracking_policy=tracking_policy,
+                        tracking_offset=tracking_offset,
+                        function_name=function_name,
+                    )
+                except Exception as exc:
+                    # Delete controller unschedule job
+                    server.api.utils.singletons.db.get_db().delete_function(
+                        session=db_session, project=project, name=fn.metadata.name
+                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Can't deploy {function_name.replace('-', ' ')} "
+                        f"scheduled job function due to : {mlrun.errors.err_to_str(exc)}",
+                    )
         return fn
 
     def deploy_model_monitoring_writer_application(

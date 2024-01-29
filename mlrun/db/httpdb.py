@@ -326,11 +326,6 @@ class HTTPRunDB(RunDBInterface):
                     f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace})"
                     " namespace don't match"
                 )
-            if config.ce.mode and config.ce.mode != server_cfg.get("ce_mode", ""):
-                logger.warning(
-                    f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
-                    " CE mode don't match"
-                )
             config.ce = server_cfg.get("ce") or config.ce
 
             # get defaults from remote server

@@ -118,7 +118,10 @@ class BaseSourceDriver(DataSource):
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"Conversion of a source of type '{type(self).__name__}' "
+            "to a Spark dataframe is not possible, as this operation is not supported"
+        )
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
         if not (columns or time_field):

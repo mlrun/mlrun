@@ -84,6 +84,7 @@
 |ML-4690|Enabling the Spark event log (sj.spec.spark_conf["spark.eventLog.enabled"] = True) no longer causes the job to fail. |
 |ML-4920|Documentation: improve description of `log_artifact`. See {ref}`artifacts` and {py:meth}`~mlrun.projects.MlrunProject.log_artifact`.|
 |ML-4608|The artifact `db_key` is now forwarded when registering an artifact.|
+|ML-4617|Fixed error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector.|
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
 |ML-4953|Can now build the image through the UI on an external registry.| 
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
@@ -91,6 +92,7 @@
 |ML-5001|The **Monitoring workflows** page now states that it includes only workflows that have already been run. | 
 |ML-5042|**check msg**  After creating and deleting a project, a new project cannot be created in the same folder with the same context. |
 |ML-5048|UI Edit function dialog: When selecting **Use an existing image** and pressing **Deploy**, the existing image is used, as expected.|
+|ML-5078|`project.create_remote()` is no longer dependant on setting `init_git=True` on project creation. | 
 |ML-5089|When trying to delete a running job, an error opens that a running job cannot be deleted and it needs to be aborted first.|
 |ML-5091|Monitoring does not recreate a deleted run. |                                   |
 |ML-5146|Resolved OOM issues by reducing the memory footprint when monitoring runs. |
@@ -856,8 +858,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4539|**what is message?** |  | v1.5.0|
 |ML-4582|**what is message?** |  | v1.5.0|
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
-|ML-4617|**Closed?**  Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
-|ML-4655|**in RN or not?**
+|ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. |NA|v1.5.0|
 |NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation. | v1.5.0 |
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|
@@ -874,7 +875,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4922|Preview and Metadata tabs do not show all columns, but there is no indication that more columns exist.|NA | v1.4.1 |
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
-|ML-5078|**Fixed?**Cannot only use `project.create_remote()` if `init_git=True` was set on project creation. | Set `init_git=True` on project creation.| v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 
 

@@ -25,6 +25,7 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-4622|Feature set and feature vector APIs are now part of the project APIs. See examples in [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
+|ML-5109|You can set `min_replicas` and `max_replicas` for `KafkaSource`. See [Consumer function configuration](../serving/graph-ha-cfg.html#consumer-function-configuration).|
 
 ### Model monitoring 
 | ID     |Description                                                                                         |
@@ -48,7 +49,6 @@
 |ML-2336|You can now delete Jobs in the UI.                                                                 |
 |ML-4506|You can now delete artifacts, models, and datasets in the UI.                                        |
 |ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
-|ML-4687|The scrollbar color of the Jobs page was changed, for improved viewing of the browser search results. |
 |ML-4916|You can now add a tag when registering an artifact in the Register Artifact, Register Dataset, and Register Model dialogs. |
 
 ### Infrastructure

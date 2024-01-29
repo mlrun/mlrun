@@ -909,6 +909,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs` | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
 | v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
@@ -917,13 +918,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
-| v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `verify_base_image`                            |`prepare_image_for_deploy` param   |
-| v1.8.0       |v1.6.0    |Runtimes: `verify_base_image` method                                                 |`prepare_image_for_deploy`            |
-| v1.8.0       |v1.6.0    |Project: `project.clear_context`                                                     | NA   |
-| v1.8.0       |v1.6.0    |Project: constructor legacy params                                                   | project spec and metadata |
 | v1.7.0       |v1.5.1    |`skip_deployed` parameter of `MLrunProject.build_image`                            |NA. The parameter is ignored.                                                                                                                               |
 | v1.7.0       |v1.5.0    |`/files` and `/filestat`                                                           |`/projects/{project}/filestat`                                                                                                                              |
-| v1.7.0 |`LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`)|`Artifact` or other artifact classes that inherit from it                    |
+| v1.7.0       |v1.3.0   |`LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`)|`Artifact` or other artifact classes that inherit from it                    |
 
 
 ### Removed APIs
@@ -965,6 +962,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|CLI                                                        |
 |---------|------------------------------------------------------------|
-| v1.6.0 |dashboard (nuclio/deploy)   |No longer supported on client side                    |
-| v1.6.0 |overwrite schedule (project)|Not relevant. Running a schedule is now an operation |
+| v1.6.0 |deploy `--dashboard` (nuclio/deploy)   |No longer supported on client side. Configure using the MLRun API.                    |
+| v1.6.0 |project `--overwrite-schedule` |Not relevant. Running a schedule is now an operation. |
 | v1.5.0 |`--ensure-project` flag of the `mlrun project` CLI command |  |

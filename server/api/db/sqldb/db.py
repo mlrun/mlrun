@@ -239,6 +239,7 @@ class SQLDB(DBInterface):
         run.struct = struct
         self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
+        return run.struct
 
     def list_distinct_runs_uids(
         self,

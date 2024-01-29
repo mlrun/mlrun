@@ -3175,7 +3175,6 @@ class MlrunProject(ModelObj):
     def deploy_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        dashboard: str = "",
         models: list = None,
         env: dict = None,
         tag: str = None,
@@ -3186,7 +3185,6 @@ class MlrunProject(ModelObj):
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object
-        :param dashboard:   DEPRECATED. Keep empty to allow auto-detection by MLRun API.
         :param models:      list of model items
         :param env:         dict of extra environment variables
         :param tag:         extra version tag
@@ -3196,7 +3194,6 @@ class MlrunProject(ModelObj):
         """
         return deploy_function(
             function,
-            dashboard=dashboard,
             models=models,
             env=env,
             tag=tag,

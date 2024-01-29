@@ -17,7 +17,7 @@ import pytest
 
 import mlrun.errors
 from mlrun.datastore import StreamTarget
-from mlrun.datastore.targets import KafkaTarget
+from mlrun.datastore.targets import BaseStoreTarget, KafkaTarget
 from mlrun.feature_store import FeatureSet
 
 
@@ -47,6 +47,10 @@ def test_stream_target_path_is_without_run_id():
     # make sure that run ID wasn't added to the path
     assert mock_graph.kwargs.get("stream_path") == path
 
+    # make sure the path is still right after deserialization (which loses the specific type)
+    stream_target = BaseStoreTarget.from_dict(stream_target.to_dict())
+    assert stream_target.get_target_path() == url
+
 
 # ML-5484, ML-5559
 def test_kafka_target_path_is_without_run_id():
@@ -61,6 +65,10 @@ def test_kafka_target_path_is_without_run_id():
     kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
     # make sure that run ID wasn't added to the topic
     assert mock_graph.kwargs.get("topic") == topic
+
+    # make sure the path is still right after deserialization (which loses the specific type)
+    kafka_target = BaseStoreTarget.from_dict(kafka_target.to_dict())
+    assert kafka_target.get_target_path() == url
 
 
 # ML-5560

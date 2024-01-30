@@ -229,7 +229,10 @@ class SQLDB(DBInterface):
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
-        update_labels(run, run_labels(struct))
+
+        # Update the labels only if the run updates contains labels
+        if run_labels(updates):
+            update_labels(run, run_labels(struct))
         self._update_run_updated_time(run, struct)
         run.struct = struct
         self._upsert(session, [run])

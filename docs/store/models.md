@@ -24,7 +24,7 @@ from sklearn.model_selection import train_test_split
 from pickle import dumps
 
 from mlrun.execution import MLClientCtx
-from mlrun.mlutils import eval_model_v2
+from mlrun.utils import eval_model_v2
 
 def train_iris(context: MLClientCtx):
 
@@ -48,7 +48,7 @@ def train_iris(context: MLClientCtx):
                       labels={"class": "sklearn.linear_model.LogisticRegression"})
 ```
 
-Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [quick-start page](quick-start.html#mlrun-setup) to learn how to create the project and set the artifact path. 
+Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [Quick start tutorial](../tutorials/01-mlrun-basics.html#define-mlrun-project-and-ml-functions) to learn how to create the project and [log artifacts](../tutorials/01-mlrun-basics.html#run-your-data-processing-function-and-log-artifacts). 
 
 ``` python
 from mlrun import code_to_function
@@ -76,7 +76,8 @@ from pickle import load
 from mlrun.execution import MLClientCtx
 from mlrun.datastore import DataItem
 from mlrun.artifacts import get_model, update_model
-from mlrun.mlutils import eval_model_v2
+from mlrun.utils import eval_model_v2
+from mlrun.utils import eval_model_v2
 
 def test_model(context: MLClientCtx,
                models_path: DataItem,

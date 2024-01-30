@@ -116,7 +116,7 @@ from sklearn.model_selection import train_test_split
 from pickle import dumps
 
 from mlrun.execution import MLClientCtx
-from mlrun.mlutils import eval_model_v2
+from mlrun.utils import eval_model_v2
 
 def train_iris(context: MLClientCtx):
 
@@ -172,7 +172,7 @@ from pickle import load
 from mlrun.execution import MLClientCtx
 from mlrun.datastore import DataItem
 from mlrun.artifacts import get_model, update_model
-from mlrun.mlutils import eval_model_v2
+from mlrun.utils import eval_model_v2
 
 def test_model(context: MLClientCtx,
                models_path: DataItem,
@@ -222,7 +222,7 @@ and stores the plot in the artifact repository:
 
 ``` python
 from mlrun.artifacts import PlotArtifact
-from mlrun.mlutils import gcf_clear
+from mlrun.utils import gcf_clear
 
 gcf_clear(plt)
 confusion_matrix = metrics.plot_confusion_matrix(model,

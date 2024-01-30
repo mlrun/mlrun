@@ -139,8 +139,8 @@ def add_code_metadata(path=""):
         NoSuchPathError,
         ValueError,
     ) as exc:
-        logger.warning(
-            "Failed to add git metadata, ignore if path is not part of a git repo",
+        logger.debug(
+            "Path not part of a git repo, git metadata will not be added",
             path=path,
             error=err_to_str(exc),
         )

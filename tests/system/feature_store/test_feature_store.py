@@ -33,6 +33,7 @@ import pytz
 import requests
 from pandas.testing import assert_frame_equal
 from storey import MapClass
+from storey.dtypes import V3ioError
 
 import mlrun
 import mlrun.feature_store as fstore
@@ -3996,6 +3997,22 @@ class TestFeatureStore(TestMLRunSystem):
             check_dtype=False,
             check_index_type=False,
         )
+
+    def test_ingest_value_with_quote(self):
+        df = pd.DataFrame({"num": [0, 1, 2], "color": ["gre'en", 'bl"ue', "red"]})
+        fset = fstore.FeatureSet(
+            "test-fset", entities=[fstore.Entity("num")], engine="storey"
+        )
+        result = fstore.ingest(fset, df)
+        result.reset_index(drop=False, inplace=True)
+        assert_frame_equal(df, result)
+        #  test fails due to the inclusion of both ' and " in the same value.
+        df = pd.DataFrame({"num": [0, 1, 2], "color": ["gre'en", "bl\"u'e", "red"]})
+        with pytest.raises(V3ioError):
+            fset = fstore.FeatureSet(
+                "test-fset-error", entities=[fstore.Entity("num")], engine="storey"
+            )
+            fstore.ingest(fset, df)
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

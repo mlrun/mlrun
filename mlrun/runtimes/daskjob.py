@@ -144,6 +144,8 @@ class DaskSpec(KubeResourceSpec):
             "worker_resources", worker_resources
         )
 
+        self.state_thresholds = None  # not supported in dask
+
     @property
     def scheduler_resources(self) -> dict:
         return self._scheduler_resources

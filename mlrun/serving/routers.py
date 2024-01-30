@@ -29,7 +29,7 @@ import mlrun
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
 from mlrun.utils import logger, now_date
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config

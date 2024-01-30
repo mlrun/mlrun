@@ -137,6 +137,7 @@ def add_code_metadata(path=""):
         InvalidGitRepositoryError,
         NoSuchPathError,
     ):
+        # Path is not part of a git repository or an invalid path (will fail later if it needs to)
         pass
 
     except (GitCommandNotFound, ValueError) as exc:

@@ -29,7 +29,7 @@ from mlrun.utils import datetime_now, logger
 
 from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
-from .helpers import bump_model_endpoint_last_request
+from .helpers import update_model_endpoint_last_request
 from .model_endpoint import ModelEndpoint
 
 # A union of all supported dataset types:
@@ -199,21 +199,12 @@ def record_results(
         )
 
     # Update the last request time
-    db.patch_model_endpoint(
+    update_model_endpoint_last_request(
         project=project,
-        endpoint_id=model_endpoint.metadata.uid,
-        attributes={EventFieldType.LAST_REQUEST: timestamp},
+        model_endpoint=model_endpoint,
+        current_request=timestamp,
+        db=db,
     )
-
-    if model_endpoint.spec.stream_path == "":
-        logger.info(
-            "Updating the last request time to mark the current monitoring window as completed",
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-        )
-        bump_model_endpoint_last_request(
-            project=project, model_endpoint=model_endpoint, db=db
-        )
 
     if trigger_monitoring_job:
         # Run the monitoring batch drift job

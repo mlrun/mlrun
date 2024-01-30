@@ -20,6 +20,7 @@ import itertools
 import json
 import os
 import re
+import string
 import sys
 import time
 import typing
@@ -340,7 +341,7 @@ def verify_dict_items_type(
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)}, "
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -1551,3 +1552,9 @@ def to_parquet(df, *args, **kwargs):
 def is_ecr_url(registry: str) -> bool:
     # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
     return ".ecr." in registry and ".amazonaws.com" in registry
+
+
+def get_local_file_schema() -> List:
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
+    return ["file"] + list(string.ascii_lowercase)

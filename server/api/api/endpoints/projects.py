@@ -261,7 +261,9 @@ async def delete_project(
     else:
         # For iguzio < 3.5.5, the project deletion job is triggered while zebo does not wait for it to complete.
         # We wait for it here to make sure we respond with a proper status code.
-        server.api.api.utils.verify_project_is_deleted(name, auth_info)
+        await run_in_threadpool(
+            server.api.api.utils.verify_project_is_deleted, name, auth_info
+        )
 
     await get_project_member().post_delete_project(name)
     if force_delete:

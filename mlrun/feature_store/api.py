@@ -269,7 +269,7 @@ def _get_offline_features(
 
 @deprecated(
     version="1.6.0",
-    reason="'get_online_feature_service' will be removed in 1.8.0,"
+    reason="'get_online_feature_service' will be removed in 1.8.0, "
     "use 'FeatureVector.get_online_feature_service()' instead",
     category=FutureWarning,
 )
@@ -893,7 +893,7 @@ def _run_ingestion_job(
 
 @deprecated(
     version="1.6.0",
-    reason="'deploy_ingestion_service_v2' will be removed in 1.8.0,"
+    reason="'deploy_ingestion_service_v2' will be removed in 1.8.0, "
     "use 'FeatureSet.deploy_ingestion_service()' instead",
     category=FutureWarning,
 )

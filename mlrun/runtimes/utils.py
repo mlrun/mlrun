@@ -133,13 +133,15 @@ def add_code_metadata(path=""):
             return f"{remotes[0]}#{repo.head.commit.hexsha}"
 
     except (
-        GitCommandNotFound,
         InvalidGitRepositoryError,
         NoSuchPathError,
-        ValueError,
-    ) as exc:
+    ):
+        # Path is not part of a git repository or an invalid path (will fail later if it needs to)
+        pass
+
+    except (GitCommandNotFound, ValueError) as exc:
         logger.warning(
-            "Failed to add git metadata, ignore if path is not part of a git repo",
+            "Failed to add git metadata",
             path=path,
             error=err_to_str(exc),
         )

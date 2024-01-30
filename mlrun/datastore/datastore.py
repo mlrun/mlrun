@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import string
 from urllib.parse import urlparse
 
 from mergedeep import merge
@@ -20,6 +19,7 @@ import mlrun
 import mlrun.errors
 from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.errors import err_to_str
+from mlrun.utils.helpers import get_local_file_schema
 
 from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
@@ -54,9 +54,7 @@ def parse_url(url):
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)
 
-    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
-    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
-    if not schema or schema in ["file"] + list(string.ascii_lowercase):
+    if not schema or schema in get_local_file_schema():
         return FileStore
     elif schema == "s3":
         try:

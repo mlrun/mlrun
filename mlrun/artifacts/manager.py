@@ -13,10 +13,11 @@
 # limitations under the License.
 import pathlib
 import typing
-from os.path import isdir
+from os.path import exists, isdir
+from urllib.parse import urlparse
 
 import mlrun.config
-from mlrun.utils.helpers import template_artifact_path
+from mlrun.utils.helpers import get_local_file_schema, template_artifact_path
 
 from ..utils import (
     is_legacy_artifact,
@@ -121,6 +122,28 @@ class ArtifactManager:
         self.input_artifacts = {}
         self.artifacts = {}
 
+    @staticmethod
+    def ensure_artifact_source_file_exists(item, path, body):
+        # If the body exists, the source path does not have to exists.
+        if body is not None or item.get_body() is not None:
+            return
+        if not path:
+            return
+        #  ModelArtifact is a directory.
+        if isinstance(item, ModelArtifact):
+            return
+        parsed_url = urlparse(path)
+        schema = parsed_url.scheme
+        #  we are not checking remote paths yet.
+        if schema and schema not in get_local_file_schema():
+            return
+        if schema.lower() == "file":
+            path = parsed_url.path
+        if not exists(path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to log an artifact, file does not exists at path {path}"
+            )
+
     def artifact_list(self, full=False):
         artifacts = []
         for artifact in self.artifacts.values():
@@ -184,6 +207,7 @@ class ArtifactManager:
 
         validate_artifact_key_name(key, "artifact.key")
         src_path = local_path or item.src_path  # TODO: remove src_path
+        self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
         item.format = format or item.format

@@ -20,6 +20,7 @@ import shutil
 import sys
 from sys import executable
 
+import pandas as pd
 import pytest
 from kfp import dsl
 
@@ -1135,6 +1136,38 @@ class TestProject(TestMLRunSystem):
         assert run_result.output("score")
 
         shutil.rmtree(project_dir, ignore_errors=True)
+
+    def test_export_import_dataset_artifact(self):
+        project_1_name = "project-1"
+        self.custom_project_names_to_delete.append(project_1_name)
+        project_1 = mlrun.new_project(project_1_name, context=str(self.assets_path))
+
+        # create a dataset artifact
+        local_path = f"{str(self.assets_path)}/my-df.parquet"
+        data = {"col1": [1, 2], "col2": [3, 4]}
+        data_frame = pd.DataFrame(data=data)
+        key = "my-df"
+        dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
+            key, df=data_frame, format="parquet", target_path=local_path
+        )
+        project_1.log_artifact(dataset_artifact)
+
+        # export the artifact to a zip file
+        dataset_artifact = project_1.get_artifact("my-df")
+        export_path = f"{str(self.assets_path)}/exported_dataset.zip"
+        dataset_artifact.export(export_path)
+
+        # create a new project and import the artifact
+        project_2_name = "project-2"
+        self.custom_project_names_to_delete.append(project_2_name)
+        project_2 = mlrun.new_project(project_2_name, context=str(self.assets_path))
+
+        imported_artifact = project_2.import_artifact(export_path)
+        imported_artifact.to_dict()
+
+        # validate that the artifact was imported properly and was uploaded to the store
+        data_item = mlrun.get_dataitem(imported_artifact.target_path).get()
+        assert data_item
 
     def test_load_project_with_artifact_db_key(self):
         project_1_name = "test-load-with-artifact"

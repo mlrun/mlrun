@@ -146,49 +146,59 @@ def _get_monitoring_time_window_from_controller_run(
     return batch_dict2timedelta(batch_dict)
 
 
-def bump_model_endpoint_last_request(
+def update_model_endpoint_last_request(
     project: str,
     model_endpoint: ModelEndpoint,
+    current_request: datetime,
     db: "RunDBInterface",
 ) -> None:
     """
-    Update the last request field of the model endpoint to be after the current last request time.
+    Update the last request field of the model endpoint to be after the current request time.
 
     :param project:         Project name.
     :param model_endpoint:  Model endpoint object.
+    :param current_request: current request time
     :param db:              DB interface.
     """
-    if not model_endpoint.status.last_request:
-        logger.error(
-            "Model endpoint last request time is empty, cannot bump it.",
+    if model_endpoint.spec.stream_path != "":
+        logger.info(
+            "Update model endpoint last request time (EP with serving)",
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
+            last_request=model_endpoint.status.last_request,
+            current_request=current_request,
         )
-        raise MLRunValueError("Model endpoint last request time is empty")
-    try:
-        time_window = _get_monitoring_time_window_from_controller_run(project, db)
-    except _MLRunNoRunsFoundError:
-        logger.debug(
-            "Not bumping model endpoint last request time - no controller runs were found"
+        db.patch_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            attributes={EventFieldType.LAST_REQUEST: current_request.isoformat()},
         )
-        return
+    else:
+        try:
+            time_window = _get_monitoring_time_window_from_controller_run(project, db)
+        except _MLRunNoRunsFoundError:
+            logger.debug(
+                "Not bumping model endpoint last request time - no controller runs were found"
+            )
+            return
 
-    bumped_last_request = (
-        datetime.datetime.fromisoformat(model_endpoint.status.last_request)
-        + time_window
-        + datetime.timedelta(
-            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        bumped_last_request = (
+            current_request
+            + time_window
+            + datetime.timedelta(
+                seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            )
+        ).isoformat()
+        logger.info(
+            "Bumping model endpoint last request time (EP without serving)",
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            last_request=model_endpoint.status.last_request,
+            current_request=current_request,
+            bumped_last_request=bumped_last_request,
         )
-    ).isoformat()
-    logger.info(
-        "Bumping model endpoint last request time",
-        project=project,
-        endpoint_id=model_endpoint.metadata.uid,
-        last_request=model_endpoint.status.last_request,
-        bumped_last_request=bumped_last_request,
-    )
-    db.patch_model_endpoint(
-        project=project,
-        endpoint_id=model_endpoint.metadata.uid,
-        attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
-    )
+        db.patch_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
+        )

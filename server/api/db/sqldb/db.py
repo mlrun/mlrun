@@ -903,7 +903,7 @@ class SQLDB(DBInterface):
             ArtifactV2,
             project=project,
         ).filter(ArtifactV2.key.in_([artifact.key for artifact in artifacts])).order_by(
-            ArtifactV2.key.asc()
+            ArtifactV2.id.asc()
         ).populate_existing().with_for_update().all()
 
         objects = []

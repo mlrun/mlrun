@@ -231,13 +231,24 @@ class DatasetArtifact(Artifact):
         if not suffix and not self.spec.target_path.startswith("memory://"):
             self.spec.target_path = self.spec.target_path + "." + format
 
-        self.spec.size, self.metadata.hash = upload_dataframe(
-            self._df,
-            self.spec.target_path,
-            format=format,
-            src_path=self.spec.src_path,
-            **self._kw,
-        )
+        if self._df:
+            self.spec.size, self.metadata.hash = upload_dataframe(
+                self._df,
+                self.spec.target_path,
+                format=format,
+                src_path=self.spec.src_path,
+                **self._kw,
+            )
+        else:
+            body = self.get_body()
+            if body:
+                self._upload_body(
+                    body=body, target=self.target_path, artifact_path=artifact_path
+                )
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Unable to upload dataset, dataframe is not defined"
+                )
 
     def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
         if not artifact_path:

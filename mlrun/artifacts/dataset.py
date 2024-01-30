@@ -231,7 +231,7 @@ class DatasetArtifact(Artifact):
         if not suffix and not self.spec.target_path.startswith("memory://"):
             self.spec.target_path = self.spec.target_path + "." + format
 
-        if self._df:
+        if self._df is not None:
             self.spec.size, self.metadata.hash = upload_dataframe(
                 self._df,
                 self.spec.target_path,

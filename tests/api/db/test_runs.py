@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import unittest.mock
 from datetime import datetime, timezone
 
 import pytest
@@ -364,18 +365,36 @@ def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
+    with unittest.mock.patch(
+        "server.api.db.sqldb.helpers.update_labels", return_value=None
+    ) as update_labels_mock:
+        db.update_run(
+            db_session,
+            {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+            uid,
+            project,
+            iteration,
+        )
+        run = db.read_run(db_session, uid, project, iteration)
+        assert run["metadata"]["project"] == project
+        assert run["metadata"]["name"] == name
+        assert run["metadata"]["some-new-field"] == "value"
+        assert run["spec"]["another-new-field"] == "value"
+        assert update_labels_mock.call_count == 0
+
+
+def test_update_run_labels(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
     db.update_run(
         db_session,
-        {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+        {"metadata.labels": {"a": "b"}},
         uid,
         project,
         iteration,
     )
     run = db.read_run(db_session, uid, project, iteration)
-    assert run["metadata"]["project"] == project
-    assert run["metadata"]["name"] == name
-    assert run["metadata"]["some-new-field"] == "value"
-    assert run["spec"]["another-new-field"] == "value"
+    assert run["metadata"]["labels"] == {"a": "b"}
 
 
 def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: Session):

@@ -1163,8 +1163,7 @@ class EnrichmentModelRouter(ModelRouter):
 
     def post_init(self, mode="sync"):
         super().post_init(mode)
-        self._feature_service = fs.FeatureVector.get_online_feature_service(
-            feature_vector=self.feature_vector_uri,
+        self._feature_service = self.feature_vector.get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 

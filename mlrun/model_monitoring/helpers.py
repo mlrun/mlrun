@@ -161,6 +161,7 @@ def update_model_endpoint_last_request(
     :param db:              DB interface.
     """
     if model_endpoint.spec.stream_path != "":
+        current_request = current_request.isoformat()
         logger.info(
             "Update model endpoint last request time (EP with serving)",
             project=project,
@@ -171,7 +172,7 @@ def update_model_endpoint_last_request(
         db.patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            attributes={EventFieldType.LAST_REQUEST: current_request.isoformat()},
+            attributes={EventFieldType.LAST_REQUEST: current_request},
         )
     else:
         try:
@@ -194,7 +195,7 @@ def update_model_endpoint_last_request(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
             last_request=model_endpoint.status.last_request,
-            current_request=current_request,
+            current_request=current_request.isoformat(),
             bumped_last_request=bumped_last_request,
         )
         db.patch_model_endpoint(

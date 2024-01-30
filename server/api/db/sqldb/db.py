@@ -902,8 +902,8 @@ class SQLDB(DBInterface):
             session,
             ArtifactV2,
             project=project,
-        ).filter(
-            ArtifactV2.key.in_([artifact.key for artifact in artifacts])
+        ).filter(ArtifactV2.key.in_([artifact.key for artifact in artifacts])).order_by(
+            ArtifactV2.key.asc()
         ).populate_existing().with_for_update().all()
 
         objects = []

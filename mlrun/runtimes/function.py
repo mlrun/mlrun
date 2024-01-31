@@ -915,8 +915,8 @@ class RemoteRuntime(KubeResource):
                 ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
                         "Default http trigger creation is disabled and there is no any other custom http trigger, "
-                        "so function can not be invoked via http. Either enable default http trigger creation or create"
-                        "custom http trigger"
+                        "so function can not be invoked via http. Either enable default http trigger creation or "
+                        "create custom http trigger"
                     )
                 state, _, _ = self._get_state(dashboard, auth_info=auth_info)
                 if state not in ["ready", "scaledToZero"]:

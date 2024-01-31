@@ -196,7 +196,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         if model_handler_kwargs is not None:
             if "model" in model_handler_kwargs:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The 'model' keyword cannot be passed in the model handler keyword arguments as it will be used to"
+                    "The 'model' keyword cannot be passed in the model handler keyword arguments as it will be used to "
                     "set the booster that was trained."
                 )
             lgb._model_handler_kwargs = model_handler_kwargs

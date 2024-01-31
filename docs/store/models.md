@@ -77,7 +77,6 @@ from mlrun.execution import MLClientCtx
 from mlrun.datastore import DataItem
 from mlrun.artifacts import get_model, update_model
 from mlrun.utils import eval_model_v2
-from mlrun.utils import eval_model_v2
 
 def test_model(context: MLClientCtx,
                models_path: DataItem,

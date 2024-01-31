@@ -16,6 +16,7 @@ import os
 import pathlib
 import tempfile
 import typing
+import warnings
 import zipfile
 
 import yaml
@@ -1066,6 +1067,17 @@ def convert_legacy_artifact_to_new_format(
         raise TypeError(
             f"Unsupported type '{type(legacy_artifact)}' for legacy artifact"
         )
+
+    artifact_key = legacy_artifact_dict.get("key", "")
+    artifact_tag = legacy_artifact_dict.get("tag", "")
+    if artifact_tag:
+        artifact_key = f"{artifact_key}:{artifact_tag}"
+    # TODO: remove in 1.8.0
+    warnings.warn(
+        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.8.0. "
+        f"Make sure to save the artifact/project in the new format.",
+        FutureWarning,
+    )
 
     artifact = mlrun.artifacts.artifact_types.get(
         legacy_artifact_dict.get("kind", "artifact"), mlrun.artifacts.Artifact

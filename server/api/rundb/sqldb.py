@@ -69,7 +69,7 @@ class SQLRunDB(RunDBInterface):
         #  we will change it.
         raise NotImplementedError(
             "This should be changed to async call, if you are running in the API, use `server.api.crud.get_log`"
-            " method directly instead and not through the get_db().get_log() method"
+            " method directly instead and not through the get_db().get_log() method. "
             "This will be removed in 1.5.0",
         )
 

@@ -3581,7 +3581,7 @@ class MlrunProject(ModelObj):
 
         if not path.isfile(abs_path):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid '{param_name}': '{file_path}'. Got a path to a non-existing file."
+                f"Invalid '{param_name}': '{file_path}'. Got a path to a non-existing file. "
                 f"Path must be absolute or relative to the project code path i.e. "
                 f"<project.spec.get_code_path()>/<{param_name}>)."
             )

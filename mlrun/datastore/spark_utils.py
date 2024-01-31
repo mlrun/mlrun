@@ -29,7 +29,7 @@ def spark_session_update_hadoop_options(session, spark_options) -> Dict[str, str
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"The 'spark.hadoop.{key}' value is in conflict due to a discrepancy "
                     "with a previously established setting.\n"
-                    f"This issue arises if 'spark.hadoop.{key}' has been preset in the Spark session,"
+                    f"This issue arises if 'spark.hadoop.{key}' has been preset in the Spark session, "
                     "or when using datastore profiles with differing security settings for this particular key."
                 )
             hadoop_conf.set(key, value)

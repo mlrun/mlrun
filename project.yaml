@@ -1,0 +1,15 @@
+kind: project
+metadata:
+  name: ajshdebhjsaq
+spec:
+  functions: []
+  workflows: []
+  artifacts: []
+  conda: ''
+  source: git@github.com:quaark/mlrun.git#refs/heads/fix-legacy-artifact-bc
+  origin_url: git@github.com:quaark/mlrun.git#refs/heads/fix-legacy-artifact-bc
+  desired_state: online
+  build:
+    commands: []
+    requirements: []
+  custom_packagers: []

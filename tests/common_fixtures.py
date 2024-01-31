@@ -62,10 +62,10 @@ def config_test_base():
 
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
-    environ["MLRUN_httpdb__dirpath"] = rundb_path
-    environ["MLRUN_httpdb__logs_path"] = logs_path
-    environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
-    environ["MLRUN_httpdb__projects__counters_cache_ttl"] = "0 seconds"
+    environ["MLRUN_HTTPDB__DIRPATH"] = rundb_path
+    environ["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    environ["MLRUN_HTTPDB__PROJECTS__PERIODIC_SYNC_INTERVAL"] = "0 seconds"
+    environ["MLRUN_HTTPDB__PROJECTS__COUNTERS_CACHE_TTL"] = "0 seconds"
     environ["MLRUN_EXEC_CONFIG"] = ""
     global_context.set(None)
     log_level = "DEBUG"

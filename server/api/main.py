@@ -32,7 +32,6 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
-import server.api.apiuvicorn as uvicorn
 import server.api.constants
 import server.api.crud
 import server.api.db.base
@@ -807,4 +806,10 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
 
 
 if __name__ == "__main__":
+    # this is for running the api server as part of
+    # __main__.py on mlrun client and mlrun integration tests.
+    # mlrun container image will run the server using uvicorn directly.
+    # see /dockerfiles/mlrun-api/Dockerfile for more details.
+    import server.api.apiuvicorn as uvicorn
+
     uvicorn.run(logger, httpdb_config=config.httpdb)

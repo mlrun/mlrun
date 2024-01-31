@@ -863,9 +863,9 @@ def db(
     env["MLRUN_DBPATH"] = ""
 
     if port is not None:
-        env["MLRUN_httpdb__port"] = str(port)
+        env["mlrun_httpdb__port"] = str(port)
     if dirpath is not None:
-        env["MLRUN_httpdb__dirpath"] = dirpath
+        env["MLRUN_HTTPDB__DIRPATH"] = dirpath
     if dsn is not None:
         if dsn.startswith("sqlite://") and "check_same_thread=" not in dsn:
             dsn += "?check_same_thread=false"

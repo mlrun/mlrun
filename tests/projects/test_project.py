@@ -1112,7 +1112,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 mlrun.errors.MLRunInvalidArgumentError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': './'. Got a path to a non-existing file.Path must be absolute or "
+                        "Invalid 'workflow_path': './'. Got a path to a non-existing file. Path must be absolute or "
                         "relative to the project code path i.e. <project.spec.get_code_path()>/<workflow_path>)."
                     )
                 ),

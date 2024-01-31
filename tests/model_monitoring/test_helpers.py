@@ -40,9 +40,10 @@ from mlrun.model_monitoring.controller import (
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
     _MLRunNoRunsFoundError,
-    bump_model_endpoint_last_request,
+    update_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
+from mlrun.utils import datetime_now
 
 
 class _HistLen(NamedTuple):
@@ -399,31 +400,36 @@ class TestBumpModelEndpointLastRequest:
         ]
 
     @staticmethod
-    def test_empty_last_request(
-        project: str, empty_model_endpoint: ModelEndpoint, db: NopDB
-    ) -> None:
-        with pytest.raises(
-            MLRunValueError, match="Model endpoint last request time is empty"
-        ):
-            bump_model_endpoint_last_request(
-                project=project,
-                model_endpoint=empty_model_endpoint,
-                db=db,
-            )
-
-    @staticmethod
-    def test_bump(
+    def test_update_last_request(
         project: str,
         model_endpoint: ModelEndpoint,
         db: NopDB,
         last_request: str,
         runs: list[dict],
     ) -> None:
+        model_endpoint.spec.stream_path = "stream"
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
             with patch.object(db, "list_runs", return_value=runs):
-                bump_model_endpoint_last_request(
+                update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
+                    current_request=datetime.datetime.fromisoformat(last_request),
+                    db=db,
+                )
+        patch_patch_model_endpoint.assert_called_once()
+        assert datetime.datetime.fromisoformat(
+            patch_patch_model_endpoint.call_args.kwargs["attributes"][
+                EventFieldType.LAST_REQUEST
+            ]
+        ) == datetime.datetime.fromisoformat(last_request)
+        model_endpoint.spec.stream_path = ""
+
+        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
+            with patch.object(db, "list_runs", return_value=runs):
+                update_model_endpoint_last_request(
+                    project=project,
+                    model_endpoint=model_endpoint,
+                    current_request=datetime.datetime.fromisoformat(last_request),
                     db=db,
                 )
         patch_patch_model_endpoint.assert_called_once()
@@ -445,9 +451,10 @@ class TestBumpModelEndpointLastRequest:
     ) -> None:
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
             with patch.object(db, "list_runs", return_value=[]):
-                bump_model_endpoint_last_request(
+                update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
+                    current_request=datetime_now(),
                     db=db,
                 )
         patch_patch_model_endpoint.assert_not_called()

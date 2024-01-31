@@ -341,7 +341,7 @@ def verify_dict_items_type(
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)}, "
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 

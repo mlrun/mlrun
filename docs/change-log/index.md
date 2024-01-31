@@ -46,8 +46,8 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-1855|New **Train Model** wizard.                                                           |
-|ML-2336|You can now delete Jobs in the UI.                                                                 |
-|ML-4506|You can now delete artifacts, models, and datasets in the UI.                                        |
+|ML-2336|You can now delete Jobs in the UI (and not just from the SDK).                                                                 |
+|ML-4506|You can now delete artifacts, models, and datasets in the UI (and not just from the SDK).                                        |
 |ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
 |ML-4916|You can now add a tag when registering an artifact in the Register Artifact, Register Dataset, and Register Model dialogs. |
 

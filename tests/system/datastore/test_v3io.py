@@ -69,6 +69,8 @@ class TestV3ioDataStore(TestMLRunSystem):
             data_item.store._upload(
                 object_path, tempfile_1_path, max_chunk_size=100 * 1024
             )
+
+            self._logger.debug("Downloading the object")
             data_item.download(tempfile_2_path)
 
             cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)

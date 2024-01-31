@@ -504,7 +504,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         except ApiException as exc:
             if exc.status == 404:
                 logger.info(
-                    "Project secret does not exist, nothing to delete.",
+                    "Project secret does not exist, nothing to delete",
                     secret_name=secret_name,
                 )
                 return None
@@ -591,6 +591,7 @@ class BasePod:
         project=None,
         default_pod_spec_attributes=None,
         resources=None,
+        labels=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -607,7 +608,7 @@ class BasePod:
             "mlrun/task-name": task_name,
             "mlrun/class": kind,
             "mlrun/project": self.project,
-        }
+        } | (labels or {})
         self._annotations = {}
         self._init_containers = []
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes

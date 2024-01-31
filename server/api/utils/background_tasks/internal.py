@@ -14,6 +14,7 @@
 #
 import asyncio
 import datetime
+import functools
 import traceback
 import typing
 import uuid
@@ -44,13 +45,12 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     @server.api.utils.helpers.ensure_running_on_chief
     def create_background_task(
         self,
-        background_tasks: fastapi.BackgroundTasks,
         kind: str,
         timeout: typing.Optional[int],  # in seconds
         function,
         *args,
         **kwargs,
-    ) -> mlrun.common.schemas.BackgroundTask:
+    ) -> typing.Tuple[typing.Callable, str]:
         name = str(uuid.uuid4())
         # sanity
         if name in self._internal_background_tasks:
@@ -64,18 +64,13 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         background_task = self._generate_background_task(name, kind, timeout)
         self._internal_background_tasks[name] = background_task
         self._set_active_task_name_by_kind(kind, name)
-        background_tasks.add_task(
-            self.background_task_wrapper,
-            name=name,
-            function=function,
-            *args,
-            **kwargs,
+        task = functools.partial(
+            self.background_task_wrapper, name, function, *args, **kwargs
         )
-
-        return self.get_background_task(name)
+        return task, name
 
     @server.api.utils.helpers.ensure_running_on_chief
-    def get_background_tasks(
+    def list_background_tasks(
         self,
         name: typing.Optional[str] = None,
         kind: typing.Optional[str] = None,

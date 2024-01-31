@@ -157,6 +157,7 @@ def make_kaniko_pod(
     runtime_spec=None,
     registry=None,
     extra_args="",
+    extra_labels={},
     project_secrets=None,
 ):
     extra_runtime_spec = {}
@@ -238,6 +239,7 @@ def make_kaniko_pod(
         project=project,
         default_pod_spec_attributes=extra_runtime_spec,
         resources=resources,
+        labels=extra_labels,
     )
     envs = (builder_env or []) + (project_secrets or [])
     kpod.env = envs or None
@@ -293,8 +295,7 @@ def make_kaniko_pod(
         )
 
     # when using ECR we need init container to create the image repository
-    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    if ".ecr." in registry and ".amazonaws.com" in registry:
+    if mlrun.utils.helpers.is_ecr_url(registry):
         end = dest.find(":")
         if end == -1:
             end = len(dest)
@@ -346,7 +347,7 @@ def configure_kaniko_ecr_init_container(
 
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
-        aws_credentials_file_env_value = "/tmp/credentials"
+        aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
         init_container_env[
@@ -362,7 +363,7 @@ def configure_kaniko_ecr_init_container(
         # mount the AWS credentials secret
         kpod.mount_secret(
             config.httpdb.builder.docker_registry_secret,
-            path="/tmp",
+            path="/tmp/aws",
         )
 
     kpod.append_init_container(
@@ -509,6 +510,7 @@ def build_image(
         extra_args=extra_args,
     )
 
+    label_prefix = mlrun.runtimes.utils.mlrun_key
     kpod = make_kaniko_pod(
         project,
         context,
@@ -526,6 +528,11 @@ def build_image(
         runtime_spec=runtime_spec,
         registry=registry,
         extra_args=extra_args,
+        extra_labels={
+            label_prefix + "name": name,
+            label_prefix + "function": runtime.metadata.name,
+            label_prefix + "tag": runtime.metadata.tag or "latest",
+        },
     )
 
     if to_mount:

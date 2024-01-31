@@ -373,7 +373,7 @@ class HTTPOutputStream:
             response = requests.post(self._stream_path, data=serialized_record)
             if not response:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"API call failed push a new record through {self._stream_path}"
+                    f"API call failed push a new record through {self._stream_path}, "
                     f"status {response.status_code}: {response.reason}"
                 )
 

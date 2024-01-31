@@ -19,8 +19,8 @@ import inspect
 import itertools
 import json
 import os
-import pathlib
 import re
+import string
 import sys
 import time
 import typing
@@ -281,34 +281,6 @@ def get_regex_list_as_string(regex_list: List) -> str:
     return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
 
 
-def is_file_path_invalid(code_path: str, file_path: str) -> bool:
-    """
-    The function checks if the given file_path is a valid path.
-    If the file_path is a relative path, it is completed by joining it with the code_path.
-    Otherwise, the file_path is used as is.
-    Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
-    If the file_path has no suffix, it is considered invalid.
-
-    :param code_path: The base directory or code path to search for the file in case of relative file_path
-    :param file_path: The file path to be validated
-    :return: True if the file path is invalid, False otherwise
-    """
-    if not file_path:
-        return True
-
-    if file_path.startswith("./") or (
-        "://" not in file_path and os.path.basename(file_path) == file_path
-    ):
-        abs_path = os.path.join(code_path, file_path.lstrip("./"))
-    else:
-        abs_path = file_path
-
-    return (
-        not (os.path.isfile(abs_path) or "://" in file_path)
-        or not pathlib.Path(file_path).suffix
-    )
-
-
 def tag_name_regex_as_string() -> str:
     return get_regex_list_as_string(mlrun.utils.regex.tag_name)
 
@@ -369,7 +341,7 @@ def verify_dict_items_type(
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)}, "
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -394,8 +366,11 @@ def get_pretty_types_names(types):
     return types[0].__name__
 
 
-def now_date():
-    return datetime.now(timezone.utc)
+def now_date(tz: timezone = timezone.utc) -> datetime:
+    return datetime.now(tz=tz)
+
+
+datetime_now = now_date
 
 
 def to_date_str(d):
@@ -1600,3 +1575,14 @@ def to_parquet(df, *args, **kwargs):
     if "version" not in kwargs:
         kwargs["version"] = "2.4"
     df.to_parquet(*args, **kwargs)
+
+
+def is_ecr_url(registry: str) -> bool:
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    return ".ecr." in registry and ".amazonaws.com" in registry
+
+
+def get_local_file_schema() -> List:
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
+    return ["file"] + list(string.ascii_lowercase)

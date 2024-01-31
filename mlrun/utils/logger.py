@@ -131,15 +131,17 @@ class Logger(object):
     def level(self):
         return self._logger.level
 
-    def set_logger_level(self, level: Union[str, int]):
+    def set_logger_level(self, level: Union[str, int]) -> None:
         self._logger.setLevel(level)
 
-    def replace_handler_stream(self, handler_name: str, file: IO[str]):
+    def replace_handler_stream(self, handler_name: str, file: IO[str]) -> None:
+        self.get_handler(handler_name).stream = file
+
+    def get_handler(self, name: str) -> logging.Handler:
         for handler in self._logger.handlers:
-            if handler.name == handler_name:
-                handler.stream = file
-                return
-        raise ValueError(f"Logger does not have a handler named '{handler_name}'")
+            if handler.name == name:
+                return handler
+        raise ValueError(f"Logger does not have a handler named '{name}'")
 
     def debug(self, message, *args, **kw_args):
         self._update_bound_vars_and_log(logging.DEBUG, message, *args, **kw_args)
@@ -193,11 +195,11 @@ def _create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Format
 
 
 def create_logger(
-    level: str = None,
+    level: Optional[str] = None,
     formatter_kind: str = FormatterKinds.HUMAN.name,
     name: str = "mlrun",
-    stream=stdout,
-):
+    stream: IO[str] = stdout,
+) -> Logger:
     level = level or config.log_level or "info"
 
     level = logging.getLevelName(level.upper())

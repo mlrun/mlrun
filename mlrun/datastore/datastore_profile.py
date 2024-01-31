@@ -32,6 +32,9 @@ class DatastoreProfile(pydantic.BaseModel):
     name: str
     _private_attributes: typing.List = ()
 
+    class Config:
+        extra = pydantic.Extra.forbid
+
     @pydantic.validator("name")
     def lower_case(cls, v):
         return v.lower()
@@ -131,18 +134,18 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
-    _private_attributes = ("access_key", "secret_key")
+    _private_attributes = ("access_key_id", "secret_key")
     endpoint_url: typing.Optional[str] = None
     force_non_anonymous: typing.Optional[str] = None
     profile_name: typing.Optional[str] = None
     assume_role_arn: typing.Optional[str] = None
-    access_key: typing.Optional[str] = None
+    access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
 
     def secrets(self) -> dict:
         res = {}
-        if self.access_key:
-            res["AWS_ACCESS_KEY_ID"] = self.access_key
+        if self.access_key_id:
+            res["AWS_ACCESS_KEY_ID"] = self.access_key_id
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:
@@ -385,8 +388,8 @@ def datastore_profile_read(url):
     private_body = get_secret_or_env(project_ds_name_private)
     if not public_profile or not private_body:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Unable to retrieve the datastore profile '{url}' from either the server or local environment."
-            "Make sure the profile is registered correctly, or if running in a local environment,"
+            f"Unable to retrieve the datastore profile '{url}' from either the server or local environment. "
+            "Make sure the profile is registered correctly, or if running in a local environment, "
             "use register_temporary_client_datastore_profile() to provide credentials locally."
         )
 

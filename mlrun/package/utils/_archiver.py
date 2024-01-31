@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import datetime
 import os
 import tarfile
 import zipfile
 from abc import ABC, abstractmethod
 from pathlib import Path
+
+import mlrun.utils
 
 from ._supported_format import SupportedFormat
 
@@ -104,7 +105,7 @@ class _ZipArchiver(_Archiver):
         # Create the directory path, add timestamp to avoid collisions:
         directory_path = output_path / archive_path.stem
         directory_path = directory_path.with_name(
-            f"{directory_path.name}-{datetime.datetime.now()}"
+            f"{directory_path.name}-{mlrun.utils.now_date().isoformat()}"
         )
         os.makedirs(directory_path)
 

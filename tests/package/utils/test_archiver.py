@@ -94,7 +94,7 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
         )
     )
     assert extracted_dir_path.exists()
-    assert extracted_dir_path == output_path / directory_name
+    assert extracted_dir_path.name.startswith((output_path / directory_name).name)
 
     # Validate all files were extracted as they originally were:
     for path in directory_layout:

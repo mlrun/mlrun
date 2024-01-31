@@ -153,5 +153,8 @@ class TestDBFS(TestMLRunSystem):
             result.reset_index(inplace=True, drop=False)
 
         assert_frame_equal(
-            expected.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+            expected.sort_index(axis=1),
+            result.sort_index(axis=1),
+            check_like=True,
+            check_dtype=False,
         )

@@ -56,7 +56,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         cls.test_dir_path = "/bigdata/v3io_tests"
         cls.v3io_test_dir_url = "v3io://" + cls.test_dir_path
 
+    @classmethod
     def teardown_class(cls):
+        super().teardown_class()
         dir_data_item = mlrun.get_dataitem(cls.v3io_test_dir_url)
         try:
             dir_data_item.delete(recursive=True)
@@ -65,7 +67,6 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     def setup_method(self, method):
         self.object_dir_url = f"{self.v3io_test_dir_url}/directory-{uuid.uuid4()}"
-
 
     @staticmethod
     def _skip_set_environment():

@@ -21,6 +21,7 @@ from datetime import datetime
 import fsspec
 import requests
 import v3io.dataplane
+from v3io.dataplane.client import Client
 
 import mlrun
 from mlrun.datastore.helpers import ONE_GB, ONE_MB
@@ -30,8 +31,6 @@ from .base import (
     DataStore,
     FileStats,
     basic_auth_header,
-    get_range,
-    http_get,
     http_head,
     http_put,
     http_upload,
@@ -47,23 +46,33 @@ class V3ioStore(DataStore):
 
         self.headers = None
         self.secure = self.kind == "v3ios"
+
+        token = self._get_secret_or_env("V3IO_ACCESS_KEY")
+        username = self._get_secret_or_env("V3IO_USERNAME")
+        password = self._get_secret_or_env("V3IO_PASSWORD")
+        self.client = Client(access_key=token, endpoint=self.endpoint)
+        self.object = self.client.object
         if self.endpoint.startswith("https://"):
             self.endpoint = self.endpoint[len("https://") :]
             self.secure = True
         elif self.endpoint.startswith("http://"):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
-
-        token = self._get_secret_or_env("V3IO_ACCESS_KEY")
-        username = self._get_secret_or_env("V3IO_USERNAME")
-        password = self._get_secret_or_env("V3IO_PASSWORD")
-
         self.auth = None
         self.token = token
         if token:
             self.headers = {"X-v3io-session-key": token}
         elif username and password:
             self.headers = basic_auth_header(username, password)
+
+    @staticmethod
+    def _get_container_and_path(path):
+        path = os.path.normpath(path)
+        path = path.lstrip(os.path.sep)
+        path_components = path.split(os.path.sep)
+        first_directory = path_components[0]
+        remaining_path = os.path.join(*path_components[1:])
+        return first_directory, remaining_path
 
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
@@ -126,11 +135,15 @@ class V3ioStore(DataStore):
         return self._upload(key, src_path)
 
     def get(self, key, size=None, offset=0):
-        headers = self.headers
-        if size or offset:
-            headers = deepcopy(headers)
-            headers["Range"] = get_range(size, offset)
-        return http_get(self.url + self._join(key), headers)
+        container, path = self._get_container_and_path(key)
+        return self.object.get(
+            container=container, path=path, offset=offset, num_bytes=size
+        ).body
+        # headers = self.headers
+        # if size or offset:
+        #     headers = deepcopy(headers)
+        #     headers["Range"] = get_range(size, offset)
+        # return http_get(self.url + self._join(key), headers)
 
     def _put(self, key, data, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""

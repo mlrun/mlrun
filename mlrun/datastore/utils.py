@@ -137,7 +137,7 @@ def filter_df_generator(
 def _execute_time_filter(
     df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
 ):
-    df[time_column] = pd.to_datetime(df[time_column])
+    df[time_column] = pd.to_datetime(df[time_column], format="mixed", yearfirst=True)
     if start_time:
         df = df[df[time_column] > start_time]
     if end_time:

@@ -49,6 +49,25 @@ class ValueType(str, Enum):
     FLOAT_LIST = "List[float32]"
     BOOL_LIST = "List[bool]"
 
+    def is_numeric(self):
+        numeric_types = {
+            ValueType.INT8,
+            ValueType.INT16,
+            ValueType.INT32,
+            ValueType.INT64,
+            ValueType.INT128,
+            ValueType.UINT8,
+            ValueType.UINT16,
+            ValueType.UINT32,
+            ValueType.UINT64,
+            ValueType.UINT128,
+            ValueType.FLOAT16,
+            ValueType.FLOAT,
+            ValueType.DOUBLE,
+            ValueType.BFLOAT16,
+        }
+        return self in numeric_types
+
 
 def pd_schema_to_value_type(value):
     type_map = {

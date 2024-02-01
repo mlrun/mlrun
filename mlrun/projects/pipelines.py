@@ -1060,7 +1060,7 @@ def load_and_run(
 
         raise error
 
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    context.logger.info(f"Loaded project {project.name} successfully")
 
     if load_only:
         return

@@ -53,6 +53,7 @@ project.run("main", schedule='0 * * * *')
     * To build the image with the project yaml and code use `project.build_image` method (you can specify a target_dir for the project content).
     * Specify the image in the workflow e.g. `project.set_workflow(name="my-workflow", workflow_path="./src/workflow.py", image=project.spec.default_image)`.
     * Run the workflow with the context path e.g. `project.run("my-workflow", source="/home/mlrun_code/", engine="remote")`.
+    * "/home/mlrun_code/" is the default source loading path when building the image. See `project.build_image(target_dir)` to specify a different path.
 3. Example for a remote GitHub project - https://github.com/mlrun/project-demo
 ```
 

@@ -533,7 +533,7 @@ class MonitoringApplicationController:
             # calculate time threshold (keep only files from the last 24 hours)
             time_to_keep = (
                 datetime.datetime.now(tz=datetime.timezone.utc)
-                - datetime.timedelta(days=days)
+                - datetime.timedelta(minutes=5)
             ).timestamp()
 
             for endpoint in endpoints:

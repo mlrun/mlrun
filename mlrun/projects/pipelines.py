@@ -69,16 +69,16 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        engine=None,
-        code=None,
-        path=None,
-        args=None,
-        name=None,
-        handler=None,
-        args_schema: dict = None,
+        engine: typing.Optional[str] = None,
+        code: typing.Optional[str] = None,
+        path: typing.Optional[str] = None,
+        args: typing.Optional[dict] = None,
+        name: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        args_schema: typing.Optional[dict] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        cleanup_ttl: int = None,
-        image: str = None,
+        cleanup_ttl: typing.Optional[int] = None,
+        image: typing.Optional[str] = None,
     ):
         self.engine = engine
         self.code = code

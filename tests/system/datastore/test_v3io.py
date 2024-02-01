@@ -56,12 +56,16 @@ class TestV3ioDataStore(TestMLRunSystem):
         cls.test_dir_path = "/bigdata/v3io_tests"
         cls.v3io_test_dir_url = "v3io://" + cls.test_dir_path
 
+    def teardown_class(cls):
+        dir_data_item = mlrun.get_dataitem(cls.v3io_test_dir_url)
+        try:
+            dir_data_item.delete(recursive=True)
+        except Exception:
+            pass
+
     def setup_method(self, method):
         self.object_dir_url = f"{self.v3io_test_dir_url}/directory-{uuid.uuid4()}"
 
-    def teardown_method(self, method):
-        # todo delete self.object_url
-        pass
 
     @staticmethod
     def _skip_set_environment():
@@ -208,6 +212,15 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.delete()
         with pytest.raises(mlrun.errors.MLRunNotFoundError) as file_not_found_error:
             data_item.stat()
+        assert "Not Found for url" in str(file_not_found_error.value)
+        # folder deletion:
+        url = f"{self.object_dir_url}/test_directory/file.txt"
+        data_item = mlrun.get_dataitem(url=url)
+        data_item.upload(self.test_file_path)
+        dir_data_item = mlrun.get_dataitem(url=os.path.dirname(url))
+        dir_data_item.delete(recursive=True)
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as file_not_found_error:
+            dir_data_item.stat()
         assert "Not Found for url" in str(file_not_found_error.value)
 
     @pytest.mark.parametrize(

@@ -1019,6 +1019,12 @@ class KafkaSource(OnlineSource):
 
         return function
 
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+        raise NotImplementedError(
+            "Conversion of a source of type 'KafkaSource' "
+            "to a Spark dataframe is not possible, as this operation is not supported by Spark"
+        )
+
 
 class SQLSource(BaseSourceDriver):
     kind = "sqldb"

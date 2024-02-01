@@ -86,7 +86,6 @@
 |ML-4608|The artifact `db_key` is now forwarded when registering an artifact.|
 |ML-4617|Fixed error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector.|
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
-|ML-4953|Can now build the image through the UI on an external registry.| 
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
 |ML-4992|Fixed starting a spark job from source archive (using `with_source_archive()`).|
 |ML-5001|The **Monitoring workflows** page now states that it includes only workflows that have already been run. | 

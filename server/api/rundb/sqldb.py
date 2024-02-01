@@ -949,7 +949,7 @@ class SQLRunDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: List[mlrun.model.Notification] = None,
-    ):
+    ) -> "mlrun.common.schemas.WorkflowResponse":
         raise NotImplementedError()
 
     def _transform_db_error(self, func, *args, **kwargs):

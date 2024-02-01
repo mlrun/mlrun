@@ -183,7 +183,7 @@ class WorkflowRunners(
         )
 
         if is_context:
-            run_object.spec.parameters["context"] = source
+            run_object.spec.parameters["project_context"] = source
             run_object.spec.parameters.pop("url", None)
 
         # Setting labels:
@@ -318,7 +318,7 @@ class WorkflowRunners(
         )
 
         if is_context:
-            run_object.spec.parameters["context"] = source
+            run_object.spec.parameters["project_context"] = source
             run_object.spec.parameters.pop("url", None)
 
         if not load_only:

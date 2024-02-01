@@ -862,6 +862,11 @@ class _RemoteRunner(_PipelineRunner):
                 )
                 return
 
+            logger.debug(
+                "Workflow submitted, waiting for pipeline run to start",
+                workflow_name=workflow_response.name,
+            )
+
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
@@ -988,6 +993,7 @@ def load_and_run(
     cleanup_ttl: int = None,
     load_only: bool = False,
     wait_for_completion: bool = False,
+    project_context: str = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1018,10 +1024,11 @@ def load_and_run(
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
     :param wait_for_completion: wait for workflow completion before returning
+    :param project_context:     project context path (used for loading the project)
     """
     try:
         project = mlrun.load_project(
-            context=f"./{project_name}",
+            context=project_context or f"./{project_name}",
             url=url,
             name=project_name,
             init_git=init_git,

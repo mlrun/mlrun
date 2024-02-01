@@ -693,5 +693,5 @@ class RunDBInterface(ABC):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: typing.List["mlrun.model.Notification"] = None,
-    ):
+    ) -> "mlrun.common.schemas.WorkflowResponse":
         pass

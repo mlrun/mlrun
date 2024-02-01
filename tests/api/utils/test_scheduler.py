@@ -180,6 +180,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler, store: bool):
 @pytest.mark.asyncio
 async def test_invoke_schedule(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
@@ -240,6 +241,7 @@ async def test_invoke_schedule(
 # ML-4902
 async def test_get_schedule_last_run_deleted(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
@@ -287,6 +289,7 @@ async def test_get_schedule_last_run_deleted(
 @pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
@@ -1088,6 +1091,7 @@ async def test_schedule_convert_from_old_credentials_to_new(
 @pytest.mark.asyncio
 async def test_update_schedule(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):

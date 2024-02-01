@@ -757,6 +757,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
             if not isinstance(prediction, list):
                 prediction = [prediction]
+            if not isinstance(feature, list):
+                feature = [feature]
 
             events.append(
                 {

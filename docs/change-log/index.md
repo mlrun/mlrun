@@ -897,6 +897,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
     
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.6.0 |ML-5137|The Create/edit function pane is removed from the UI.| 
 | v1.5.0 |ML-4010|Unused artifact types: BokehArtifact, ChartArtifact                                                                                                                                                                  |
 | v1.5.0 |ML-4075|Python 3.7                                                                                                                                                                                                            |
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`                                                                                                                                                                            |

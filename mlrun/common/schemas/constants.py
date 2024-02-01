@@ -57,8 +57,8 @@ class DeletionStrategy(mlrun.common.types.StrEnum):
     def strategy_to_check(self):
         if self.value in [
             DeletionStrategy.check,
-            DeletionStrategy.cascade,
-            DeletionStrategy.cascading,
+            DeletionStrategy.restrict,
+            DeletionStrategy.restricted,
         ]:
             return True
         return False

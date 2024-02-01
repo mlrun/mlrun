@@ -179,6 +179,18 @@ def test_delete_project_with_resources(
     api_version: str,
     successful_delete_response_code: int,
 ):
+    def _send_delete_request_and_assert_response_code(
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+        expected_response_code: int,
+    ):
+        response = unversioned_client.delete(
+            f"{api_version}/projects/{project_to_remove}",
+            headers={
+                mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy.value
+            },
+        )
+        assert response.status_code == expected_response_code
+
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
@@ -199,31 +211,22 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - check - should fail because there are resources
-    response = unversioned_client.delete(
-        f"{api_version}/projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.check,
+        HTTPStatus.PRECONDITION_FAILED.value,
     )
-    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
     # deletion strategy - restricted - should fail because there are resources
-    response = unversioned_client.delete(
-        f"{api_version}/projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        HTTPStatus.PRECONDITION_FAILED.value,
     )
-    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
     # deletion strategy - cascading - should succeed and remove all related resources
-    response = unversioned_client.delete(
-        f"{api_version}/projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.cascading,
+        successful_delete_response_code,
     )
-    assert response.status_code == successful_delete_response_code
 
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
@@ -256,22 +259,16 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - check - should succeed cause no project
-    response = unversioned_client.delete(
-        f"{api_version}/projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.check,
+        HTTPStatus.NO_CONTENT.value,
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # deletion strategy - restricted - should succeed cause no project
-    response = unversioned_client.delete(
-        f"{api_version}/projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        HTTPStatus.NO_CONTENT.value,
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
 
 def test_list_and_get_project_summaries(

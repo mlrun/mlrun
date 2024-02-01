@@ -183,9 +183,10 @@ Tech Preview
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
+Current supported version of SQLAlchemy see extra `pip install mlrun[sqlalchemy]`. See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html) 
 ```
 `SQLSource` can be used for both batch ingestion and real time ingestion. It supports storey but does not support Spark. To configure 
-either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
+either, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
 ```
@@ -312,9 +313,10 @@ Tech Preview
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
+Current supported version of SQLAlchemy see extra `pip install mlrun[sqlalchemy]`. See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html) 
 ```
 The `SQLTarget` online target supports storey but does not support Spark. Aggregations are not supported.<br>
-To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
+To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 
 You can pass the schema and the name of the table you want to create or the name of an existing table, for example:

@@ -358,7 +358,7 @@ async def start_function(
         db_session,
         function.metadata.project,
         background_tasks,
-        _start_function,
+        _start_function_wrapper,
         background_timeout,
         None,
         # args for _start_function
@@ -901,6 +901,21 @@ def _parse_start_function_body(db_session, data):
         )
 
     return new_function(runtime=runtime)
+
+
+async def _start_function_wrapper(
+    function,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
+):
+    await run_in_threadpool(
+        _start_function,
+        function,
+        auth_info,
+        client_version,
+        client_python_version,
+    )
 
 
 def _start_function(

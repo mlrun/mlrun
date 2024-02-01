@@ -683,8 +683,8 @@ class RunDBInterface(ABC):
         project: str,
         name: str,
         workflow_spec: Union[
-            mlrun.projects.pipelines.WorkflowSpec,
-            mlrun.common.schemas.WorkflowSpec,
+            "mlrun.projects.pipelines.WorkflowSpec",
+            "mlrun.common.schemas.WorkflowSpec",
             dict,
         ],
         arguments: Optional[dict] = None,
@@ -692,6 +692,6 @@ class RunDBInterface(ABC):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: typing.List["mlrun.model.Notification"] = None,
     ):
         pass

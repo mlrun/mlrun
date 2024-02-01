@@ -69,7 +69,7 @@ def config_test_base():
     environ["MLRUN_EXEC_CONFIG"] = ""
     global_context.set(None)
     log_level = "DEBUG"
-    environ["MLRUN_log_level"] = log_level
+    environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 

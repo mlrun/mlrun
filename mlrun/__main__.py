@@ -863,7 +863,7 @@ def db(
     env["MLRUN_DBPATH"] = ""
 
     if port is not None:
-        env["mlrun_httpdb__port"] = str(port)
+        env["MLRUN_HTTPDB__PORT"] = str(port)
     if dirpath is not None:
         env["MLRUN_HTTPDB__DIRPATH"] = dirpath
     if dsn is not None:

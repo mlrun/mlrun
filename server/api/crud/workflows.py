@@ -195,6 +195,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         load_only: bool = False,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> RunObject:
         """
         Run workflow runner.
@@ -203,6 +204,7 @@ class WorkflowRunners(
         :param project:             MLRun project
         :param workflow_request:    contains the workflow spec, that will be executed
         :param load_only:           If True, will only load the project remotely (without running workflow)
+        :param auth_info:           auth info of the request
 
         :returns: run context object (RunObject) with run metadata, results and status
         """
@@ -232,12 +234,17 @@ class WorkflowRunners(
             ]
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
+
+        # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
+        #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to
+        #  make sure it is safe for scheduling and project load endpoint.
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
             notifications=notifications,
             local=False,
             watch=False,
+            auth_info=auth_info,
         )
 
     @staticmethod
@@ -363,7 +370,12 @@ class WorkflowRunners(
 
         source = source or project.spec.source
         save = True
-        if source and not load_only:
+        if not source:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Project source is required. Either specify the source in the project or provide it in the request."
+            )
+
+        if not load_only:
             save = False
 
             # Path like source is not supported for load_only since it uses the mlrun default image

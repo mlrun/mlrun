@@ -605,9 +605,14 @@ def _load_project_dir(context, name="", subpath=""):
         # If there is a setup script do not force having project.yaml file
         project = MlrunProject()
     else:
-        raise mlrun.errors.MLRunNotFoundError(
-            "project or function YAML not found in path"
+        message = "Project or function YAML not found in path"
+        logger.error(
+            message,
+            context=context,
+            name=name,
+            subpath=subpath,
         )
+        raise mlrun.errors.MLRunNotFoundError(message)
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name

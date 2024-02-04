@@ -215,6 +215,7 @@ async def submit_workflow(
                 runner=workflow_runner,
                 project=project,
                 workflow_request=updated_request,
+                auth_info=auth_info,
             )
             status = mlrun.run.RunStatuses.running
             run_uid = run.uid()

@@ -44,17 +44,38 @@ After loading the project (`load_project`), run the project with the scheduled w
 project.run("main", schedule='0 * * * *')
 ```
 
-```{admonition} Note
-1. Remote workflows can be performed by a project with a **remote** source (git://github.com/mlrun/something.git, http://some/url/file.zip or http://some/url/file.tar.gz). You can either put your code in Git or archive it and then set a source to it.
+Remote/Scheduled workflows can be performed by a project with a **remote** source (git://github.com/mlrun/something.git, http://some/url/file.zip or http://some/url/file.tar.gz). You can either put your code in Git or archive it and then set a source to it.
     * To set project source use the `project.set_source` method.
     * To set workflow use the `project.set_workflow` method.
-2. You can also use a context path to load the project from a local directory.
+
+You can also use a context path to load the project from a local directory contained in the image used for execution.
     * To set project source use the `project.set_source` method (make sure pull_at_runtime is set to False).
     * To build the image with the project yaml and code use `project.build_image` method (you can specify a target_dir for the project content).
-    * Specify the image in the workflow e.g. `project.set_workflow(name="my-workflow", workflow_path="./src/workflow.py", image=project.spec.default_image)`.
+    * Create the workflow, the default image is `project.spec.default_image` e.g. `project.set_workflow(name="my-workflow", workflow_path="./src/workflow.py")`.
     * Run the workflow with the context path e.g. `project.run("my-workflow", source="/home/mlrun_code/", engine="remote")`.
     * "/home/mlrun_code/" is the default source loading path when building the image. See `project.build_image(target_dir)` to specify a different path.
-3. Example for a remote GitHub project - https://github.com/mlrun/project-demo
+
+Example for a remote GitHub project - https://github.com/mlrun/project-demo
+
+```
+import mlrun
+project_name = "remote-workflow-example"
+context_path = f'./{project_name}'
+source_target_dir = "/home/mlrun_code/project"
+
+# Create a new project
+project = mlrun.get_or_create_project(project_name, context_path)
+
+# Set the project source and workflow
+project.set_source("git://github.com/mlrun/project-demo.git")
+project.set_workflow(name="main", workflow_path="main.py")
+
+# Build the image, load the source to the target dir and save the project
+project.build_image(target_dir=source_target_dir)
+project.save()
+
+# Run the workflow, load the project from the target dir on the image
+project.run("main", source="source_target_dir", engine="remote")
 ```
 
 You can delete a scheduled workflow in the MLRun UI. To update a scheduled workflow, re-define the schedule in the workflow, for example:

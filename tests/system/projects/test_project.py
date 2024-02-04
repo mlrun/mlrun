@@ -1277,7 +1277,8 @@ class TestProject(TestMLRunSystem):
 
         # create a new project from the same spec, and validate the artifact was loaded properly
         project3 = mlrun.load_project(context=context, name=project_3_name)
-        artifacts = project3.list_artifacts(name=artifact_db_key_2)
+        # since it is imported from yaml, the artifact is saved with the set key
+        artifacts = project3.list_artifacts(name=another_artifact_key)
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == another_artifact_key
 

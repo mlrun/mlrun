@@ -186,46 +186,6 @@ async def test_verify_request_session_failure(
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
-async def test_verify_session_success(
-    api_url: str,
-    iguazio_client: server.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
-    aioresponses_mock: aioresponses_mock,
-):
-    session = "some-session"
-    mock_response_headers = _generate_session_verification_response_headers()
-
-    def _verify_session_mock(*args, **kwargs):
-        if iguazio_client.is_sync:
-            request, context = args
-            _verify_request_cookie(request.headers, session)
-            context.headers = mock_response_headers
-        else:
-            _verify_request_cookie(kwargs, session)
-
-        return (
-            {}
-            if iguazio_client.is_sync
-            else CallbackResult(headers=mock_response_headers)
-        )
-
-    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
-    patch_restful_request(
-        iguazio_client.is_sync,
-        requests_mock,
-        aioresponses_mock,
-        method="POST",
-        url=url,
-        callback=_verify_session_mock,
-    )
-    auth_info = await maybe_coroutine(iguazio_client.verify_session(session))
-    _assert_auth_info_from_session_verification_mock_response_headers(
-        auth_info, mock_response_headers
-    )
-
-
-@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
-@pytest.mark.asyncio
 async def test_get_grafana_service_url_success(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,

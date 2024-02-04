@@ -188,7 +188,7 @@ def test_create_artifact(db: Session, unversioned_client: TestClient):
         "status": {},
     }
     url = f"v2/projects/{PROJECT}/artifacts"
-    resp = unprefixed_client.post(
+    resp = unversioned_client.post(
         url,
         json=data,
     )

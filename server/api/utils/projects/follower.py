@@ -102,7 +102,9 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
@@ -142,7 +144,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
@@ -171,7 +175,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:

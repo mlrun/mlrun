@@ -317,18 +317,18 @@ class SQLDB(DBInterface):
     def list_runs(
         self,
         session,
-        name=None,
+        name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
-        project=None,
-        labels=None,
-        states=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, list[str]]] = None,
+        states: typing.Optional[list[str]] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -1541,7 +1541,7 @@ class SQLDB(DBInterface):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
-    ) -> typing.Union[FunctionList, list[dict]]:
+    ) -> list[dict]:
         project = project or config.default_project
         uids = None
         if tag:
@@ -3736,7 +3736,10 @@ class SQLDB(DBInterface):
         for lbl in labels:
             if "=" in lbl:
                 name, value = (v.strip() for v in lbl.split("=", 1))
-                cond = and_(cls.Label.name == name, cls.Label.value == value)
+                cond = and_(
+                    generate_query_predicate_for_name(cls.Label.name, name),
+                    generate_query_predicate_for_name(cls.Label.value, value),
+                )
                 preds.append(cond)
                 label_names_with_values.add(name)
             else:

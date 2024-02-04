@@ -1250,6 +1250,26 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     return time_obj.isoformat()
 
 
+def enrich_datetime_with_tz_info(timestamp_string):
+    if not timestamp_string:
+        return timestamp_string
+
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
+    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+
+
+def has_timezone(timestamp):
+    try:
+        dt = parser.parse(timestamp) if isinstance(timestamp, str) else timestamp
+
+        # Check if the parsed datetime object has timezone information
+        return dt.tzinfo is not None
+    except ValueError:
+        return False
+
+
 def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 
@@ -1575,7 +1595,7 @@ def is_ecr_url(registry: str) -> bool:
     return ".ecr." in registry and ".amazonaws.com" in registry
 
 
-def get_local_file_schema() -> List:
+def get_local_file_schema() -> list:
     # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
     # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     return ["file"] + list(string.ascii_lowercase)

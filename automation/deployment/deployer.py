@@ -691,8 +691,8 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
-    def _disable_deployment_in_helm_values(
-        self, helm_values: dict[str, str], deployment: str
+    def _toggle_component_in_helm_values(
+        self, helm_values: dict[str, str], component: str, disable: bool
     ) -> None:
         """
         Disable a deployment in the helm values.

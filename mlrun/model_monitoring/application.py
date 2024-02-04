@@ -14,6 +14,8 @@
 
 import dataclasses
 import json
+import re
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -106,7 +108,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
 
     def do(
         self, event: dict[str, Any]
-    ) -> Tuple[list[ModelMonitoringApplicationResult], dict]:
+    ) -> tuple[list[ModelMonitoringApplicationResult], dict]:
         """
         Process the monitoring event and return application results.
 
@@ -270,7 +272,7 @@ class PushToMonitoringWriter(StepToDict):
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"
 
-    def do(self, event: Tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
+    def do(self, event: tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
         """
         Push application results to the monitoring writer stream.
 

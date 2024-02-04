@@ -64,7 +64,7 @@ class ExcecutionParams:
         minikube: bool = False,
         sqlite: str = None,
         upgrade: bool = False,
-        custom_values: typing.List[str] = None,
+        custom_values: list[str] = None,
     ):
         self.registry_url = registry_url
         self.registry_secret_name = registry_secret_name
@@ -389,7 +389,7 @@ class CommunityEditionDeployer:
     def _generate_helm_install_arguments(
         self,
         ep: ExcecutionParams,
-    ) -> typing.List[str]:
+    ) -> list[str]:
         """
         Generate the helm install arguments.
         :param ep:  Execution parameters
@@ -451,7 +451,7 @@ class CommunityEditionDeployer:
     def _generate_helm_values(
         self,
         ep: ExcecutionParams,
-    ) -> typing.Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Generate the helm values.
         :return: Dictionary of helm values

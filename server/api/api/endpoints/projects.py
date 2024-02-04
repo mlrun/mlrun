@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import http
-import typing
 
 import fastapi
 import semver

@@ -4194,7 +4194,7 @@ class SQLDB(DBInterface):
         session,
         project: str,
         background_task_exceeded_timeout_func,
-        states: typing.Optional[typing.List[str]] = None,
+        states: typing.Optional[list[str]] = None,
         created_from: datetime = None,
         created_to: datetime = None,
         last_update_time_from: datetime = None,

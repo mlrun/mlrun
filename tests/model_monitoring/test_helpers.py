@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import typing
 from typing import Optional
 from unittest.mock import Mock, patch
 

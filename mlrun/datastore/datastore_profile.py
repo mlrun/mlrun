@@ -227,7 +227,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     type: str = pydantic.Field("gcs")
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
-    gcp_credentials: typing.Optional[typing.Union[str, typing.Dict]] = None
+    gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
     def convert_dict_to_json(cls, v):

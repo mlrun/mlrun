@@ -602,6 +602,10 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 lint: # Run all pre-commit hooks on all the tracked files
 	pre-commit run --all-files
 
+.PHONY: fmt
+fmt: # An alias for `make lint`
+	make lint
+
 .PHONY: lint-go
 lint-go:
 	cd server/log-collector && \

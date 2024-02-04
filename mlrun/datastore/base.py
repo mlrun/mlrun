@@ -665,23 +665,6 @@ def http_head(url, headers=None, auth=None):
     return response.headers
 
 
-def http_put(url, data, headers=None, auth=None, session=None):
-    try:
-        put_api = session.put if session else requests.put
-        response = put_api(
-            url, data=data, headers=headers, auth=auth, verify=verify_ssl
-        )
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}") from exc
-
-    mlrun.errors.raise_for_status(response)
-
-
-def http_upload(url, file_path, headers=None, auth=None):
-    with open(file_path, "rb") as data:
-        http_put(url, data, headers, auth)
-
-
 class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)

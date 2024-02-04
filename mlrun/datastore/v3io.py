@@ -15,11 +15,9 @@
 import mmap
 import os
 import time
-from copy import deepcopy
 from datetime import datetime
 
 import fsspec
-import requests
 import v3io.dataplane
 from v3io.dataplane.client import Client
 
@@ -32,8 +30,6 @@ from .base import (
     FileStats,
     basic_auth_header,
     http_head,
-    http_put,
-    http_upload,
 )
 
 V3IO_LOCAL_ROOT = "v3io"
@@ -100,13 +96,18 @@ class V3ioStore(DataStore):
 
     def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
+        container, path = self._get_container_and_path(key)
         file_size = os.path.getsize(src_path)  # in bytes
         if file_size <= ONE_MB:
-            http_upload(self.url + self._join(key), src_path, self.headers, None)
+            with open(src_path, "rb") as source_file:
+                data = source_file.read()
+                self.object.put(
+                    container=container,
+                    path=path,
+                    body=data,
+                    append=False,
+                )
             return
-        append_header = deepcopy(self.headers)
-        append_header["Range"] = "-1"
-
         # chunk must be a multiple of the ALLOCATIONGRANULARITY
         # https://docs.python.org/3/library/mmap.html
         if residue := max_chunk_size % mmap.ALLOCATIONGRANULARITY:
@@ -123,11 +124,12 @@ class V3ioStore(DataStore):
                     access=mmap.ACCESS_READ,
                     offset=file_offset,
                 ) as mmap_obj:
-                    http_put(
-                        self.url + self._join(key),
-                        mmap_obj,
-                        append_header if file_offset else self.headers,
-                        None,
+                    append = True if file_offset else False
+                    self.object.put(
+                        container=container,
+                        path=path,
+                        body=mmap_obj,
+                        append=append,
                     )
                     file_offset += chunk_size
 
@@ -147,29 +149,27 @@ class V3ioStore(DataStore):
 
     def _put(self, key, data, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
+        container, path = self._get_container_and_path(key)
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
-            http_put(self.url + self._join(key), data, self.headers, None)
+            self.object.put(container=container, path=path, body=data, append=False)
             return
-        append_header = deepcopy(self.headers)
-        append_header["Range"] = "-1"
         buffer_offset = 0
         try:
             data = memoryview(data)
         except TypeError:
             pass
 
-        with requests.Session() as requests_session:
-            while buffer_offset < buffer_size:
-                chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
-                http_put(
-                    self.url + self._join(key),
-                    data[buffer_offset : buffer_offset + chunk_size],
-                    append_header if buffer_offset else self.headers,
-                    None,
-                    requests_session,
-                )
-                buffer_offset += chunk_size
+        while buffer_offset < buffer_size:
+            chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+            append = True if buffer_offset else False
+            self.object.put(
+                container=container,
+                path=path,
+                body=data[buffer_offset : buffer_offset + chunk_size],
+                append=append,
+            )
+            buffer_offset += chunk_size
 
     def put(self, key, data, append=False):
         return self._put(key, data)

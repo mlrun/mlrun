@@ -58,12 +58,15 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     @classmethod
     def teardown_class(cls):
-        super().teardown_class()
         dir_data_item = mlrun.get_dataitem(cls.v3io_test_dir_url)
         try:
             dir_data_item.delete(recursive=True)
         except Exception:
             pass
+        super().teardown_class()
+
+    def teardown_method(self, method):
+        pass  # todo remove
 
     def setup_method(self, method):
         self.object_dir_url = f"{self.v3io_test_dir_url}/directory-{uuid.uuid4()}"
@@ -143,20 +146,15 @@ class TestV3ioDataStore(TestMLRunSystem):
         generated_buffer = bytearray(os.urandom(file_size))
         data_item, object_url = self._get_data_item()
         object_path = urlparse(object_url).path
-        try:
-            # Exercise the DataItem put flow
-            data_item.put(generated_buffer)
-            returned_buffer = data_item.get()
-            assert returned_buffer == generated_buffer
+        # Exercise the DataItem put flow
 
-            data_item.store._put(
-                object_path, generated_buffer, max_chunk_size=100 * 1024
-            )
-            returned_buffer = data_item.get()
-            assert returned_buffer == generated_buffer
+        data_item.put(generated_buffer)
+        returned_buffer = data_item.get()
+        assert returned_buffer == generated_buffer
 
-        finally:
-            data_item.delete()
+        data_item.store._put(object_path, generated_buffer, max_chunk_size=100 * 1024)
+        returned_buffer = data_item.get()
+        assert returned_buffer == generated_buffer
 
     def test_put_get_and_download(self):
         data_item, _ = self._get_data_item()

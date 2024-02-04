@@ -195,7 +195,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_security_context=None,
         expected_executor_security_context=None,
     ):
-
         body = self._get_custom_object_creation_body()
 
         if expected_driver_security_context:
@@ -218,7 +217,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self,
         expected_image_pull_secret=None,
     ):
-
         body = self._get_custom_object_creation_body()
         if expected_image_pull_secret:
             assert body["spec"].get("imagePullSecrets") == mlrun.utils.helpers.as_list(
@@ -617,7 +615,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_deploy_with_image_pull_secret(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-
         # no image pull secret
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)

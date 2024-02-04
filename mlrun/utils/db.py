@@ -26,11 +26,12 @@ class BaseModel:
         exclude = exclude or []
         mapper = class_mapper(self.__class__)
         columns = [column.key for column in mapper.columns if column.key not in exclude]
-        get_key_value = (
-            lambda c: (c, getattr(self, c).isoformat())
-            if isinstance(getattr(self, c), datetime)
-            else (c, getattr(self, c))
-        )
+
+        def get_key_value(c):
+            if isinstance(getattr(self, c), datetime):
+                return c, getattr(self, c).isoformat()
+            return c, getattr(self, c)
+
         return dict(map(get_key_value, columns))
 
 

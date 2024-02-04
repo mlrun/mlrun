@@ -94,7 +94,6 @@ class DaskSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -144,6 +143,8 @@ class DaskSpec(KubeResourceSpec):
         self._worker_resources = self.enrich_resources_with_default_pod_resources(
             "worker_resources", worker_resources
         )
+
+        self.state_thresholds = None  # not supported in dask
 
     @property
     def scheduler_resources(self) -> dict:
@@ -526,7 +527,6 @@ class DaskCluster(KubejobRuntime):
         )
 
     def _run(self, runobj: RunObject, execution):
-
         handler = runobj.spec.handler
         self._force_handler(handler)
 

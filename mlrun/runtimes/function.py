@@ -63,7 +63,6 @@ def validate_nuclio_version_compatibility(*min_versions):
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
-
         # only log when version is set but invalid
         if mlconf.nuclio_version:
             logger.warning(
@@ -166,7 +165,6 @@ class NuclioSpec(KubeResourceSpec):
         state_thresholds=None,
         disable_default_http_trigger=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -195,6 +193,7 @@ class NuclioSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
 
         self.base_spec = base_spec or {}
@@ -208,6 +207,7 @@ class NuclioSpec(KubeResourceSpec):
         self.readiness_timeout_before_failure = readiness_timeout_before_failure
         self.service_type = service_type
         self.add_templated_ingress_host_mode = add_templated_ingress_host_mode
+        self.state_thresholds = None  # not supported in nuclio
 
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 4
@@ -337,7 +337,7 @@ class RemoteRuntime(KubeResource):
         :param source: a full path to the nuclio function source (code entry) to load the function from
         :param handler: a path to the function's handler, including path inside archive/git repo
         :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        :param runtime: (optional) the runtime of the function (defaults to mlrun.mlconf.default_nuclio_runtime)
 
         :Examples:
 
@@ -503,7 +503,7 @@ class RemoteRuntime(KubeResource):
         consumer_group = kwargs.pop("consumerGroup", None)
         if consumer_group:
             logger.warning(
-                "consumerGroup kwargs value is ignored. use group argument instead"
+                "'consumerGroup' kwargs value is ignored. use group argument instead"
             )
 
         container, path = split_path(stream_path)
@@ -530,7 +530,6 @@ class RemoteRuntime(KubeResource):
 
     def deploy(
         self,
-        dashboard="",
         project="",
         tag="",
         verbose=False,
@@ -540,7 +539,6 @@ class RemoteRuntime(KubeResource):
     ):
         """Deploy the nuclio function to the cluster
 
-        :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
@@ -550,6 +548,13 @@ class RemoteRuntime(KubeResource):
         """
         # todo: verify that the function name is normalized
 
+        old_http_session = getattr(self, "_http_session", None)
+        if old_http_session:
+            # ensure existing http session is terminated prior to (re)deploy to ensure that a connection to an old
+            # replica will not be reused
+            old_http_session.close()
+            self._http_session = None
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -557,12 +562,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-
-        if dashboard:
-            warnings.warn(
-                "'dashboard' parameter is no longer supported on client side, "
-                "it is being configured through the MLRun API.",
-            )
 
         save_record = False
         # Attempt auto-mounting, before sending to remote build
@@ -595,7 +594,7 @@ class RemoteRuntime(KubeResource):
             save_record = True
 
         logger.info(
-            "successfully deployed function",
+            "Successfully deployed function",
             internal_invocation_urls=self.status.internal_invocation_urls,
             external_invocation_urls=self.status.external_invocation_urls,
         )
@@ -625,7 +624,7 @@ class RemoteRuntime(KubeResource):
 
         if state != "ready":
             logger.error("Nuclio function failed to deploy", function_state=state)
-            raise RunError(f"function {self.metadata.name} deployment failed")
+            raise RunError(f"Function {self.metadata.name} deployment failed")
 
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
@@ -804,7 +803,6 @@ class RemoteRuntime(KubeResource):
 
     def deploy_step(
         self,
-        dashboard="",
         project="",
         models=None,
         env=None,
@@ -814,7 +812,6 @@ class RemoteRuntime(KubeResource):
     ):
         """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead
 
-        :param dashboard:      DEPRECATED. Keep empty to allow auto-detection by MLRun API.
         :param project:        project name, defaults to function project
         :param models:         model name and paths
         :param env:            dict of environment variables
@@ -847,7 +844,6 @@ class RemoteRuntime(KubeResource):
             name,
             self,
             func_url=url,
-            dashboard=dashboard,
             project=project,
             models=models,
             env=env,
@@ -877,7 +873,7 @@ class RemoteRuntime(KubeResource):
         :param body:     request body (str, bytes or a dict for json requests)
         :param method:   HTTP method (GET, PUT, ..)
         :param headers:  key/value dict with http headers
-        :param dashboard: nuclio dashboard address
+        :param dashboard: nuclio dashboard address (deprecated)
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
@@ -885,6 +881,14 @@ class RemoteRuntime(KubeResource):
                                      see this link for more information:
                                      https://requests.readthedocs.io/en/latest/api/#requests.request
         """
+        if dashboard:
+            # TODO: remove in 1.8.0
+            warnings.warn(
+                "'dashboard' parameter is no longer supported on client side, "
+                "it is being configured through the MLRun API. It will be removed in 1.8.0.",
+                FutureWarning,
+            )
+
         if not method:
             method = "POST" if body else "GET"
 
@@ -911,8 +915,8 @@ class RemoteRuntime(KubeResource):
                 ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
                         "Default http trigger creation is disabled and there is no any other custom http trigger, "
-                        "so function can not be invoked via http. Either enable default http trigger creation or create"
-                        "custom http trigger"
+                        "so function can not be invoked via http. Either enable default http trigger creation or "
+                        "create custom http trigger"
                     )
                 state, _, _ = self._get_state(dashboard, auth_info=auth_info)
                 if state not in ["ready", "scaledToZero"]:
@@ -938,8 +942,8 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("invoking function", method=method, path=path)
-            if not hasattr(self, "_http_session"):
+            logger.info("Invoking function", method=method, path=path)
+            if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(
                 method, path, headers=headers, **http_client_kwargs
@@ -977,10 +981,10 @@ class RemoteRuntime(KubeResource):
         state = self.status.state
         if state != "ready":
             if state:
-                raise RunError(f"cannot run, function in state {state}")
+                raise RunError(f"Cannot run, function in state {state}")
             state, _, _ = self._get_state(raise_on_exception=True)
             if state != "ready":
-                logger.info("starting nuclio build!")
+                logger.info("Starting nuclio build!")
                 self.deploy()
 
     def _run(self, runobj: RunObject, execution):
@@ -1083,12 +1087,12 @@ class RemoteRuntime(KubeResource):
                     stop = generator.eval_stop_condition(run_results)
                     if stop:
                         logger.info(
-                            f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                            f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                         )
                         break
 
                 if num_errors > generator.max_errors:
-                    logger.error("max errors reached, stopping iterations!")
+                    logger.error("Max errors reached, stopping iterations!")
                     stop = True
                     break
 
@@ -1098,7 +1102,6 @@ class RemoteRuntime(KubeResource):
         return results
 
     def _resolve_invocation_url(self, path, force_external_address):
-
         if not path.startswith("/") and path != "":
             path = f"/{path}"
 
@@ -1225,7 +1228,6 @@ def get_nuclio_deploy_status(
     name,
     project,
     tag,
-    dashboard="",
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
@@ -1237,13 +1239,12 @@ def get_nuclio_deploy_status(
     :param name:                function name
     :param project:             project name
     :param tag:                 function tag
-    :param dashboard:           DEPRECATED. Keep empty to allow auto-detection by MLRun API.
     :param last_log_timestamp:  last log timestamp
     :param verbose:             print logs
     :param resolve_address:     whether to resolve function address
     :param auth_info:           authentication information
     """
-    api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
+    api_address = find_dashboard_url(mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
     get_err_message = f"Failed to get function {name} deploy status"
 

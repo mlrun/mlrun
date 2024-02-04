@@ -128,7 +128,10 @@ class Secrets(
                 mlrun.utils.vault.store_vault_project_secrets(project, secrets_to_store)
         elif secrets.provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if self.secrets_provider:
-                (secret_name, action,) = self.secrets_provider.store_project_secrets(
+                (
+                    secret_name,
+                    action,
+                ) = self.secrets_provider.store_project_secrets(
                     project, secrets_to_store
                 )
                 secret_keys = [secret_name for secret_name in secrets_to_store.keys()]
@@ -155,7 +158,10 @@ class Secrets(
     def read_auth_secret(
         self, secret_name, raise_on_not_found=False
     ) -> mlrun.common.schemas.AuthSecretData:
-        (username, access_key,) = self.secrets_provider.read_auth_secret(
+        (
+            username,
+            access_key,
+        ) = self.secrets_provider.read_auth_secret(
             secret_name, raise_on_not_found=raise_on_not_found
         )
         return mlrun.common.schemas.AuthSecretData(

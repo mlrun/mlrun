@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
 import tempfile
 import uuid
@@ -59,7 +60,6 @@ def google_cloud_storage_configured():
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
-
     #  must be static, in order to get access from setup_class or teardown_class.
     @staticmethod
     def clean_test_directory(bucket_name, object_dir, gcs_fs):
@@ -72,9 +72,17 @@ class TestGoogleCloudStorage:
         self.object_dir = "test_mlrun_gcs_objects"
         self.profile_name = "gcs_profile"
         self.credentials_path = config["env"].get("credentials_json_file")
-        with open(self.credentials_path, "r") as gcs_credentials_path:
-            self.credentials = gcs_credentials_path.read()
-        self._gcs_fs = fsspec.filesystem("gcs", token=self.credentials_path)
+
+        try:
+            credentials = json.loads(self.credentials_path)
+            token = credentials
+            self.credentials = self.credentials_path
+        except json.JSONDecodeError:
+            token = self.credentials_path
+            with open(self.credentials_path, "r") as gcs_credentials_path:
+                self.credentials = gcs_credentials_path.read()
+
+        self._gcs_fs = fsspec.filesystem("gcs", token=token)
         self.clean_test_directory(
             bucket_name=self._bucket_name,
             object_dir=self.object_dir,

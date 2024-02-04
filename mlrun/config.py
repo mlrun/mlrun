@@ -105,6 +105,12 @@ default_config = {
             "list_runs_time_period_in_days": 7,  # days
         }
     },
+    "crud": {
+        "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
+            "batch_delete_runs_chunk_size": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -121,6 +127,13 @@ default_config = {
         # But if both the server and the client set some value, we want the client to take precedence over the server.
         # By setting the default to None we are able to differentiate between the two cases.
         "generate_target_path_from_artifact_hash": None,
+        # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
+        # migration progress.
+        "artifact_migration_batch_size": 200,
+        "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
+        "datasets": {
+            "max_preview_columns": 100,
+        },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
@@ -179,6 +192,8 @@ default_config = {
                 "migrations": "3600",
                 "load_project": "60",
                 "run_abortion": "600",
+                "abort_grace_period": "10",
+                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -206,7 +221,7 @@ default_config = {
                     "pending_scheduled": "1h",
                     "pending_not_scheduled": "-1",  # infinite
                     "image_pull_backoff": "1h",
-                    "running": "24h",
+                    "executing": "24h",
                 }
             },
         },
@@ -251,8 +266,8 @@ default_config = {
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
+        # in production envs we recommend to use a real db (e.g. mysql)
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
-        "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
@@ -263,7 +278,7 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://,ds://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.common.schemas.APIStates for options
@@ -358,6 +373,7 @@ default_config = {
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
+            "pull_logs_default_size_limit": 1024 * 1024,  # 1 MB
         },
         "authorization": {
             "mode": "none",  # one of none, opa
@@ -387,10 +403,11 @@ default_config = {
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "2 minutes",
+            "project_owners_cache_ttl": "30 seconds",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
-            "project_owners_cache_ttl": "30 seconds",
+            "iguazio_client_job_cache_ttl": "20 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -445,7 +462,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -638,6 +655,7 @@ default_config = {
         # used for igz client when emitting events
         "access_key": "",
     },
+    "grafana_url": "",
 }
 
 _is_running_as_api = None
@@ -1089,7 +1107,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_project_path_template(
+            return mlrun.utils.helpers.template_artifact_path(
                 artifact_path=artifact_path + file_path, project=project
             )
 
@@ -1130,7 +1148,9 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.7"
+            not self.nuclio_version
+            or semver.VersionInfo.parse(self.nuclio_version)
+            >= semver.VersionInfo.parse("1.12.10")
         )
 
 

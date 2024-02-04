@@ -169,7 +169,6 @@ class Spark3JobSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -501,8 +500,8 @@ class Spark3Runtime(KubejobRuntime):
             )
         if tolerations:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                "Tolerations can be set in spark runtime but not in with_node_selection"
-                "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations"
+                "Tolerations can be set in spark runtime but not in with_node_selection. "
+                "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations."
             )
         if node_name:
             raise NotImplementedError(

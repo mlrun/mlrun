@@ -141,9 +141,9 @@ def chdir_to_test_location(request):
 def patch_file_forbidden(monkeypatch):
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
@@ -157,9 +157,9 @@ def patch_file_forbidden(monkeypatch):
 def patch_file_not_found(monkeypatch):
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise FileNotFoundError
 
     mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
@@ -225,11 +225,13 @@ class RunDBMock:
         self._functions[name] = function
         return hash_key
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         self._artifacts[key] = artifact
         return artifact
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
+    def read_artifact(self, key, tag=None, iter=None, project="", tree=None, uid=None):
         return self._artifacts.get(key, None)
 
     def list_artifacts(
@@ -240,12 +242,11 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        kind=None,
-        category=None,
         iter: int = None,
         best_iteration: bool = False,
-        as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        kind: str = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:

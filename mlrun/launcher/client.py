@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import getpass
-import os
 from typing import Optional
 
 import IPython
@@ -72,10 +70,9 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         run.metadata.labels["kind"] = runtime.kind
-        if "owner" not in run.metadata.labels:
-            run.metadata.labels["owner"] = (
-                os.environ.get("V3IO_USERNAME") or getpass.getuser()
-            )
+        mlrun.runtimes.utils.enrich_run_labels(
+            run.metadata.labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
                 "{{run.user}}", run.metadata.labels["owner"]

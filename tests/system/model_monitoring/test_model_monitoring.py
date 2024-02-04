@@ -367,10 +367,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         # Ingest data
-        mlrun.feature_store.ingest(diabetes_set, train_set)
-        mlrun.feature_store.ingest(
-            label_set, target_set, targets=[mlrun.datastore.targets.ParquetTarget()]
-        )
+        diabetes_set.ingest(train_set)
+        label_set.ingest(target_set, targets=[mlrun.datastore.targets.ParquetTarget()])
 
         # Define feature vector and save it to MLRun's feature store DB
         fv = mlrun.feature_store.FeatureVector(
@@ -703,7 +701,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                     calcs = drift_measures[feature]
                     for calc in stuff_for_each_column:
                         assert calc in calcs
-                        assert type(calcs[calc]) == float
+                        assert isinstance(calcs[calc], float)
                 expected = endpoint_with_details.status.feature_stats
                 for feature in columns:
                     assert feature in expected
@@ -723,7 +721,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                 # overall drift analysis (details dashboard)
                 for measure in measures:
                     assert measure in drift_measures
-                    assert type(drift_measures[measure]) == float
+                    assert isinstance(drift_measures[measure], float)
 
                 # Validate error count value
                 assert endpoint.status.error_count == 1
@@ -772,6 +770,9 @@ class TestBatchDrift(TestMLRunSystem):
     """
 
     project_name = "pr-batch-drift"
+
+    def custom_setup(self):
+        mlrun.runtimes.utils.global_context.set(None)
 
     def test_batch_drift(self):
         # Main validations:
@@ -993,6 +994,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.function_name = f"{cls.name_prefix}-function"
         cls._train()
 
+    def custom_setup(self):
+        mlrun.runtimes.utils.global_context.set(None)
+
     @classmethod
     def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
         rng = np.random.default_rng(seed=23)
@@ -1004,7 +1008,8 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
     @classmethod
     def _train(cls) -> None:
         cls.classif.fit(
-            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+            cls.x_train,
+            cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
         )
 
     def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
@@ -1043,9 +1048,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(
-                name=f"{self.name_prefix}-context"
-            ),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
         )
@@ -1082,6 +1085,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.infer_results_df[
             mlrun.common.schemas.EventFieldType.TIMESTAMP
         ] = datetime.utcnow()
+
+    def custom_setup(self):
+        mlrun.runtimes.utils.global_context.set(None)
 
     def _log_model(self) -> str:
         model = self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
@@ -1120,8 +1126,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             model_path=model_uri,
             trigger_monitoring_job=True,
             model_endpoint_name=f"{self.name_prefix}-test",
-            context=mlrun.get_or_create_ctx(
-                name=f"{self.name_prefix}-context"
-            ),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
         )
         self._test_v3io_tsdb_record()

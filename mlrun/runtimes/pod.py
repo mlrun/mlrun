@@ -230,6 +230,9 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
+        # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
+        # _dict_fields and doesn't have a setter.
+        self._termination_grace_period_seconds = None
         self.__fields_pending_discard = {}
 
     @property
@@ -300,6 +303,10 @@ class KubeResourceSpec(FunctionSpec):
         self._security_context = transform_attribute_to_k8s_class_instance(
             "security_context", security_context
         )
+
+    @property
+    def termination_grace_period_seconds(self) -> typing.Optional[int]:
+        return self._termination_grace_period_seconds
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
@@ -562,9 +569,7 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-            node_selector
-        )
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
 
     def enrich_function_preemption_spec(
         self,
@@ -726,17 +731,13 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if (
-            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        ):
+        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = (
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        )
+        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -812,9 +813,11 @@ class KubeResourceSpec(FunctionSpec):
             self._initialize_affinity(affinity_field_name)
             self._initialize_node_affinity(affinity_field_name)
 
+            # fmt: off
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
                 new_required_during_scheduling_ignored_during_execution
             )
+            # fmt: on
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
@@ -965,7 +968,6 @@ class AutoMountType(str, Enum):
         return mlrun.platforms.other.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
-
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun.v3io_cred,
@@ -978,6 +980,10 @@ class AutoMountType(str, Enum):
 
 
 class KubeResource(BaseRuntime):
+    """
+    A parent class for runtimes that generate k8s resources when executing.
+    """
+
     kind = "job"
     _is_nested = True
 
@@ -1121,11 +1127,13 @@ class KubeResource(BaseRuntime):
         If the threshold is not set for a state, the default threshold will be used.
 
         :param state_thresholds: A dictionary of state to threshold. The supported states are:
-            * pending_scheduled - The pod is scheduled on a node but not yet running
-            * pending_not_scheduled - The pod is not yet scheduled on a node
-            * running - The is running
-            * image_pull_backoff - The is in image pull backoff
+
+            * pending_scheduled - The pod/crd is scheduled on a node but not yet running
+            * pending_not_scheduled - The pod/crd is not yet scheduled on a node
+            * executing - The pod/crd started and is running
+            * image_pull_backoff - The pod/crd is in image pull backoff
             See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)
         """
@@ -1241,7 +1249,7 @@ class KubeResource(BaseRuntime):
         For Iguazio we handle security context internally -
         see mlrun.common.schemas.function.SecurityContextEnrichmentModes
 
-        Example:
+        Example::
 
             from kubernetes import client as k8s_client
 

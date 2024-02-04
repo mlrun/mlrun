@@ -19,7 +19,6 @@ funcs = {}
 
 @dsl.pipeline(name="Example pipeline", description="some pipeline description.")
 def kfpipeline():
-
     # analyze our dataset
     funcs["describe"].as_step(
         name="summary",

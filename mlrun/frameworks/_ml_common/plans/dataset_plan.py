@@ -89,9 +89,7 @@ class DatasetPlan(MLPlan):
         self._preview = preview
         self._stats = stats
         self._fmt = fmt
-        self._plans = (
-            {}
-        )  # TODO: Implement DatasetPlansLibrary with dataset specific artifacts plans.
+        self._plans = {}  # TODO: Implement DatasetPlansLibrary with dataset specific artifacts plans.
 
         # Continue initializing the plan:
         super(DatasetPlan, self).__init__(need_probabilities=False)

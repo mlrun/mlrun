@@ -50,6 +50,8 @@ test_environment = TestMLRunSystem._get_env_from_file()
 )
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestAwsS3(TestMLRunSystem):
+    project_name = "s3-system-test"
+
     def _make_target_names(self, prefix, bucket_name, object_dir, object_file):
         bucket_path = prefix + bucket_name
         object_path = f"{object_dir}/{object_file}"
@@ -87,7 +89,7 @@ class TestAwsS3(TestMLRunSystem):
         mlrun.get_or_create_project(self.project_name)
         profile = DatastoreProfileS3(
             name="s3ds_profile",
-            access_key=self._access_key_id,
+            access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(profile)
@@ -129,7 +131,7 @@ class TestAwsS3(TestMLRunSystem):
             entities=[fstore.Entity("Column1")],
         )
 
-        fstore.ingest(fset, source=parquet_source, targets=targets)
+        fset.ingest(source=parquet_source, targets=targets)
         result = ParquetSource(path=target_path).to_dataframe(
             columns=("Column1", "Column2")
         )

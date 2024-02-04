@@ -8,13 +8,32 @@ All of these are used during the function deployment.
 Configuring runs and functions is relevant for all supported cloud platforms.
 
 **In this section**
+- [Environment variables](#environment-variables)
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Number of workers and GPUs](#number-of-workers-and-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
+- [Node selection](#node-selection)
+- [Scaling and auto-scaling](#scaling-and-auto-scaling)
+- [Mounting persistent storage](#mounting-persistent-storage)
 - [Preventing stuck pods](#preventing-stuck-pods)
+
+## Environment variables
+
+Environment variables can be added individually, from a Python dictionary, or a file:
+
+```python
+# Single variable
+fn.set_env(name="MY_ENV", value="MY_VAL")
+
+# Multiple variables
+fn.set_envs(env_vars={"MY_ENV" : "MY_VAL", "SECOND_ENV" : "SECOND_VAL"})
+
+# Multiple variables from file
+fn.set_envs(file_path="env.txt")
+```
 
 ## Replicas
 
@@ -40,7 +59,17 @@ See more details in [Dask](../runtimes/dask-overview.html), [MPIJob and Horovod]
 
 When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it can consume 
 resources up to the limits defined. The default limits are set at the service level. You can change the default limit for the service, and 
-also overwrite the default when creating a job, or a function. 
+also overwrite the default when creating a job, or a function. Adding requests and limits to your function specify what compute resources 
+are required. It is best practice to define this for each MLRun function.
+
+
+```python
+# Requests - lower bound
+fn.with_requests(mem="1G", cpu=1)
+
+# Limits - upper bound
+fn.with_limits(mem="2G", cpu=2, gpus=1)
+```
 
 See more about [Kubernetes Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 
@@ -65,7 +94,8 @@ When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a 
 ```
 ## Number of workers and GPUs
 
-For each Nuclio or serving function, MLRun creates an HTTP trigger with the default of 1 worker.  When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](./create-and-use-functions.html#memory-cpu-gpu-resources).
+For each Nuclio or serving function, MLRun creates an HTTP trigger with the default of 1 worker.  When using GPU in remote functions you must ensure 
+that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](./create-and-use-functions.html#memory-cpu-gpu-resources).
 
 You can change the number of workers after you create the trigger (function object), then you need to 
 redeploy the function.  Examples of changing the number of workers:
@@ -274,6 +304,37 @@ train_fn.run(inputs={"dataset" :my_data})
 
 See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
 
+
+## Node selection
+Node selection can be used to specify where to run workloads (e.g. specific node groups, instance types, etc.). This is a more advanced parameter mainly used in production deployments to isolate platform services from workloads. See [**Node affinity**](../concepts/node-affinity.html) for more information on how to configure node selection.
+
+```python
+# Only run on non-spot instances
+fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
+```
+
+## Scaling and auto-scaling
+Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. See [**Replicas**](./configuring-job-resources.html#replicas) to see how to configure scaling behavior per runtime. This example demonstrates setting replicas for `nuclio`/`serving` runtimes:
+
+```python
+# Nuclio/serving scaling
+fn.spec.replicas = 2
+fn.spec.min_replicas = 1
+fn.spec.max_replicas = 4
+```
+
+## Mount persistent storage
+In some instances, you might need to mount a file-system to your container to persist data. This can be done with native K8s PVC's or the V3IO data layer for Iguazio clusters. See [**Attach storage to functions**](./function-storage.html) for more information on the storage options.
+
+```python
+# Mount persistent storage - V3IO
+fn.apply(mlrun.mount_v3io())
+
+# Mount persistent storage - PVC
+fn.apply(mlrun.platforms.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
+```
+
+
 ## Preventing stuck pods
 
 The runtimes spec has four "state_threshold" attributes that can determine when to abort a run. 
@@ -302,5 +363,8 @@ func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute a
 ```
 
 See:
-- {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`
 - {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
+
+```{admonition} Note
+State thresholds are not supported for Nuclio runtimes as nuclio provides it's own monitoring and for dask runtime which can be monitored by the client.
+```

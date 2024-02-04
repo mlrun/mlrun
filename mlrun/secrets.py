@@ -39,7 +39,6 @@ class SecretsStore:
         pass
 
     def add_source(self, kind, source="", prefix=""):
-
         if kind == "inline":
             if isinstance(source, str):
                 source = literal_eval(source)

@@ -82,7 +82,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
         function = run.get("spec", {}).get("function", None)
         if function:
-
             # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
             # we only want the function name
             project_and_function = function.split("@")[0]

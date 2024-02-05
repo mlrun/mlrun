@@ -170,6 +170,7 @@ async def test_verify_request_session_failure(
 ):
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
+    mock_request.state.request_id = "test-request-id"
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
     patch_restful_request(
         iguazio_client.is_sync,

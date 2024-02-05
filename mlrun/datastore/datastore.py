@@ -182,16 +182,20 @@ class StoreManager:
                 url, project, allow_empty_resources, secrets
             )
 
-        store, subpath = self.get_or_create_store(url, secrets=secrets)
+        store, subpath = self.get_or_create_store(
+            url, secrets=secrets, project_name=project
+        )
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
-    def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):
+    def get_or_create_store(
+        self, url, secrets: dict = None, project_name=""
+    ) -> (DataStore, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         store_key = f"{schema}://{endpoint}"
 
         if schema == "ds":
-            datastore_profile = datastore_profile_read(url)
+            datastore_profile = datastore_profile_read(url, project_name)
             if secrets and datastore_profile.secrets():
                 secrets = merge(secrets, datastore_profile.secrets())
             else:

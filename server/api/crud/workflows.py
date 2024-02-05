@@ -384,7 +384,7 @@ class WorkflowRunners(
                 return source, save, True
 
             if source.startswith("./") or source == ".":
-                if project.spec.build.source_target_dir:
+                if project.spec.build and project.spec.build.source_target_dir:
                     source = os.path.normpath(
                         os.path.join(project.spec.build.source_target_dir, source)
                     )

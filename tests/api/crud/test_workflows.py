@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os.path
 
 import pytest
 import sqlalchemy.orm
@@ -22,6 +23,13 @@ import tests.api.conftest
 
 
 class TestWorkflows(tests.api.conftest.MockedK8sHelper):
+    @pytest.mark.parametrize(
+        "source_target_dir",
+        [
+            "/home/mlrun_code",
+            None,
+        ],
+    )
     @pytest.mark.parametrize(
         "source",
         [
@@ -34,12 +42,18 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
         self,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock,
+        source_target_dir: str,
         source: str,
     ):
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
             spec=mlrun.common.schemas.ProjectSpec(),
         )
+        if source_target_dir:
+            project.spec.build = mlrun.common.schemas.common.ImageBuilder(
+                source_target_dir=source_target_dir
+            )
+
         server.api.crud.Projects().create_project(db, project)
 
         run_name = "run-name"
@@ -80,7 +94,15 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
             assert run.spec.parameters["url"] == source
             assert "project_context" not in run.spec.parameters
         else:
-            assert run.spec.parameters["project_context"] == source
+            if source_target_dir and source.startswith("."):
+                expected_project_context = os.path.normpath(
+                    os.path.join(source_target_dir, source)
+                )
+                assert (
+                    run.spec.parameters["project_context"] == expected_project_context
+                )
+            else:
+                assert run.spec.parameters["project_context"] == source
             assert "url" not in run.spec.parameters
 
         assert run.spec.handler == "mlrun.projects.load_and_run"

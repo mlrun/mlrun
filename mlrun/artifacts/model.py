@@ -164,7 +164,7 @@ class ModelArtifact(Artifact):
         self.spec.algorithm = algorithm
         self.spec.feature_vector = feature_vector
         self.spec.feature_weights = feature_weights
-        self.spec.feature_stats = None
+        self.spec.feature_stats = {}
 
     @property
     def spec(self) -> ModelArtifactSpec:
@@ -467,7 +467,7 @@ class LegacyModelArtifact(LegacyArtifact):
         self.algorithm = algorithm
         self.feature_vector = feature_vector
         self.feature_weights = feature_weights
-        self.feature_stats = None
+        self.feature_stats = {}
         self.model_target_file = model_target_file
 
     @property

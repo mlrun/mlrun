@@ -85,7 +85,7 @@ class V3ioStore(DataStore):
 
     def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
-        container, path = split_path(key)
+        container, path = split_path(self._join(key))
         file_size = os.path.getsize(src_path)  # in bytes
         if file_size <= ONE_MB:
             with open(src_path, "rb") as source_file:
@@ -126,19 +126,14 @@ class V3ioStore(DataStore):
         return self._upload(key, src_path)
 
     def get(self, key, size=None, offset=0):
-        container, path = split_path(key)
+        container, path = split_path(self._join(key))
         return self.object.get(
             container=container, path=path, offset=offset, num_bytes=size
         ).body
-        # headers = self.headers
-        # if size or offset:
-        #     headers = deepcopy(headers)
-        #     headers["Range"] = get_range(size, offset)
-        # return http_get(self.url + self._join(key), headers)
 
     def _put(self, key, data, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
-        container, path = split_path(key)
+        container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
             self.object.put(container=container, path=path, body=data, append=False)
@@ -164,7 +159,7 @@ class V3ioStore(DataStore):
         return self._put(key, data)
 
     def stat(self, key):
-        container, path = split_path(key)
+        container, path = split_path(self._join(key))
         response = self.object.head(container=container, path=path)
         head = dict(response.headers.items())
         size = int(head.get("Content-Length", "0"))
@@ -175,8 +170,7 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        # container, subpath = split_path(self._join(key))
-        container, subpath = split_path(key)
+        container, subpath = split_path(self._join(key))
         if not subpath.endswith("/"):
             subpath += "/"
 

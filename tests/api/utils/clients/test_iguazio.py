@@ -84,8 +84,8 @@ async def test_verify_request_session_success(
     )
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = mock_request_headers
-
     mock_response_headers = _generate_session_verification_response_headers()
+    mock_request.state.request_id = "test-request-id"
 
     def _verify_session_mock(*args, **kwargs):
         response = {}

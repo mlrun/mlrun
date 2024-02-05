@@ -1357,7 +1357,7 @@ class TestProject(TestMLRunSystem):
 
         project_dir = f"{projects_dir}/{name}"
         source = "git://github.com/mlrun/project-demo.git"
-        source_target_dir = "/home/mlrun_code/project"
+        source_target_dir = "./project"  # Optional, results to /home/mlrun_code/project
         artifact_path = f"v3io:///projects/{name}"
 
         project = mlrun.load_project(
@@ -1374,7 +1374,7 @@ class TestProject(TestMLRunSystem):
         run = project.run(
             "main",
             engine="remote",
-            source=source_target_dir,
+            source="./",  # Relative to project.spec.build.source_target_dir
             artifact_path=artifact_path,
             dirty=True,
         )

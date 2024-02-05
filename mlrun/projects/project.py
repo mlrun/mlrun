@@ -2602,7 +2602,8 @@ class MlrunProject(ModelObj):
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a remote URL or a path to the context on the runner's image.
+                          Can be a remote URL or a path to the project's context on the runner's image.
+                          Path can be absolute or relative to `project.spec.build.source_target_dir`.
                           For other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
                           Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
@@ -3008,6 +3009,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         builder_env: dict = None,
         extra_args: str = None,
+        source_target_dir: str = None,
     ):
         """specify builder configuration for the project
 
@@ -3028,6 +3030,7 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param source_target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
@@ -3051,6 +3054,7 @@ class MlrunProject(ModelObj):
             overwrite=overwrite_build_params,
             builder_env=builder_env,
             extra_args=extra_args,
+            source_target_dir=source_target_dir,
         )
 
         if set_as_default and image != self.default_image:
@@ -3164,6 +3168,9 @@ class MlrunProject(ModelObj):
                 extra_args=extra_args,
                 force_build=True,
             )
+
+            # Get the enriched target dir from the function
+            self.spec.build.source_target_dir = function.spec.build.source_target_dir
 
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import typing
 import uuid
 from typing import Dict
@@ -379,7 +380,14 @@ class WorkflowRunners(
             save = False
 
             # Path like source is not supported for load_only since it uses the mlrun default image
-            if source.startswith("/") or source.startswith("./"):
+            if source.startswith("/"):
+                return source, save, True
+
+            if source.startswith("./") or source == ".":
+                if project.spec.build.source_target_dir:
+                    source = os.path.normpath(
+                        os.path.join(project.spec.build.source_target_dir, source)
+                    )
                 return source, save, True
 
         if "://" not in source:

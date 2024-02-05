@@ -19,7 +19,7 @@ from sqlalchemy.orm import class_mapper
 
 
 class BaseModel:
-    def to_dict(self, exclude=None):
+    def to_dict(self, exclude=None, strip: bool = False):
         """
         NOTE - this function (currently) does not handle serializing relationships
         """
@@ -44,10 +44,10 @@ class HasStruct(BaseModel):
     def struct(self, value):
         self.body = pickle.dumps(value)
 
-    def to_dict(self, exclude=None):
+    def to_dict(self, exclude=None, strip: bool = False):
         """
         NOTE - this function (currently) does not handle serializing relationships
         """
         exclude = exclude or []
         exclude.append("body")
-        return super().to_dict(exclude)
+        return super().to_dict(exclude, strip=strip)

@@ -127,7 +127,9 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow"
-    project_name += datetime.now().strftime("%y%m%d%H%M")  # a workaround for ML-5588
+    project_name += datetime.now().strftime(  # remove when ML-5588 is fixed
+        "%y%m%d%H%M"
+    )
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 

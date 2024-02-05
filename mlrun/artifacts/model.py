@@ -52,8 +52,6 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_vector",
         "feature_weights",
         "feature_stats",
-        "numeric_inputs",
-        "numeric_outputs",
     ]
 
     def __init__(
@@ -95,8 +93,6 @@ class ModelArtifactSpec(ArtifactSpec):
         self.parameters = paraemeters or {}
         self.inputs: List[Feature] = inputs or []
         self.outputs: List[Feature] = outputs or []
-        self.numeric_inputs: List[int] = []
-        self.numeric_outputs: List[int] = []
         self.framework = framework
         self.algorithm = algorithm
         self.feature_vector = feature_vector
@@ -121,36 +117,6 @@ class ModelArtifactSpec(ArtifactSpec):
     @outputs.setter
     def outputs(self, outputs: List[Feature]):
         self._outputs = ObjectList.from_list(Feature, outputs)
-
-    @property
-    def numeric_inputs(self) -> List[int]:
-        """input feature list"""
-        return self._numeric_inputs
-
-    @numeric_inputs.setter
-    def numeric_inputs(self, numeric_inputs: List[Feature]):
-        self._numeric_inputs = ObjectList.from_list(int, numeric_inputs)
-
-    def set_numeric_inputs(self):
-        self._numeric_inputs = []
-        for i in range(len(self.inputs)):
-            if self.inputs[i].is_numeric():
-                self._numeric_inputs.append(i)
-
-    @property
-    def numeric_outputs(self) -> List[int]:
-        """input feature list"""
-        return self._numeric_inputs
-
-    @numeric_outputs.setter
-    def numeric_outputs(self, numeric_outputs: List[Feature]):
-        self._numeric_outputs = ObjectList.from_list(int, numeric_outputs)
-
-    def set_numeric_outputs(self):
-        self._numeric_outputs = []
-        for i in range(len(self.outputs)):
-            if self.outputs[i].is_numeric():
-                self._numeric_outputs.append(i)
 
 
 class ModelArtifact(Artifact):
@@ -301,21 +267,29 @@ class ModelArtifact(Artifact):
         inferer.infer_schema(
             subset, self.spec.inputs, {}, options=InferOptions.Features
         )
-        self.spec.set_numeric_inputs()
-        numeric_columns = [subset.columns[i] for i in self.spec.numeric_inputs]
+        numeric_inputs = self._extract_numeric_features(self.spec.inputs)
+        numeric_outputs = []
         if label_columns:
             inferer.infer_schema(
                 df[label_columns], self.spec.outputs, {}, options=InferOptions.Features
             )
-            self.spec.set_numeric_outputs()
-            numeric_columns.extend(
-                [df[label_columns].columns[i] for i in self.spec.numeric_outputs]
-            )
+            numeric_outputs = self._extract_numeric_features(self.spec.outputs)
         if with_stats:
             # only on the numeric columns
+            numeric_columns = [
+                feature.name for feature in numeric_outputs + numeric_inputs
+            ]
             self.spec.feature_stats = inferer.get_stats(
                 df[numeric_columns], options=InferOptions.Histogram, num_bins=num_bins
             )
+
+    @staticmethod
+    def _extract_numeric_features(features: List[Feature]) -> List[Feature]:
+        numeric_features = []
+        for i in range(len(features)):
+            if features[i].is_numeric():
+                numeric_features.append(features[i])
+        return numeric_features
 
     @property
     def is_dir(self):

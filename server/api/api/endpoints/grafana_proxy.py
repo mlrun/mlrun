@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import warnings
 from http import HTTPStatus
 from typing import List, Union
 

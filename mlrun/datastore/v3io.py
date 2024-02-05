@@ -18,7 +18,6 @@ import time
 from datetime import datetime
 
 import fsspec
-import v3io.dataplane
 from v3io.dataplane.client import Client
 
 import mlrun
@@ -61,15 +60,6 @@ class V3ioStore(DataStore):
             self.headers = basic_auth_header(username, password)
 
     @staticmethod
-    def _get_container_and_path(path):
-        path = os.path.normpath(path)
-        path = path.lstrip(os.path.sep)
-        path_components = path.split(os.path.sep)
-        first_directory = path_components[0]
-        remaining_path = os.path.join(*path_components[1:])
-        return first_directory, remaining_path
-
-    @staticmethod
     def uri_to_ipython(endpoint, subpath):
         return V3IO_LOCAL_ROOT + subpath
 
@@ -95,7 +85,7 @@ class V3ioStore(DataStore):
 
     def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
-        container, path = self._get_container_and_path(key)
+        container, path = split_path(key)
         file_size = os.path.getsize(src_path)  # in bytes
         if file_size <= ONE_MB:
             with open(src_path, "rb") as source_file:
@@ -136,7 +126,7 @@ class V3ioStore(DataStore):
         return self._upload(key, src_path)
 
     def get(self, key, size=None, offset=0):
-        container, path = self._get_container_and_path(key)
+        container, path = split_path(key)
         return self.object.get(
             container=container, path=path, offset=offset, num_bytes=size
         ).body
@@ -148,7 +138,7 @@ class V3ioStore(DataStore):
 
     def _put(self, key, data, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
-        container, path = self._get_container_and_path(key)
+        container, path = split_path(key)
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
             self.object.put(container=container, path=path, body=data, append=False)
@@ -174,7 +164,7 @@ class V3ioStore(DataStore):
         return self._put(key, data)
 
     def stat(self, key):
-        container, path = self._get_container_and_path(key)
+        container, path = split_path(key)
         response = self.object.head(container=container, path=path)
         head = dict(response.headers.items())
         size = int(head.get("Content-Length", "0"))
@@ -185,8 +175,8 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(endpoint=self.url, access_key=self.token)
-        container, subpath = split_path(self._join(key))
+        # container, subpath = split_path(self._join(key))
+        container, subpath = split_path(key)
         if not subpath.endswith("/"):
             subpath += "/"
 
@@ -194,7 +184,7 @@ class V3ioStore(DataStore):
         subpath_length = len(subpath) - 1
 
         try:
-            response = v3io_client.container.list(
+            response = self.client.container.list(
                 container=container,
                 path=subpath,
                 get_all_attributes=False,

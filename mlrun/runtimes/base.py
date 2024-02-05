@@ -65,6 +65,7 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
+    "clone_target_dir",
 ]
 
 

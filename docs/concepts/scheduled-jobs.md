@@ -60,14 +60,15 @@ Example for a remote GitHub project - https://github.com/mlrun/project-demo
 ```
 import mlrun
 project_name = "remote-workflow-example"
+source_url = "git://github.com/mlrun/project-demo.git"
 source_target_dir = "./project" # Optional, relative to "/home/mlrun_code". A different absolute path can be specified.
 
 # Create a new project
-project = mlrun.get_or_create_project(project_name)
+project = mlrun.load_project(context=f"./{project_name}", url=source_url, name=project_name)
 
 # Set the project source and workflow
-project.set_source("git://github.com/mlrun/project-demo.git")
-project.set_workflow(name="main", workflow_path="main.py")
+project.set_source(source_url)
+project.set_workflow(name="main", workflow_path="kflow.py")
 
 # Build the image, load the source to the target dir and save the project
 project.build_image(target_dir=source_target_dir)

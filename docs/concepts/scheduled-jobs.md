@@ -75,7 +75,7 @@ project.build_image(target_dir=source_target_dir)
 project.save()
 
 # Run the workflow, load the project from the target dir on the image
-project.run("main", source="./", engine="remote")
+project.run("main", source="./", engine="remote", dirty=True)
 ```
 
 You can delete a scheduled workflow in the MLRun UI. To update a scheduled workflow, re-define the schedule in the workflow, for example:

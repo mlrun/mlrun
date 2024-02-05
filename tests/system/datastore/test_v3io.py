@@ -66,11 +66,9 @@ class TestV3ioDataStore(TestMLRunSystem):
             pass
         super().teardown_class()
 
-    def teardown_method(self, method):
-        pass  # todo remove
-
     def setup_method(self, method):
         self.object_dir_url = f"{self.v3io_test_dir_url}/directory-{uuid.uuid4()}"
+        super().setup_method(method)
 
     @staticmethod
     def _skip_set_environment():

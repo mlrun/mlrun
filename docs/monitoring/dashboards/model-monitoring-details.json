@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 33,
+  "id": 13,
   "links": [
     {
       "icon": "external link",
@@ -74,7 +74,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -217,7 +218,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.15",
       "targets": [
         {
           "datasource": "iguazio",
@@ -291,7 +292,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -438,7 +440,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.15",
       "targets": [
         {
           "datasource": "iguazio",
@@ -479,7 +481,7 @@
       "type": "table"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "description": "Feature analysis of the latest batch",
       "fieldConfig": {
         "defaults": {
@@ -494,7 +496,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -596,337 +599,49 @@
         "showHeader": true,
         "sortBy": [
           {
-            "desc": true,
-            "displayName": "current_stats"
+            "desc": false,
+            "displayName": "Feature"
           }
         ]
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.15",
       "targets": [
         {
-          "datasource": "iguazio",
+          "datasource": "model-monitoring",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=uid==\"$MODELENDPOINT\";\nfields= current_stats;",
-          "type": "table"
-        },
-        {
-          "datasource": "iguazio",
-          "hide": false,
-          "refId": "B",
-          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=uid==\"$MODELENDPOINT\"; fields= feature_stats;",
-          "type": "table"
-        },
-        {
-          "datasource": "iguazio",
-          "hide": false,
-          "refId": "C",
-          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=uid==\"$MODELENDPOINT\"; fields= drift_measures;",
+          "target": "target_endpoint=individual_feature_analysis;endpoint_id=$MODELENDPOINT;project=$PROJECT",
           "type": "table"
         }
       ],
       "title": "Features Analysis",
       "transformations": [
         {
-          "id": "extractFields",
-          "options": {
-            "format": "auto",
-            "replace": false,
-            "source": "current_stats"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "format": "auto",
-            "source": "feature_stats"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "replace": false,
-            "source": "drift_measures"
-          }
-        },
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "labelsToFields": false,
-            "mode": "seriesToRows",
-            "reducers": [
-              "allValues"
-            ]
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "feature_stats"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "current_stats"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "timestamp"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "drift_measures"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "kld_sum"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "kld_mean"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "tvd_mean"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "tvd_sum"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "hellinger_sum"
-                  }
-                },
-                "fieldName": "Field"
-              },
-              {
-                "config": {
-                  "id": "equal",
-                  "options": {
-                    "value": "hellinger_mean"
-                  }
-                },
-                "fieldName": "Field"
-              }
-            ],
-            "match": "any",
-            "type": "exclude"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "replace": false,
-            "source": "All values"
-          }
-        },
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "Field",
-                "0",
-                "1",
-                "2"
-              ]
-            }
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "replace": false,
-            "source": "0"
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "config": {
-                  "id": "isNull",
-                  "options": {}
-                },
-                "fieldName": "1"
-              },
-              {
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": 0
-                  }
-                },
-                "fieldName": "2"
-              }
-            ],
-            "match": "any",
-            "type": "exclude"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "format": "json",
-            "source": "1"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "2"
-          }
-        },
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "Field",
-                "mean 1",
-                "min 1",
-                "max 1",
-                "mean 2",
-                "min 2",
-                "max 2",
-                "tvd",
-                "hellinger",
-                "kld"
-              ]
-            }
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "mean 1",
-            "renamePattern": "Actual Mean"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "min 1",
-            "renamePattern": "Actual Min"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "max 1",
-            "renamePattern": "Actual Max"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "mean 2",
-            "renamePattern": "Expected Mean"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "min 2",
-            "renamePattern": "Expected Min"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "max 2",
-            "renamePattern": "Expected Max"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "tvd",
-            "renamePattern": "TVD"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "hellinger",
-            "renamePattern": "Hellinger"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "kld",
-            "renamePattern": "KLD"
-          }
-        },
-        {
           "id": "organize",
           "options": {
-            "excludeByName": {},
-            "indexByName": {
-              "Actual Max": 6,
-              "Actual Mean": 2,
-              "Actual Min": 4,
-              "Expected Max": 5,
-              "Expected Mean": 1,
-              "Expected Min": 3,
-              "Field": 0,
-              "Hellinger": 8,
-              "KLD": 9,
-              "TVD": 7
+            "excludeByName": {
+              "count": true,
+              "idx": true,
+              "model": true
             },
-            "renameByName": {}
+            "indexByName": {
+              "actual_max": 3,
+              "actual_mean": 2,
+              "actual_min": 1,
+              "expected_max": 4,
+              "expected_mean": 5,
+              "expected_min": 6,
+              "feature_name": 0
+            },
+            "renameByName": {
+              "actual_max": "Actual Max",
+              "actual_mean": "Actual Mean",
+              "actual_min": "Actual Min",
+              "expected_max": "Expected Min",
+              "expected_mean": "Expected Mean",
+              "expected_min": "Expected Max",
+              "feature_name": "Feature"
+            }
           }
         }
       ],
@@ -968,7 +683,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.15",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",

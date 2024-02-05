@@ -29,7 +29,6 @@ from .base import (
     DataStore,
     FileStats,
     basic_auth_header,
-    http_head,
 )
 
 V3IO_LOCAL_ROOT = "v3io"
@@ -175,7 +174,9 @@ class V3ioStore(DataStore):
         return self._put(key, data)
 
     def stat(self, key):
-        head = http_head(self.url + self._join(key), self.headers)
+        container, path = self._get_container_and_path(key)
+        response = self.object.head(container=container, path=path)
+        head = dict(response.headers.items())
         size = int(head.get("Content-Length", "0"))
         datestr = head.get("Last-Modified", "0")
         modified = time.mktime(

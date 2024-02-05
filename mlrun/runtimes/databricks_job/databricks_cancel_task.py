@@ -49,7 +49,7 @@ def main():
             not in [RunLifeCycleState.TERMINATING, RunLifeCycleState.TERMINATED]
         ):
             raise MLRunRuntimeError(
-                f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}."
+                f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}. "
                 f"Please check the status of this task in the Databricks environment."
             )
         print(f"Cancelling task {task_id} has succeeded.")

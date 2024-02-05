@@ -480,7 +480,6 @@ def deploy_op(
     function,
     func_url=None,
     source="",
-    dashboard="",
     project="",
     models: list = None,
     env: dict = None,
@@ -490,8 +489,6 @@ def deploy_op(
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
-    if dashboard:
-        cmd += ["-d", dashboard]
     if tag:
         cmd += ["--tag", tag]
     if verbose:

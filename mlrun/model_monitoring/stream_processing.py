@@ -180,7 +180,7 @@ class EventStreamProcessor:
 
         apply_event_routing()
 
-        # Step 2 - Filter out events with '-' in path which indicates that the event is supposed to be processed
+        # Step 2 - Filter out events with '-' in the path basename from going forward
         # through the next steps of the stream graph
         def apply_storey_filter_stream_events():
             # Remove none values from each event

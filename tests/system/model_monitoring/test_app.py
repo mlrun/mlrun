@@ -19,7 +19,7 @@ import typing
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -126,7 +126,8 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-app-flow"
+    project_name = "test-app-flow"
+    project_name += datetime.now().strftime("%y%m%d%H%M")  # a workaround for ML-5588
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 

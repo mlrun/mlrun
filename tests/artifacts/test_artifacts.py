@@ -393,10 +393,10 @@ def test_ensure_artifact_source_file_exists_by_df(df, fail):
         full_path = os.path.join(temp_dir, "df.parquet")
         if fail:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
-                context.log_dataset(key=uuid.uuid4(), df=df, local_path=full_path)
+                context.log_dataset(key=str(uuid.uuid4()), df=df, local_path=full_path)
             assert "Failed to log an artifact, file does not exists" in str(error.value)
         else:
-            context.log_dataset(key=uuid.uuid4(), df=df, local_path=full_path)
+            context.log_dataset(key=str(uuid.uuid4()), df=df, local_path=full_path)
 
 
 @pytest.mark.parametrize(

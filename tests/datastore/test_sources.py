@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pathlib
 import re
 
+import pandas as pd
 import pytest
 
 import mlrun.config
 from mlrun import new_function
-from mlrun.datastore import KafkaSource
+from mlrun.datastore import CSVSource, KafkaSource
 
 
 def test_kafka_source_with_old_nuclio():
@@ -62,3 +64,43 @@ def test_kafka_source_with_new_nuclio():
 
     assert function.spec.min_replicas == 2
     assert function.spec.max_replicas == 2
+
+
+# ML-5629 (pandas 2), ML-5661 (pandas 1)
+def test_timestamp_format_inference(rundb_mock):
+    source = CSVSource(
+        path=str(pathlib.Path(__file__).parent / "assets" / "mixed_timestamps.csv")
+    )
+
+    result_df = source.to_dataframe(
+        start_time=pd.Timestamp(2020, 1, 1), time_field="time"
+    )
+    expected_time = pd.Timestamp(
+        year=2024,
+        month=1,
+        day=31,
+        hour=13,
+        minute=37,
+        second=1,
+        microsecond=845339,
+    )
+    expected_time_no_microseconds = pd.Timestamp(
+        year=2024,
+        month=1,
+        day=31,
+        hour=13,
+        minute=37,
+        second=1,
+    )
+    expected_result_df = pd.DataFrame(
+        dict(
+            key=["a", "b", "c", "d"],
+            time=[
+                expected_time,
+                expected_time,
+                expected_time_no_microseconds,
+                expected_time_no_microseconds,
+            ],
+        )
+    )
+    pd.testing.assert_frame_equal(result_df, expected_result_df)

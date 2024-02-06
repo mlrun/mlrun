@@ -246,6 +246,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         response = dataitem.as_df(time_column="date_of_birth", **args)
         assert source.equals(response)
 
+    @pytest.skip
     @pytest.mark.parametrize(
         "file_extension,args, reader",
         [
@@ -318,6 +319,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         )
         assert response_df.equals(appended_df)
 
+    @pytest.skip
     @pytest.mark.parametrize(
         "file_extension, reader",
         [

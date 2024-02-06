@@ -33,6 +33,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
 import server.api.db.session
+import server.api.utils.clients.nuclio
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
@@ -2415,6 +2416,12 @@ class SQLDB(DBInterface):
         feature_vectors = self._list_project_feature_vector_names(session, name)
         self._verify_empty_list_of_project_related_resources(
             name, feature_vectors, "feature_vectors"
+        )
+
+        # verify project can be deleted in nuclio
+        nuclio_client = server.api.utils.clients.nuclio.Client()
+        nuclio_client.delete_project(
+            session, name, deletion_strategy=mlrun.common.schemas.DeletionStrategy.check
         )
 
     def delete_project_related_resources(self, session: Session, name: str):

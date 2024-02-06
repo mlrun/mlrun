@@ -89,7 +89,7 @@ class ModelEndpoints:
                             model_obj.spec.feature_stats
                         )
                     )
-                model_endpoint.status.feature_stats = model_obj.spec.feature_stats
+                    model_endpoint.status.feature_stats = model_obj.spec.feature_stats
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
                 model_label_names = [

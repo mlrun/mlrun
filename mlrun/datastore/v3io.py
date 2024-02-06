@@ -35,18 +35,6 @@ from .base import (
 V3IO_LOCAL_ROOT = "v3io"
 
 
-def request_decorator(func):
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except HttpResponseError as http_error:
-            error_message = str(http_error.value)
-            if error_message.startswith("Request failed with status 404"):
-                raise MLRunNotFoundError()
-
-    return wrapper
-
-
 class V3ioStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)

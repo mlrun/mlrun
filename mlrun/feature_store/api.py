@@ -93,11 +93,8 @@ def _features_to_vector_and_check_permissions(features, update_stats):
 
 @deprecated(
     version="1.6.0",
-    reason="'get_offline_features' will be removed in 1.8.0,"
-    "use FeatureVector's get_offline_features()' instead.\n"
-    "Here is an example that illustrates this:\n"
-    "feature_vec = fstore.get_feature_vector('store://my_feature_vector_name')\n"
-    "feature_vec.get_offline_features()\n",
+    reason="get_offline_features() will be removed in 1.8.0, please instead use "
+    "get_feature_vector('store://feature_vector_name').get_offline_features()",
     category=FutureWarning,
 )
 def get_offline_features(
@@ -273,11 +270,8 @@ def _get_offline_features(
 
 @deprecated(
     version="1.6.0",
-    reason="'get_online_feature_service' will be removed in 1.8.0, "
-    "use FeatureVector's get_online_feature_service()' instead.\n"
-    "Here is an example that illustrates this:\n"
-    "feature_vec = fstore.get_feature_vector('store://my_feature_vector_name')\n"
-    "feature_vec.get_online_feature_service()\n",
+    reason="get_online_feature_service() will be removed in 1.8.0, please instead use "
+    "get_feature_vector('store://feature_vector_name').get_online_feature_service()",
     category=FutureWarning,
 )
 def get_online_feature_service(

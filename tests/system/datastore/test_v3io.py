@@ -162,12 +162,12 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert response.decode() == self.test_string
         response = data_item.get(offset=20)
         assert response.decode() == self.test_string[20:]
-        # response = data_item.get(size=20)
-        # assert response.decode() == self.test_string[:20]  # failure in current state and in new state.
+        response = data_item.get(size=20)
+        assert response.decode() == self.test_string[:20]
         response = data_item.get(offset=20, size=0)
         assert response.decode() == self.test_string[20:]
-        # response = data_item.get(offset=20, size=10)
-        # assert response.decode() == self.test_string[20:30] # failure in current state and in new state.
+        response = data_item.get(offset=20, size=10)
+        assert response.decode() == self.test_string[20:30]
 
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             data_item.download(temp_file.name)

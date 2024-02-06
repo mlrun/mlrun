@@ -63,7 +63,7 @@ async def deploy_monitoring_batch_job(
         auth_info=auth_info,
     )
 
-    if (
+    if with_schedule and (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):

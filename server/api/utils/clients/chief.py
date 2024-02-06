@@ -274,6 +274,9 @@ class Client(
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
+            request_kwargs["headers"].setdefault(
+                "x-request-id", request.state.request_id
+            )
 
         # mask clients host with worker's host
         origin_host = request_kwargs.get("headers", {}).pop("host", None)

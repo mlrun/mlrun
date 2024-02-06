@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import warnings
 from http import HTTPStatus
 from typing import List, Union
 
@@ -123,13 +122,6 @@ async def grafana_proxy_model_endpoints_query(
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
-
-    warnings.warn(
-        "This api is deprecated in 1.3.1 and will be removed in 1.5.0. "
-        "Please update grafana model monitoring dashboards that use a different data source",
-        # TODO: remove in 1.5.0
-        FutureWarning,
-    )
 
     body = await request.json()
     query_parameters = server.api.crud.model_monitoring.grafana.parse_query_parameters(

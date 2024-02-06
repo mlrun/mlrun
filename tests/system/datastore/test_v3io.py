@@ -23,7 +23,6 @@ from warnings import warn
 import dask.dataframe as dd
 import pandas as pd
 import pytest
-from v3io.dataplane.response import HttpResponseError
 
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
@@ -208,25 +207,26 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.stat()
         data_item.delete()
         # with pytest.raises(mlrun.errors.MLRunNotFoundError) as file_not_found_error:
-        #     data_item.stat()
-        # assert "Not Found for url" in str(file_not_found_error.value)
-        # todo changed to http error, check it
-        with pytest.raises(HttpResponseError) as http_error:
+        with pytest.raises(Exception) as file_not_found_error:
             data_item.stat()
-        assert "404" in str(http_error.value)
+        assert "Not Found for url" in str(file_not_found_error.value)
+        # # todo changed to http error, check it
+        # with pytest.raises(HttpResponseError) as http_error:
+        #     data_item.stat()
+        # assert "404" in str(http_error.value)
         # folder deletion:
         url = f"{self.object_dir_url}/test_directory/file.txt"
         data_item = mlrun.get_dataitem(url=url)
         data_item.upload(self.test_file_path)
         dir_data_item = mlrun.get_dataitem(url=os.path.dirname(url))
         dir_data_item.delete(recursive=True)
-        # with pytest.raises(mlrun.errors.MLRunNotFoundError) as file_not_found_error:
-        #     data_item.stat()
-        # assert "Not Found for url" in str(file_not_found_error.value)
-        # todo changed to http error, check it
-        with pytest.raises(HttpResponseError) as http_error:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as file_not_found_error:
             data_item.stat()
-        assert "404" in str(http_error.value)
+        assert "Not Found for url" in str(file_not_found_error.value)
+        # todo changed to http error, check it
+        # with pytest.raises(HttpResponseError) as http_error:
+        #     data_item.stat()
+        # assert "404" in str(http_error.value)
 
     @pytest.mark.parametrize(
         "file_extension,args, reader",

@@ -19,9 +19,11 @@ from datetime import datetime
 
 import fsspec
 from v3io.dataplane.client import Client
+from v3io.dataplane.response import HttpResponseError
 
 import mlrun
 from mlrun.datastore.helpers import ONE_GB, ONE_MB
+from mlrun.errors import MLRunNotFoundError
 
 from ..platforms.iguazio import parse_path, split_path
 from .base import (
@@ -31,6 +33,18 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
+
+
+def request_decorator(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except HttpResponseError as http_error:
+            error_message = str(http_error.value)
+            if error_message.startswith("Request failed with status 404"):
+                raise MLRunNotFoundError()
+
+    return wrapper
 
 
 class V3ioStore(DataStore):

@@ -919,7 +919,12 @@ class SQLRunDB(RunDBInterface):
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
-        raise NotImplementedError()
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.DatastoreProfiles().get_datastore_profile,
+            name,
+            project,
+        )
 
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()

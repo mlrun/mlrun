@@ -19,10 +19,11 @@ import tempfile
 import uuid
 from urllib.parse import urlparse
 from warnings import warn
-from v3io.dataplane.response import HttpResponseError
+
 import dask.dataframe as dd
 import pandas as pd
 import pytest
+from v3io.dataplane.response import HttpResponseError
 
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
@@ -218,7 +219,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         with pytest.raises(HttpResponseError) as http_error_dir:
             dir_data_item.stat()
         assert "Request failed with status 404" in str(http_error_dir.value)
-
 
     @pytest.mark.parametrize(
         "file_extension,args, reader",

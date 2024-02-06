@@ -19,11 +19,9 @@ from datetime import datetime
 
 import fsspec
 from v3io.dataplane.client import Client
-from v3io.dataplane.response import HttpResponseError
 
 import mlrun
 from mlrun.datastore.helpers import ONE_GB, ONE_MB
-from mlrun.errors import MLRunNotFoundError
 
 from ..platforms.iguazio import parse_path, split_path
 from .base import (

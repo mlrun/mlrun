@@ -1430,23 +1430,19 @@ def test_init_function_from_dict_function_in_spec():
                 "name": "sparkjob-from-github",
                 "tag": "latest",
                 "project": project_name,
-                "categories": [],
             },
             "spec": {
                 "command": "simple_job.py",
-                "args": [],
                 "image": ".sparkjob-from-github:latest",
                 "build": {
                     "source": "./",
                     "base_image": "iguazio/spark-app:3.5.5-b697",
-                    "commands": [],
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
                 },
                 "description": "",
                 "disable_auto_mount": False,
                 "clone_target_dir": "/home/mlrun_code/",
-                "env": [],
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -1478,15 +1474,13 @@ def test_init_function_from_dict_function_in_spec():
                 "executor_preemption_mode": "prevent",
                 "affinity": None,
                 "tolerations": None,
-                "security_context": {},
+                "node_selector": None,
                 "executor_affinity": None,
                 "executor_tolerations": None,
+                "executor_node_selector": None,
                 "driver_affinity": None,
                 "driver_tolerations": None,
-                "volume_mounts": [],
-                "volumes": [],
-                "driver_volume_mounts": [],
-                "executor_volume_mounts": [],
+                "driver_node_selector": None,
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
             },
             "verbose": False,
@@ -1525,7 +1519,6 @@ def test_load_project_from_yaml_with_function(context):
                 ignore_order=True,
                 exclude_paths=[
                     "root['spec']['build']['code_origin']",
-                    "root['metadata']['categories']",
                 ],
             )
             == {}
@@ -1552,8 +1545,8 @@ def test_project_create_remote():
 @pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [
-        (None, None, "aaa/bbb", "ccc/ddd", ""),
-        ("git://some/repo", False, None, ".some-image", ""),
+        (None, None, "aaa/bbb", "ccc/ddd", None),
+        ("git://some/repo", False, None, ".some-image", None),
         (
             "git://some/other/repo",
             False,
@@ -1586,7 +1579,7 @@ def test_project_build_image(
     if pull_at_runtime:
         assert build_config.load_source_on_run is None
         assert build_config.source is None
-        assert clone_target_dir == ""
+        assert clone_target_dir is None
     else:
         assert not build_config.load_source_on_run
         assert build_config.source == source_url

@@ -66,7 +66,7 @@ def test_kafka_source_with_new_nuclio():
     assert function.spec.max_replicas == 2
 
 
-# ML-5629
+# ML-5629 (pandas 2), ML-5661 (pandas 1)
 def test_timestamp_format_inference(rundb_mock):
     source = CSVSource(
         path=str(pathlib.Path(__file__).parent / "assets" / "mixed_timestamps.csv")

@@ -175,17 +175,6 @@ class Client(
             response.headers, response.json()
         )
 
-    def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
-        response = self._send_request_to_api(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            session,
-        )
-        return self._generate_auth_info_from_session_verification_response(
-            response.headers, response.json()
-        )
-
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
             "GET",
@@ -961,25 +950,16 @@ class AsyncClient(Client):
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
+        headers = {
+            "authorization": request.headers.get("authorization"),
+            "cookie": request.headers.get("cookie"),
+            "x-request-id": request.state.request_id,
+        }
         async with self._send_request_to_api_async(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
             "Failed verifying iguazio session",
-            headers={
-                "authorization": request.headers.get("authorization"),
-                "cookie": request.headers.get("cookie"),
-            },
-        ) as response:
-            return self._generate_auth_info_from_session_verification_response(
-                response.headers, await response.json()
-            )
-
-    async def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
-        async with self._send_request_to_api_async(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            session,
+            headers=headers,
         ) as response:
             return self._generate_auth_info_from_session_verification_response(
                 response.headers, await response.json()
@@ -987,7 +967,7 @@ class AsyncClient(Client):
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api_async(
-        self, method, path, error_message: str, session=None, **kwargs
+        self, method, path: str, error_message: str, session=None, **kwargs
     ) -> aiohttp.ClientResponse:
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)

@@ -456,7 +456,7 @@ class BaseStoreTarget(DataTargetBase):
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        if self.get_target_path().startswith("ds://"):
+        if self.get_target_path() and self.get_target_path().startswith("ds://"):
             return store, store.url + resolved_store_path
         else:
             return store, self.get_target_path()
@@ -1984,6 +1984,8 @@ def _get_target_path(driver, resource, run_id_mode=False):
 
 
 def generate_path_with_chunk(target, chunk_id, path):
+    if path is None:
+        return ""
     prefix, suffix = os.path.splitext(path)
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"

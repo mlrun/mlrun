@@ -13,11 +13,12 @@
 # limitations under the License.
 import os
 
+import pandas as pd
 import pytest
 
 import mlrun.errors
 from mlrun.datastore import StreamTarget
-from mlrun.datastore.targets import BaseStoreTarget, KafkaTarget
+from mlrun.datastore.targets import BaseStoreTarget, KafkaTarget, ParquetTarget
 from mlrun.feature_store import FeatureSet
 
 
@@ -95,3 +96,18 @@ def test_kafka_target_without_path():
     kafka_target.set_resource(fset)
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
+
+
+# ML-5622, ML-5677
+def test_write_with_too_many_partitions():
+    data = {
+        "my_int": range(2000),
+    }
+    df = pd.DataFrame(data)
+
+    parquet_target = ParquetTarget(partition_cols=["my_int"])
+    with pytest.raises(
+        mlrun.errors.MLRunRuntimeError,
+        match="Maximum number of partitions exceeded. To resolve this.*",
+    ):
+        parquet_target.write_dataframe(df)

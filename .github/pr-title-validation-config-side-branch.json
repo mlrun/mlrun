@@ -4,13 +4,13 @@
     "color": "EEEEEE"
   },
   "CHECKS": {
-    "regexp": "^((\\[[[A-Z][^\\]]+\\])|Revert) .*$",
+    "regexp": "^((\\[[[A-Z][^\\]]+\\])|Revert) .* \\[.+\\]$",
     "regexpFlags": "im",
     "ignoreLabels": []
   },
   "MESSAGES": {
     "success": "All OK",
-    "failure": "PR title should be in the following format: '[Component] Brief summary'",
+    "failure": "PR title should be in the following format: '[Component] Brief summary [Branch name]'",
     "notice": ""
   }
 }

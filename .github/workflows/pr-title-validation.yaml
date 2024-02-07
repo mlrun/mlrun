@@ -27,8 +27,17 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/development'
     steps:
       - uses: thehanimo/pr-title-checker@v1.4.1
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           configuration_path: .github/pr-title-validation-config.json
+  check-side-branch:
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/development'
+    steps:
+      - uses: thehanimo/pr-title-checker@v1.4.1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          configuration_path: .github/pr-title-validation-config-side-branch.json

@@ -316,7 +316,7 @@ async def build_function(
     # clone_target_dir is deprecated but needs to remain for backward compatibility
     func_dict = fn.to_dict()
     func_dict["spec"]["clone_target_dir"] = get_in(
-        data, "data.spec.build.source_target_dir"
+        data, "data.spec.build.source_code_target_dir"
     )
 
     return {

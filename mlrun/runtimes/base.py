@@ -140,19 +140,19 @@ class FunctionSpec(ModelObj):
     def clone_target_dir(self):
         warnings.warn(
             "The clone_target_dir attribute is deprecated in 1.6.1 and will be removed in 1.8.0. "
-            "Use spec.build.source_target_dir instead.",
+            "Use spec.build.source_code_target_dir instead.",
             FutureWarning,
         )
-        return self.build.source_target_dir
+        return self.build.source_code_target_dir
 
     @clone_target_dir.setter
     def clone_target_dir(self, clone_target_dir):
         warnings.warn(
             "The clone_target_dir attribute is deprecated in 1.6.1 and will be removed in 1.8.0. "
-            "Use spec.build.source_target_dir instead.",
+            "Use spec.build.source_code_target_dir instead.",
             FutureWarning,
         )
-        self.build.source_target_dir = clone_target_dir
+        self.build.source_code_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass

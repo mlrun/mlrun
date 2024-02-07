@@ -24,7 +24,7 @@ import tests.api.conftest
 
 class TestWorkflows(tests.api.conftest.MockedK8sHelper):
     @pytest.mark.parametrize(
-        "source_target_dir",
+        "source_code_target_dir",
         [
             "/home/mlrun_code",
             None,
@@ -42,16 +42,16 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
         self,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock,
-        source_target_dir: str,
+        source_code_target_dir: str,
         source: str,
     ):
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
             spec=mlrun.common.schemas.ProjectSpec(),
         )
-        if source_target_dir:
+        if source_code_target_dir:
             project.spec.build = mlrun.common.schemas.common.ImageBuilder(
-                source_target_dir=source_target_dir
+                source_code_target_dir=source_code_target_dir
             )
 
         server.api.crud.Projects().create_project(db, project)
@@ -94,9 +94,9 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
             assert run.spec.parameters["url"] == source
             assert "project_context" not in run.spec.parameters
         else:
-            if source_target_dir and source.startswith("."):
+            if source_code_target_dir and source.startswith("."):
                 expected_project_context = os.path.normpath(
-                    os.path.join(source_target_dir, source)
+                    os.path.join(source_code_target_dir, source)
                 )
                 assert (
                     run.spec.parameters["project_context"] == expected_project_context

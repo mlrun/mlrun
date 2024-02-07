@@ -73,7 +73,7 @@ class KubejobRuntime(KubeResource):
         if workdir:
             self.spec.workdir = workdir
         if target_dir:
-            self.spec.build.source_target_dir = target_dir
+            self.spec.build.source_code_target_dir = target_dir
 
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
@@ -233,8 +233,8 @@ class KubejobRuntime(KubeResource):
                 data, "data.spec.build.base_image"
             )
             # Get the source target dir in case it was enriched due to loading source
-            self.spec.build.source_target_dir = get_in(
-                data, "data.spec.build.source_target_dir"
+            self.spec.build.source_code_target_dir = get_in(
+                data, "data.spec.build.source_code_target_dir"
             ) or get_in(data, "data.spec.clone_target_dir")
             ready = data.get("ready", False)
             if not ready:

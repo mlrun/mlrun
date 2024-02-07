@@ -37,4 +37,4 @@ class ImageBuilder(pydantic.BaseModel):
     auto_build: typing.Optional[bool] = None
     build_pod: typing.Optional[str] = None
     requirements: typing.Optional[list] = None
-    source_target_dir: typing.Optional[str] = None
+    source_code_target_dir: typing.Optional[str] = None

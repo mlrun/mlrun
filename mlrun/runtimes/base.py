@@ -91,6 +91,7 @@ class FunctionStatus(ModelObj):
 
 class FunctionSpec(ModelObj):
     _dict_fields = spec_fields
+    _default_fields_to_strip = []
 
     def __init__(
         self,
@@ -122,9 +123,9 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
-        # the build.source is cloned/extracted to the specified clone_target_dir
+        # The build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
-        self.clone_target_dir = clone_target_dir or ""
+        self.clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -146,6 +147,9 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _is_remote = False
     _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + [
+        "status",  # Function status describes the state rather than configuration
+    ]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -859,13 +863,6 @@ class BaseRuntime(ModelObj):
         return launcher.save_function(
             self, tag=tag, versioned=versioned, refresh=refresh
         )
-
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude=exclude)
-        if strip:
-            if "status" in struct:
-                del struct["status"]
-        return struct
 
     def doc(self):
         print("function:", self.metadata.name)

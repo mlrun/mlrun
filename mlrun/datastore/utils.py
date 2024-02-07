@@ -18,6 +18,7 @@ import typing
 from urllib.parse import parse_qs, urlparse, urlunparse
 
 import pandas as pd
+import semver
 
 import mlrun.datastore
 
@@ -137,7 +138,16 @@ def filter_df_generator(
 def _execute_time_filter(
     df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
 ):
-    df[time_column] = pd.to_datetime(df[time_column])
+    if semver.parse(pd.__version__)["major"] >= 2:
+        # pandas 2 is too strict by default (ML-5629)
+        kwargs = {
+            "format": "mixed",
+            "yearfirst": True,
+        }
+    else:
+        # pandas 1 may fail on format "mixed" (ML-5661)
+        kwargs = {}
+    df[time_column] = pd.to_datetime(df[time_column], **kwargs)
     if start_time:
         df = df[df[time_column] > start_time]
     if end_time:

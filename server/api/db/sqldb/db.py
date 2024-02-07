@@ -188,7 +188,7 @@ class SQLDB(DBInterface):
             iter=iter,
             run_name=run_data["metadata"]["name"],
         )
-        run = self._get_run(session, uid, project, iter)
+        run = self._get_run(session, uid, project, iter, with_for_update=True)
         now = datetime.now(timezone.utc)
         if not run:
             run = Run(
@@ -229,11 +229,15 @@ class SQLDB(DBInterface):
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
-        update_labels(run, run_labels(struct))
+
+        # Update the labels only if the run updates contains labels
+        if run_labels(updates):
+            update_labels(run, run_labels(struct))
         self._update_run_updated_time(run, struct)
         run.struct = struct
         self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
+        return run.struct
 
     def list_distinct_runs_uids(
         self,
@@ -895,9 +899,19 @@ class SQLDB(DBInterface):
         artifacts,
         project: str,
     ):
+        # to avoid multiple runs trying to tag the same artifacts simultaneously,
+        # lock all the artifacts' rows for the entire transaction
+        self._query(
+            session,
+            ArtifactV2,
+            project=project,
+        ).filter(ArtifactV2.key.in_([artifact.key for artifact in artifacts])).order_by(
+            ArtifactV2.id.asc()
+        ).populate_existing().with_for_update().all()
+
         objects = []
         for artifact in artifacts:
-            # remove the tags that point to artifacts with the same key
+            # remove the tags of the same name that point to artifacts with the same key
             # and a different producer id
             query = (
                 self._query(
@@ -920,7 +934,9 @@ class SQLDB(DBInterface):
                 objects.append(old_tag)
                 session.delete(old_tag)
 
-            # search for an existing tag with the same name, producer id, and iteration
+            # search for an existing tag with the same name, and points to artifacts with the same key, producer id,
+            # and iteration. this means that the same producer created this artifact,
+            # and we can update the existing tag
             query = (
                 self._query(
                     session,
@@ -951,6 +967,8 @@ class SQLDB(DBInterface):
             objects.append(tag)
             session.add(tag)
 
+        # commit the changes, including the deletion of the old tags and the creation of the new tags
+        # this will also release the locks on the artifacts' rows
         self._commit(session, objects)
 
     def _mark_best_iteration_artifact(
@@ -2916,7 +2934,8 @@ class SQLDB(DBInterface):
         ]
 
         for feature_dict in feature_dicts:
-            if feature_dict["name"] in features_to_add:
+            feature_name = feature_dict["name"]
+            if feature_name in features_to_add:
                 labels = feature_dict.get("labels") or {}
                 feature = Feature(
                     name=feature_dict["name"],
@@ -2925,6 +2944,20 @@ class SQLDB(DBInterface):
                 )
                 update_labels(feature, labels)
                 feature_set.features.append(feature)
+            elif feature_name not in features_to_remove:
+                # get the existing feature from the feature set
+                feature = next(
+                    (
+                        feature
+                        for feature in feature_set.features
+                        if feature.name == feature_name
+                    ),
+                    None,
+                )
+                if feature:
+                    # update it with the new labels in case they were changed
+                    labels = feature_dict.get("labels") or {}
+                    update_labels(feature, labels)
 
     @staticmethod
     def _update_feature_set_entities(feature_set: FeatureSet, entity_dicts: List[dict]):

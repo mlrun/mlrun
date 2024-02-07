@@ -34,6 +34,7 @@ from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -43,32 +44,13 @@ from .utils import (
 
 
 def load_spark_dataframe_with_options(session, spark_options, format=None):
-    original_hadoop_conf = {}
-    hadoop_conf = session.sparkContext._jsc.hadoopConfiguration()
-    non_hadoop_spark_options = {}
-
-    for key, value in spark_options.items():
-        if key.startswith("spark.hadoop."):
-            key = key[len("spark.hadoop.") :]
-            # Save the original configuration
-            original_value = hadoop_conf.get(key, None)
-            original_hadoop_conf[key] = original_value
-            hadoop_conf.set(key, value)
-        else:
-            non_hadoop_spark_options[key] = value
-    try:
-        if format:
-            df = session.read.format(format).load(**non_hadoop_spark_options)
-        else:
-            df = session.read.load(**non_hadoop_spark_options)
-    except Exception as e:
-        raise e
-    finally:
-        for key, value in original_hadoop_conf.items():
-            if value:
-                hadoop_conf.set(key, value)
-            else:
-                hadoop_conf.unset(key)
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        session, spark_options
+    )
+    if format:
+        df = session.read.format(format).load(**non_hadoop_spark_options)
+    else:
+        df = session.read.load(**non_hadoop_spark_options)
     return df
 
 
@@ -136,7 +118,10 @@ class BaseSourceDriver(DataSource):
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"Conversion of a source of type '{type(self).__name__}' "
+            "to a Spark dataframe is not possible, as this operation is not supported"
+        )
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
         if not (columns or time_field):
@@ -766,7 +751,6 @@ class DataFrameSource:
     Reads data frame as input source for a flow.
 
     :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
-    :parameter time_field: DEPRECATED.
     :parameter context: MLRun context. Defaults to None
     """
 
@@ -1034,6 +1018,12 @@ class KafkaSource(OnlineSource):
             function.spec.max_replicas = 1
 
         return function
+
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+        raise NotImplementedError(
+            "Conversion of a source of type 'KafkaSource' "
+            "to a Spark dataframe is not possible, as this operation is not supported by Spark"
+        )
 
 
 class SQLSource(BaseSourceDriver):

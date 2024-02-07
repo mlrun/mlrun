@@ -368,7 +368,7 @@ class VirtualDrift:
             hellinger = results[HellingerDistance.NAME]
             if tvd is None or hellinger is None:
                 logger.warning(
-                    "Can't calculate drift for this feature because at least one of the required"
+                    "Can't calculate drift for this feature because at least one of the required "
                     "statistical metrics is missing",
                     feature=feature,
                     tvd=tvd,
@@ -1039,7 +1039,7 @@ class BatchProcessor:
 
         except requests.exceptions.ConnectionError as exc:
             logger.warning(
-                "Can't push metrics to Prometheus registry."
+                "Can't push metrics to Prometheus registry. "
                 "Monitoring stream pod is not found, probably not deployed. "
                 "To deploy, call set_tracking() on a serving function. exc: ",
                 exc=exc,

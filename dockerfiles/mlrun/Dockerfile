@@ -30,6 +30,8 @@ RUN python -m pip  list --disable-pip-version-check --format freeze \
 ENV PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
+  build-essential \
+  cmake \
   gcc \
   wget \
   git-core \

@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.artifacts.base
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
@@ -54,6 +55,11 @@ class Artifacts(
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
+
+        if mlrun.utils.helpers.is_legacy_artifact(artifact):
+            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact
+            ).to_dict()
 
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,

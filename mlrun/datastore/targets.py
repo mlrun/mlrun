@@ -37,6 +37,7 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -79,32 +80,10 @@ def generate_target_run_id():
 
 
 def write_spark_dataframe_with_options(spark_options, df, mode):
-    sc = df.sql_ctx.sparkSession.sparkContext
-
-    original_hadoop_conf = {}
-    non_hadoop_spark_options = {}
-
-    hadoop_conf = sc._jsc.hadoopConfiguration()
-
-    for key, value in spark_options.items():
-        if key.startswith("spark.hadoop."):
-            key = key[len("spark.hadoop.") :]
-            # Save the original configuration
-            original_value = hadoop_conf.get(key, None)
-            original_hadoop_conf[key] = original_value
-            hadoop_conf.set(key, value)
-        else:
-            non_hadoop_spark_options[key] = value
-    try:
-        df.write.mode(mode).save(**non_hadoop_spark_options)
-    except Exception as e:
-        raise e
-    finally:
-        for key, value in original_hadoop_conf.items():
-            if value:
-                hadoop_conf.set(key, value)
-            else:
-                hadoop_conf.unset(key)
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        df.sql_ctx.sparkSession, spark_options
+    )
+    df.write.mode(mode).save(**non_hadoop_spark_options)
 
 
 def default_target_names():
@@ -477,7 +456,7 @@ class BaseStoreTarget(DataTargetBase):
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        if self.get_target_path().startswith("ds://"):
+        if self.get_target_path() and self.get_target_path().startswith("ds://"):
             return store, store.url + resolved_store_path
         else:
             return store, self.get_target_path()
@@ -1428,9 +1407,6 @@ class StreamTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
-    def get_path(self):
-        return TargetPathObject(self.path or "")
-
 
 class KafkaTarget(BaseStoreTarget):
     kind = TargetTypes.kafka
@@ -1501,9 +1477,6 @@ class KafkaTarget(BaseStoreTarget):
 
     def purge(self):
         pass
-
-    def get_path(self):
-        return TargetPathObject(self.path or "")
 
 
 class TSDBTarget(BaseStoreTarget):
@@ -2011,6 +1984,8 @@ def _get_target_path(driver, resource, run_id_mode=False):
 
 
 def generate_path_with_chunk(target, chunk_id, path):
+    if path is None:
+        return ""
     prefix, suffix = os.path.splitext(path)
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"

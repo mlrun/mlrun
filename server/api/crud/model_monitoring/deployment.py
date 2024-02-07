@@ -669,15 +669,18 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
             if stream_path.startswith("v3io://"):
+                kwargs = {}
+                if function_name != mm_constants.MonitoringFunctionNames.STREAM:
+                    kwargs["access_key"] = model_monitoring_access_key
+                if mlrun.mlconf.is_explicit_ack():
+                    kwargs["explicit_ack_mode"] = "explicitOnly"
+                    kwargs["workerAllocationMode"] = "static"
+
                 # Generate V3IO stream trigger
                 function.add_v3io_stream_trigger(
                     stream_path=stream_path,
-                    name="monitoring_stream_trigger"
-                    if function_name is None
-                    else f"monitoring_{function_name}_trigger",
-                    access_key=model_monitoring_access_key
-                    if function_name != mm_constants.MonitoringFunctionNames.STREAM
-                    else None,
+                    name=f"monitoring_{function_name or 'stream'}_trigger",
+                    **kwargs,
                 )
         # Add the default HTTP source
         http_source = mlrun.datastore.sources.HttpSource()

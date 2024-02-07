@@ -143,6 +143,7 @@ async def get_function(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 async def delete_function(
+    request: Request,
     project: str,
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -180,7 +181,9 @@ async def delete_function(
                 project=project,
             )
             chief_client = server.api.utils.clients.chief.Client()
-            await chief_client.delete_schedule(project=project, name=name)
+            await chief_client.delete_schedule(
+                project=project, name=name, request=request
+            )
         else:
             await run_in_threadpool(
                 get_scheduler().delete_schedule, db_session, project, name
@@ -355,7 +358,7 @@ async def start_function(
         db_session,
         function.metadata.project,
         background_tasks,
-        _start_function,
+        _start_function_wrapper,
         background_timeout,
         None,
         # args for _start_function
@@ -718,103 +721,14 @@ def _build_function(
         launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
 
         fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.nuclio_runtimes():
-            server.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn,
+        if is_nuclio_runtime:
+            fn = _deploy_nuclio_runtime(
                 auth_info,
-            )
-            monitoring_application = (
-                fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-                == mm_constants.ModelMonitoringAppLabel.VAL
-            )
-            serving_to_monitor = (
-                fn.kind == RuntimeKinds.serving and fn.spec.track_models
-            )
-
-            if serving_to_monitor or monitoring_application:
-                if not mlrun.mlconf.is_ce_mode():
-                    model_monitoring_access_key = process_model_monitoring_secret(
-                        db_session,
-                        fn.metadata.project,
-                        mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-                    )
-                else:
-                    model_monitoring_access_key = None
-                if serving_to_monitor:
-                    try:
-                        if serving_to_monitor:
-                            # Handle model monitoring
-                            logger.info(
-                                "Tracking enabled, initializing model monitoring"
-                            )
-
-                            if fn.spec.tracking_policy:
-                                # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
-                                fn.spec.tracking_policy = TrackingPolicy.from_dict(
-                                    fn.spec.tracking_policy
-                                )
-                            else:
-                                # Initialize tracking policy with default values
-                                fn.spec.tracking_policy = TrackingPolicy()
-
-                            if not mlrun.mlconf.is_ce_mode():
-                                # create v3io stream for model_monitoring_stream
-                                create_model_monitoring_stream(
-                                    project=fn.metadata.project,
-                                    function=fn,
-                                    monitoring_application=monitoring_application,
-                                    stream_path=server.api.crud.model_monitoring.get_stream_path(
-                                        project=fn.metadata.project,
-                                        application_name=mm_constants.MonitoringFunctionNames.STREAM,
-                                    ),
-                                )
-
-                            # deploy model monitoring stream, model monitoring batch job,
-                            monitoring_deploy = server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-                            monitoring_deploy.deploy_monitoring_functions(
-                                project=fn.metadata.project,
-                                db_session=db_session,
-                                auth_info=auth_info,
-                                tracking_policy=fn.spec.tracking_policy,
-                                model_monitoring_access_key=model_monitoring_access_key,
-                            )
-
-                    except Exception as exc:
-                        logger.warning(
-                            f"Failed deploying model monitoring infrastructure for the "
-                            f"{'project' if serving_to_monitor else f'{fn.metadata.name} application'}",
-                            project=fn.metadata.project,
-                            exc=exc,
-                            traceback=traceback.format_exc(),
-                        )
-                if monitoring_application:
-                    if not mlrun.mlconf.is_ce_mode():
-                        # create v3io stream for model monitoring application
-                        create_model_monitoring_stream(
-                            project=fn.metadata.project,
-                            function=fn,
-                            monitoring_application=monitoring_application,
-                            stream_path=server.api.crud.model_monitoring.get_stream_path(
-                                project=fn.metadata.project,
-                                application_name=fn.metadata.name,
-                            ),
-                            access_key=model_monitoring_access_key,
-                        )
-                    # apply stream trigger to monitoring application
-                    monitoring_deploy = server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-                    fn = monitoring_deploy._apply_stream_trigger(
-                        project=fn.metadata.project,
-                        function=fn,
-                        model_monitoring_access_key=model_monitoring_access_key,
-                        function_name=fn.metadata.name,
-                        auth_info=auth_info,
-                    )
-            server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+                builder_env,
+                client_python_version,
+                client_version,
+                db_session,
                 fn,
-                auth_info=auth_info,
-                client_version=client_version,
-                client_python_version=client_python_version,
-                builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
             ready = False
@@ -849,6 +763,125 @@ def _build_function(
     return fn, ready
 
 
+def _deploy_nuclio_runtime(
+    auth_info, builder_env, client_python_version, client_version, db_session, fn
+):
+    monitoring_application = (
+        fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+        == mm_constants.ModelMonitoringAppLabel.VAL
+    )
+    serving_to_monitor = fn.kind == RuntimeKinds.serving and fn.spec.track_models
+    if serving_to_monitor or monitoring_application:
+        if not mlrun.mlconf.is_ce_mode():
+            model_monitoring_access_key = process_model_monitoring_secret(
+                db_session,
+                fn.metadata.project,
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+            )
+        else:
+            model_monitoring_access_key = None
+        if serving_to_monitor:
+            _deploy_serving_monitoring(
+                auth_info,
+                db_session,
+                fn,
+                model_monitoring_access_key,
+                monitoring_application,
+            )
+        if monitoring_application:
+            fn = _deploy_monitoring_application(
+                auth_info, fn, model_monitoring_access_key, monitoring_application
+            )
+    server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+        fn,
+        auth_info=auth_info,
+        client_version=client_version,
+        client_python_version=client_python_version,
+        builder_env=builder_env,
+    )
+    return fn
+
+
+def _deploy_serving_monitoring(
+    auth_info,
+    db_session,
+    fn,
+    model_monitoring_access_key,
+    monitoring_application,
+):
+    try:
+        # Handle model monitoring
+        logger.info("Tracking enabled, initializing model monitoring")
+
+        if fn.spec.tracking_policy:
+            # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
+            fn.spec.tracking_policy = TrackingPolicy.from_dict(fn.spec.tracking_policy)
+        else:
+            # Initialize tracking policy with default values
+            fn.spec.tracking_policy = TrackingPolicy()
+
+        if not mlrun.mlconf.is_ce_mode():
+            # create v3io stream for model_monitoring_stream
+            create_model_monitoring_stream(
+                project=fn.metadata.project,
+                function=fn,
+                monitoring_application=monitoring_application,
+                stream_path=server.api.crud.model_monitoring.get_stream_path(
+                    project=fn.metadata.project,
+                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
+                ),
+            )
+
+        # deploy model monitoring stream, model monitoring batch job,
+        monitoring_deploy = (
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+        )
+        monitoring_deploy.deploy_monitoring_functions(
+            project=fn.metadata.project,
+            db_session=db_session,
+            auth_info=auth_info,
+            tracking_policy=fn.spec.tracking_policy,
+            model_monitoring_access_key=model_monitoring_access_key,
+        )
+
+    except Exception as exc:
+        logger.warning(
+            "Failed deploying model monitoring infrastructure for the project application",
+            project=fn.metadata.project,
+            exc=exc,
+            traceback=traceback.format_exc(),
+        )
+
+
+def _deploy_monitoring_application(
+    auth_info, fn, model_monitoring_access_key, monitoring_application
+):
+    if not mlrun.mlconf.is_ce_mode():
+        # create v3io stream for model monitoring application
+        create_model_monitoring_stream(
+            project=fn.metadata.project,
+            function=fn,
+            monitoring_application=monitoring_application,
+            stream_path=server.api.crud.model_monitoring.get_stream_path(
+                project=fn.metadata.project,
+                application_name=fn.metadata.name,
+            ),
+            access_key=model_monitoring_access_key,
+        )
+    # apply stream trigger to monitoring application
+    monitoring_deploy = (
+        server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+    )
+    fn = monitoring_deploy._apply_stream_trigger(
+        project=fn.metadata.project,
+        function=fn,
+        model_monitoring_access_key=model_monitoring_access_key,
+        function_name=fn.metadata.name,
+        auth_info=auth_info,
+    )
+    return fn
+
+
 def _parse_start_function_body(db_session, data):
     url = data.get("functionUrl")
     if not url:
@@ -868,6 +901,21 @@ def _parse_start_function_body(db_session, data):
         )
 
     return new_function(runtime=runtime)
+
+
+async def _start_function_wrapper(
+    function,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
+):
+    await run_in_threadpool(
+        _start_function,
+        function,
+        auth_info,
+        client_version,
+        client_python_version,
+    )
 
 
 def _start_function(

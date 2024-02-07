@@ -135,9 +135,9 @@ def client(db) -> Generator:
 
 
 @pytest.fixture()
-def unprefixed_client(db) -> Generator:
+def unversioned_client(db) -> Generator:
     """
-    unprefixed_client is a test client that doesn't have the version prefix in the url.
+    unversioned_client is a test client that doesn't have the version prefix in the url.
     When using this client, the version prefix must be added to the url manually.
     This is useful when tests use several endpoints that are not under the same version prefix.
     """
@@ -147,9 +147,9 @@ def unprefixed_client(db) -> Generator:
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
-        with TestClient(app) as test_client_v2:
-            set_base_url_for_test_client(test_client_v2, API_PREFIX)
-            yield test_client_v2
+        with TestClient(app) as unversioned_test_client:
+            set_base_url_for_test_client(unversioned_test_client, API_PREFIX)
+            yield unversioned_test_client
 
 
 @pytest.fixture()
@@ -333,7 +333,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 @pytest.fixture()
-def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
     k8s_secrets_mock.mock_functions(

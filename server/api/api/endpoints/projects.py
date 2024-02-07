@@ -199,11 +199,13 @@ async def delete_project(
         chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
 
-    # we need to implement the `check` deletion strategy here, since we don't want
+    # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response
-    if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+    if deletion_strategy.strategy_to_check():
         server.api.crud.Projects().verify_project_is_empty(db_session, name)
-        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+            # if the strategy is check, we don't want to delete the project, only to check if it is empty
+            return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if (
@@ -261,7 +263,9 @@ async def delete_project(
     else:
         # For iguzio < 3.5.5, the project deletion job is triggered while zebo does not wait for it to complete.
         # We wait for it here to make sure we respond with a proper status code.
-        server.api.api.utils.verify_project_is_deleted(name, auth_info)
+        await run_in_threadpool(
+            server.api.api.utils.verify_project_is_deleted, name, auth_info
+        )
 
     await get_project_member().post_delete_project(name)
     if force_delete:

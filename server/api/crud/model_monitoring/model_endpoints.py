@@ -89,7 +89,7 @@ class ModelEndpoints:
                             model_obj.spec.feature_stats
                         )
                     )
-                model_endpoint.status.feature_stats = model_obj.spec.feature_stats
+                    model_endpoint.status.feature_stats = model_obj.spec.feature_stats
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
                 model_label_names = [
@@ -583,7 +583,7 @@ class ModelEndpoints:
                 f"The length of model endpoint feature_stats is not equal to the "
                 f"length of model endpoint feature names and labels "
                 f"feature_stats({len_of_feature_stats}), "
-                f"feature_names({len_of_feature_names}),"
+                f"feature_names({len_of_feature_names}), "
                 f"label_names({len_of_label_names}"
             )
 

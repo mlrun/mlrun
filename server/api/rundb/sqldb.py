@@ -69,7 +69,7 @@ class SQLRunDB(RunDBInterface):
         #  we will change it.
         raise NotImplementedError(
             "This should be changed to async call, if you are running in the API, use `server.api.crud.get_log`"
-            " method directly instead and not through the get_db().get_log() method"
+            " method directly instead and not through the get_db().get_log() method. "
             "This will be removed in 1.5.0",
         )
 
@@ -740,6 +740,18 @@ class SQLRunDB(RunDBInterface):
             version,
         )
 
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
+        raise NotImplementedError()
+
     def list_pipelines(
         self,
         project: str,
@@ -907,7 +919,12 @@ class SQLRunDB(RunDBInterface):
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
-        raise NotImplementedError()
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.DatastoreProfiles().get_datastore_profile,
+            name,
+            project,
+        )
 
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()

@@ -900,14 +900,22 @@ class SQLDB(DBInterface):
         project: str,
     ):
         # to avoid multiple runs trying to tag the same artifacts simultaneously,
-        # lock all the artifacts' rows for the entire transaction
-        self._query(
-            session,
-            ArtifactV2,
-            project=project,
-        ).filter(ArtifactV2.key.in_([artifact.key for artifact in artifacts])).order_by(
-            ArtifactV2.id.asc()
-        ).populate_existing().with_for_update().all()
+        # lock the artifacts with the same keys for the entire transaction (using with_for_update).
+        q = (
+            self._query(
+                session,
+                ArtifactV2,
+                project=project,
+            )
+            .filter(
+                ArtifactV2.key.in_([artifact.key for artifact in artifacts]),
+            )
+            .order_by(ArtifactV2.id.asc())
+            .populate_existing()
+            .with_for_update()
+        )
+
+        q.all()
 
         objects = []
         for artifact in artifacts:

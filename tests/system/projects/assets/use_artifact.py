@@ -13,8 +13,8 @@
 # limitations under the License.
 #
 from pathlib import Path
-from typing import List, Union
+from typing import Union
 
 
-def use_artifact(artifact: Union[str, Path, List[Union[str, Path]]]):
+def use_artifact(artifact: Union[str, Path, list[Union[str, Path]]]):
     print(artifact)

@@ -15,7 +15,6 @@ import os
 import pathlib
 import tempfile
 import zipfile
-from typing import List
 
 import mlflow
 import mlflow.entities
@@ -526,7 +525,7 @@ class MLFlowTracker(Tracker):
         )
 
     @staticmethod
-    def _schema_to_feature(schema: mlflow.types.Schema) -> List[Feature]:
+    def _schema_to_feature(schema: mlflow.types.Schema) -> list[Feature]:
         """
         Cast MLFlow schema to MLRun features.
 

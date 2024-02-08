@@ -16,7 +16,6 @@ import hashlib
 import json
 import os
 import re
-import typing
 from io import StringIO
 from sys import stderr
 
@@ -501,7 +500,7 @@ def enrich_function_from_dict(function, function_dict):
 
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: typing.List[RunLabels] = None,
+    labels_to_enrich: list[RunLabels] = None,
 ):
     labels_enrichment = {
         RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),

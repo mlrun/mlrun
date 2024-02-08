@@ -210,7 +210,7 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        secrets: typing.Optional[typing.List[str]] = None,
+        secrets: typing.Optional[list[str]] = None,
         allow_internal_secrets: bool = False,
     ):
         if not allow_internal_secrets:
@@ -311,7 +311,7 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        secrets: typing.Optional[typing.List[str]] = None,
+        secrets: typing.Optional[list[str]] = None,
         token: typing.Optional[str] = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
@@ -424,7 +424,7 @@ class Secrets(
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
         key_map_secret_key: typing.Optional[str] = None,
-    ) -> typing.Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         if key_map_secret_key:
             if provider != mlrun.common.schemas.SecretProviderName.kubernetes:
                 raise mlrun.errors.MLRunInvalidArgumentError(

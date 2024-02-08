@@ -210,7 +210,7 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
 
 def compile_nuclio_archive_config(
     nuclio_spec,
-    function: mlrun.runtimes.function.RemoteRuntime,
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     builder_env,
     project=None,
     auth_info=None,

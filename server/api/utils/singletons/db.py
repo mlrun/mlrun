@@ -33,7 +33,7 @@ def initialize_db(override_db=None):
     if override_db:
         db = override_db
         return
-    logger.info("Creating sql db")
+    logger.info("Creating sql db", dst=config.httpdb.dsn)
     db = SQLDB(config.httpdb.dsn)
     # set the run db path to the sql db dsn
     mlrun.db.get_or_set_dburl(config.httpdb.dsn)

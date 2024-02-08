@@ -19,7 +19,6 @@ from datetime import datetime
 
 import fsspec
 import v3io
-from v3io.dataplane.object import Model
 from v3io.dataplane.response import HttpResponseError
 
 import mlrun
@@ -103,7 +102,7 @@ class V3ioStore(DataStore):
             with open(src_path, "rb") as source_file:
                 data = source_file.read()
                 self._do_object_request(
-                    Model.put, container=container, path=path, body=data, append=False
+                    v3io.dataplane.object.Model.put, container=container, path=path, body=data, append=False
                 )
             return
         # chunk must be a multiple of the ALLOCATIONGRANULARITY
@@ -124,7 +123,7 @@ class V3ioStore(DataStore):
                 ) as mmap_obj:
                     append = True if file_offset else False
                     self._do_object_request(
-                        Model.put,
+                        v3io.dataplane.object.Model.put,
                         container=container,
                         path=path,
                         body=mmap_obj,
@@ -138,7 +137,7 @@ class V3ioStore(DataStore):
     def get(self, key, size=None, offset=0):
         container, path = split_path(self._join(key))
         return self._do_object_request(
-            function=Model.get,
+            function=v3io.dataplane.object.Model.get,
             container=container,
             path=path,
             offset=offset,
@@ -151,7 +150,7 @@ class V3ioStore(DataStore):
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
             self._do_object_request(
-                Model.put, container=container, path=path, body=data, append=append
+                v3io.dataplane.object.Model.put, container=container, path=path, body=data, append=append
             )
             return
         buffer_offset = 0
@@ -164,7 +163,7 @@ class V3ioStore(DataStore):
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
             append = True if buffer_offset or append else False
             self._do_object_request(
-                Model.put,
+                v3io.dataplane.object.Model.put,
                 container=container,
                 path=path,
                 body=data[buffer_offset : buffer_offset + chunk_size],
@@ -178,7 +177,7 @@ class V3ioStore(DataStore):
     def stat(self, key):
         container, path = split_path(self._join(key))
         response = self._do_object_request(
-            function=Model.head, container=container, path=path
+            function=v3io.dataplane.object.Model.head, container=container, path=path
         )
         head = dict(response.headers.items())
         size = int(head.get("Content-Length", "0"))

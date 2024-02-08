@@ -23,7 +23,6 @@ from warnings import warn
 import dask.dataframe as dd
 import pandas as pd
 import pytest
-from v3io.dataplane.response import HttpResponseError
 
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
@@ -52,7 +51,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             "parquet": test_additional_parquet_path,
             "csv": test_additional_csv_path,
         }
-        with open(cls.test_file_path, "r") as f:
+        with open(cls.test_file_path) as f:
             cls.test_string = f.read()
         cls.test_dir_path = "/bigdata/v3io_tests"
         cls.v3io_test_dir_url = "v3io://" + cls.test_dir_path
@@ -212,7 +211,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.upload(self.test_file_path)
         data_item.stat()
         data_item.delete()
-        with pytest.raises(HttpResponseError) as http_error:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as http_error:
             data_item.stat()
         assert "Request failed with status 404" in str(http_error.value)
         # folder deletion:
@@ -221,7 +220,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.upload(self.test_file_path)
         dir_data_item = mlrun.get_dataitem(url=os.path.dirname(url))
         dir_data_item.delete(recursive=True)
-        with pytest.raises(HttpResponseError) as http_error_dir:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as http_error_dir:
             dir_data_item.stat()
         assert "Request failed with status 404" in str(http_error_dir.value)
 

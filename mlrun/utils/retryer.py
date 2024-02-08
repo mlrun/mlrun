@@ -79,7 +79,7 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
 class Retryer:
     def __init__(self, backoff, timeout, logger, verbose, function, *args, **kwargs):
         """
-        Run function with given *args and **kwargs.
+        Initialize function retryer with given *args and **kwargs.
         Tries to run it until success or timeout reached (timeout is optional)
         :param backoff: can either be a:
                 - number (int / float) that will be used as interval.
@@ -90,7 +90,6 @@ class Retryer:
         :param _function: function to run
         :param args: functions args
         :param kwargs: functions kwargs
-        :return: function result
         """
         self.backoff = backoff
         self.timeout = timeout

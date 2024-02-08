@@ -57,7 +57,7 @@ def test_retry_until_successful_fatal_failure():
         )
 
 
-def test_retry_until_successful():
+def test_retry_until_successful_sync():
     counter = 0
 
     def increase_counter():

@@ -46,6 +46,7 @@ import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
+from mlrun.runtimes.nuclio.function import RemoteRuntime
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -57,7 +58,6 @@ from ..model_monitoring.application import (
     PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.function import RemoteRuntime
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,

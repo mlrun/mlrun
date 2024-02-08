@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.runtimes.function
+import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 import server.api.crud.runtimes.nuclio.function
 import server.api.crud.runtimes.nuclio.helpers
@@ -1116,37 +1116,45 @@ class TestNuclioRuntime(TestRuntimeBase):
         # nuclio version we have
         mlconf.nuclio_version = "1.6.10"
 
-        # mlrun.runtimes.function.validate_nuclio_version_compatibility receives the min nuclio version required
-        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+        # mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility receives the min nuclio version required
+        assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.6.11"
         )
-        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+        assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.5.9", "1.6.11"
         )
-        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+        assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.6.11", "1.5.9"
         )
-        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+        assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "2.0.0"
         )
-        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.9")
-        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.5.9")
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.9"
+        )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.5.9"
+        )
 
         mlconf.nuclio_version = "2.0.0"
-        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.11")
-        assert mlrun.runtimes.function.validate_nuclio_version_compatibility(
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.11"
+        )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.5.9", "1.6.11"
         )
 
         # best effort - assumes compatibility
         mlconf.nuclio_version = ""
-        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.11")
-        assert mlrun.runtimes.function.validate_nuclio_version_compatibility(
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.11"
+        )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.5.9", "1.6.11"
         )
 
         with pytest.raises(ValueError):
-            mlrun.runtimes.function.validate_nuclio_version_compatibility("")
+            mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("")
 
     def test_min_nuclio_versions_decorator_failure(self):
         mlconf.nuclio_version = "1.6.10"
@@ -1157,7 +1165,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             ["1.5.9", "1.6.11"],
         ]:
 
-            @mlrun.runtimes.function.min_nuclio_versions(*case)
+            @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
             def fail():
                 pytest.fail("Should not enter this function")
 
@@ -1174,7 +1182,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 ["1.0.0", "0.9.81", "1.4.1"],
             ]:
 
-                @mlrun.runtimes.function.min_nuclio_versions(*case)
+                @mlrun.runtimes.nuclio.function.min_nuclio_versions(*case)
                 def success():
                     pass
 

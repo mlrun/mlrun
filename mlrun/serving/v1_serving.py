@@ -25,7 +25,7 @@ import nuclio
 import mlrun
 from mlrun.errors import err_to_str
 from mlrun.platforms.iguazio import OutputStream
-from mlrun.runtimes import RemoteRuntime
+from mlrun.runtimes.nuclio.function import RemoteRuntime
 
 serving_handler = "handler"
 

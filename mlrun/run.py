@@ -34,6 +34,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
+from mlrun.runtimes.nuclio.serving import serving_subkind
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -57,7 +58,6 @@ from .runtimes import (
 )
 from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
-from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     extend_hub_uri_if_needed,

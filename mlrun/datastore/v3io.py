@@ -136,7 +136,7 @@ class V3ioStore(DataStore):
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
-            self.object.put(container=container, path=path, body=data, append=False)
+            self.object.put(container=container, path=path, body=data, append=append)
             return
         buffer_offset = 0
         try:

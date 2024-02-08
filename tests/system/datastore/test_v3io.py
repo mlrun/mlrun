@@ -174,6 +174,11 @@ class TestV3ioDataStore(TestMLRunSystem):
             content = temp_file.read()
             assert content == self.test_string
 
+        # append=True test:
+        data_item.put(self.test_string, append=True)
+        response = data_item.get()
+        assert response.decode() == self.test_string + self.test_string
+
     def test_stat(self):
         data_item, _ = self._get_data_item()
         data_item.put(self.test_string)

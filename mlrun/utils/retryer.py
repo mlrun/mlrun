@@ -101,9 +101,9 @@ class Retryer:
         self.start_time = None
         self.last_exception = None
         self.first_interval = None
-        self._prepare()
 
     def run(self):
+        self._prepare()
         while not self._timeout_exceeded():
             next_interval = self.first_interval or next(self.backoff)
             result, exc, retry = self._perform_call(next_interval)
@@ -180,6 +180,7 @@ class Retryer:
 
 class AsyncRetryer(Retryer):
     async def run(self):
+        self._prepare()
         while not self._timeout_exceeded():
             next_interval = self.first_interval or next(self.backoff)
             result, exc, retry = await self._perform_call(next_interval)

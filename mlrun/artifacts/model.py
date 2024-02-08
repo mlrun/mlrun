@@ -13,8 +13,9 @@
 # limitations under the License.
 import tempfile
 from os import path
-from typing import List
+from typing import Any, List
 
+import pandas as pd
 import yaml
 from deprecated import deprecated
 
@@ -260,6 +261,7 @@ class ModelArtifact(Artifact):
         """
         subset = df
         inferer = get_infer_interface(subset)
+        numeric_columns = self._extract_numeric_features(df)
         if label_columns:
             if not isinstance(label_columns, list):
                 label_columns = [label_columns]
@@ -267,29 +269,19 @@ class ModelArtifact(Artifact):
         inferer.infer_schema(
             subset, self.spec.inputs, {}, options=InferOptions.Features
         )
-        numeric_inputs = self._extract_numeric_features(self.spec.inputs)
-        numeric_outputs = []
         if label_columns:
             inferer.infer_schema(
                 df[label_columns], self.spec.outputs, {}, options=InferOptions.Features
             )
-            numeric_outputs = self._extract_numeric_features(self.spec.outputs)
         if with_stats:
             # only on the numeric columns
-            numeric_columns = [
-                feature.name for feature in numeric_outputs + numeric_inputs
-            ]
             self.spec.feature_stats = inferer.get_stats(
                 df[numeric_columns], options=InferOptions.Histogram, num_bins=num_bins
             )
 
     @staticmethod
-    def _extract_numeric_features(features: List[Feature]) -> List[Feature]:
-        numeric_features = []
-        for i in range(len(features)):
-            if features[i].is_numeric():
-                numeric_features.append(features[i])
-        return numeric_features
+    def _extract_numeric_features(df: pd.DataFrame) -> List[Any]:
+        return [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
 
     @property
     def is_dir(self):

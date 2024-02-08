@@ -130,9 +130,6 @@ class Feature(ModelObj):
             validator = validator_kinds[kind].from_dict(validator)
         self._validator = validator
 
-    def is_numeric(self):
-        return self.value_type.is_numeric()
-
 
 class BasicTypeValidator:
     def __init__(self):

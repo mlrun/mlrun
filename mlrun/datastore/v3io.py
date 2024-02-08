@@ -131,7 +131,7 @@ class V3ioStore(DataStore):
             container=container, path=path, offset=offset, num_bytes=size
         ).body
 
-    def _put(self, key, data, max_chunk_size: int = ONE_GB):
+    def _put(self, key, data, append=False, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
@@ -146,7 +146,7 @@ class V3ioStore(DataStore):
 
         while buffer_offset < buffer_size:
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
-            append = True if buffer_offset else False
+            append = True if buffer_offset or append else False
             self.object.put(
                 container=container,
                 path=path,
@@ -156,7 +156,7 @@ class V3ioStore(DataStore):
             buffer_offset += chunk_size
 
     def put(self, key, data, append=False):
-        return self._put(key, data)
+        return self._put(key, data, append)
 
     def stat(self, key):
         container, path = split_path(self._join(key))

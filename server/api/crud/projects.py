@@ -403,15 +403,15 @@ class Projects(
         def _check_nuclio_project_deletion():
             try:
                 nuclio_client.get_project(session, project_name)
-                raise Exception(
-                    f"Project not deleted in nuclio yet. Project: {project_name}"
-                )
             except mlrun.errors.MLRunNotFoundError:
                 logger.debug(
                     "Nuclio project deleted",
                     project_name=project_name,
                 )
-                return True
+            else:
+                raise Exception(
+                    f"Project not deleted in nuclio yet. Project: {project_name}"
+                )
 
         timeout = int(
             humanfriendly.parse_timespan(

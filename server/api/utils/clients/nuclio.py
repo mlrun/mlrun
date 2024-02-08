@@ -16,10 +16,10 @@ import copy
 import enum
 import http
 import typing
-from base64 import b64encode
 
 import requests.adapters
 import sqlalchemy.orm
+from requests.auth import HTTPBasicAuth
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -38,7 +38,7 @@ class Client(
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.config.config.nuclio_dashboard_url
-        self._auth = self._generate_basic_auth(auth_info.username, auth_info.session)
+        self._auth = HTTPBasicAuth("user", "pass")
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
@@ -256,8 +256,3 @@ class Client(
                 description=nuclio_project["spec"].get("description")
             ),
         )
-
-    @staticmethod
-    def _generate_basic_auth(username, password):
-        token = b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
-        return f"Basic {token}"

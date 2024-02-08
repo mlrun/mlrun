@@ -139,12 +139,26 @@ def chdir_to_test_location(request):
 
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise RuntimeError("Permission denied")
+
+        def put(self, *args, **kwargs):
+            raise RuntimeError("Permission denied")
+
+        def head(self, *args, **kwargs):
+            raise RuntimeError("Permission denied")
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
             self.container = self
 
         def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
 

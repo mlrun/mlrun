@@ -367,7 +367,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             )
 
 
-def datastore_profile_read(url):
+def datastore_profile_read(url, project_name=""):
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -375,7 +375,7 @@ def datastore_profile_read(url):
         )
 
     profile_name = parsed_url.hostname
-    project_name = parsed_url.username or mlrun.mlconf.default_project
+    project_name = project_name or mlrun.mlconf.default_project
     datastore = TemporaryClientDatastoreProfiles().get(profile_name)
     if datastore:
         return datastore

@@ -1571,10 +1571,25 @@ def iterate_list_by_chunks(
 
 
 def to_parquet(df, *args, **kwargs):
+    import pyarrow.lib
+
     # version set for pyspark compatibility, and is needed as of pyarrow 13 due to timestamp incompatibility
     if "version" not in kwargs:
         kwargs["version"] = "2.4"
-    df.to_parquet(*args, **kwargs)
+    try:
+        df.to_parquet(*args, **kwargs)
+    except pyarrow.lib.ArrowInvalid as ex:
+        if re.match(
+            "Fragment would be written into [0-9]+. partitions. This exceeds the maximum of [0-9]+",
+            str(ex),
+        ):
+            raise mlrun.errors.MLRunRuntimeError(
+                """Maximum number of partitions exceeded. To resolve this, change
+partition granularity by setting time_partitioning_granularity or partition_cols, or disable partitioning altogether by
+setting partitioned=False"""
+            ) from ex
+        else:
+            raise ex
 
 
 def is_ecr_url(registry: str) -> bool:

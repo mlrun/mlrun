@@ -102,7 +102,11 @@ class V3ioStore(DataStore):
             with open(src_path, "rb") as source_file:
                 data = source_file.read()
                 self._do_object_request(
-                    v3io.dataplane.object.Model.put, container=container, path=path, body=data, append=False
+                    v3io.dataplane.object.Model.put,
+                    container=container,
+                    path=path,
+                    body=data,
+                    append=False,
                 )
             return
         # chunk must be a multiple of the ALLOCATIONGRANULARITY
@@ -127,7 +131,7 @@ class V3ioStore(DataStore):
                         container=container,
                         path=path,
                         body=mmap_obj,
-                        append=append
+                        append=append,
                     )
                     file_offset += chunk_size
 
@@ -150,7 +154,11 @@ class V3ioStore(DataStore):
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
             self._do_object_request(
-                v3io.dataplane.object.Model.put, container=container, path=path, body=data, append=append
+                v3io.dataplane.object.Model.put,
+                container=container,
+                path=path,
+                body=data,
+                append=append,
             )
             return
         buffer_offset = 0
@@ -167,7 +175,7 @@ class V3ioStore(DataStore):
                 container=container,
                 path=path,
                 body=data[buffer_offset : buffer_offset + chunk_size],
-                append=append
+                append=append,
             )
             buffer_offset += chunk_size
 

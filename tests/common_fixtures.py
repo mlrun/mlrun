@@ -28,6 +28,8 @@ import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+import v3io.dataplane.object
+import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.schemas
@@ -139,15 +141,13 @@ def chdir_to_test_location(request):
 
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
+    def return_forbidden(*args, **kwargs):
+        raise v3io.dataplane.response.HttpResponseError(
+            "error", HTTPStatus.FORBIDDEN.value
+        )
+
     class MockV3ioObject:
-        def get(self, *args, **kwargs):
-            raise RuntimeError("Permission denied")
-
-        def put(self, *args, **kwargs):
-            raise RuntimeError("Permission denied")
-
-        def head(self, *args, **kwargs):
-            raise RuntimeError("Permission denied")
+        pass
 
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
@@ -165,6 +165,8 @@ def patch_file_forbidden(monkeypatch):
     monkeypatch.setattr(requests, "get", mock_get)
     monkeypatch.setattr(requests, "head", mock_get)
     monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
+    monkeypatch.setattr(v3io.dataplane.object.Model, "get", return_forbidden)
+    monkeypatch.setattr(v3io.dataplane.object.Model, "head", return_forbidden)
 
 
 @pytest.fixture

@@ -537,6 +537,7 @@ class SQLDB(DBInterface):
                     project=project,
                     key=key,
                     iteration=iter,
+                    uid=uid,
                 )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
@@ -904,15 +905,30 @@ class SQLDB(DBInterface):
         artifacts,
         project: str,
     ):
+        artifacts_keys = [artifact.key for artifact in artifacts]
+        logger.debug(
+            "Locking artifacts in db before tagging artifacts",
+            project=project,
+            tag=tag_name,
+            artifacts_keys=artifacts_keys,
+        )
+
         # to avoid multiple runs trying to tag the same artifacts simultaneously,
-        # lock all the artifacts' rows for the entire transaction
+        # lock the artifacts with the same keys for the entire transaction (using with_for_update).
         self._query(
             session,
             ArtifactV2,
             project=project,
-        ).filter(ArtifactV2.key.in_([artifact.key for artifact in artifacts])).order_by(
-            ArtifactV2.id.asc()
-        ).populate_existing().with_for_update().all()
+        ).filter(
+            ArtifactV2.key.in_(artifacts_keys),
+        ).order_by(ArtifactV2.id.asc()).populate_existing().with_for_update().all()
+
+        logger.debug(
+            "Acquired artifacts db lock",
+            project=project,
+            tag=tag_name,
+            artifacts_keys=artifacts_keys,
+        )
 
         objects = []
         for artifact in artifacts:
@@ -935,31 +951,37 @@ class SQLDB(DBInterface):
             )
 
             # delete the tags
-            for old_tag in query.all():
+            for old_tag in query:
                 objects.append(old_tag)
                 session.delete(old_tag)
 
-            # search for an existing tag with the same name, and points to artifacts with the same key, producer id,
-            # and iteration. this means that the same producer created this artifact,
-            # and we can update the existing tag
-            query = (
-                self._query(
-                    session,
-                    artifact.Tag,
-                    name=tag_name,
-                    project=project,
-                    obj_name=artifact.key,
+            def _get_tag(_session):
+                # search for an existing tag with the same name, and points to artifacts with the same key, producer id,
+                # and iteration. this means that the same producer created this artifact,
+                # and we can update the existing tag
+                tag_query = (
+                    self._query(
+                        _session,
+                        artifact.Tag,
+                        name=tag_name,
+                        project=project,
+                        obj_name=artifact.key,
+                    )
+                    .join(
+                        ArtifactV2,
+                    )
+                    .filter(
+                        ArtifactV2.producer_id == artifact.producer_id,
+                        ArtifactV2.iteration == artifact.iteration,
+                    )
                 )
-                .join(
-                    ArtifactV2,
-                )
-                .filter(
-                    ArtifactV2.producer_id == artifact.producer_id,
-                    ArtifactV2.iteration == artifact.iteration,
-                )
-            )
 
-            tag = query.one_or_none()
+                return tag_query.one_or_none()
+
+            # to make sure we can list tags that were created during this session in parallel by different processes,
+            # we need to use a new session. if there is an existing tag, we'll definitely get it, so we can update it
+            # instead of creating a new tag.
+            tag = server.api.db.session.run_function_with_new_db_session(_get_tag)
             if not tag:
                 # create the new tag
                 tag = artifact.Tag(
@@ -975,6 +997,13 @@ class SQLDB(DBInterface):
         # commit the changes, including the deletion of the old tags and the creation of the new tags
         # this will also release the locks on the artifacts' rows
         self._commit(session, objects)
+
+        logger.debug(
+            "Released artifacts db lock after tagging artifacts",
+            project=project,
+            tag=tag_name,
+            artifacts_keys=artifacts_keys,
+        )
 
     def _mark_best_iteration_artifact(
         self,

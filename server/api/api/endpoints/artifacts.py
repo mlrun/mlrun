@@ -260,31 +260,6 @@ async def list_artifacts(
     }
 
 
-# TODO: remove /artifacts in 1.6.0
-@router.delete(
-    "/artifacts",
-    deprecated=True,
-    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts instead",
-)
-async def delete_artifacts_legacy(
-    project: str = mlrun.mlconf.default_project,
-    name: str = "",
-    tag: str = "",
-    labels: list[str] = Query([], alias="label"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    return await _delete_artifacts(
-        project=project,
-        name=name,
-        tag=tag,
-        labels=labels,
-        auth_info=auth_info,
-        db_session=db_session,
-    )
-
-
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
     project: str = mlrun.mlconf.default_project,

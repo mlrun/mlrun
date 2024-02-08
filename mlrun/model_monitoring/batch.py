@@ -913,7 +913,7 @@ class BatchProcessor:
         drift_status: mlrun.common.schemas.model_monitoring.DriftStatus,
         drift_measure: float,
         drift_result: dict[str, dict[str, Any]],
-        timestamp: pd._libs.tslibs.timestamps.Timestamp,
+        timestamp: pd.Timestamp,
     ):
         """Update drift results in input stream.
 

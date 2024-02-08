@@ -1043,7 +1043,6 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        time_fields: list[str] = None,
         parse_dates: list[str] = None,
         **kwargs,
     ):

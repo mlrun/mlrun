@@ -17,7 +17,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import pandas as pd
 import semver
@@ -170,10 +170,10 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         schedule: str = None,
-        parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        parse_dates: Union[None, int, str, list[int], list[str]] = None,
         **kwargs,
     ):
         super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
@@ -299,7 +299,7 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -800,7 +800,7 @@ class OnlineSource(BaseSourceDriver):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         workers: int = None,
@@ -1043,7 +1043,8 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        parse_dates: List[str] = None,
+        time_fields: list[str] = None,
+        parse_dates: list[str] = None,
         **kwargs,
     ):
         """

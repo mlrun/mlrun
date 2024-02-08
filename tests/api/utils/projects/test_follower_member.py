@@ -475,7 +475,7 @@ def test_list_project_leader_format(
 def _assert_list_projects(
     db_session: sqlalchemy.orm.Session,
     projects_follower: server.api.utils.projects.follower.Member,
-    expected_projects: typing.List[mlrun.common.schemas.Project],
+    expected_projects: list[mlrun.common.schemas.Project],
     **kwargs,
 ):
     projects = projects_follower.list_projects(db_session, **kwargs)

@@ -578,7 +578,7 @@ class MonitoringDeployment:
         function_name: str,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
         tracking_offset: Seconds,
-    ) -> typing.Tuple[str, typing.Dict[str, int]]:
+    ) -> tuple[str, dict[str, int]]:
         """Generate schedule cron string along with the batch interval dictionary according to the providing
         function name. As for the model monitoring controller function, the dictionary batch interval is
         corresponding to the scheduling policy.
@@ -792,10 +792,10 @@ class MonitoringDeployment:
 
 
 def get_endpoint_features(
-    feature_names: typing.List[str],
+    feature_names: list[str],
     feature_stats: dict = None,
     current_stats: dict = None,
-) -> typing.List[mlrun.common.schemas.Features]:
+) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and
     actual (current_stats) stats. The expected stats were calculated during the creation of the model endpoint,

@@ -385,7 +385,7 @@ class RemoteRuntime(KubeResource):
         workers: typing.Optional[int] = 8,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
-        paths: typing.Optional[typing.List[str]] = None,
+        paths: typing.Optional[list[str]] = None,
         canary: typing.Optional[float] = None,
         secret: typing.Optional[str] = None,
         worker_timeout: typing.Optional[int] = None,
@@ -629,9 +629,9 @@ class RemoteRuntime(KubeResource):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+        tolerations: typing.Optional[list[client.V1Toleration]] = None,
     ):
         """k8s node selection attributes"""
         if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
@@ -683,7 +683,7 @@ class RemoteRuntime(KubeResource):
 
     def set_state_thresholds(
         self,
-        state_thresholds: typing.Dict[str, int],
+        state_thresholds: dict[str, int],
         patch: bool = True,
     ):
         raise NotImplementedError(
@@ -716,7 +716,7 @@ class RemoteRuntime(KubeResource):
         raise_on_exception=True,
         resolve_address=True,
         auth_info: AuthInfo = None,
-    ) -> typing.Tuple[str, str, typing.Optional[float]]:
+    ) -> tuple[str, str, typing.Optional[float]]:
         if dashboard:
             (
                 state,

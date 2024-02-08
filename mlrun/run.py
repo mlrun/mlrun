@@ -24,7 +24,7 @@ from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import nuclio
 import yaml
@@ -69,7 +69,7 @@ from .utils import (
 )
 
 
-class RunStatuses(object):
+class RunStatuses:
     succeeded = "Succeeded"
     failed = "Failed"
     skipped = "Skipped"
@@ -436,7 +436,7 @@ def new_function(
     mode=None,
     handler: str = None,
     source: str = None,
-    requirements: Union[str, List[str]] = None,
+    requirements: Union[str, list[str]] = None,
     kfp=None,
     requirements_file: str = "",
 ):
@@ -585,9 +585,9 @@ def code_to_function(
     code_output: str = "",
     embed_code: bool = True,
     description: str = "",
-    requirements: Union[str, List[str]] = None,
-    categories: List[str] = None,
-    labels: Dict[str, str] = None,
+    requirements: Union[str, list[str]] = None,
+    categories: list[str] = None,
+    labels: dict[str, str] = None,
     with_doc: bool = True,
     ignored_tags=None,
     requirements_file: str = "",
@@ -896,7 +896,7 @@ def _run_pipeline(
 def wait_for_pipeline_completion(
     run_id,
     timeout=60 * 60,
-    expected_statuses: List[str] = None,
+    expected_statuses: list[str] = None,
     namespace=None,
     remote=True,
     project: str = None,
@@ -1041,7 +1041,7 @@ def list_pipelines(
     namespace=None,
     project="*",
     format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
-) -> Tuple[int, Optional[int], List[dict]]:
+) -> tuple[int, Optional[int], list[dict]]:
     """List pipelines
 
     :param full:       Deprecated, use `format_` instead. if True will set `format_` to full, otherwise `format_` will

@@ -703,7 +703,7 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     _last_notification_push_time = now
 
 
-async def _abort_stale_runs(stale_runs: typing.List[dict]):
+async def _abort_stale_runs(stale_runs: list[dict]):
     semaphore = asyncio.Semaphore(
         int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
     )

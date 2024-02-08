@@ -14,7 +14,6 @@
 #
 
 import http.server
-import typing
 from contextlib import nullcontext as does_not_raise
 from unittest import mock
 
@@ -136,7 +135,7 @@ async def test_retry_method_status_codes(
     async_client: AsyncClientWithRetry,
     aioresponses_mock: aioresponses_mock,
     method: str,
-    status_codes: typing.List[http.HTTPStatus],
+    status_codes: list[http.HTTPStatus],
 ):
     for status_code in status_codes:
         aioresponses_mock.add("http://nothinghere", method=method, status=status_code)

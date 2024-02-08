@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from importlib import import_module
 from os import path
 from types import ModuleType
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional
 
 import anyio
 import git
@@ -273,12 +273,12 @@ def validate_v3io_stream_consumer_group(
     )
 
 
-def get_regex_list_as_string(regex_list: List) -> str:
+def get_regex_list_as_string(regex_list: list) -> str:
     """
     This function is used to combine a list of regex strings into a single regex,
     with and condition between them.
     """
-    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+    return "".join([f"(?={regex})" for regex in regex_list]) + ".*$"
 
 
 def tag_name_regex_as_string() -> str:
@@ -695,7 +695,7 @@ def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
 
@@ -784,7 +784,7 @@ def gen_html_table(header, rows=None):
 def new_pipe_metadata(
     artifact_path: str = None,
     cleanup_ttl: int = None,
-    op_transformers: typing.List[typing.Callable] = None,
+    op_transformers: list[typing.Callable] = None,
 ):
     from kfp.dsl import PipelineConf
 
@@ -890,7 +890,7 @@ def get_docker_repository_or_default(repository: str) -> str:
     return repository
 
 
-def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
+def get_parsed_docker_registry() -> tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
@@ -1074,9 +1074,7 @@ def retry_until_successful(
 def get_ui_url(project, uid=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
-        url = "{}/{}/{}/jobs".format(
-            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-        )
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/jobs"
         if uid:
             url += f"/monitor/{uid}/overview"
     return url
@@ -1092,7 +1090,7 @@ def get_workflow_url(project, id=None):
 
 
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=typing.List[str]
+    exception: Exception, strings_list=list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1272,7 +1270,7 @@ def has_timezone(timestamp):
         return False
 
 
-def as_list(element: Any) -> List[Any]:
+def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 
 
@@ -1597,7 +1595,7 @@ def is_ecr_url(registry: str) -> bool:
     return ".ecr." in registry and ".amazonaws.com" in registry
 
 
-def get_local_file_schema() -> List:
+def get_local_file_schema() -> list:
     # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
     # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     return ["file"] + list(string.ascii_lowercase)

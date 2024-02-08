@@ -50,7 +50,7 @@ def _build_skip_message():
 
 
 def _is_env_params_dont_exist() -> bool:
-    return not all((os.environ.get(r, False) for r in ENV_PARAMS))
+    return not all(os.environ.get(r, False) for r in ENV_PARAMS)
 
 
 def test_grafana_proxy_model_endpoints_check_connection(

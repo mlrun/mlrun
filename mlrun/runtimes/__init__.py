@@ -89,7 +89,7 @@ def new_model_server(
         )
 
 
-class RuntimeKinds(object):
+class RuntimeKinds:
     remote = "remote"
     nuclio = "nuclio"
     dask = "dask"

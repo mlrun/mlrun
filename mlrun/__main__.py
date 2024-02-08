@@ -1452,7 +1452,7 @@ def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
     for notification in notifications:
         if notification.startswith("file="):
             file_path = notification.split("=")[-1]
-            notification = open(file_path, "r")
+            notification = open(file_path)
             notification = json.load(notification)
         else:
             notification = json.loads(notification)

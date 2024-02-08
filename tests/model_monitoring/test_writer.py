@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Type
 from unittest.mock import Mock
 
 import pytest
@@ -61,7 +60,7 @@ def notification_pusher() -> CustomNotificationPusher:
         ({WriterEvent.ENDPOINT_ID: "ep2211"}, _WriterEventValueError),
     ],
 )
-def test_reconstruct_event_error(event: _RawEvent, exception: Type[Exception]) -> None:
+def test_reconstruct_event_error(event: _RawEvent, exception: type[Exception]) -> None:
     with pytest.raises(exception):
         ModelMonitoringWriter._reconstruct_event(event)
 

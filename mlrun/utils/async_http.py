@@ -16,7 +16,7 @@
 import asyncio
 import logging
 import typing
-from typing import List, Optional
+from typing import Optional
 
 import aiohttp
 import aiohttp.http_exceptions
@@ -38,12 +38,10 @@ class AsyncClientWithRetry(RetryClient):
         self,
         max_retries: int = config.http_retry_defaults.max_retries,
         retry_backoff_factor: float = config.http_retry_defaults.backoff_factor,
-        retry_on_status_codes: typing.List[
-            int
-        ] = config.http_retry_defaults.status_codes,
+        retry_on_status_codes: list[int] = config.http_retry_defaults.status_codes,
         retry_on_exception: bool = True,
         raise_for_status: bool = True,
-        blacklisted_methods: typing.Optional[typing.List[str]] = None,
+        blacklisted_methods: typing.Optional[list[str]] = None,
         logger: logging.Logger = None,
         *args,
         **kwargs,
@@ -67,7 +65,7 @@ class AsyncClientWithRetry(RetryClient):
 
     def _make_requests(
         self,
-        params_list: List[RequestParams],
+        params_list: list[RequestParams],
         retry_options: Optional[RetryOptionsBase] = None,
         raise_for_status: Optional[bool] = None,
     ) -> "_CustomRequestContext":
@@ -102,7 +100,7 @@ class ExponentialRetryOverride(ExponentialRetry):
     def __init__(
         self,
         retry_on_exception: bool,
-        blacklisted_methods: typing.List[str],
+        blacklisted_methods: list[str],
         *args,
         **kwargs,
     ):

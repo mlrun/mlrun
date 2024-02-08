@@ -21,7 +21,7 @@ import pymysql
 import mlrun.utils
 
 
-class MySQLUtil(object):
+class MySQLUtil:
     dsn_env_var = "MLRUN_HTTPDB__DSN"
     dsn_regex = (
         r"mysql\+pymysql://(?P<username>.+)@(?P<host>.+):(?P<port>\d+)/(?P<database>.+)"

@@ -69,7 +69,8 @@ def test_retry_until_successful_sync():
     mlrun.utils.helpers.retry_until_successful(0, 3, logger, True, increase_counter)
 
 
-def test_retry_until_successful_async():
+@pytest.mark.asyncio
+async def test_retry_until_successful_async():
     counter = 0
 
     async def increase_counter():
@@ -79,7 +80,7 @@ def test_retry_until_successful_async():
         if counter < 3:
             raise Exception("error")
 
-    mlrun.utils.helpers.retry_until_successful_async(
+    await mlrun.utils.helpers.retry_until_successful_async(
         0, 3, logger, True, increase_counter
     )
 

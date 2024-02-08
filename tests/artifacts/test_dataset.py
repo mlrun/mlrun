@@ -77,6 +77,17 @@ def test_dataset_upload_with_src_path_filling_hash():
     assert artifact.hash is not None
 
 
+def test_dataset_upload_without_df_or_body():
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        target_path=str(pathlib.Path(tests.conftest.results) / "target-dataset"),
+        format="csv",
+    )
+    # make sure uploading doesn't fail
+    artifact.upload()
+    assert artifact.hash is None
+    assert artifact.size is None
+
+
 def test_resolve_dataset_hash_path():
     for test_case in [
         {

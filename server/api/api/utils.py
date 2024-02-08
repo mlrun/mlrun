@@ -234,7 +234,7 @@ def mask_notification_params_on_task(
             masked_notifications.append(
                 mask_op(project, run_uid, notification_object).to_dict()
             )
-    task.setdefault("spec", {})["notifications"] = masked_notifications
+        task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
 def _notification_params_mask_op(
@@ -1199,7 +1199,7 @@ def verify_project_is_deleted(project_name, auth_info):
 
     mlrun.utils.helpers.retry_until_successful(
         5,
-        120,
+        60 * 30,  # 30 minutes, to allow for long project deletion
         logger,
         True,
         _verify_project_is_deleted,

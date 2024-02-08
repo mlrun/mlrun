@@ -333,7 +333,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 @pytest.fixture()
-def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
     k8s_secrets_mock.mock_functions(

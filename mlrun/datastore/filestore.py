@@ -105,4 +105,3 @@ class FileStore(DataStore):
                 return
             except FileExistsError:
                 time.sleep(0.1)
-                pass

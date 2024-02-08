@@ -246,9 +246,8 @@ class DatasetArtifact(Artifact):
                     body=body, target=self.target_path, artifact_path=artifact_path
                 )
             else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Unable to upload dataset, dataframe is not defined"
-                )
+                # don't fail if no df or body
+                self.spec.size, self.metadata.hash = None, None
 
     def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
         if not artifact_path:

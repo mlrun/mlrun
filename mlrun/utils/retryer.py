@@ -109,12 +109,13 @@ class Retryer:
         # If deadline was not provided or deadline not reached
         while self.timeout is None or time.time() < self.start_time + self.timeout:
             next_interval = self.first_interval or next(self.backoff)
-            result, exc = self._perform_call(next_interval)
-            if exc:
-                self.last_exception = exc
+            result, exc, retry = self._perform_call(next_interval)
+            if retry:
                 time.sleep(next_interval)
-            else:
+            elif not exc:
                 return result
+            else:
+                break
 
         self._raise_last_exception()
 
@@ -136,12 +137,15 @@ class Retryer:
     def _perform_call(self, next_interval):
         try:
             result = self.function(*self.args, **self.kwargs)
-            return result, None
+            return result, None, False
 
         except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
-            return None, self._assert_failure_timeout(next_interval, exc)
+            self.last_exception = exc
+            retry = self._assert_failure_timeout(next_interval, exc)
+
+        return None, self.last_exception, retry
 
     def _assert_failure_timeout(
         self,
@@ -158,13 +162,11 @@ class Retryer:
                     f"Operation not yet successful, Retrying in {next_interval} seconds."
                     f" exc: {mlrun.errors.err_to_str(exc)}"
                 )
-            return exc
+            return True
         else:
-            return None
+            return False
 
-    def _raise_last_exception(
-        self,
-    ):
+    def _raise_last_exception(self):
         if self.logger is not None:
             self.logger.warning(
                 f"Operation did not complete on time. last exception: {self.last_exception}"
@@ -186,19 +188,25 @@ class AsyncRetryer(Retryer):
         # If deadline was not provided or deadline not reached
         while self.timeout is None or time.time() < self.start_time + self.timeout:
             next_interval = self.first_interval or next(self.backoff)
-            result, exc = await self._perform_call(next_interval)
-            if exc:
-                self.last_exception = exc
+            result, exc, retry = await self._perform_call(next_interval)
+            if retry:
                 await asyncio.sleep(next_interval)
+            elif not exc:
+                return result
+            else:
+                break
 
         self._raise_last_exception()
 
     async def _perform_call(self, next_interval):
         try:
             result = await self.function(*self.args, **self.kwargs)
-            return result, None
+            return result, None, False
 
         except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
-            return None, self._assert_failure_timeout(next_interval, exc)
+            self.last_exception = exc
+            retry = self._assert_failure_timeout(next_interval, exc)
+
+        return None, self.last_exception, retry

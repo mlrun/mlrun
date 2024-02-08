@@ -208,7 +208,7 @@ class Member(
             projects_role, leader_name=self._leader_name
         ):
             server.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy
+                db_session, name, deletion_strategy, auth_info
             )
         else:
             return self._leader_client.delete_project(

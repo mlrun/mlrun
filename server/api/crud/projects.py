@@ -31,7 +31,7 @@ import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
 import server.api.utils.singletons.db
 import server.api.utils.singletons.scheduler
-from mlrun.utils import logger
+from mlrun.utils import logger, retry_until_successful
 from server.api.utils.singletons.k8s import get_k8s_helper
 
 
@@ -99,6 +99,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         if (
@@ -109,11 +110,11 @@ class Projects(
                 session, name
             ):
                 return
-            self.verify_project_is_empty(session, name)
+            self.verify_project_is_empty(session, name, auth_info)
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name)
+            self.delete_project_resources(session, name, auth_info=auth_info)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -122,14 +123,22 @@ class Projects(
             session, name, deletion_strategy
         )
 
-    def verify_project_is_empty(self, session: sqlalchemy.orm.Session, name: str):
+    def verify_project_is_empty(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
         server.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
             session, name
         )
-        self._verify_project_has_no_external_resources(session, name)
+        self._verify_project_has_no_external_resources(session, name, auth_info)
 
     def _verify_project_has_no_external_resources(
-        self, session: sqlalchemy.orm.Session, project: str
+        self,
+        session: sqlalchemy.orm.Session,
+        project: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
         # secrets and model endpoints.
@@ -154,12 +163,14 @@ class Projects(
                 session,
                 project,
                 deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
+                auth_info=auth_info,
             )
 
     def delete_project_resources(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -189,6 +200,9 @@ class Projects(
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
         )
+
+        # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
+        self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
         # delete model monitoring resources
         server.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
@@ -384,3 +398,46 @@ class Projects(
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
+
+    @staticmethod
+    def _wait_for_nuclio_project_deletion(
+        project_name: str,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        if not mlrun.config.config.nuclio_dashboard_url:
+            return
+
+        nuclio_client = server.api.utils.clients.nuclio.Client()
+
+        def _check_nuclio_project_deletion():
+            try:
+                nuclio_client.get_project(session, project_name, auth_info=auth_info)
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Nuclio project deleted",
+                    project_name=project_name,
+                )
+            else:
+                raise Exception(
+                    f"Project not deleted in nuclio yet. Project: {project_name}"
+                )
+
+        timeout = int(
+            humanfriendly.parse_timespan(
+                mlrun.mlconf.httpdb.projects.nuclio_project_deletion_verification_timeout
+            )
+        )
+        interval = int(
+            humanfriendly.parse_timespan(
+                mlrun.mlconf.httpdb.projects.nuclio_project_deletion_verification_interval
+            )
+        )
+
+        retry_until_successful(
+            interval,
+            timeout,
+            logger,
+            False,
+            _check_nuclio_project_deletion,
+        )

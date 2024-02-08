@@ -1664,7 +1664,6 @@ class SQLTarget(BaseStoreTarget):
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
-        time_fields: list[str] = None,
         varchar_len: int = 50,
         parse_dates: list[str] = None,
     ):

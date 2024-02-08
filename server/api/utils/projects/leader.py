@@ -114,7 +114,7 @@ class Member(
         self._projects_in_deletion.add(name)
         try:
             self._run_on_all_followers(
-                False, "delete_project", db_session, name, deletion_strategy
+                False, "delete_project", db_session, name, deletion_strategy, auth_info
             )
         finally:
             self._projects_in_deletion.remove(name)

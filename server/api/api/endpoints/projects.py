@@ -255,6 +255,7 @@ async def delete_project(
             db_session,
             name,
             deletion_strategy,
+            auth_info,
         )
 
     elif is_running_in_background:

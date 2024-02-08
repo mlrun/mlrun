@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Generator
+from collections.abc import Generator
+from tempfile import NamedTemporaryFile
 
 import pytest
 
@@ -27,7 +28,8 @@ from server.api.utils.singletons.project_member import initialize_project_member
 
 @pytest.fixture()
 def db() -> Generator:
-    dsn = "sqlite:///:memory:?check_same_thread=false"
+    db_file = NamedTemporaryFile(suffix="-mlrun.db")
+    dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
     config.httpdb.dsn = dsn
     _init_engine()
     # memory sqldb removes itself when all sessions closed, this session will keep it up until the end of the test

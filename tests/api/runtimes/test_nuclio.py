@@ -193,7 +193,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
             # Nuclio source code in some cases adds a suffix to the code, initializing nuclio context.
             # We just verify that the code provided starts with our code.
-            original_source_code = open(source_filename, "r").read()
+            original_source_code = open(source_filename).read()
             spec_source_code = base64.b64decode(
                 build_info["functionSourceCode"]
             ).decode("utf-8")

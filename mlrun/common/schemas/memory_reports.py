@@ -19,7 +19,7 @@ import pydantic
 
 
 class MostCommonObjectTypesReport(pydantic.BaseModel):
-    object_types: typing.List[typing.Tuple[str, int]]
+    object_types: list[tuple[str, int]]
 
 
 class ObjectTypeReport(pydantic.BaseModel):
@@ -27,4 +27,4 @@ class ObjectTypeReport(pydantic.BaseModel):
     sample_size: int
     start_index: typing.Optional[int]
     max_depth: int
-    object_report: typing.List[typing.Dict[str, typing.Any]]
+    object_report: list[dict[str, typing.Any]]

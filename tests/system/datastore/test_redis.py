@@ -90,7 +90,7 @@ class TestRedisDataStore(TestMLRunSystem):
         data_item.upload("temp_upload")
         data_item.download("temp_download")
 
-        with open("temp_download", "r") as f:
+        with open("temp_download") as f:
             actual = f.read()
 
         data_item.delete()

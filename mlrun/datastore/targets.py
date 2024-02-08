@@ -19,7 +19,7 @@ import sys
 import time
 from collections import Counter
 from copy import copy
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -215,9 +215,8 @@ def validate_target_list(targets):
     ]
     if target_types_requiring_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Only one default name per target type is allowed (please specify name for {0} target)".format(
-                target_types_requiring_name
-            )
+            "Only one default name per target type is allowed (please "
+            f"specify name for {target_types_requiring_name} target)"
         )
 
     target_names_count = Counter(
@@ -232,9 +231,8 @@ def validate_target_list(targets):
 
     if targets_with_same_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Each target must have a unique name (more than one target with those names found {0})".format(
-                targets_with_same_name
-            )
+            "Each target must have a unique name (more than one target with "
+            f"those names found {targets_with_same_name})"
         )
 
     no_path_target_types_count = Counter(
@@ -252,9 +250,8 @@ def validate_target_list(targets):
     ]
     if target_types_requiring_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Only one default path per target type is allowed (please specify path for {0} target)".format(
-                target_types_requiring_path
-            )
+            "Only one default path per target type is allowed (please specify "
+            f"path for {target_types_requiring_path} target)"
         )
 
     target_paths_count = Counter(
@@ -269,9 +266,8 @@ def validate_target_list(targets):
 
     if targets_with_same_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Each target must have a unique path (more than one target with those names found {0})".format(
-                targets_with_same_path
-            )
+            "Each target must have a unique path (more than one target "
+            f"with those names found {targets_with_same_path})"
         )
 
 
@@ -390,17 +386,17 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: Dict[str, str] = None,
-        schema: Dict[str, Any] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
         credentials_prefix=None,
     ):
         super().__init__(
@@ -766,16 +762,16 @@ class ParquetTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = None,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = 10000,
         flush_after_seconds: Optional[int] = 900,
-        storage_options: Dict[str, str] = None,
+        storage_options: dict[str, str] = None,
     ):
         self.path = path
         if partitioned is None:
@@ -1652,24 +1648,25 @@ class SQLTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: Dict[str, str] = None,
+        storage_options: dict[str, str] = None,
         db_url: str = None,
         table_name: str = None,
-        schema: Dict[str, Any] = None,
+        schema: dict[str, Any] = None,
         primary_key_column: str = "",
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
+        time_fields: list[str] = None,
         varchar_len: int = 50,
-        parse_dates: List[str] = None,
+        parse_dates: list[str] = None,
     ):
         """
         Write to SqlDB as output target for a flow.
@@ -1815,7 +1812,7 @@ class SQLTarget(BaseStoreTarget):
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
-        parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
+        parse_dates: Optional[list[str]] = self.attributes.get("parse_dates")
         with engine.connect() as conn:
             query, parse_dates = _generate_sql_query_with_time_filter(
                 table_name=table_name,

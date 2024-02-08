@@ -1117,7 +1117,7 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
-    def get_s3_storage_options(self) -> typing.Dict[str, typing.Any]:
+    def get_s3_storage_options(self) -> dict[str, typing.Any]:
         """
         Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
         graph uses this method for generating the storage options for S3 parquet target path.

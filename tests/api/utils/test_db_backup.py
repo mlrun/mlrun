@@ -142,7 +142,7 @@ def test_backup_file_rotation(mock_db_dsn, mock_listdir_result, mock_os_remove):
     )
 
     existing_backup_files = [
-        "db_backup_2022012510{0}.db".format(minute) for minute in [10, 11, 12, 13]
+        f"db_backup_2022012510{minute}.db" for minute in [10, 11, 12, 13]
     ]
     mock_listdir_result(existing_backup_files)
     db_backup._rotate_backup()

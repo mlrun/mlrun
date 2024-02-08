@@ -15,7 +15,7 @@
 import json
 import os
 from copy import deepcopy
-from typing import List, Union
+from typing import Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -216,12 +216,12 @@ class ServingSpec(NuclioSpec):
         graph_root_setter(self, graph)
 
     @property
-    def function_refs(self) -> List[FunctionReference]:
+    def function_refs(self) -> list[FunctionReference]:
         """function references, list of optional child function refs"""
         return self._function_refs
 
     @function_refs.setter
-    def function_refs(self, function_refs: List[FunctionReference]):
+    def function_refs(self, function_refs: list[FunctionReference]):
         self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 

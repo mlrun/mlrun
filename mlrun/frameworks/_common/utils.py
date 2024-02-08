@@ -16,7 +16,7 @@ import re
 from abc import ABC
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, TypeVar, Union
+from typing import Any, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -42,10 +42,10 @@ class CommonTypes(ABC):
     MLRunInterfaceableType = TypeVar("MLRunInterfaceableType")
 
     # Type for a MLRun Interface restoration tuple as returned from 'remove_interface':
-    MLRunInterfaceRestorationType = Tuple[
-        Dict[str, Any],  # Interface properties.
-        Dict[str, Any],  # Replaced properties.
-        List[str],  # Replaced methods and functions.
+    MLRunInterfaceRestorationType = tuple[
+        dict[str, Any],  # Interface properties.
+        dict[str, Any],  # Replaced properties.
+        list[str],  # Replaced methods and functions.
     ]
 
     # Common dataset type to all frameworks:

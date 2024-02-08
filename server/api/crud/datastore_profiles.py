@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import sqlalchemy.orm
 
@@ -90,7 +89,7 @@ class DatastoreProfiles(
         self,
         session: sqlalchemy.orm.Session,
         project: str = None,
-    ) -> typing.Dict:
+    ) -> dict:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_datastore_profiles(
             session, project

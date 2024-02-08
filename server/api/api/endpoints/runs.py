@@ -15,7 +15,6 @@
 import datetime
 import uuid
 from http import HTTPStatus
-from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -192,8 +191,8 @@ async def delete_run(
 async def list_runs(
     project: str = None,
     name: str = None,
-    uid: List[str] = Query([]),
-    labels: List[str] = Query([], alias="label"),
+    uid: list[str] = Query([]),
+    labels: list[str] = Query([], alias="label"),
     state: str = None,
     last: int = 0,
     sort: bool = True,
@@ -292,7 +291,7 @@ async def list_runs(
 async def delete_runs(
     project: str = None,
     name: str = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),

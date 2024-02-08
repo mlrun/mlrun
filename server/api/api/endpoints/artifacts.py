@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from http import HTTPStatus
-from typing import List
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -203,7 +202,7 @@ async def list_artifacts(
     tag: str = None,
     kind: str = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
@@ -261,12 +260,37 @@ async def list_artifacts(
     }
 
 
+# TODO: remove /artifacts in 1.6.0
+@router.delete(
+    "/artifacts",
+    deprecated=True,
+    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/artifacts instead",
+)
+async def delete_artifacts_legacy(
+    project: str = mlrun.mlconf.default_project,
+    name: str = "",
+    tag: str = "",
+    labels: list[str] = Query([], alias="label"),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return await _delete_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
     project: str = mlrun.mlconf.default_project,
     name: str = "",
     tag: str = "",
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -284,7 +308,7 @@ async def _delete_artifacts(
     project: str = None,
     name: str = None,
     tag: str = None,
-    labels: List[str] = None,
+    labels: list[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = None,
     db_session: Session = None,
 ):

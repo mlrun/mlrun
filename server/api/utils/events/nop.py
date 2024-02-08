@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import mlrun.common.schemas
 import server.api.utils.events.base as base_events
@@ -41,7 +40,7 @@ class NopClient(base_events.BaseEventClient):
         self,
         project: str,
         secret_name: str,
-        secret_keys: typing.List[str] = None,
+        secret_keys: list[str] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ):
         """

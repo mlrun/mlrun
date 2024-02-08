@@ -415,7 +415,7 @@ def create_graph_server(
     return server
 
 
-class MockTrigger(object):
+class MockTrigger:
     """mock nuclio event trigger"""
 
     def __init__(self, kind="", name=""):
@@ -423,7 +423,7 @@ class MockTrigger(object):
         self.name = name
 
 
-class MockEvent(object):
+class MockEvent:
     """mock basic nuclio event object"""
 
     def __init__(
@@ -456,7 +456,7 @@ class MockEvent(object):
         return f"Event(id={self.id}, body={self.body}, method={self.method}, path={self.path}{error})"
 
 
-class Response(object):
+class Response:
     def __init__(self, headers=None, body=None, content_type=None, status_code=200):
         self.headers = headers or {}
         self.body = body

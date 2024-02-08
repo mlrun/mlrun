@@ -160,7 +160,6 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -192,7 +191,7 @@ class Projects(
         )
 
         # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
-        self._wait_for_nuclio_project_deletion(name, session, auth_info)
+        self._wait_for_nuclio_project_deletion(name, session)
 
         # delete model monitoring resources
         server.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
@@ -393,12 +392,11 @@ class Projects(
     def _wait_for_nuclio_project_deletion(
         project_name: str,
         session: sqlalchemy.orm.Session,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         if not mlrun.config.config.nuclio_dashboard_url:
             return
 
-        nuclio_client = server.api.utils.clients.nuclio.Client(auth_info)
+        nuclio_client = server.api.utils.clients.nuclio.Client()
 
         def _check_nuclio_project_deletion():
             try:

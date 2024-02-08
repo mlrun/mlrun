@@ -19,7 +19,6 @@ import typing
 
 import requests.adapters
 import sqlalchemy.orm
-from requests.auth import HTTPBasicAuth
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -38,7 +37,6 @@ class Client(
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.config.config.nuclio_dashboard_url
-        self._auth = HTTPBasicAuth("user", "pass")
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
@@ -210,9 +208,7 @@ class Client(
             for key in dict_.keys():
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
-        response = self._session.request(
-            method, url, verify=False, auth=self._auth, **kwargs
-        )
+        response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)
             log_kwargs.update({"method": method, "path": path})

@@ -31,7 +31,7 @@ import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
 import server.api.utils.singletons.db
 import server.api.utils.singletons.scheduler
-from mlrun.utils import logger
+from mlrun.utils import logger, retry_until_successful
 from server.api.utils.singletons.k8s import get_k8s_helper
 
 
@@ -160,6 +160,7 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -189,6 +190,9 @@ class Projects(
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
         )
+
+        # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
+        self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
         # delete model monitoring resources
         server.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
@@ -384,3 +388,46 @@ class Projects(
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
+
+    @staticmethod
+    def _wait_for_nuclio_project_deletion(
+        project_name: str,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        if not mlrun.config.config.nuclio_dashboard_url:
+            return
+
+        nuclio_client = server.api.utils.clients.nuclio.Client(auth_info)
+
+        def _check_nuclio_project_deletion():
+            try:
+                nuclio_client.get_project(session, project_name)
+                raise Exception(
+                    f"Project not deleted in nuclio yet. Project: {project_name}"
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Nuclio project deleted",
+                    project_name=project_name,
+                )
+                return True
+
+        timeout = int(
+            humanfriendly.parse_timespan(
+                mlrun.mlconf.httpdb.projects.nuclio_project_deletion_verification_timeout
+            )
+        )
+        interval = int(
+            humanfriendly.parse_timespan(
+                mlrun.mlconf.httpdb.projects.nuclio_project_deletion_verification_interval
+            )
+        )
+
+        retry_until_successful(
+            interval,
+            timeout,
+            logger,
+            False,
+            _check_nuclio_project_deletion,
+        )

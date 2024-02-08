@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from tempfile import NamedTemporaryFile
 from collections.abc import Generator
+from tempfile import NamedTemporaryFile
 
 import pytest
 

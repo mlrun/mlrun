@@ -563,7 +563,7 @@ class GraphContext:
             _,
             _,
             function_status,
-        ) = mlrun.runtimes.function.get_nuclio_deploy_status(name, project, tag)
+        ) = mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(name, project, tag)
 
         if state in ["error", "unhealthy"]:
             raise ValueError(

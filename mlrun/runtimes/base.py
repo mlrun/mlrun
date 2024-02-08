@@ -744,7 +744,7 @@ class BaseRuntime(ModelObj):
                     body = fp.read()
             if self.kind == mlrun.runtimes.RuntimeKinds.serving:
                 body = body + mlrun_footer.format(
-                    mlrun.runtimes.serving.serving_subkind
+                    mlrun.runtimes.nuclio.serving.serving_subkind
                 )
 
         self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(

@@ -34,13 +34,16 @@ from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
-from .function import RemoteRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
-from .nuclio import nuclio_init_hook
+from .nuclio import (
+    RemoteRuntime,
+    ServingRuntime,
+    new_v2_model_server,
+    nuclio_init_hook,
+)
 from .remotesparkjob import RemoteSparkRuntime
-from .serving import ServingRuntime, new_v2_model_server
 from .sparkjob import Spark3Runtime
 
 # for legacy imports (MLModelServer moved from here to /serving)

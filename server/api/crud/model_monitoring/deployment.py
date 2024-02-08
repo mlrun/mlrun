@@ -131,7 +131,7 @@ class MonitoringDeployment:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name="model-monitoring-stream",
                 project=project,
                 tag="",
@@ -362,7 +362,7 @@ class MonitoringDeployment:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name=mm_constants.MonitoringFunctionNames.WRITER,
                 project=project,
                 tag="",

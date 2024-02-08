@@ -59,7 +59,7 @@ class SKLearnModelHandler(MLModelHandler):
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
-        super(SKLearnModelHandler, self).save(output_path=output_path)
+        super().save(output_path=output_path)
 
         # Save the model pkl file:
         self._model_file = f"{self._model_name}.pkl"
@@ -73,7 +73,7 @@ class SKLearnModelHandler(MLModelHandler):
         Load the specified model in this handler. Additional parameters for the class initializer can be passed via the
         kwargs dictionary.
         """
-        super(SKLearnModelHandler, self).load()
+        super().load()
 
         # Load from a pkl file:
         with open(self._model_file, "rb") as pickle_file:

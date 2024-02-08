@@ -138,7 +138,7 @@ class GoogleCloudStorageStore(DataStore):
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
             if isinstance(st["token"], str):
                 # Token is a filename, read json from it
-                with open(st["token"], "r") as file:
+                with open(st["token"]) as file:
                     credentials = json.load(file)
             else:
                 # Token is a dictionary, use it directly

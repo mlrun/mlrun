@@ -15,7 +15,6 @@
 import json
 import os
 import tempfile
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -31,10 +30,10 @@ from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
 def generate_data(
     n_samples: int,
     n_features: int,
-    loc_range: Tuple[int, int] = (0.1, 1.1),
-    scale_range: Tuple[int, int] = (1, 2),
-    inputs_diff_range: Tuple[int, int] = (0, 1),
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    loc_range: tuple[int, int] = (0.1, 1.1),
+    scale_range: tuple[int, int] = (1, 2),
+    inputs_diff_range: tuple[int, int] = (0, 1),
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Generate data:
     data = {}
     for i in range(n_features):

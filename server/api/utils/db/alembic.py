@@ -21,7 +21,7 @@ import alembic.config
 from mlrun.utils import logger
 
 
-class AlembicUtil(object):
+class AlembicUtil:
     def __init__(
         self, alembic_config_path: pathlib.Path, data_version_is_latest: bool = True
     ):
@@ -63,7 +63,7 @@ class AlembicUtil(object):
 
             return None
 
-    def _get_revision_history_list(self) -> typing.List[str]:
+    def _get_revision_history_list(self) -> list[str]:
         """
         Returns a list of the revision history sorted from latest to oldest.
         """
@@ -77,7 +77,7 @@ class AlembicUtil(object):
         return self._parse_revision_history(self._alembic_output)
 
     @staticmethod
-    def _parse_revision_history(output: str) -> typing.List[str]:
+    def _parse_revision_history(output: str) -> list[str]:
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
     def _save_output(self, text: str, *_):

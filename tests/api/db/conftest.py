@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from tempfile import NamedTemporaryFile
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 

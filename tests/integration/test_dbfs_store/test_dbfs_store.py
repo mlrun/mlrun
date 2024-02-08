@@ -16,7 +16,6 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import List
 
 import dask.dataframe as dd
 import pandas as pd
@@ -70,7 +69,7 @@ class TestDBFSStore:
         self.workspace = WorkspaceClient()
         self.profile_name = "dbfs_ds_profile"
 
-        with open(self.test_file_path, "r") as f:
+        with open(self.test_file_path) as f:
             self.test_string = f.read()
 
         self.profile = DatastoreProfileDBFS(
@@ -300,7 +299,7 @@ class TestDBFSStore:
         directory: str,
         file_format: str,
         file_extension: str,
-        files_paths: List[Path],
+        files_paths: list[Path],
         reader: callable,
     ):
         first_file_path = files_paths[0]
@@ -347,7 +346,7 @@ class TestDBFSStore:
         directory: str,
         file_format: str,
         file_extension: str,
-        files_paths: List[Path],
+        files_paths: list[Path],
         reader: callable,
     ):
         if use_datastore_profile:

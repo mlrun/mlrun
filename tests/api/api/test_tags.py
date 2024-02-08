@@ -602,9 +602,7 @@ class TestArtifactTags:
         self,
         client,
         tag: str,
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
         project: str = None,
     ):
         # using client.request instead of client.delete because the latter doesn't support body
@@ -619,9 +617,7 @@ class TestArtifactTags:
         self,
         client,
         tag: str,
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
         project: str = None,
     ):
         return client.put(
@@ -633,9 +629,7 @@ class TestArtifactTags:
         self,
         client,
         tag: str,
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
         project: str = None,
     ):
         return client.post(
@@ -645,9 +639,7 @@ class TestArtifactTags:
 
     @staticmethod
     def _generate_tag_identifiers_json(
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
     ):
         return {
             "kind": "artifact",

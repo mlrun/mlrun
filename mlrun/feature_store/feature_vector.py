@@ -384,7 +384,8 @@ class _JoinStep(ModelObj):
         self.right_step_name = right_step_name
         self.left_feature_set_names = (
             left_feature_set_names
-            if isinstance(left_feature_set_names, list)
+            if left_feature_set_names is None
+            or isinstance(left_feature_set_names, list)
             else [left_feature_set_names]
         )
         self.right_feature_set_name = right_feature_set_name

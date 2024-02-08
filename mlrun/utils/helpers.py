@@ -22,7 +22,6 @@ import os
 import re
 import string
 import sys
-import time
 import typing
 import warnings
 from datetime import datetime, timezone
@@ -51,9 +50,15 @@ import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
 from mlrun.config import config
-from mlrun.errors import err_to_str
 
 from .logger import create_logger
+from .retryer import (  # noqa: F401
+    AsyncRetryer,
+    Retryer,
+    create_exponential_backoff,
+    create_linear_backoff,
+    create_step_backoff,
+)
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -944,64 +949,6 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-def create_linear_backoff(base=2, coefficient=2, stop_value=120):
-    """
-    Create a generator of linear backoff. Check out usage example in test_helpers.py
-    """
-    x = 0
-    comparison = min if coefficient >= 0 else max
-
-    while True:
-        next_value = comparison(base + x * coefficient, stop_value)
-        yield next_value
-        x += 1
-
-
-def create_step_backoff(steps=None):
-    """
-    Create a generator of steps backoff.
-    Example: steps = [[2, 5], [20, 10], [120, None]] will produce a generator in which the first 5
-    values will be 2, the next 10 values will be 20 and the rest will be 120.
-    :param steps: a list of lists [step_value, number_of_iteration_in_this_step]
-    """
-    steps = steps if steps is not None else [[2, 10], [10, 10], [120, None]]
-    steps = iter(steps)
-
-    # Get first step
-    step = next(steps)
-    while True:
-        current_step_value, current_step_remain = step
-        if current_step_remain == 0:
-            # No more in this step, moving on
-            step = next(steps)
-        elif current_step_remain is None:
-            # We are in the last step, staying here forever
-            yield current_step_value
-        elif current_step_remain > 0:
-            # Still more remains in this step, just reduce the remaining number
-            step[1] -= 1
-            yield current_step_value
-
-
-def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
-    """
-    Create a generator of exponential backoff. Check out usage example in test_helpers.py
-    :param base: exponent base
-    :param max_value: max limit on the result
-    :param scale_factor: factor to be used as linear scaling coefficient
-    """
-    exponent = 1
-    while True:
-        # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
-        # risking going behind max_int
-        next_value = scale_factor * (base**exponent)
-        if next_value < max_value:
-            exponent += 1
-            yield next_value
-        else:
-            yield max_value
-
-
 def retry_until_successful(
     backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
 ):
@@ -1019,56 +966,29 @@ def retry_until_successful(
     :param kwargs: functions kwargs
     :return: function result
     """
-    start_time = time.time()
-    last_exception = None
+    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
 
-    # Check if backoff is just a simple interval
-    if isinstance(backoff, int) or isinstance(backoff, float):
-        backoff = create_linear_backoff(base=backoff, coefficient=0)
 
-    first_interval = next(backoff)
-    if timeout and timeout <= first_interval:
-        logger.warning(
-            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
-            f" Set timeout to be higher than backoff."
-        )
-
-    # If deadline was not provided or deadline not reached
-    while timeout is None or time.time() < start_time + timeout:
-        next_interval = first_interval or next(backoff)
-        first_interval = None
-        try:
-            result = _function(*args, **kwargs)
-            return result
-
-        except mlrun.errors.MLRunFatalFailureError as exc:
-            raise exc.original_exception
-        except Exception as exc:
-            last_exception = exc
-
-            # If next interval is within allowed time period - wait on interval, abort otherwise
-            if timeout is None or time.time() + next_interval < start_time + timeout:
-                if logger is not None and verbose:
-                    logger.debug(
-                        f"Operation not yet successful, Retrying in {next_interval} seconds."
-                        f" exc: {err_to_str(exc)}"
-                    )
-
-                time.sleep(next_interval)
-            else:
-                break
-
-    if logger is not None:
-        logger.warning(
-            f"Operation did not complete on time. last exception: {last_exception}"
-        )
-
-    raise mlrun.errors.MLRunRetryExhaustedError(
-        f"Failed to execute command by the given deadline."
-        f" last_exception: {last_exception},"
-        f" function_name: {_function.__name__},"
-        f" timeout: {timeout}"
-    ) from last_exception
+async def retry_until_successful_async(
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+):
+    """
+    Runs function with given *args and **kwargs.
+    Tries to run it until success or timeout reached (timeout is optional)
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
+    :param timeout: pass None if timeout is not wanted, number of seconds if it is
+    :param logger: a logger so we can log the failures
+    :param verbose: whether to log the failure on each retry
+    :param _function: function to run
+    :param args: functions args
+    :param kwargs: functions kwargs
+    :return: function result
+    """
+    return await AsyncRetryer(
+        backoff, timeout, logger, verbose, _function, *args, **kwargs
+    ).run()
 
 
 def get_ui_url(project, uid=None):

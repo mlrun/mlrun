@@ -71,8 +71,10 @@ class HumanReadableFormatter(_BaseFormatter):
     def format(self, record) -> str:
         more = self._resolve_more(record)
         return (
-            f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] "
-            f"{record.getMessage().rstrip()}{more}"
+            f"> {self.formatTime(record, self.datefmt)} "
+            f"[{record.levelname.lower()}] "
+            f"{record.getMessage().rstrip()}"
+            f"{more}"
         )
 
     def _resolve_more(self, record):

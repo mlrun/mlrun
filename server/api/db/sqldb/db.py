@@ -15,8 +15,10 @@
 import asyncio
 import collections
 import functools
+import pathlib
 import re
 import typing
+import urllib.parse
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -143,7 +145,10 @@ class SQLDB(DBInterface):
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
-        pass
+        if self.dsn and self.dsn.startswith("sqlite:///"):
+            logger.info("Creating sqlite db file", dsn=self.dsn)
+            parsed = urllib.parse.urlparse(self.dsn)
+            pathlib.Path(parsed.path[1:]).parent.mkdir(parents=True, exist_ok=True)
 
     # ---- Logs ----
     def store_log(

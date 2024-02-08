@@ -19,6 +19,7 @@ import typing
 import pymysql
 
 import mlrun.utils
+from mlrun.config import config as mlconf
 
 
 class MySQLUtil:
@@ -110,4 +111,4 @@ class MySQLUtil:
 
     @staticmethod
     def get_dsn() -> str:
-        return os.environ.get(MySQLUtil.dsn_env_var, "")
+        return os.environ.get(MySQLUtil.dsn_env_var, mlconf.httpdb.dsn)

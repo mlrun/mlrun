@@ -19,6 +19,8 @@ from datetime import datetime
 
 import fsspec
 import v3io
+from v3io.dataplane.object import Model
+from v3io.dataplane.response import HttpResponseError
 
 import mlrun
 from mlrun.datastore.helpers import ONE_GB, ONE_MB
@@ -60,6 +62,15 @@ class V3ioStore(DataStore):
         elif username and password:
             self.headers = basic_auth_header(username, password)
 
+    def _do_object_request(self, function: callable, *args, **kwargs):
+        try:
+            return function(self.object, *args, **kwargs)
+        except HttpResponseError as http_response_error:
+            raise mlrun.errors.err_for_status_code(
+                status_code=http_response_error.status,
+                message=mlrun.errors.err_to_str(http_response_error),
+            )
+
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
         return V3IO_LOCAL_ROOT + subpath
@@ -91,11 +102,8 @@ class V3ioStore(DataStore):
         if file_size <= ONE_MB:
             with open(src_path, "rb") as source_file:
                 data = source_file.read()
-                self.object.put(
-                    container=container,
-                    path=path,
-                    body=data,
-                    append=False,
+                self._do_object_request(
+                    Model.put, container=container, path=path, body=data, append=False
                 )
             return
         # chunk must be a multiple of the ALLOCATIONGRANULARITY
@@ -115,11 +123,12 @@ class V3ioStore(DataStore):
                     offset=file_offset,
                 ) as mmap_obj:
                     append = True if file_offset else False
-                    self.object.put(
+                    self._do_object_request(
+                        Model.put,
                         container=container,
                         path=path,
                         body=mmap_obj,
-                        append=append,
+                        append=append
                     )
                     file_offset += chunk_size
 
@@ -128,8 +137,12 @@ class V3ioStore(DataStore):
 
     def get(self, key, size=None, offset=0):
         container, path = split_path(self._join(key))
-        return self.object.get(
-            container=container, path=path, offset=offset, num_bytes=size
+        return self._do_object_request(
+            function=Model.get,
+            container=container,
+            path=path,
+            offset=offset,
+            num_bytes=size,
         ).body
 
     def _put(self, key, data, append=False, max_chunk_size: int = ONE_GB):
@@ -137,7 +150,9 @@ class V3ioStore(DataStore):
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
-            self.object.put(container=container, path=path, body=data, append=append)
+            self._do_object_request(
+                Model.put, container=container, path=path, body=data, append=append
+            )
             return
         buffer_offset = 0
         try:
@@ -148,11 +163,12 @@ class V3ioStore(DataStore):
         while buffer_offset < buffer_size:
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
             append = True if buffer_offset or append else False
-            self.object.put(
+            self._do_object_request(
+                Model.put,
                 container=container,
                 path=path,
                 body=data[buffer_offset : buffer_offset + chunk_size],
-                append=append,
+                append=append
             )
             buffer_offset += chunk_size
 
@@ -161,7 +177,9 @@ class V3ioStore(DataStore):
 
     def stat(self, key):
         container, path = split_path(self._join(key))
-        response = self.object.head(container=container, path=path)
+        response = self._do_object_request(
+            function=Model.head, container=container, path=path
+        )
         head = dict(response.headers.items())
         size = int(head.get("Content-Length", "0"))
         datestr = head.get("Last-Modified", "0")

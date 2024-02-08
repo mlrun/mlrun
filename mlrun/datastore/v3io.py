@@ -18,7 +18,7 @@ import time
 from datetime import datetime
 
 import fsspec
-from v3io.dataplane.client import Client
+import v3io
 
 import mlrun
 from mlrun.datastore.helpers import ONE_GB, ONE_MB
@@ -51,7 +51,7 @@ class V3ioStore(DataStore):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
         # after endpoint http removal - because endpoint can be without any http/https.
-        self.client = Client(access_key=token, endpoint=self.url)
+        self.client = v3io.dataplane.Client(access_key=token, endpoint=self.url)
         self.object = self.client.object
         self.auth = None
         self.token = token

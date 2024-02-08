@@ -26,6 +26,7 @@ import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.db.session
+import server.api.utils.clients.nuclio
 import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
 import server.api.utils.singletons.db
@@ -125,9 +126,11 @@ class Projects(
         server.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
             session, name
         )
-        self._verify_project_has_no_external_resources(name)
+        self._verify_project_has_no_external_resources(session, name)
 
-    def _verify_project_has_no_external_resources(self, project: str):
+    def _verify_project_has_no_external_resources(
+        self, session: sqlalchemy.orm.Session, project: str
+    ):
         # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
         # secrets and model endpoints.
         server.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(project)
@@ -142,6 +145,15 @@ class Projects(
         ):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project} can not be deleted since related resources found: project secrets"
+            )
+
+        # verify project can be deleted in nuclio
+        if mlrun.config.config.nuclio_dashboard_url:
+            nuclio_client = server.api.utils.clients.nuclio.Client()
+            nuclio_client.delete_project(
+                session,
+                project,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
             )
 
     def delete_project_resources(

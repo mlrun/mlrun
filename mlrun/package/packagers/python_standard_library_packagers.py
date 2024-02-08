@@ -15,7 +15,7 @@
 import os
 import pathlib
 import tempfile
-from typing import List, Tuple, Union
+from typing import Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -45,7 +45,7 @@ class NonePackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
 
     # TODO: `None` as pickle will be available from Python 3.10, so this method can be removed once we move to 3.10.
-    def get_supported_artifact_types(self) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the
         'object' artifact type support (None cannot be pickled, only from Python 3.10, and it should not be pickled
@@ -96,7 +96,7 @@ class StrPackager(DefaultPackager):
 
     def pack_path(
         self, obj: str, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a path string value content (pack the file or directory in that path).
 
@@ -198,7 +198,7 @@ class _BuiltinCollectionPackager(DefaultPackager):
         obj: Union[dict, list],
         key: str,
         file_format: str = DEFAULT_STRUCT_FILE_FORMAT,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a builtin collection as a file by the given format.
 
@@ -343,7 +343,7 @@ class TuplePackager(ListPackager):
 
     def pack_file(
         self, obj: tuple, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a tuple as a file by the given format.
 
@@ -388,7 +388,7 @@ class SetPackager(ListPackager):
 
     def pack_file(
         self, obj: set, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a set as a file by the given format.
 
@@ -422,7 +422,7 @@ class FrozensetPackager(SetPackager):
 
     def pack_file(
         self, obj: frozenset, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a frozenset as a file by the given format.
 
@@ -469,7 +469,7 @@ class BytesPackager(ListPackager):
 
     def pack_file(
         self, obj: bytes, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a bytes as a file by the given format.
 
@@ -514,7 +514,7 @@ class BytearrayPackager(BytesPackager):
 
     def pack_file(
         self, obj: bytearray, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a bytearray as a file by the given format.
 
@@ -569,7 +569,7 @@ class PathPackager(StrPackager):
 
     def pack_path(
         self, obj: pathlib.Path, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a `Path` value (pack the file or directory in that path).
 

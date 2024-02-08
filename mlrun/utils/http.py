@@ -14,7 +14,6 @@
 #
 
 import time
-import typing
 
 import requests
 import requests.adapters
@@ -202,9 +201,7 @@ class HTTPSessionWithRetry(requests.Session):
     def _method_retryable(self, method: str):
         return method in self._retry_methods
 
-    def _resolve_retry_methods(
-        self, retry_on_post: bool = False
-    ) -> typing.FrozenSet[str]:
+    def _resolve_retry_methods(self, retry_on_post: bool = False) -> frozenset[str]:
         methods = urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
         methods = methods.union({"PATCH"})
         if retry_on_post:

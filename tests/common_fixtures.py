@@ -21,7 +21,7 @@ from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
@@ -43,7 +43,7 @@ import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
-from mlrun.runtimes.function import NuclioStatus
+from mlrun.runtimes.nuclio.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
@@ -62,14 +62,14 @@ def config_test_base():
 
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
-    environ["MLRUN_httpdb__dirpath"] = rundb_path
-    environ["MLRUN_httpdb__logs_path"] = logs_path
-    environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
-    environ["MLRUN_httpdb__projects__counters_cache_ttl"] = "0 seconds"
+    environ["MLRUN_HTTPDB__DIRPATH"] = rundb_path
+    environ["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    environ["MLRUN_HTTPDB__PROJECTS__PERIODIC_SYNC_INTERVAL"] = "0 seconds"
+    environ["MLRUN_HTTPDB__PROJECTS__COUNTERS_CACHE_TTL"] = "0 seconds"
     environ["MLRUN_EXEC_CONFIG"] = ""
     global_context.set(None)
     log_level = "DEBUG"
-    environ["MLRUN_log_level"] = log_level
+    environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 
@@ -286,9 +286,9 @@ class RunDBMock:
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,

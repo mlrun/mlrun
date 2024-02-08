@@ -130,7 +130,7 @@ class MonitoringDeployment:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name="model-monitoring-stream",
                 project=project,
                 tag="",
@@ -361,7 +361,7 @@ class MonitoringDeployment:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name=mm_constants.MonitoringFunctionNames.WRITER,
                 project=project,
                 tag="",
@@ -578,7 +578,7 @@ class MonitoringDeployment:
         function_name: str,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
         tracking_offset: Seconds,
-    ) -> typing.Tuple[str, typing.Dict[str, int]]:
+    ) -> tuple[str, dict[str, int]]:
         """Generate schedule cron string along with the batch interval dictionary according to the providing
         function name. As for the model monitoring controller function, the dictionary batch interval is
         corresponding to the scheduling policy.
@@ -669,15 +669,18 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
             if stream_path.startswith("v3io://"):
+                kwargs = {}
+                if function_name != mm_constants.MonitoringFunctionNames.STREAM:
+                    kwargs["access_key"] = model_monitoring_access_key
+                if mlrun.mlconf.is_explicit_ack():
+                    kwargs["explicit_ack_mode"] = "explicitOnly"
+                    kwargs["workerAllocationMode"] = "static"
+
                 # Generate V3IO stream trigger
                 function.add_v3io_stream_trigger(
                     stream_path=stream_path,
-                    name="monitoring_stream_trigger"
-                    if function_name is None
-                    else f"monitoring_{function_name}_trigger",
-                    access_key=model_monitoring_access_key
-                    if function_name != mm_constants.MonitoringFunctionNames.STREAM
-                    else None,
+                    name=f"monitoring_{function_name or 'stream'}_trigger",
+                    **kwargs,
                 )
         # Add the default HTTP source
         http_source = mlrun.datastore.sources.HttpSource()
@@ -789,10 +792,10 @@ class MonitoringDeployment:
 
 
 def get_endpoint_features(
-    feature_names: typing.List[str],
+    feature_names: list[str],
     feature_stats: dict = None,
     current_stats: dict = None,
-) -> typing.List[mlrun.common.schemas.Features]:
+) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and
     actual (current_stats) stats. The expected stats were calculated during the creation of the model endpoint,

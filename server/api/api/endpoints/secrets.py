@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from http import HTTPStatus
-from typing import List
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -66,7 +65,7 @@ async def store_project_secrets(
 async def delete_project_secrets(
     project: str,
     provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
-    secrets: List[str] = fastapi.Query(None, alias="secret"),
+    secrets: list[str] = fastapi.Query(None, alias="secret"),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         server.api.api.deps.authenticate_request
     ),
@@ -131,7 +130,7 @@ async def list_project_secret_keys(
 )
 async def list_project_secrets(
     project: str,
-    secrets: List[str] = fastapi.Query(None, alias="secret"),
+    secrets: list[str] = fastapi.Query(None, alias="secret"),
     provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
     token: str = fastapi.Header(
         None, alias=mlrun.common.schemas.HeaderNames.secret_store_token

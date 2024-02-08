@@ -19,7 +19,7 @@ import server.api.utils.events.iguazio
 import server.api.utils.events.nop
 
 
-class EventsFactory(object):
+class EventsFactory:
     @staticmethod
     def get_events_client(
         kind: mlrun.common.schemas.EventClientKinds = None, **kwargs

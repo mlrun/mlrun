@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
@@ -108,9 +108,9 @@ class SQLRunDB(RunDBInterface):
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,
@@ -436,7 +436,7 @@ class SQLRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
-        labels: List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._transform_db_error(
@@ -475,8 +475,8 @@ class SQLRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        entities: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_features,
@@ -493,7 +493,7 @@ class SQLRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_entities,
@@ -510,9 +510,9 @@ class SQLRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        entities: List[str] = None,
-        features: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        features: list[str] = None,
+        labels: list[str] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -610,7 +610,7 @@ class SQLRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -682,7 +682,7 @@ class SQLRunDB(RunDBInterface):
 
     def store_run_notifications(
         self,
-        notification_objects: List[mlrun.model.Notification],
+        notification_objects: list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,
@@ -783,7 +783,7 @@ class SQLRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ) -> mlrun.common.schemas.SecretsData:
         raise NotImplementedError()
 
@@ -803,7 +803,7 @@ class SQLRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ):
         raise NotImplementedError()
 
@@ -839,10 +839,10 @@ class SQLRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
     ):
         raise NotImplementedError()
 
@@ -852,7 +852,7 @@ class SQLRunDB(RunDBInterface):
         endpoint_id: str,
         start: Optional[str] = None,
         end: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         features: bool = False,
     ):
         raise NotImplementedError()
@@ -931,7 +931,7 @@ class SQLRunDB(RunDBInterface):
 
     def list_datastore_profiles(
         self, project: str
-    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+    ) -> list[mlrun.common.schemas.DatastoreProfile]:
         raise NotImplementedError()
 
     def store_datastore_profile(

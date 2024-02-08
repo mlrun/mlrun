@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from http import HTTPStatus
-from typing import List
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -147,7 +146,7 @@ async def list_artifacts(
     tag: str = None,
     kind: str = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     tree: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
@@ -255,7 +254,7 @@ async def delete_artifacts(
     name: str = "",
     tag: str = "",
     tree: str = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

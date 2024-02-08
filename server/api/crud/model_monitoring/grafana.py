@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -32,8 +32,8 @@ from server.api.utils.singletons.project_member import get_project_member
 def grafana_list_projects(
     db_session: Session,
     auth_info: mlrun.common.schemas.AuthInfo,
-    query_parameters: Dict[str, str],
-) -> List[str]:
+    query_parameters: dict[str, str],
+) -> list[str]:
     """
     List available project names. Will be used as a filter in each grafana dashboard.
 
@@ -57,10 +57,10 @@ def grafana_list_projects(
 
 
 async def grafana_list_endpoints(
-    body: Dict[str, Any],
-    query_parameters: Dict[str, str],
+    body: dict[str, Any],
+    query_parameters: dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
-) -> List[mlrun.common.schemas.model_monitoring.grafana.GrafanaTable]:
+) -> list[mlrun.common.schemas.model_monitoring.grafana.GrafanaTable]:
     project = query_parameters.get("project")
 
     # Filters
@@ -190,8 +190,8 @@ async def grafana_list_endpoints(
 
 
 async def grafana_individual_feature_analysis(
-    body: Dict[str, Any],
-    query_parameters: Dict[str, str],
+    body: dict[str, Any],
+    query_parameters: dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
@@ -273,8 +273,8 @@ async def grafana_individual_feature_analysis(
 
 
 async def grafana_overall_feature_analysis(
-    body: Dict[str, Any],
-    query_parameters: Dict[str, str],
+    body: dict[str, Any],
+    query_parameters: dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
@@ -331,8 +331,8 @@ async def grafana_overall_feature_analysis(
 
 
 async def grafana_incoming_features(
-    body: Dict[str, Any],
-    query_parameters: Dict[str, str],
+    body: dict[str, Any],
+    query_parameters: dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
@@ -404,7 +404,7 @@ async def grafana_incoming_features(
     return time_series
 
 
-def parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
+def parse_query_parameters(request_body: dict[str, Any]) -> dict[str, str]:
     """
     This function searches for the target field in Grafana's SimpleJson json. Once located, the target string is
     parsed by splitting on semi-colons (;). Each part in the resulting list is then split by an equal sign (=) to be
@@ -431,7 +431,7 @@ def parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
     return parameters
 
 
-def parse_search_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
+def parse_search_parameters(request_body: dict[str, Any]) -> dict[str, str]:
     """
     This function searches for the target field in Grafana's SimpleJson json. Once located, the target string is
     parsed by splitting on semi-colons (;). Each part in the resulting list is then split by an equal sign (=) to be
@@ -462,7 +462,7 @@ def _parse_parameters(target_query):
     return parameters
 
 
-def drop_grafana_escape_chars(query_parameters: Dict[str, str]):
+def drop_grafana_escape_chars(query_parameters: dict[str, str]):
     query_parameters = dict(query_parameters)
     endpoint_id = query_parameters.get("endpoint_id")
     if endpoint_id is not None:
@@ -471,7 +471,7 @@ def drop_grafana_escape_chars(query_parameters: Dict[str, str]):
 
 
 def validate_query_parameters(
-    query_parameters: Dict[str, str], supported_endpoints: Optional[Set[str]] = None
+    query_parameters: dict[str, str], supported_endpoints: Optional[set[str]] = None
 ):
     """Validates the parameters sent via Grafana's SimpleJson query"""
     if "target_endpoint" not in query_parameters:

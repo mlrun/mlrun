@@ -26,15 +26,15 @@ class ListRuntimeResourcesGroupByField(mlrun.common.types.StrEnum):
 
 class RuntimeResource(pydantic.BaseModel):
     name: str
-    labels: typing.Dict[str, str] = {}
-    status: typing.Optional[typing.Dict]
+    labels: dict[str, str] = {}
+    status: typing.Optional[dict]
 
 
 class RuntimeResources(pydantic.BaseModel):
-    crd_resources: typing.List[RuntimeResource] = []
-    pod_resources: typing.List[RuntimeResource] = []
+    crd_resources: list[RuntimeResource] = []
+    pod_resources: list[RuntimeResource] = []
     # only for dask runtime
-    service_resources: typing.Optional[typing.List[RuntimeResource]] = None
+    service_resources: typing.Optional[list[RuntimeResource]] = None
 
     class Config:
         extra = pydantic.Extra.allow
@@ -45,14 +45,10 @@ class KindRuntimeResources(pydantic.BaseModel):
     resources: RuntimeResources
 
 
-RuntimeResourcesOutput = typing.List[KindRuntimeResources]
+RuntimeResourcesOutput = list[KindRuntimeResources]
 
 
 # project name -> job uid -> runtime resources
-GroupedByJobRuntimeResourcesOutput = typing.Dict[
-    str, typing.Dict[str, RuntimeResources]
-]
+GroupedByJobRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]
 # project name -> kind -> runtime resources
-GroupedByProjectRuntimeResourcesOutput = typing.Dict[
-    str, typing.Dict[str, RuntimeResources]
-]
+GroupedByProjectRuntimeResourcesOutput = dict[str, dict[str, RuntimeResources]]

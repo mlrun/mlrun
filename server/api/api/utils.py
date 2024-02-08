@@ -1172,6 +1172,7 @@ async def _delete_project(
             db_session,
             project_name,
             deletion_strategy,
+            auth_info,
         )
 
     elif wait_for_project_deletion:

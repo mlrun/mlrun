@@ -19,7 +19,7 @@ model_path = os.path.abspath('sklearn.pkl')
 urllib.request.urlretrieve(mlrun.get_sample_path('models/serving/sklearn.pkl'), model_path)
 
 # Set the base project name
-project_name_base = 'serving-test'
+project_name_base = 'serving-project'
 
 # Initialize the MLRun project object
 project = mlrun.get_or_create_project(project_name_base, context="./", user_project=True)

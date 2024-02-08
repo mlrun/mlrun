@@ -946,7 +946,7 @@ class SQLDB(DBInterface):
             )
 
             # delete the tags
-            for old_tag in query.all():
+            for old_tag in query:
                 objects.append(old_tag)
                 session.delete(old_tag)
 
@@ -994,7 +994,7 @@ class SQLDB(DBInterface):
         self._commit(session, objects)
 
         logger.debug(
-            "Locking artifacts in before tagging artifacts",
+            "Released artifacts db lock after tagging artifacts",
             project=project,
             tag=tag_name,
             artifacts_keys=artifacts_keys,

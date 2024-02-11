@@ -93,7 +93,6 @@ class FeaturesDriftTablePlot:
 
     def produce(
         self,
-        features: list[str],
         sample_set_statistics: dict,
         inputs_statistics: dict,
         metrics: dict[str, Union[dict, float]],
@@ -113,7 +112,7 @@ class FeaturesDriftTablePlot:
         """
         # Plot the drift table:
         figure = self._plot(
-            features=features,
+            features=list(inputs_statistics.keys()),
             sample_set_statistics=sample_set_statistics,
             inputs_statistics=inputs_statistics,
             metrics=metrics,

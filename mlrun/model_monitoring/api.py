@@ -706,7 +706,6 @@ def perform_drift_analysis(
 
     # Drift table plot
     html_plot = FeaturesDriftTablePlot().produce(
-        features=list(inputs_statistics.keys()),
         sample_set_statistics=sample_set_statistics,
         inputs_statistics=inputs_statistics,
         metrics=metrics,

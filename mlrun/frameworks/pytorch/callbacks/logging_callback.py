@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Union
 
 import numpy as np
 from torch import Tensor
@@ -59,15 +59,15 @@ class LoggingCallback(Callback):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        dynamic_hyperparameters: Dict[
+        dynamic_hyperparameters: dict[
             str,
-            Tuple[
+            tuple[
                 str,
-                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -100,7 +100,7 @@ class LoggingCallback(Callback):
         :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
         """
-        super(LoggingCallback, self).__init__()
+        super().__init__()
 
         # Store the configurations:
         self._dynamic_hyperparameters_keys = (
@@ -117,7 +117,7 @@ class LoggingCallback(Callback):
         self._is_training = None  # type: bool
         self._auto_log = auto_log
 
-    def get_training_results(self) -> Dict[str, List[List[float]]]:
+    def get_training_results(self) -> dict[str, list[list[float]]]:
         """
         Get the training results logged. The results will be stored in a dictionary where each key is the metric name
         and the value is a list of lists of values. The first list is by epoch and the second list is by iteration
@@ -127,7 +127,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.training_results
 
-    def get_validation_results(self) -> Dict[str, List[List[float]]]:
+    def get_validation_results(self) -> dict[str, list[list[float]]]:
         """
         Get the validation results logged. The results will be stored in a dictionary where each key is the metric name
         and the value is a list of lists of values. The first list is by epoch and the second list is by iteration
@@ -137,7 +137,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.validation_results
 
-    def get_static_hyperparameters(self) -> Dict[str, PyTorchTypes.TrackableType]:
+    def get_static_hyperparameters(self) -> dict[str, PyTorchTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -148,7 +148,7 @@ class LoggingCallback(Callback):
 
     def get_dynamic_hyperparameters(
         self,
-    ) -> Dict[str, List[PyTorchTypes.TrackableType]]:
+    ) -> dict[str, list[PyTorchTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
@@ -157,7 +157,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.dynamic_hyperparameters
 
-    def get_summaries(self) -> Dict[str, List[float]]:
+    def get_summaries(self) -> dict[str, list[float]]:
         """
         Get the validation summaries of the metrics results. The summaries will be stored in a dictionary where each key
         is the metric names and the value is a list of all the summary values per epoch.
@@ -210,7 +210,7 @@ class LoggingCallback(Callback):
             self._add_auto_hyperparameters()
         # # Static hyperparameters:
         for name, value in self._static_hyperparameters_keys.items():
-            if isinstance(value, Tuple):
+            if isinstance(value, tuple):
                 # Its a parameter that needed to be extracted via key chain.
                 self._logger.log_static_hyperparameter(
                     parameter_name=name,
@@ -294,7 +294,7 @@ class LoggingCallback(Callback):
             self._logger.set_mode(mode=LoggingMode.EVALUATION)
 
     def on_validation_end(
-        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the
@@ -372,7 +372,7 @@ class LoggingCallback(Callback):
             result=float(loss_value),
         )
 
-    def on_train_metrics_end(self, metric_values: List[PyTorchTypes.MetricValueType]):
+    def on_train_metrics_end(self, metric_values: list[PyTorchTypes.MetricValueType]):
         """
         After the training calculation of the metrics, this method will be called to log the metrics values.
 
@@ -389,7 +389,7 @@ class LoggingCallback(Callback):
             )
 
     def on_validation_metrics_end(
-        self, metric_values: List[PyTorchTypes.MetricValueType]
+        self, metric_values: list[PyTorchTypes.MetricValueType]
     ):
         """
         After the validating calculation of the metrics, this method will be called to log the metrics values.
@@ -456,7 +456,7 @@ class LoggingCallback(Callback):
         self,
         source: str,
         key_chain: Union[
-            List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
+            list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
         ],
     ) -> PyTorchTypes.TrackableType:
         """

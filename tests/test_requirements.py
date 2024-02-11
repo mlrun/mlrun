@@ -17,7 +17,6 @@ import collections
 import json
 import pathlib
 import re
-import typing
 import unittest.mock
 
 import deepdiff
@@ -223,7 +222,7 @@ def test_requirement_from_remote():
     }
 
 
-def _generate_all_requirement_specifiers_map() -> typing.Dict[str, typing.Set]:
+def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = list(
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
@@ -243,7 +242,7 @@ def _generate_all_requirement_specifiers_map() -> typing.Dict[str, typing.Set]:
 
 def _parse_requirement_specifiers_list(
     requirement_specifiers,
-) -> typing.Dict[str, typing.Set]:
+) -> dict[str, set]:
     specific_module_regex = (
         r"^"
         r"(?P<requirementName>[a-zA-Z\-0-9_]+)"

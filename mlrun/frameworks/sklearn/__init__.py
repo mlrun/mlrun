@@ -14,7 +14,7 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 import warnings
-from typing import Dict, List, Union
+from typing import Union
 
 import mlrun
 from mlrun.frameworks.sklearn.metric import Metric
@@ -37,25 +37,25 @@ def apply_mlrun(
     model_name: str = "model",
     tag: str = "",
     model_path: str = None,
-    modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-    custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
-    artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
+    artifacts: Union[list[MLPlan], list[str], dict[str, dict]] = None,
     metrics: Union[
-        List[Metric],
-        List[SKLearnTypes.MetricEntryType],
-        Dict[str, SKLearnTypes.MetricEntryType],
+        list[Metric],
+        list[SKLearnTypes.MetricEntryType],
+        dict[str, SKLearnTypes.MetricEntryType],
     ] = None,
     x_test: SKLearnTypes.DatasetType = None,
     y_test: SKLearnTypes.DatasetType = None,
     sample_set: Union[SKLearnTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Union[List[str], List[int]] = None,
+    y_columns: Union[list[str], list[int]] = None,
     feature_vector: str = None,
-    feature_weights: List[float] = None,
-    labels: Dict[str, Union[str, int, float]] = None,
-    parameters: Dict[str, Union[str, int, float]] = None,
-    extra_data: Dict[str, SKLearnTypes.ExtraDataType] = None,
+    feature_weights: list[float] = None,
+    labels: dict[str, Union[str, int, float]] = None,
+    parameters: dict[str, Union[str, int, float]] = None,
+    extra_data: dict[str, SKLearnTypes.ExtraDataType] = None,
     auto_log: bool = True,
     **kwargs,
 ) -> SKLearnModelHandler:

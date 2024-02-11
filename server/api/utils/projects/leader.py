@@ -65,7 +65,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", db_session, project)
         return self.get_project(db_session, project.metadata.name), False
@@ -78,7 +78,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._enrich_project(project)
         mlrun.projects.ProjectMetadata.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
@@ -94,7 +94,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.common.schemas.Project, bool]:
+    ) -> tuple[mlrun.common.schemas.Project, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
@@ -114,7 +114,7 @@ class Member(
         self._projects_in_deletion.add(name)
         try:
             self._run_on_all_followers(
-                False, "delete_project", db_session, name, deletion_strategy
+                False, "delete_project", db_session, name, deletion_strategy, auth_info
             )
         finally:
             self._projects_in_deletion.remove(name)
@@ -133,11 +133,11 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
             db_session, owner, format_, labels, state, names
@@ -147,11 +147,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await self._leader_follower.list_project_summaries(
             db_session, owner, labels, state, names
@@ -195,7 +195,7 @@ class Member(
         try:
             # re-generating all of the maps every time since _ensure_follower_projects_synced might cause changes
             leader_projects: mlrun.common.schemas.ProjectsOutput
-            follower_projects_map: typing.Dict[str, mlrun.common.schemas.ProjectsOutput]
+            follower_projects_map: dict[str, mlrun.common.schemas.ProjectsOutput]
             leader_projects, follower_projects_map = self._run_on_all_followers(
                 True, "list_projects", db_session
             )
@@ -243,13 +243,11 @@ class Member(
     def _ensure_project_synced(
         self,
         db_session: sqlalchemy.orm.Session,
-        leader_project_names: typing.Set[str],
-        follower_names: typing.Set[str],
+        leader_project_names: set[str],
+        follower_names: set[str],
         project_name: str,
-        followers_projects_map: typing.Dict[
-            str, typing.Dict[str, mlrun.common.schemas.Project]
-        ],
-        leader_projects_map: typing.Dict[str, mlrun.common.schemas.Project],
+        followers_projects_map: dict[str, dict[str, mlrun.common.schemas.Project]],
+        leader_projects_map: dict[str, mlrun.common.schemas.Project],
     ):
         # FIXME: This function only handles syncing project existence, i.e. if a user updates a project attribute
         #  through one of the followers this change won't be synced and the projects will be left with this discrepancy
@@ -307,7 +305,7 @@ class Member(
     def _store_project_in_followers(
         self,
         db_session: sqlalchemy.orm.Session,
-        follower_names: typing.Set[str],
+        follower_names: set[str],
         project_name: str,
         project: mlrun.common.schemas.Project,
     ):
@@ -336,7 +334,7 @@ class Member(
     def _create_project_in_missing_followers(
         self,
         db_session: sqlalchemy.orm.Session,
-        missing_followers: typing.Set[str],
+        missing_followers: set[str],
         # the name of the follower which we took the missing project from
         project_follower_name: str,
         project_name: str,
@@ -377,7 +375,7 @@ class Member(
 
     def _run_on_all_followers(
         self, leader_first: bool, method: str, *args, **kwargs
-    ) -> typing.Tuple[typing.Any, typing.Dict[str, typing.Any]]:
+    ) -> tuple[typing.Any, dict[str, typing.Any]]:
         leader_response = None
         if leader_first:
             leader_response = getattr(self._leader_follower, method)(*args, **kwargs)

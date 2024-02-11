@@ -148,7 +148,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
             name=self.name, project=self.project, artifact_path=self.artifact_path
         )
 
-    def _generate_preemptible_tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+    def _generate_preemptible_tolerations(self) -> list[k8s_client.V1Toleration]:
         return mlrun.k8s_utils.generate_preemptible_tolerations()
 
     def _generate_tolerations(self):

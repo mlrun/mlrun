@@ -54,14 +54,14 @@ class Notification(pydantic.BaseModel):
     name: str
     message: str
     severity: NotificationSeverity
-    when: typing.List[str]
+    when: list[str]
     condition: str
-    params: typing.Dict[str, typing.Any] = None
+    params: dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None
-    secret_params: typing.Optional[typing.Dict[str, typing.Any]] = None
+    secret_params: typing.Optional[dict[str, typing.Any]] = None
     reason: typing.Optional[str] = None
 
 
 class SetNotificationRequest(pydantic.BaseModel):
-    notifications: typing.List[Notification] = None
+    notifications: list[Notification] = None

@@ -961,13 +961,13 @@ class RemoteRuntime(KubeResource):
     def with_sidecar(self, name: str, image: str, port: int = None):
         """
         Add a sidecar container to the function pod
-        :param name:    sidecar container name
-        :param image:   sidecar container image
-        :param port:    sidecar container port
+        :param name:    Sidecar container name
+        :param image:   Sidecar container image
+        :param port:    Sidecar container port
         """
         self.spec.config.setdefault("spec.sidecars", [])
         if not name or not image:
-            raise ValueError("name and image must be specified")
+            raise ValueError("Sidecar name and image must be specified")
 
         self.spec.config["spec.sidecars"].append({"name": name, "image": image})
         if port:

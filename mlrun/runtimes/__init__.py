@@ -45,9 +45,12 @@ from .nuclio import (
     nuclio_init_hook,
 )
 from .nuclio.application import ApplicationRuntime
+<<<<<<< HEAD
 =======
 from .nuclio.deployment import DeploymentRuntime
 >>>>>>> 0f159ce14 (more small stuff)
+=======
+>>>>>>> 8f33e806e (fixes)
 from .remotesparkjob import RemoteSparkRuntime
 from .sparkjob import Spark3Runtime
 
@@ -236,11 +239,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
         RuntimeKinds.databricks: DatabricksRuntime,
-<<<<<<< HEAD
         RuntimeKinds.application: ApplicationRuntime,
-=======
-        RuntimeKinds.deployment: DeploymentRuntime,
->>>>>>> 0f159ce14 (more small stuff)
     }
 
     return kind_runtime_map[kind]

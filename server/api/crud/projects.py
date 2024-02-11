@@ -103,6 +103,9 @@ class Projects(
         background_task_name: str = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
+        self._enrich_project_with_deletion_background_task_name(
+            session, name, background_task_name
+        )
         if (
             deletion_strategy.is_restricted()
             or deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
@@ -115,9 +118,6 @@ class Projects(
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self._enrich_project_with_deletion_background_task_name(
-                session, name, background_task_name
-            )
             self.delete_project_resources(session, name, auth_info=auth_info)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

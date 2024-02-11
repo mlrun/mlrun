@@ -425,9 +425,13 @@ class Projects(
 
         def _verify_no_project_function_pods():
             project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                selector=f"nuclio.io/project={project_name},nuclio.io/class=function"
+                selector=f"nuclio.io/project-name={project_name},nuclio.io/class=function"
             )
             if not project_function_pods:
+                logger.debug(
+                    "No function pods found for project",
+                    project_name=project_name,
+                )
                 return
             pod_names = [pod.metadata.name for pod in project_function_pods]
             first_three_pods = ", ".join(pod_names[:3])

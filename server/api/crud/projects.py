@@ -423,6 +423,18 @@ class Projects(
                     f"Project not deleted in nuclio yet. Project: {project_name}"
                 )
 
+        def _verify_no_project_function_pods():
+            project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+                selector=f"nuclio.io/project={project_name},nuclio.io/class=function"
+            )
+            if not project_function_pods:
+                return
+            pod_names = [pod.metadata.name for pod in project_function_pods]
+            first_three_pods = ", ".join(pod_names[:3])
+            raise Exception(
+                f"Project {project_name} still has '{len(pod_names)}' function pods; first 3: {first_three_pods}"
+            )
+
         timeout = int(
             humanfriendly.parse_timespan(
                 mlrun.mlconf.httpdb.projects.nuclio_project_deletion_verification_timeout
@@ -434,10 +446,25 @@ class Projects(
             )
         )
 
+        # ensure nuclio project CRD is deleted
         retry_until_successful(
             interval,
             timeout,
             logger,
             False,
             _check_nuclio_project_deletion,
+        )
+
+        # ensure no function pods are running
+        # this is a bit hacky but should do the job
+        # the reason we need it is that nuclio first delete the project CRD, and then
+        # nuclio-controller deletes the function crds, and only then the function pods
+        # to ensure that nuclio resources (read: functions) are completely deleted
+        # we need to wait for the function pods to be deleted as well.
+        retry_until_successful(
+            interval,
+            timeout,
+            logger,
+            False,
+            _verify_no_project_function_pods,
         )

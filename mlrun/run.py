@@ -58,7 +58,7 @@ from .runtimes import (
 )
 from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
-from .runtimes.nuclio.deployment import DeploymentRuntime
+from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     extend_hub_uri_if_needed,
@@ -603,7 +603,7 @@ def code_to_function(
     Spark3Runtime,
     RemoteSparkRuntime,
     DatabricksRuntime,
-    DeploymentRuntime,
+    ApplicationRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 
@@ -801,7 +801,7 @@ def code_to_function(
         if sub_kind == serving_subkind:
             r = ServingRuntime()
         elif kind == RuntimeKinds.deployment:
-            r = DeploymentRuntime()
+            r = ApplicationRuntime()
         else:
             r = RemoteRuntime()
             r.spec.function_kind = sub_kind

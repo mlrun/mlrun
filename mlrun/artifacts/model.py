@@ -390,10 +390,10 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyModelArtifact' will be removed in 1.6.0, use 'ModelArtifact' instead",
+    reason="'LegacyModelArtifact' will be removed in 1.7.0, use 'ModelArtifact' instead",
     category=FutureWarning,
 )
 class LegacyModelArtifact(LegacyArtifact):

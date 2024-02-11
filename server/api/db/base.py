@@ -407,7 +407,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_project(
-        self, session, name: str = None, project_id: int = None
+        self,
+        session,
+        name: str = None,
+        project_id: int = None,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -669,6 +672,22 @@ class DBInterface(ABC):
     def get_background_task(
         self, session, name: str, project: str, background_task_exceeded_timeout_func
     ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
+    def list_background_tasks(
+        self,
+        session,
+        project: str,
+        background_task_exceeded_timeout_func,
+        states: typing.Optional[typing.List[str]] = None,
+        created_from: datetime.datetime = None,
+        created_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        pass
+
+    def delete_background_task(self, session, name: str, project: str):
         pass
 
     @abstractmethod

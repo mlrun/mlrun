@@ -274,7 +274,7 @@ def build_function(
     if not overwrite_build_params:
         # TODO: change overwrite_build_params default to True in 1.8.0
         warnings.warn(
-            "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
             mlrun.utils.OverwriteBuildParamsWarning,
         )
 
@@ -344,7 +344,6 @@ class DeployStatus:
 
 def deploy_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    dashboard: str = "",
     models: list = None,
     env: dict = None,
     tag: str = None,
@@ -356,7 +355,6 @@ def deploy_function(
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object
-    :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API.
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
@@ -371,9 +369,7 @@ def deploy_function(
             "deploy is used with real-time functions, for other kinds use build_function()"
         )
     if engine == "kfp":
-        return function.deploy_step(
-            dashboard=dashboard, models=models, env=env, tag=tag, verbose=verbose
-        )
+        return function.deploy_step(models=models, env=env, tag=tag, verbose=verbose)
     else:
         if env:
             function.set_envs(env)
@@ -392,9 +388,7 @@ def deploy_function(
                 function=function,
             )
 
-        address = function.deploy(
-            dashboard=dashboard, tag=tag, verbose=verbose, builder_env=builder_env
-        )
+        address = function.deploy(tag=tag, verbose=verbose, builder_env=builder_env)
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return DeployStatus(
             state=function.status.state,

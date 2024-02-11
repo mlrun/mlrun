@@ -146,7 +146,7 @@ class TestDBFS(TestMLRunSystem):
         ) as f:
             f.write(source_content)
         source = source_class("my_source", dbfs_source_path, **reader_kwargs)
-        fstore.ingest(measurements, source=source, targets=[target])
+        measurements.ingest(source=source, targets=[target])
         target_file_path = measurements.get_target_path()
         result = source_class(path=target_file_path, **reader_kwargs).to_dataframe()
         if drop_index:

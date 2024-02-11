@@ -16,6 +16,7 @@ import os
 import pathlib
 import tempfile
 import typing
+import warnings
 import zipfile
 
 import yaml
@@ -714,10 +715,10 @@ class LinkArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", LinkArtifactSpec)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyArtifact' will be removed in 1.6.0, use 'Artifact' instead",
+    reason="'LegacyArtifact' will be removed in 1.7.0, use 'Artifact' instead",
     category=FutureWarning,
 )
 class LegacyArtifact(ModelObj):
@@ -880,10 +881,10 @@ class LegacyArtifact(ModelObj):
         return generate_target_path(self, artifact_path, producer)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyDirArtifact' will be removed in 1.6.0, use 'DirArtifact' instead",
+    reason="'LegacyDirArtifact' will be removed in 1.7.0, use 'DirArtifact' instead",
     category=FutureWarning,
 )
 class LegacyDirArtifact(LegacyArtifact):
@@ -916,10 +917,10 @@ class LegacyDirArtifact(LegacyArtifact):
             mlrun.datastore.store_manager.object(url=target).upload(file_path)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyLinkArtifact' will be removed in 1.6.0, use 'LinkArtifact' instead",
+    reason="'LegacyLinkArtifact' will be removed in 1.7.0, use 'LinkArtifact' instead",
     category=FutureWarning,
 )
 class LegacyLinkArtifact(LegacyArtifact):
@@ -1066,6 +1067,17 @@ def convert_legacy_artifact_to_new_format(
         raise TypeError(
             f"Unsupported type '{type(legacy_artifact)}' for legacy artifact"
         )
+
+    artifact_key = legacy_artifact_dict.get("key", "")
+    artifact_tag = legacy_artifact_dict.get("tag", "")
+    if artifact_tag:
+        artifact_key = f"{artifact_key}:{artifact_tag}"
+    # TODO: remove in 1.8.0
+    warnings.warn(
+        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.8.0. "
+        f"Make sure to save the artifact/project in the new format.",
+        FutureWarning,
+    )
 
     artifact = mlrun.artifacts.artifact_types.get(
         legacy_artifact_dict.get("kind", "artifact"), mlrun.artifacts.Artifact

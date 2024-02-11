@@ -583,7 +583,7 @@ class ModelEndpoints:
                 f"The length of model endpoint feature_stats is not equal to the "
                 f"length of model endpoint feature names and labels "
                 f"feature_stats({len_of_feature_stats}), "
-                f"feature_names({len_of_feature_names}),"
+                f"feature_names({len_of_feature_names}), "
                 f"label_names({len_of_label_names}"
             )
 

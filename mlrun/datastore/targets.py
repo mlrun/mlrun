@@ -17,7 +17,6 @@ import os
 import random
 import sys
 import time
-import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -38,6 +37,7 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -80,32 +80,10 @@ def generate_target_run_id():
 
 
 def write_spark_dataframe_with_options(spark_options, df, mode):
-    sc = df.sql_ctx.sparkSession.sparkContext
-
-    original_hadoop_conf = {}
-    non_hadoop_spark_options = {}
-
-    hadoop_conf = sc._jsc.hadoopConfiguration()
-
-    for key, value in spark_options.items():
-        if key.startswith("spark.hadoop."):
-            key = key[len("spark.hadoop.") :]
-            # Save the original configuration
-            original_value = hadoop_conf.get(key, None)
-            original_hadoop_conf[key] = original_value
-            hadoop_conf.set(key, value)
-        else:
-            non_hadoop_spark_options[key] = value
-    try:
-        df.write.mode(mode).save(**non_hadoop_spark_options)
-    except Exception as e:
-        raise e
-    finally:
-        for key, value in original_hadoop_conf.items():
-            if value:
-                hadoop_conf.set(key, value)
-            else:
-                hadoop_conf.unset(key)
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        df.sql_ctx.sparkSession, spark_options
+    )
+    df.write.mode(mode).save(**non_hadoop_spark_options)
 
 
 def default_target_names():
@@ -553,7 +531,7 @@ class BaseStoreTarget(DataTargetBase):
         else:
             store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
-            file_system = store.get_filesystem(False)
+            file_system = store.filesystem
             if file_system.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
@@ -1407,7 +1385,10 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_path(self.get_target_path())
+        path = self.get_target_path()
+        if not path:
+            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
+        endpoint, uri = parse_path(path)
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1471,7 +1452,14 @@ class KafkaTarget(BaseStoreTarget):
         else:
             attributes = copy(self.attributes)
             bootstrap_servers = attributes.pop("bootstrap_servers", None)
-            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+            topic, bootstrap_servers = parse_kafka_url(
+                self.get_target_path(), bootstrap_servers
+            )
+
+        if not topic:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "KafkaTarget requires a path (topic)"
+            )
 
         graph.add_step(
             name=self.name or "KafkaTarget",
@@ -1680,7 +1668,6 @@ class SQLTarget(BaseStoreTarget):
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
-        time_fields: List[str] = None,
         varchar_len: int = 50,
         parse_dates: List[str] = None,
     ):
@@ -1718,20 +1705,11 @@ class SQLTarget(BaseStoreTarget):
         :param create_table:                pass True if you want to create new table named by
                                             table_name with schema on current database.
         :param create_according_to_data:    (not valid)
-        :param time_fields :    all the field to be parsed as timestamp.
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         :param parse_dates :    all the field to be parsed as timestamp.
         """
 
         create_according_to_data = False  # TODO: open for user
-        if time_fields:
-            warnings.warn(
-                "'time_fields' is deprecated, use 'parse_dates' instead. "
-                "This will be removed in 1.6.0",
-                # TODO: Remove this in 1.6.0
-                FutureWarning,
-            )
-            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None or table_name is None:
             attr = {}

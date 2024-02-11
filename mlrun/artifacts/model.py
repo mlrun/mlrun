@@ -13,7 +13,7 @@
 # limitations under the License.
 import tempfile
 from os import path
-from typing import Any, List
+from typing import Any
 
 import pandas as pd
 import yaml

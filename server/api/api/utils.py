@@ -1186,6 +1186,12 @@ async def _delete_project(
 
 
 def verify_project_is_deleted(project_name, auth_info):
+    background_task_name = (
+        server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
+            project_name
+        )
+    )
+
     def _verify_project_is_deleted():
         try:
             server.api.db.session.run_function_with_new_db_session(
@@ -1194,6 +1200,19 @@ def verify_project_is_deleted(project_name, auth_info):
         except mlrun.errors.MLRunNotFoundError:
             return
         else:
+            nonlocal background_task_name
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                name=background_task_name, raise_on_not_found=False
+            )
+            if (
+                background_task
+                and background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                raise mlrun.errors.MLRunFatalFailureError(
+                    f"Failed to delete project: {project_name}"
+                )
+
             raise mlrun.errors.MLRunInternalServerError(
                 f"Project {project_name} was not deleted"
             )

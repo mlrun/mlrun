@@ -409,7 +409,7 @@ class V2ModelServer(StepToDict):
             new_inputs = [inputs[key] for key in input_order]
         else:
             raise mlrun.MLRunInvalidArgumentError(
-                "When using predict_dict or infer_dict operation the inputs can be "
+                "When using predict_dict or infer_dict operation the inputs must be "
                 "of type `list[dict]` or `dict`"
             )
         request["inputs"] = new_inputs

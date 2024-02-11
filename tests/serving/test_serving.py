@@ -127,7 +127,10 @@ ensemble_spec = generate_spec(ensemble_object.to_dict())
 ensemble_spec_classification = generate_spec(ensemble_object_classification.to_dict())
 testdata = '{"inputs": [5]}'
 testdata_iris = '{"inputs": [5.1, 3.5, 1.4, 0.2]}'
-testdata_iris_dict = '{"inputs": {"sepal width (cm)": 3.5, "sepal length (cm)": 5.1, "petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+testdata_iris_dict = (
+    '{"inputs": {"sepal width (cm)": 3.5, "sepal length (cm)": 5.1, '
+    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+)
 testdata_2 = '{"inputs": [5, 5]}'
 
 

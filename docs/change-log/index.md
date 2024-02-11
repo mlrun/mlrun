@@ -863,7 +863,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
 |ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.| Delete again.| v1.5.0    |
-|ML-4767|Torch 2.1.0 is not compatible with mlrun-gpu image.              | NA | v1.5.0 |
 |ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA | v1.4.0 |
 |ML-4810|Cannot rerun a job when the "mlrun/client_version" label has "+" in its value. | Ensure the "mlrun/client_version" label does not include "+". | v1.6.0 |
 |ML-4821|In some cases, deleting a very big project fails with a timeout due to the time required to delete the project resources.|Delete the project again  | NA | v1.5.0 | 
@@ -888,11 +887,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                                                                                        |
 |ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
-|ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | NA |                 v1.5.0|   
+|ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
 |ML-4855|MLRun supports TensorFlow up to 2.13.1.
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
-|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. | You can build your own images with newer CUDA for a later release of pytorch. |v1.6.0|  
+|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 
 ## Deprecations and removed code
 

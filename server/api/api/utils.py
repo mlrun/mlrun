@@ -1204,18 +1204,18 @@ def verify_project_is_deleted(project_name, auth_info):
             if background_task_name := project_status.get(
                 "deletion_background_task_name"
             ):
-                background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                bg_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                     name=background_task_name, raise_on_not_found=False
                 )
                 if (
-                    background_task
-                    and background_task.status.state
+                    bg_task
+                    and bg_task.status.state
                     == mlrun.common.schemas.BackgroundTaskState.failed
                 ):
                     # Background task failed, stop retrying
                     raise mlrun.errors.MLRunFatalFailureError(
                         original_exception=mlrun.errors.MLRunInternalServerError(
-                            f"Failed to delete project {project_name}: {background_task.status.error}"
+                            f"Failed to delete project {project_name}: {bg_task.status.error}"
                         )
                     )
 

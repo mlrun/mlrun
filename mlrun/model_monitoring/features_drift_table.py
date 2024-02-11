@@ -278,6 +278,7 @@ class FeaturesDriftTablePlot:
         input_statistics: dict,
         metrics: dict,
         row_height: int,
+        feature: str,
     ) -> go.Table:
         """
         Plot the feature row to include in the table. The row will include only the columns of the statistics and
@@ -300,7 +301,14 @@ class FeaturesDriftTablePlot:
         # Add the statistics columns:
         for column in self._statistics_columns:
             cells_values.append(sample_statistics[column])
-            cells_values.append(input_statistics[column])
+            try:
+                cells_values.append(input_statistics[column])
+            except KeyError:
+                raise ValueError(
+                    f"The `input_statistics['{feature}']` dictionary does not "
+                    f"include the expected key '{column}'. Please check the "
+                    "current data."
+                )
 
         # Add the metrics columns:
         for column in self._metrics_columns:
@@ -516,18 +524,28 @@ class FeaturesDriftTablePlot:
         # Start going over the features and plot each row, histogram and notification:
         row = 3  # We are currently at row 3 counting the headers.
         for feature in features:
-            # Add the feature values:
-            main_figure.add_trace(
-                self._plot_feature_row_table(
-                    feature_name=feature,
-                    sample_statistics=sample_set_statistics[feature],
-                    input_statistics=inputs_statistics[feature],
-                    metrics=metrics[feature],
-                    row_height=row_height,
-                ),
-                row=row,
-                col=1,
-            )
+            try:
+                # Add the feature values:
+                main_figure.add_trace(
+                    self._plot_feature_row_table(
+                        feature_name=feature,
+                        sample_statistics=sample_set_statistics[feature],
+                        input_statistics=inputs_statistics[feature],
+                        metrics=metrics[feature],
+                        row_height=row_height,
+                        feature=feature,
+                    ),
+                    row=row,
+                    col=1,
+                )
+            except KeyError:
+                raise ValueError(
+                    "`sample_set_statistics` does not contain the expected "
+                    f"key '{feature}' from `inputs_statistics`. Please verify "
+                    "the data integrity.\n"
+                    f"{sample_set_statistics.keys() = }\n"
+                    f"{inputs_statistics.keys() = }\n"
+                )
             # Add the histograms (both traces are added to the same subplot figure):
             sample_hist, input_hist = self._plot_histogram_scatters(
                 sample_hist=sample_set_statistics[feature]["hist"],

@@ -19,7 +19,7 @@ from collections import Counter
 # np.bool -> bool and np.object -> object fix backported from pyspark v3.3.3.
 
 
-class PandasConversionMixin(object):
+class PandasConversionMixin:
     """
     Min-in for the conversion from Spark to pandas. Currently, only :class:`DataFrame`
     can use this class.
@@ -108,9 +108,7 @@ class PandasConversionMixin(object):
                     )
 
                     # Rename columns to avoid duplicated column names.
-                    tmp_column_names = [
-                        "col_{}".format(i) for i in range(len(self.columns))
-                    ]
+                    tmp_column_names = [f"col_{i}" for i in range(len(self.columns))]
                     self_destruct = self.sql_ctx._conf.arrowPySparkSelfDestructEnabled()
                     batches = self.toDF(*tmp_column_names)._collect_as_arrow(
                         split_batches=self_destruct

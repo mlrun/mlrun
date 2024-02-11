@@ -14,7 +14,7 @@
 import os
 import pathlib
 from io import StringIO
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -231,13 +231,23 @@ class DatasetArtifact(Artifact):
         if not suffix and not self.spec.target_path.startswith("memory://"):
             self.spec.target_path = self.spec.target_path + "." + format
 
-        self.spec.size, self.metadata.hash = upload_dataframe(
-            self._df,
-            self.spec.target_path,
-            format=format,
-            src_path=self.spec.src_path,
-            **self._kw,
-        )
+        if self._df is not None:
+            self.spec.size, self.metadata.hash = upload_dataframe(
+                self._df,
+                self.spec.target_path,
+                format=format,
+                src_path=self.spec.src_path,
+                **self._kw,
+            )
+        else:
+            body = self.get_body()
+            if body:
+                self._upload_body(
+                    body=body, target=self.target_path, artifact_path=artifact_path
+                )
+            else:
+                # don't fail if no df or body
+                self.spec.size, self.metadata.hash = None, None
 
     def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
         if not artifact_path:
@@ -646,7 +656,7 @@ def update_dataset_meta(
 
 def upload_dataframe(
     df, target_path, format, src_path=None, **kw
-) -> Tuple[Optional[int], Optional[str]]:
+) -> tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
         mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
         return (

@@ -484,7 +484,7 @@ async def test_verify_feature_vector_features_permissions(
 
     def _verify_queried_resources(
         resource_type: mlrun.common.schemas.AuthorizationResourceTypes,
-        resources: typing.List,
+        resources: list,
         project_and_resource_name_extractor: typing.Callable,
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,

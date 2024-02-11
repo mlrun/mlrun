@@ -15,20 +15,20 @@
 import json
 import os
 from copy import deepcopy
-from typing import List, Union
+from typing import Union
 
 import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.datastore import parse_kafka_url
+from mlrun.model import ObjectList
 from mlrun.model_monitoring.tracking_policy import TrackingPolicy
-
-from ..datastore import parse_kafka_url
-from ..model import ObjectList
-from ..secrets import SecretsStore
-from ..serving.server import GraphServer, create_graph_server
-from ..serving.states import (
+from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.secrets import SecretsStore
+from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
     StepKinds,
@@ -37,9 +37,9 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger, set_paths
+from mlrun.utils import get_caller_globals, logger, set_paths
+
 from .function import NuclioSpec, RemoteRuntime
-from .function_reference import FunctionReference
 
 serving_subkind = "serving_v2"
 
@@ -216,12 +216,12 @@ class ServingSpec(NuclioSpec):
         graph_root_setter(self, graph)
 
     @property
-    def function_refs(self) -> List[FunctionReference]:
+    def function_refs(self) -> list[FunctionReference]:
         """function references, list of optional child function refs"""
         return self._function_refs
 
     @function_refs.setter
-    def function_refs(self, function_refs: List[FunctionReference]):
+    def function_refs(self, function_refs: list[FunctionReference]):
         self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
@@ -488,7 +488,6 @@ class ServingRuntime(RemoteRuntime):
                         "workerAllocationMode", "static"
                     )
 
-                max_workers_default = 4
                 if (
                     stream.path.startswith("kafka://")
                     or "kafka_bootstrap_servers" in stream.options
@@ -497,6 +496,7 @@ class ServingRuntime(RemoteRuntime):
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
+                    max_workers_default = 4
                     trigger_args["max_workers"] = trigger_args.get(
                         "max_workers", max_workers_default
                     )
@@ -510,10 +510,6 @@ class ServingRuntime(RemoteRuntime):
                 else:
                     # V3IO doesn't allow hyphens in object names
                     group = group.replace("-", "_")
-                    # Deal with unconventional parameter naming in V3IOStreamTrigger specifically
-                    trigger_args["maxWorkers"] = trigger_args.get(
-                        "maxWorkers", max_workers_default
-                    )
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )
@@ -588,7 +584,6 @@ class ServingRuntime(RemoteRuntime):
 
     def deploy(
         self,
-        dashboard="",
         project="",
         tag="",
         verbose=False,
@@ -598,7 +593,6 @@ class ServingRuntime(RemoteRuntime):
     ):
         """deploy model serving function to a local/remote cluster
 
-        :param dashboard: DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
@@ -645,7 +639,6 @@ class ServingRuntime(RemoteRuntime):
             logger.info(f"deploy root function {self.metadata.name} ...")
 
         return super().deploy(
-            dashboard,
             project,
             tag,
             verbose,

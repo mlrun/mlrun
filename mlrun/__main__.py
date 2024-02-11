@@ -863,9 +863,9 @@ def db(
     env["MLRUN_DBPATH"] = ""
 
     if port is not None:
-        env["MLRUN_httpdb__port"] = str(port)
+        env["MLRUN_HTTPDB__PORT"] = str(port)
     if dirpath is not None:
-        env["MLRUN_httpdb__dirpath"] = dirpath
+        env["MLRUN_HTTPDB__DIRPATH"] = dirpath
     if dsn is not None:
         if dsn.startswith("sqlite://") and "check_same_thread=" not in dsn:
             dsn += "?check_same_thread=false"
@@ -1452,7 +1452,7 @@ def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
     for notification in notifications:
         if notification.startswith("file="):
             file_path = notification.split("=")[-1]
-            notification = open(file_path, "r")
+            notification = open(file_path)
             notification = json.load(notification)
         else:
             notification = json.loads(notification)

@@ -54,6 +54,15 @@ class DeletionStrategy(mlrun.common.types.StrEnum):
             return True
         return False
 
+    def strategy_to_check(self):
+        if self.value in [
+            DeletionStrategy.check,
+            DeletionStrategy.restrict,
+            DeletionStrategy.restricted,
+        ]:
+            return True
+        return False
+
     def to_nuclio_deletion_strategy(self) -> str:
         if self.is_restricted():
             return "restricted"

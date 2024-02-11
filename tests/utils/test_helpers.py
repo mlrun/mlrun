@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -54,6 +55,34 @@ def test_retry_until_successful_fatal_failure():
         mlrun.utils.helpers.retry_until_successful(
             0, 1, logger, True, _raise_fatal_failure
         )
+
+
+def test_retry_until_successful_sync():
+    counter = 0
+
+    def increase_counter():
+        nonlocal counter
+        counter += 1
+        if counter < 3:
+            raise Exception("error")
+
+    mlrun.utils.helpers.retry_until_successful(0, 3, logger, True, increase_counter)
+
+
+@pytest.mark.asyncio
+async def test_retry_until_successful_async():
+    counter = 0
+
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        nonlocal counter
+        counter += 1
+        if counter < 3:
+            raise Exception("error")
+
+    await mlrun.utils.helpers.retry_until_successful_async(
+        0, 3, logger, True, increase_counter
+    )
 
 
 @pytest.mark.parametrize(

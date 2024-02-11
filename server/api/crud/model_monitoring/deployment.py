@@ -32,6 +32,7 @@ from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
+from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
 _MODEL_MONITORING_COMMON_PATH = (
     pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
@@ -672,7 +673,7 @@ class MonitoringDeployment:
                 kwargs = {}
                 if function_name != mm_constants.MonitoringFunctionNames.STREAM:
                     kwargs["access_key"] = model_monitoring_access_key
-                if mlrun.mlconf.is_explicit_ack():
+                if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                     kwargs["explicit_ack_mode"] = "explicitOnly"
                     kwargs["workerAllocationMode"] = "static"
 

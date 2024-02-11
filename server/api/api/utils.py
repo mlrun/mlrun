@@ -1200,7 +1200,6 @@ def verify_project_is_deleted(project_name, auth_info):
         except mlrun.errors.MLRunNotFoundError:
             return
         else:
-            nonlocal background_task_name
             background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 name=background_task_name, raise_on_not_found=False
             )

@@ -387,7 +387,7 @@ class MockedProjectFollowerIguazioClient(
             },
         )
 
-        # Not waiting for completion in tests
+        # Mock waiting for completion in iguazio (return False to indicate 'not running in background')
         return False
 
     def list_projects(

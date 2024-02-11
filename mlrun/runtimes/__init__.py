@@ -43,6 +43,7 @@ from .nuclio import (
     new_v2_model_server,
     nuclio_init_hook,
 )
+from .nuclio.application import ApplicationRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .sparkjob import Spark3Runtime
 
@@ -101,7 +102,7 @@ class RuntimeKinds(object):
     local = "local"
     handler = "handler"
     databricks = "databricks"
-    deployment = "deployment"
+    application = "application"
 
     @staticmethod
     def all():
@@ -116,7 +117,7 @@ class RuntimeKinds(object):
             RuntimeKinds.mpijob,
             RuntimeKinds.local,
             RuntimeKinds.databricks,
-            RuntimeKinds.deployment,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
@@ -149,7 +150,7 @@ class RuntimeKinds(object):
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,
             RuntimeKinds.serving,
-            RuntimeKinds.deployment,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
@@ -231,6 +232,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
         RuntimeKinds.databricks: DatabricksRuntime,
+        RuntimeKinds.application: ApplicationRuntime,
     }
 
     return kind_runtime_map[kind]

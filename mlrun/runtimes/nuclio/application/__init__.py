@@ -13,13 +13,4 @@
 # limitations under the License.
 import mlrun.runtimes
 
-
-class DeploymentRuntime(mlrun.runtimes.RemoteRuntime):
-    kind = "deployment"
-
-    def __init__(self, spec=None, metadata=None):
-        super().__init__(metadata, spec)
-        # TODO: verify min_nuclio_versions
-
-    def _init_side_car(self):
-        pass
+from .application import ApplicationRuntime

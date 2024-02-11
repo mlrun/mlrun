@@ -387,8 +387,8 @@ class V2ModelServer(StepToDict):
 
     def _inputs_to_list(self, request: dict) -> dict:
         """
-        Convert the inputs from list of dictionary / dictionary to list of lists where the internal list order according to
-        the ArtifactModel inputs.
+        Convert the inputs from list of dictionary / dictionary to list of lists / list
+        where the internal list order is according to the ArtifactModel inputs.
 
         :param request: event
         :return: evnet body converting the inputs to be list of lists

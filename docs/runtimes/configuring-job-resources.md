@@ -363,11 +363,9 @@ func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute a
 ```
 
 See:
-
-- {py:meth}`mlrun.runtimes.RemoteRuntime.set_state_thresholds`
 - {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
 
 ```{admonition} Note
-State thresholds are not supported for Nuclio runtimes (since it has its own monitoring) and for Dask runtime (which can be monitored by the client).
+State thresholds are not supported for Nuclio runtime (since it has its own monitoring) or for Dask runtime (which can be monitored by the client).
 ```
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Tuple, Union
+from typing import Union
 
 from sklearn.datasets import (
     make_classification,
@@ -35,8 +35,8 @@ def get_dataset(
     n_classes: int = N_CLASSES,
     n_samples: int = N_SAMPLES,
 ) -> Union[
-    Tuple[MLTypes.DatasetType, MLTypes.DatasetType],
-    Tuple[
+    tuple[MLTypes.DatasetType, MLTypes.DatasetType],
+    tuple[
         MLTypes.DatasetType,
         MLTypes.DatasetType,
         MLTypes.DatasetType,

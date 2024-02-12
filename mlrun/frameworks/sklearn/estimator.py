@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ class Estimator:
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        metrics: List[Metric] = None,
+        metrics: list[Metric] = None,
     ):
         """
         Initialize an estimator with the given metrics. The estimator will log the calculated results using the given
@@ -62,7 +62,7 @@ class Estimator:
         return self._context
 
     @property
-    def results(self) -> Dict[str, float]:
+    def results(self) -> dict[str, float]:
         """
         Get the logged results.
 
@@ -86,7 +86,7 @@ class Estimator:
         """
         self._context = context
 
-    def set_metrics(self, metrics: List[Metric]):
+    def set_metrics(self, metrics: list[Metric]):
         """
         Update the metrics of this logger to the given list of metrics here.
 

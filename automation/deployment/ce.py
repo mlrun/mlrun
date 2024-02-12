@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import sys
-import typing
 
 import click
 from deployer import CommunityEditionDeployer
@@ -206,7 +205,7 @@ def deploy(
     devel: bool = False,
     minikube: bool = False,
     upgrade: bool = False,
-    set_: typing.List[str] = None,
+    set_: list[str] = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,

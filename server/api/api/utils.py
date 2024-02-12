@@ -115,7 +115,7 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_allowed_path_prefixes_list() -> typing.List[str]:
+def get_allowed_path_prefixes_list() -> list[str]:
     """
     Get list of allowed paths - v3io:// is always allowed, and also the real_path parameter if specified.
     We never allow local files in the allowed paths list. Allowed paths must contain a schema (://).
@@ -391,12 +391,12 @@ def delete_notification_params_secret(
 
 
 def validate_and_mask_notification_list(
-    notifications: typing.List[
+    notifications: list[
         typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
     ],
     parent: str,
     project: str,
-) -> typing.List[mlrun.model.Notification]:
+) -> list[mlrun.model.Notification]:
     """
     Validates notification schema, uniqueness and masks notification params with secret if needed.
     If at least one of the validation steps fails, the function will raise an exception and cause the API to return
@@ -939,7 +939,7 @@ def ensure_function_security_context(
 
 def submit_run_sync(
     db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
-) -> typing.Tuple[str, str, str, typing.Dict]:
+) -> tuple[str, str, str, dict]:
     """
     :return: Tuple with:
         1. str of the project of the run
@@ -1068,7 +1068,7 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 def get_or_create_project_deletion_background_task(
     project_name: str, deletion_strategy: str, db_session, auth_info
-) -> typing.Tuple[typing.Callable, str]:
+) -> tuple[typing.Callable, str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1172,6 +1172,7 @@ async def _delete_project(
             db_session,
             project_name,
             deletion_strategy,
+            auth_info,
         )
 
     elif wait_for_project_deletion:

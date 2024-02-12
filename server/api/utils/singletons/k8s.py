@@ -699,7 +699,7 @@ class BasePod:
             sub_path=sub_path,
         )
 
-    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+    def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
 
     def _get_spec(self, template=False):

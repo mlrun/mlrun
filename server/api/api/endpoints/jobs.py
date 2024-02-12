@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Any, Dict
+from typing import Any
 
 import fastapi
 from sqlalchemy.orm import Session
@@ -39,7 +39,7 @@ async def deploy_monitoring_batch_job(
     db_session: Session = fastapi.Depends(deps.get_db_session),
     default_batch_image: str = "mlrun/mlrun",
     with_schedule: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Submit model monitoring batch job. By default, this API submit only the batch job as ML function without scheduling.
     To submit a scheduled job as well, please set with_schedule = True.

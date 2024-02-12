@@ -261,7 +261,7 @@ async def delete_project(
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     else:
-        # For iguzio < 3.5.5, the project deletion job is triggered while zebo does not wait for it to complete.
+        # For iguazio < 3.5.5, the project deletion job is triggered while iguazio does not wait for it to complete.
         # We wait for it here to make sure we respond with a proper status code.
         await run_in_threadpool(
             server.api.api.utils.verify_project_is_deleted, name, auth_info

@@ -48,10 +48,11 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         kind: str,
         timeout: typing.Optional[int],  # in seconds
         function,
+        name: typing.Optional[str] = None,
         *args,
         **kwargs,
     ) -> tuple[typing.Callable, str]:
-        name = str(uuid.uuid4())
+        name = name or str(uuid.uuid4())
         # sanity
         if name in self._internal_background_tasks:
             raise RuntimeError("Background task name already exists")

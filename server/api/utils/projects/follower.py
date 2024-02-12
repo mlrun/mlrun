@@ -203,12 +203,13 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
+        background_task_name: str = None,
     ) -> bool:
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
             server.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy, auth_info
+                db_session, name, deletion_strategy, auth_info, background_task_name
             )
         else:
             return self._leader_client.delete_project(

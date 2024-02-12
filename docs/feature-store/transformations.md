@@ -56,7 +56,7 @@ where `[a-z]+` is the name of an aggregation.
 
 ```{admonition} Warning
 You must ensure that your features will not conflict with the automatically generated feature names. For example, 
-when using `add_aggregation()` on a feature X, you may get a genegated feature name of `X_count_1h`. 
+when using `add_aggregation()` on a feature X, you may get a generated feature name of `X_count_1h`. 
 But if your dataset already contains `X_count_1h`, this would result in either unreliable aggregations or errors.
 ```
 

@@ -26,6 +26,7 @@ import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.db.session
+import server.api.utils.background_tasks
 import server.api.utils.clients.nuclio
 import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower

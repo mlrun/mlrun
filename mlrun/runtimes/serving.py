@@ -488,7 +488,6 @@ class ServingRuntime(RemoteRuntime):
                         "workerAllocationMode", "static"
                     )
 
-                max_workers_default = 4
                 if (
                     stream.path.startswith("kafka://")
                     or "kafka_bootstrap_servers" in stream.options
@@ -507,10 +506,6 @@ class ServingRuntime(RemoteRuntime):
                 else:
                     # V3IO doesn't allow hyphens in object names
                     group = group.replace("-", "_")
-                    # Deal with unconventional parameter naming in V3IOStreamTrigger specifically
-                    trigger_args["maxWorkers"] = trigger_args.get(
-                        "maxWorkers", max_workers_default
-                    )
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )

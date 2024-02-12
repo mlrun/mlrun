@@ -66,7 +66,7 @@ class V3ioStore(DataStore):
             return function(self.object, *args, **kwargs)
         except HttpResponseError as http_response_error:
             raise mlrun.errors.err_for_status_code(
-                status_code=http_response_error.status,
+                status_code=http_response_error.status_code,
                 message=mlrun.errors.err_to_str(http_response_error),
             )
 

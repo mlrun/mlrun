@@ -48,7 +48,7 @@ class Member(
 ):
     def initialize(self):
         logger.info("Initializing projects follower")
-        self._chief = (
+        self._is_chief = (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
         )
@@ -71,7 +71,7 @@ class Member(
         )
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-        if self._chief:
+        if self._is_chief:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
                 # chief-worker model.
@@ -87,7 +87,7 @@ class Member(
 
     def shutdown(self):
         logger.info("Shutting down projects leader")
-        if self._chief:
+        if self._is_chief:
             self._stop_periodic_sync()
 
     def create_project(

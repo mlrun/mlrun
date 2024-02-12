@@ -153,12 +153,10 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
     def _init_sidecar(self):
-        # TODO: avoid double init
-        self.with_sidecar(
+        self._with_sidecar(
             f"{self.metadata.name}-sidecar",
             self.spec.image,
             self.spec.internal_app_port,
         )
         self.set_env("SERVING_PORT", self.spec.internal_app_port)
         self.spec.image = ""
-        # TODO: move other fields

@@ -484,8 +484,8 @@ class ServingRuntime(RemoteRuntime):
                     )
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
-                    extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                        "workerAllocationMode", "static"
+                    extra_attributes["worker_allocation_mode"] = extra_attributes.get(
+                        "worker_allocation_mode", "static"
                     )
 
                 if (

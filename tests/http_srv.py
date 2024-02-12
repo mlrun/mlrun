@@ -15,7 +15,7 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-from mlrun.runtimes.function import fake_nuclio_context
+from mlrun.runtimes.nuclio.function import fake_nuclio_context
 
 
 def example_function(context, event):

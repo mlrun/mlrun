@@ -16,9 +16,8 @@ import importlib
 import inspect
 import os
 import shutil
-import sys
 import traceback
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem, store_manager
@@ -42,7 +41,7 @@ class PackagersManager:
     It prepares the instructions / log hint configurations and then looks for the first packager that fits the task.
     """
 
-    def __init__(self, default_packager: Type[Packager] = None):
+    def __init__(self, default_packager: type[Packager] = None):
         """
         Initialize a packagers manager.
 
@@ -54,15 +53,15 @@ class PackagersManager:
         self._default_packager = (default_packager or DefaultPackager)()
 
         # Initialize the packagers list (with the default packager in it):
-        self._packagers: List[Packager] = []
+        self._packagers: list[Packager] = []
 
         # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
         # data if noted by the user using the log hint key "extra_data")
-        self._artifacts: List[Artifact] = []
+        self._artifacts: list[Artifact] = []
         self._results = {}
 
     @property
-    def artifacts(self) -> List[Artifact]:
+    def artifacts(self) -> list[Artifact]:
         """
         Get the artifacts that were packed by the manager.
 
@@ -80,7 +79,7 @@ class PackagersManager:
         return self._results
 
     def collect_packagers(
-        self, packagers: List[Union[Type[Packager], str]], default_priority: int = 5
+        self, packagers: list[Union[type[Packager], str]], default_priority: int = 5
     ):
         """
         Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
@@ -171,8 +170,8 @@ class PackagersManager:
         self._packagers.sort()
 
     def pack(
-        self, obj: Any, log_hint: Dict[str, str]
-    ) -> Union[Artifact, dict, None, List[Union[Artifact, dict, None]]]:
+        self, obj: Any, log_hint: dict[str, str]
+    ) -> Union[Artifact, dict, None, list[Union[Artifact, dict, None]]]:
         """
         Pack an object using one of the manager's packagers. A `dict` ("**") or `list` ("*") unpacking syntax in the
         log hint key packs the objects within them in separate packages.
@@ -244,7 +243,7 @@ class PackagersManager:
         # If multiple packages were packed, return a list, otherwise return the single package:
         return packages if len(packages) > 1 else packages[0]
 
-    def unpack(self, data_item: DataItem, type_hint: Type) -> Any:
+    def unpack(self, data_item: DataItem, type_hint: type) -> Any:
         """
         Unpack an object using one of the manager's packagers. The data item can be unpacked in two ways:
 
@@ -264,11 +263,7 @@ class PackagersManager:
         :return: The unpacked object parsed as type hinted.
         """
         # Check if `DataItem` is hinted - meaning the user can expect a data item and do not want to unpack it:
-        # TODO: Remove when we'll no longer support Python 3.7:
-        if sys.version_info[1] < 8:
-            if self._get_type_name(typ=DataItem) in str(type_hint):
-                return data_item
-        elif TypeHintUtils.is_matching(object_type=DataItem, type_hint=type_hint):
+        if TypeHintUtils.is_matching(object_type=DataItem, type_hint=type_hint):
             return data_item
 
         # Set variables to hold the manager notes and packager instructions:
@@ -306,7 +301,7 @@ class PackagersManager:
 
     def link_packages(
         self,
-        additional_artifacts: List[Artifact],
+        additional_artifacts: list[Artifact],
         additional_results: dict,
     ):
         """
@@ -371,7 +366,7 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
-    def _get_packagers_with_default_packager(self) -> List[Packager]:
+    def _get_packagers_with_default_packager(self) -> list[Packager]:
         """
         Get the full list of packagers - the collected packagers and the default packager (located at last place in the
         list - the lowest priority).
@@ -635,7 +630,7 @@ class PackagersManager:
             )
         return self._unpack_data_item(data_item=data_item, type_hint=type_hint)
 
-    def _unpack_data_item(self, data_item: DataItem, type_hint: Type):
+    def _unpack_data_item(self, data_item: DataItem, type_hint: type):
         """
         Unpack a data item to the desired hinted type. In case the type hint includes multiple types (as in the case of
         `typing.Union`), the manager goes over the types, and reduces them while looking for the first packager that
@@ -649,7 +644,7 @@ class PackagersManager:
         :raise MLRunPackageUnpackingError: If there is no packager that supports the provided type hint.
         """
         # Prepare a list of a packager and exception string for all the failures in case there was no fitting packager:
-        found_packagers: List[Tuple[Packager, str]] = []
+        found_packagers: list[tuple[Packager, str]] = []
 
         # Try to unpack as one of the possible types in the type hint:
         possible_type_hints = {type_hint}
@@ -718,7 +713,7 @@ class PackagersManager:
     @staticmethod
     def _look_for_extra_data(
         key: str,
-        artifacts: List[Artifact],
+        artifacts: list[Artifact],
         results: dict,
     ) -> Union[Artifact, str, int, float, None]:
         """
@@ -739,7 +734,7 @@ class PackagersManager:
         return results.get(key, None)
 
     @staticmethod
-    def _split_module_path(module_path: str) -> Tuple[str, str]:
+    def _split_module_path(module_path: str) -> tuple[str, str]:
         """
         Split a module path to the module name and the class name. Inner classes are not supported.
 
@@ -756,7 +751,7 @@ class PackagersManager:
         return module_name, class_name
 
     @staticmethod
-    def _get_type_name(typ: Type) -> str:
+    def _get_type_name(typ: type) -> str:
         """
         Get an object type full name - its module path. For example, the name of a pandas data frame is "DataFrame"
         but its full name (module path) is: "pandas.core.frame.DataFrame".
@@ -777,7 +772,7 @@ class PackagersManager:
         return f"{module_name}.{class_name}" if module_name else class_name
 
     @staticmethod
-    def _get_type_from_name(type_name: str) -> Type:
+    def _get_type_from_name(type_name: str) -> type:
         """
         Get the type object out of the given module path. The module must be a full module path (for example:
         "pandas.DataFrame" and not "DataFrame") otherwise it assumes to be from the local run module - __main__.

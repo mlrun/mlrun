@@ -15,9 +15,8 @@ import copy
 import importlib.util
 import pathlib
 import sys
-import typing
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 from deprecated import deprecated
@@ -93,7 +92,8 @@ def _features_to_vector_and_check_permissions(features, update_stats):
 
 @deprecated(
     version="1.6.0",
-    reason="'get_offline_features' will be removed in 1.8.0, use 'FeatureVector.get_offline_features()' instead",
+    reason="get_offline_features() will be removed in 1.8.0, please instead use "
+    "get_feature_vector('store://feature_vector_name').get_offline_features()",
     category=FutureWarning,
 )
 def get_offline_features(
@@ -102,7 +102,7 @@ def get_offline_features(
     entity_timestamp_column: str = None,
     target: DataTargetBase = None,
     run_config: RunConfig = None,
-    drop_columns: List[str] = None,
+    drop_columns: list[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
@@ -110,9 +110,9 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
-    order_by: Union[str, List[str]] = None,
+    order_by: Union[str, list[str]] = None,
     spark_service: str = None,
-    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+    timestamp_for_filtering: Union[str, dict[str, str]] = None,
 ):
     return _get_offline_features(
         feature_vector,
@@ -140,7 +140,7 @@ def _get_offline_features(
     entity_timestamp_column: str = None,
     target: DataTargetBase = None,
     run_config: RunConfig = None,
-    drop_columns: List[str] = None,
+    drop_columns: list[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
@@ -148,9 +148,9 @@ def _get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
-    order_by: Union[str, List[str]] = None,
+    order_by: Union[str, list[str]] = None,
     spark_service: str = None,
-    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+    timestamp_for_filtering: Union[str, dict[str, str]] = None,
 ) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     """retrieve offline feature vector results
 
@@ -269,8 +269,8 @@ def _get_offline_features(
 
 @deprecated(
     version="1.6.0",
-    reason="'get_online_feature_service' will be removed in 1.8.0, "
-    "use 'FeatureVector.get_online_feature_service()' instead",
+    reason="get_online_feature_service() will be removed in 1.8.0, please instead use "
+    "get_feature_vector('store://feature_vector_name').get_online_feature_service()",
     category=FutureWarning,
 )
 def get_online_feature_service(
@@ -279,7 +279,7 @@ def get_online_feature_service(
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: dict = None,
     update_stats: bool = False,
-    entity_keys: List[str] = None,
+    entity_keys: list[str] = None,
 ):
     return _get_online_feature_service(
         feature_vector,
@@ -297,7 +297,7 @@ def _get_online_feature_service(
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: dict = None,
     update_stats: bool = False,
-    entity_keys: List[str] = None,
+    entity_keys: list[str] = None,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -412,7 +412,7 @@ def _rename_source_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
+def _get_namespace(run_config: RunConfig) -> dict[str, Any]:
     # if running locally, we need to import the file dynamically to get its namespace
     if run_config and run_config.local and run_config.function:
         filename = run_config.function.spec.filename
@@ -430,7 +430,7 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -464,7 +464,7 @@ def ingest(
 def _ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -875,7 +875,7 @@ def _preview(
 def _run_ingestion_job(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     infer_options: InferOptions = InferOptions.default(),
     run_config: RunConfig = None,
@@ -900,11 +900,11 @@ def _run_ingestion_job(
 def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
-) -> typing.Tuple[str, BaseRuntime]:
+) -> tuple[str, BaseRuntime]:
     return _deploy_ingestion_service_v2(
         featureset,
         source,
@@ -918,11 +918,11 @@ def deploy_ingestion_service_v2(
 def _deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
-) -> typing.Tuple[str, BaseRuntime]:
+) -> tuple[str, BaseRuntime]:
     """Start real-time ingestion service using nuclio function
 
     Deploy a real-time function implementing feature ingestion pipeline
@@ -1010,7 +1010,7 @@ def _deploy_ingestion_service_v2(
 def deploy_ingestion_service(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
@@ -1053,7 +1053,7 @@ def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: BaseSourceDriver = None,
-    targets: List[BaseStoreTarget] = None,
+    targets: list[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
@@ -1206,7 +1206,7 @@ def _infer_from_static_df(
 def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
     overwrite=None,

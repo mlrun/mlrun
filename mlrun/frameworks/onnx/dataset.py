@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import math
-from typing import Callable, List, Tuple, Union
+from typing import Callable, Union
 
 import numpy as np
 
@@ -25,11 +25,11 @@ class ONNXDataset:
 
     def __init__(
         self,
-        x: Union[np.ndarray, List[np.ndarray]],
-        y: Union[np.ndarray, List[np.ndarray]] = None,
+        x: Union[np.ndarray, list[np.ndarray]],
+        y: Union[np.ndarray, list[np.ndarray]] = None,
         batch_size: int = 1,
-        x_transforms: List[Callable[[np.ndarray], np.ndarray]] = None,
-        y_transforms: List[Callable[[np.ndarray], np.ndarray]] = None,
+        x_transforms: list[Callable[[np.ndarray], np.ndarray]] = None,
+        y_transforms: list[Callable[[np.ndarray], np.ndarray]] = None,
         is_batched_transforms: bool = False,
     ):
         """
@@ -71,7 +71,7 @@ class ONNXDataset:
         self._index = 0
         return self
 
-    def __next__(self) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    def __next__(self) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
         """
         Get the next item in line (by the inner index) since calling '__iter__'. If ground truth was provided (y),
         a tuple of (x, y) will be returned. Otherwise x.
@@ -92,7 +92,7 @@ class ONNXDataset:
 
     def __getitem__(
         self, index: int
-    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
         """
         Get the item at the given index. If ground truth was provided, a tuple of (x, y) will be returned. Otherwise x.
 
@@ -155,7 +155,7 @@ class ONNXDataset:
     def _call_transforms(
         self,
         items: np.ndarray,
-        transforms: List[Callable[[np.ndarray], np.ndarray]],
+        transforms: list[Callable[[np.ndarray], np.ndarray]],
         is_batched: bool,
     ):
         """

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, List, Tuple, Union
+from typing import Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -21,7 +21,7 @@ from plotly.subplots import make_subplots
 import mlrun.common.schemas.model_monitoring
 
 # A type for representing a drift result, a tuple of the status and the drift mean:
-DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
+DriftResultType = tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
 
 
 class FeaturesDriftTablePlot:
@@ -93,11 +93,11 @@ class FeaturesDriftTablePlot:
 
     def produce(
         self,
-        features: List[str],
+        features: list[str],
         sample_set_statistics: dict,
         inputs_statistics: dict,
-        metrics: Dict[str, Union[dict, float]],
-        drift_results: Dict[str, DriftResultType],
+        metrics: dict[str, Union[dict, float]],
+        drift_results: dict[str, DriftResultType],
     ) -> str:
         """
         Produce the html code of the table plot with the given information and the stored configurations in the class.
@@ -165,7 +165,7 @@ class FeaturesDriftTablePlot:
             self._metrics_columns
         )
 
-    def _plot_headers_tables(self) -> Tuple[go.Table, go.Table]:
+    def _plot_headers_tables(self) -> tuple[go.Table, go.Table]:
         """
         Plot the headers of the table:
 
@@ -232,7 +232,7 @@ class FeaturesDriftTablePlot:
 
         return header_table, sub_header_table
 
-    def _separate_feature_name(self, feature_name: str) -> List[str]:
+    def _separate_feature_name(self, feature_name: str) -> list[str]:
         """
         Separate the given feature name by the maximum length configured in the class. Used for calculating the amount
         of lines required to represent the longest feature name in the table, so the row heights will fit accordingly.
@@ -329,8 +329,8 @@ class FeaturesDriftTablePlot:
         return feature_row_table
 
     def _plot_histogram_scatters(
-        self, sample_hist: Tuple[list, list], input_hist: Tuple[list, list]
-    ) -> Tuple[go.Scatter, go.Scatter]:
+        self, sample_hist: tuple[list, list], input_hist: tuple[list, list]
+    ) -> tuple[go.Scatter, go.Scatter]:
         """
         Plot the feature's histograms to include in the "histograms" column. Both histograms are returned to later be
         added in the same figure, so they will be on top of each other and not separated. Both histograms are rescaled
@@ -375,7 +375,7 @@ class FeaturesDriftTablePlot:
 
         return scatters[0], scatters[1]
 
-    def _calculate_row_height(self, features: List[str]) -> int:
+    def _calculate_row_height(self, features: list[str]) -> int:
         """
         Calculate the feature row height according to the given features. The longest feature will set the height to all
         the rows. The height depends on the separations amount of the longest feature name - more '\n' means more pixels
@@ -450,11 +450,11 @@ class FeaturesDriftTablePlot:
 
     def _plot(
         self,
-        features: List[str],
+        features: list[str],
         sample_set_statistics: dict,
         inputs_statistics: dict,
-        metrics: Dict[str, Union[dict, float]],
-        drift_results: Dict[str, DriftResultType],
+        metrics: dict[str, Union[dict, float]],
+        drift_results: dict[str, DriftResultType],
     ) -> go.Figure:
         """
         Plot the drift table using the given data and stored configurations of the class.

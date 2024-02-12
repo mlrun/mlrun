@@ -25,7 +25,7 @@ import server.api.utils.db.alembic
 from mlrun import mlconf
 
 
-class Constants(object):
+class Constants:
     revision_history = ["revision2", "revision1"]
     initial_revision = "revision1"
     latest_revision = "revision2"
@@ -67,9 +67,9 @@ def test_database_exists_unknown(mock_alembic, mock_database):
 @pytest.fixture()
 def mock_database(
     monkeypatch, mock_alembic, mock_db_file_name
-) -> typing.Callable[[typing.List[str], str, bool, bool], None]:
+) -> typing.Callable[[list[str], str, bool, bool], None]:
     def _mock_database(
-        revision_history: typing.List[str] = None,
+        revision_history: list[str] = None,
         current_revision: str = "",
         db_file_exists: bool = True,
         db_backup_exists: bool = True,
@@ -110,7 +110,7 @@ def mock_db_file_name(monkeypatch) -> str:
     return db_file_name
 
 
-class MockAlembicCommand(object):
+class MockAlembicCommand:
     def __init__(self):
         self.stamp_calls = []
         self.upgrade_calls = []

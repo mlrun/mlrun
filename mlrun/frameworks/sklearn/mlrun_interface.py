@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import List
 
 import mlrun
 
@@ -75,9 +74,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
             cls._REPLACED_METHODS.remove("predict_proba")
 
         # Add the interface to the model:
-        super(SKLearnMLRunInterface, cls).add_interface(
-            obj=obj, restoration=restoration
-        )
+        super().add_interface(obj=obj, restoration=restoration)
 
         # Restore the '_REPLACED_METHODS' list for next models:
         if "predict_proba" not in cls._REPLACED_METHODS:
@@ -154,8 +151,8 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
     def configure_logging(
         self,
         context: mlrun.MLClientCtx = None,
-        plans: List[MLPlan] = None,
-        metrics: List[Metric] = None,
+        plans: list[MLPlan] = None,
+        metrics: list[Metric] = None,
         x_test: SKLearnTypes.DatasetType = None,
         y_test: SKLearnTypes.DatasetType = None,
         model_handler: MLModelHandler = None,

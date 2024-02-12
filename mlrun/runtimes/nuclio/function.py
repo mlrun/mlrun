@@ -34,23 +34,22 @@ import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
-
-from ..config import config as mlconf
-from ..errors import err_to_str
-from ..kfpops import deploy_op
-from ..lists import RunList
-from ..model import RunObject
-from ..platforms.iguazio import (
+from mlrun.config import config as mlconf
+from mlrun.errors import err_to_str
+from mlrun.kfpops import deploy_op
+from mlrun.lists import RunList
+from mlrun.model import RunObject
+from mlrun.platforms.iguazio import (
     VolumeMount,
     mount_v3io,
     parse_path,
     split_path,
     v3io_cred,
 )
-from ..utils import get_in, logger, update_in
-from .base import FunctionStatus, RunError
-from .pod import KubeResource, KubeResourceSpec
-from .utils import get_item_name, log_std
+from mlrun.runtimes.base import FunctionStatus, RunError
+from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
+from mlrun.runtimes.utils import get_item_name, log_std
+from mlrun.utils import get_in, logger, update_in
 
 
 def validate_nuclio_version_compatibility(*min_versions):
@@ -386,7 +385,7 @@ class RemoteRuntime(KubeResource):
         workers: typing.Optional[int] = 8,
         port: typing.Optional[int] = None,
         host: typing.Optional[str] = None,
-        paths: typing.Optional[typing.List[str]] = None,
+        paths: typing.Optional[list[str]] = None,
         canary: typing.Optional[float] = None,
         secret: typing.Optional[str] = None,
         worker_timeout: typing.Optional[int] = None,
@@ -500,10 +499,9 @@ class RemoteRuntime(KubeResource):
         # verify v3io stream trigger name is valid
         mlrun.utils.helpers.validate_v3io_stream_consumer_group(group)
 
-        consumer_group = kwargs.pop("consumerGroup", None)
-        if consumer_group:
+        if "consumer_group" in kwargs:
             logger.warning(
-                "'consumerGroup' kwargs value is ignored. use group argument instead"
+                "'consumer_group' in kwargs will be ignored. Use group parameter instead."
             )
 
         container, path = split_path(stream_path)
@@ -517,11 +515,11 @@ class RemoteRuntime(KubeResource):
                 name=name,
                 container=container,
                 path=path[1:],
-                consumerGroup=group,
-                seekTo=seek_to,
+                consumer_group=group,
+                seek_to=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
-                readBatchSize=256,
+                read_batch_size=256,
                 **kwargs,
             ),
         )
@@ -630,9 +628,9 @@ class RemoteRuntime(KubeResource):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[client.V1Toleration]] = None,
+        tolerations: typing.Optional[list[client.V1Toleration]] = None,
     ):
         """k8s node selection attributes"""
         if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
@@ -684,7 +682,7 @@ class RemoteRuntime(KubeResource):
 
     def set_state_thresholds(
         self,
-        state_thresholds: typing.Dict[str, int],
+        state_thresholds: dict[str, int],
         patch: bool = True,
     ):
         raise NotImplementedError(
@@ -717,7 +715,7 @@ class RemoteRuntime(KubeResource):
         raise_on_exception=True,
         resolve_address=True,
         auth_info: AuthInfo = None,
-    ) -> typing.Tuple[str, str, typing.Optional[float]]:
+    ) -> tuple[str, str, typing.Optional[float]]:
         if dashboard:
             (
                 state,

@@ -15,8 +15,8 @@
 import datetime
 import typing
 import unittest.mock
+from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Generator
 
 import deepdiff
 import httpx
@@ -378,9 +378,7 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> typing.Tuple[
-        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
-    ]:
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         return [], None
 
     def get_project(

@@ -14,8 +14,8 @@
 #
 import dataclasses
 import datetime
+from collections.abc import Generator
 from io import StringIO
-from typing import Generator
 
 import pydantic
 import pytest

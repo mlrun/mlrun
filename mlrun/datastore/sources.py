@@ -992,6 +992,10 @@ class KafkaSource(OnlineSource):
                 "workerAllocationMode", "static"
             )
 
+        trigger_kwargs = {}
+        if "max_workers" in extra_attributes:
+            trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
+
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
             topics=extra_attributes.pop("topics"),
@@ -1000,7 +1004,7 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
-            max_workers=extra_attributes.pop("max_workers"),
+            **trigger_kwargs,
         )
         function = function.add_trigger("kafka", trigger)
 

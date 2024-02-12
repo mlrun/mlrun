@@ -62,6 +62,7 @@ class TestAPIArtifacts(TestMLRunSystem):
             "Failed committing changes to DB" in run["status"]["error"]
         ), "run should fail with a reason"
 
+    @pytest.mark.enterprise
     def test_import_artifact(self):
         temp_dir = tempfile.mkdtemp()
         key = f"artifact_key_{uuid.uuid4()}"

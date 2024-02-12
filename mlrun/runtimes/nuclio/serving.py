@@ -484,8 +484,8 @@ class ServingRuntime(RemoteRuntime):
                     )
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
-                    extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                        "workerAllocationMode", "static"
+                    extra_attributes["worker_allocation_mode"] = extra_attributes.get(
+                        "worker_allocation_mode", "static"
                     )
 
                 if (
@@ -496,10 +496,6 @@ class ServingRuntime(RemoteRuntime):
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
-                    max_workers_default = 4
-                    trigger_args["max_workers"] = trigger_args.get(
-                        "max_workers", max_workers_default
-                    )
                     trigger = KafkaTrigger(
                         brokers=brokers,
                         topics=[topic],

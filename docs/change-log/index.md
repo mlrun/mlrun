@@ -856,7 +856,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4235|**what is message?** |  | v1.5.0|
 |ML-4442|After a model is deployed without applying monitoring (`set_tracking()` was not set on the serving function), monitoring cannot be added.|Delete the existing model endpoint (`mlrun.get_run_db().delete_model_endpoint()`), then redeploy the model.| v1.5.0 |
 |ML-4539|**what is message?** |  | v1.5.0|
-|ML-4582|**what is message?** |  | v1.5.0|
+|ML-4582|Custom packagers cannot be added to projects created previous to v1.4.0 | NA | v1.6.0|
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
 |ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. |NA|v1.5.0|
 |NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
@@ -872,6 +872,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
 |ML-4922|Preview and Metadata tabs do not show all columns, but there is no indication that more columns exist.|NA | v1.4.1 |
+|ML-4934|**NEED description**|Delete both "model-monitoring-batch" function (can be found under ML functions) and "model-monitoring-batch" schedule job (can be found under Jobs and Workflows -> Schedule). Then, deploy a serving function with the updated tracking policy. |v1.6.0|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |

@@ -675,7 +675,7 @@ class MonitoringDeployment:
                     kwargs["access_key"] = model_monitoring_access_key
                 if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                     kwargs["explicit_ack_mode"] = "explicitOnly"
-                    kwargs["workerAllocationMode"] = "static"
+                    kwargs["worker_allocation_mode"] = "static"
 
                 # Generate V3IO stream trigger
                 function.add_v3io_stream_trigger(

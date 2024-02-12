@@ -900,7 +900,7 @@ class StreamSource(OnlineSource):
             engine = function.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
-            kwargs["workerAllocationMode"] = "static"
+            kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
             self.path,
@@ -989,7 +989,7 @@ class KafkaSource(OnlineSource):
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                "workerAllocationMode", "static"
+                "worker_allocation_mode", "static"
             )
 
         trigger_kwargs = {}

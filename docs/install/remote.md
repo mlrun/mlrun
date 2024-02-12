@@ -3,6 +3,8 @@
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
+This release of MLRun supports only Python 3.9 for both the server and the client. 
+
 **In this section**
 - [Prerequisites](#prerequisites)
 - [Set up a Python 3.9 client environment](#set-up-a-python-3-9-client-environment)

@@ -101,8 +101,6 @@ class FeaturesDriftTablePlot:
         """
         Produce the html code of the table plot with the given information and the stored configurations in the class.
 
-        :param features:              List of all the features names to include in the table. These names expected to be
-                                      in the statistics and metrics dictionaries.
         :param sample_set_statistics: The sample set calculated statistics dictionary.
         :param inputs_statistics:     The inputs calculated statistics dictionary.
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.

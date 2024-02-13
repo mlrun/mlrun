@@ -145,7 +145,7 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 ## Built-in transformations
 
 MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.html) that can be 
-applied as steps in the feature-set's internal execution graph. To add steps to the graph,  
+applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
 reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 

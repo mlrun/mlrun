@@ -276,7 +276,6 @@ class FeaturesDriftTablePlot:
         input_statistics: dict,
         metrics: dict,
         row_height: int,
-        feature: str,
     ) -> go.Table:
         """
         Plot the feature row to include in the table. The row will include only the columns of the statistics and
@@ -291,10 +290,10 @@ class FeaturesDriftTablePlot:
         :return: The feature row - `Table` trace.
         """
         # Add '\n' to the feature name in order to make it fit into its cell:
-        feature_name = "<br>".join(self._separate_feature_name(feature_name))
+        html_feature_name = "<br>".join(self._separate_feature_name(feature_name))
 
         # Initialize the cells values list with the bold feature name as the first value:
-        cells_values = [f"<b>{feature_name}</b>"]
+        cells_values = [f"<b>{html_feature_name}</b>"]
 
         # Add the statistics columns:
         for column in self._statistics_columns:
@@ -303,9 +302,9 @@ class FeaturesDriftTablePlot:
                 cells_values.append(input_statistics[column])
             except KeyError:
                 raise ValueError(
-                    f"The `input_statistics['{feature}']` dictionary does not "
-                    f"include the expected key '{column}'. Please check the "
-                    "current data."
+                    f"The `input_statistics['{feature_name}']` dictionary "
+                    f"does not include the expected key '{column}'. "
+                    "Please check the current data."
                 )
 
         # Add the metrics columns:
@@ -531,7 +530,6 @@ class FeaturesDriftTablePlot:
                         input_statistics=inputs_statistics[feature],
                         metrics=metrics[feature],
                         row_height=row_height,
-                        feature=feature,
                     ),
                     row=row,
                     col=1,

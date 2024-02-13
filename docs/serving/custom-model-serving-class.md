@@ -177,3 +177,4 @@ To monitor a deployed model, apply `set_tracking()` on your serving function and
 (e.g. kafka://kafka.default.svc.cluster.local:9092)
 * **sample** &mdash; optional, sample every N requests
 * **batch** &mdash; optional, send micro-batches every N requests
+* **tracking_policy** &mdash; optional, model tracking configurations, such as setting the scheduling policy of the model monitoring batch job

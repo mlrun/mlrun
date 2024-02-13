@@ -751,9 +751,9 @@ def code_to_function(
 
         # TODO: Change and do something with the original filename
         filename = str(
-            Path(__file__).parent / "./runtimes/nuclio/application/handler.py"
+            Path(__file__).parent / "./runtimes/nuclio/application/reverse_proxy.go"
         )
-        handler = "handler"
+        handler = "Handler"
 
     is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)

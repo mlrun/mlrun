@@ -155,7 +155,7 @@ class ApplicationRuntime(RemoteRuntime):
     def _init_sidecar(self):
         image = self.spec.image
 
-        # If the sidecar was already initialized, the image was cleared so we need to take it from the config
+        # If the sidecar was already initialized, the image was cleared, so we need to take it from the config
         if not image:
             sidecars = self.spec.config.get("spec.sidecars")
             if sidecars:
@@ -166,5 +166,6 @@ class ApplicationRuntime(RemoteRuntime):
             image=image,
             port=self.spec.internal_app_port,
         )
-        self.set_env("SERVING_PORT", self.spec.internal_app_port)
+        self.set_env("SIDECAR_PORT", self.spec.internal_app_port)
+        self.set_env("SIDECAR_HOST", "localhost")
         self.spec.image = ""

@@ -167,7 +167,7 @@ You can also deploy a model from within an ML pipeline (check the various demos 
 ## Model monitoring
 
 Model activities can be tracked into a real-time stream and time-series DB. The monitoring data
-is used to create real-time dashboards, track model accuracy, detect drift, and analyze performance. 
+is used to create real-time dashboards, detect drift, and analyze performance. 
 
 To monitor a deployed model, apply `set_tracking()` on your serving function and specify the function spec attributes:
 

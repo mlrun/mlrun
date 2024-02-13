@@ -59,6 +59,7 @@ setup(
             "server",
         ]
     ),
+    package_data={'': ['*.go']},
     keywords=[
         "mlrun",
         "mlops",

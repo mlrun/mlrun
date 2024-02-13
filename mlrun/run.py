@@ -745,15 +745,13 @@ def code_to_function(
     if kind == RuntimeKinds.databricks and not embed_code:
         raise ValueError("Databricks tasks only support embed_code=True")
 
-    if kind == RuntimeKinds.deployment:
-        if filename or handler:
-            raise ValueError(
-                "Invalid options specified for deployment kind: filename and/or handler"
-            )
+    if kind == RuntimeKinds.application:
+        if handler:
+            raise ValueError("Handler is not supported for application runtime")
 
-        # TODO: Change
+        # TODO: Change and do something with the original filename
         filename = str(
-            Path(__file__).parent / "./runtimes/nuclio/deployment/handler.py"
+            Path(__file__).parent / "./runtimes/nuclio/application/handler.py"
         )
         handler = "handler"
 
@@ -800,7 +798,7 @@ def code_to_function(
     if is_nuclio:
         if sub_kind == serving_subkind:
             r = ServingRuntime()
-        elif kind == RuntimeKinds.deployment:
+        elif kind == RuntimeKinds.application:
             r = ApplicationRuntime()
         else:
             r = RemoteRuntime()

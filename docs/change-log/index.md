@@ -872,7 +872,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
 |ML-4922|Preview and Metadata tabs do not show all columns, but there is no indication that more columns exist.|NA | v1.4.1 |
-|ML-4934|**NEED description**|Delete both "model-monitoring-batch" function (can be found under ML functions) and "model-monitoring-batch" schedule job (can be found under Jobs and Workflows -> Schedule). Then, deploy a serving function with the updated tracking policy. |v1.6.0|
+|ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking requires a specific workflow. |See [Enable model monitoring](../monitoring/initial-setup-configuration.html#enabling-model-monitoring). |v1.6.0|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |

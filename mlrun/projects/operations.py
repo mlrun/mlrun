@@ -15,8 +15,6 @@
 import warnings
 from typing import Dict, List, Optional, Union
 
-import kfp
-
 import mlrun
 from mlrun.utils import hub_prefix
 
@@ -76,7 +74,9 @@ def run_function(
     notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
-) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+    # TODO: resolve ContainerOp situation
+    # ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+) -> mlrun.model.RunObject:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
     run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
@@ -247,7 +247,9 @@ def build_function(
     overwrite_build_params: bool = False,
     extra_args: str = None,
     force_build: bool = False,
-) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
+    # TODO: resolve ContainerOp situation
+    # ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
+) -> BuildStatus:
     """deploy ML function, build container with its dependencies
 
     :param function:        Name of the function (in the project) or function object
@@ -351,7 +353,9 @@ def deploy_function(
     builder_env: dict = None,
     project_object=None,
     mock: bool = None,
-) -> Union[DeployStatus, kfp.dsl.ContainerOp]:
+    # TODO: resolve ContainerOp situation
+    # ) -> Union[DeployStatus, kfp.dsl.ContainerOp]:
+) -> DeployStatus:
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object

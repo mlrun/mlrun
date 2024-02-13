@@ -17,11 +17,11 @@ import sys
 from importlib.abc import MetaPathFinder
 from importlib.util import spec_from_file_location
 
-import kfp
+import kfp_server_api
 
 
 def resolve_pipeline_engine():
-    if kfp.__version__.startswith("2.0"):
+    if kfp_server_api.__version__.startswith("2.0"):
         return "kfp-v2.0"
     return "kfp-v1.8"
 
@@ -46,7 +46,8 @@ class PipelineEngineModuleFinder(MetaPathFinder):
         return path_prefix + "/__init__.py"
 
     def find_spec(self, fullname, path, target=None):
-        if "mlrun.pipelines" in fullname:
+        # TODO: improve this condition
+        if "mlrun.pipelines" in fullname and "mlrun.pipelines.common" not in fullname:
             return spec_from_file_location(
                 fullname, self._resolve_module_path(fullname, path)
             )

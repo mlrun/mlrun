@@ -29,6 +29,7 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import tests.conftest
+from mlrun.pipelines.models import PipelineRun
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(
@@ -99,7 +100,10 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            db,
+            PipelineRun(api_run_detail.to_dict()["run"]),
+            format_,
+            api_run_detail.to_dict(),
         )
         _assert_get_pipeline_response(expected_run, response)
 

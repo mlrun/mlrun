@@ -14,7 +14,6 @@
 #
 import ast
 import http
-import json
 import tempfile
 import traceback
 import typing
@@ -28,10 +27,13 @@ import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.pipelines
+import mlrun.pipelines.common.helpers
+import mlrun.pipelines.common.ops
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
 from mlrun.errors import err_to_str
+from mlrun.pipelines.models import PipelineRun
 from mlrun.utils import logger
 
 
@@ -64,7 +66,7 @@ class Pipelines(
 
         kfp_client = self.initialize_kfp_client(namespace)
         if project != "*":
-            run_dicts = []
+            runs = []
             while page_token is not None:
                 # kfp doesn't allow us to pass both a page_token and the filter. When we have a token from previous
                 # call, we will strip out the filter and use the token to continue (the token contains the details of
@@ -75,13 +77,13 @@ class Pipelines(
                     sort_by=sort_by,
                     filter=filter_ if page_token == "" else "",
                 )
-                run_dicts.extend([run.to_dict() for run in response.runs or []])
+                runs.extend([PipelineRun(run) for run in response.runs or []])
                 page_token = response.next_page_token
             project_runs = []
-            for run_dict in run_dicts:
-                run_project = self.resolve_project_from_pipeline(run_dict)
+            for run in runs:
+                run_project = self.resolve_project_from_pipeline(run)
                 if run_project == project:
-                    project_runs.append(run_dict)
+                    project_runs.append(run)
             runs = self._filter_runs_by_name(project_runs, name_contains)
             total_size = len(runs)
             next_page_token = None
@@ -93,7 +95,7 @@ class Pipelines(
                 sort_by=sort_by,
                 filter=filter_,
             )
-            runs = [run.to_dict() for run in response.runs or []]
+            runs = [PipelineRun(run) for run in response.runs or []]
             runs = self._filter_runs_by_name(runs, name_contains)
             next_page_token = response.next_page_token
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
@@ -189,8 +191,8 @@ class Pipelines(
         run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
-            if api_run_detail.run:
-                run = api_run_detail.to_dict()["run"]
+            run = PipelineRun(api_run_detail)
+            if run:
                 if project and project != "*":
                     run_project = self.resolve_project_from_pipeline(run)
                     if run_project != project:
@@ -205,9 +207,7 @@ class Pipelines(
                     project=project,
                     format_=format_,
                 )
-                run = self._format_run(
-                    db_session, run, format_, api_run_detail.to_dict()
-                )
+                run = self._format_run(db_session, run, format_)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
         except mlrun.errors.MLRunHTTPStatusError:
@@ -299,7 +299,6 @@ class Pipelines(
         db_session: sqlalchemy.orm.Session,
         run: dict,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
-        api_run_detail: typing.Optional[dict] = None,
     ) -> dict:
         run["project"] = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
@@ -310,13 +309,9 @@ class Pipelines(
         elif format_ == mlrun.common.schemas.PipelinesFormat.name_only:
             return run.get("name")
         elif format_ == mlrun.common.schemas.PipelinesFormat.summary:
-            if not api_run_detail:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "The full kfp api_run_detail object is needed to generate the summary format"
-                )
             run_db = server.api.api.utils.get_run_db_instance(db_session)
-            return mlrun.pipelines.ops.format_summary_from_kfp_run(
-                api_run_detail, run["project"], run_db=run_db
+            return mlrun.pipelines.common.ops.format_summary_from_kfp_run(
+                run, run["project"], run_db=run_db
             )
         else:
             raise NotImplementedError(
@@ -374,11 +369,8 @@ class Pipelines(
 
         return None
 
-    def resolve_project_from_pipeline(self, pipeline):
-        workflow_manifest = json.loads(
-            pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
-        )
-        return self.resolve_project_from_workflow_manifest(workflow_manifest)
+    def resolve_project_from_pipeline(self, pipeline: PipelineRun):
+        return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest)
 
     def resolve_project_from_workflow_manifest(self, workflow_manifest):
         templates = workflow_manifest.get("spec", {}).get("templates", [])
@@ -386,7 +378,7 @@ class Pipelines(
             project_from_annotation = (
                 template.get("metadata", {})
                 .get("annotations", {})
-                .get(mlrun.pipelines.ops.project_annotation)
+                .get(mlrun.pipelines.common.helpers.project_annotation)
             )
             if project_from_annotation:
                 return project_from_annotation

@@ -1383,7 +1383,7 @@ def format_run(run: dict, with_project=False) -> dict:
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
-    if run["status"] is None:
+    if run.get("status", None) is None:
         run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
 
     return run

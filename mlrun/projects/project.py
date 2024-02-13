@@ -31,7 +31,6 @@ import dotenv
 import git
 import git.exc
 import inflection
-import kfp
 import nuclio
 import requests
 import yaml
@@ -2853,7 +2852,9 @@ class MlrunProject(ModelObj):
         notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
-    ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+    ) -> mlrun.model.RunObject:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
         example (use with project)::
@@ -2949,7 +2950,9 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         force_build: bool = False,
-    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+    ) -> BuildStatus:
         """deploy ML function, build container with its dependencies
 
         :param function:            name of the function (in the project) or function object
@@ -3067,7 +3070,9 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         target_dir: str = None,
-    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+    ) -> BuildStatus:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
         If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
@@ -3182,7 +3187,9 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         builder_env: dict = None,
         mock: bool = None,
-    ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
+    ) -> DeployStatus:
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object

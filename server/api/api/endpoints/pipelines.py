@@ -209,6 +209,8 @@ async def _create_pipeline(
     content_type = request.headers.get("content-type", "")
 
     # otherwise, best effort - try to parse it from the body - if successful - perform auth check - otherwise explode
+    # TODO: this check fails with KFP SDK 2.0, since it doesn't compile to yaml on the client side anymore
+    # TODO: there might be a workaround if we are able to read the new file format
     project = _try_resolve_project_from_body(content_type, data)
     if not project:
         raise mlrun.errors.MLRunInvalidArgumentError(

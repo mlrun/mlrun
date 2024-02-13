@@ -18,7 +18,6 @@ import os.path
 from copy import deepcopy
 from typing import Dict, List, Union
 
-import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
 
@@ -26,11 +25,15 @@ import mlrun
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
+from mlrun.pipelines.common.helpers import (
+    function_annotation,
+    project_annotation,
+    run_annotation,
+)
 from mlrun.utils import (
     dict_to_yaml,
     gen_md_table,
     get_artifact_target,
-    get_in,
     get_workflow_url,
     is_ipython,
     is_legacy_artifact,
@@ -43,10 +46,6 @@ from mlrun.utils import (
 # directories to /tmp to allow running with security context
 KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
-
-project_annotation = "mlrun/project"
-run_annotation = "mlrun/pipeline-step-type"
-function_annotation = "mlrun/function-uri"
 
 dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
@@ -684,89 +683,6 @@ def add_labels(cop, function, scrape_metrics=False):
     cop.add_pod_label(prefix + "project", function.metadata.project)
     cop.add_pod_label(prefix + "tag", function.metadata.tag or "latest")
     cop.add_pod_label(prefix + "scrape-metrics", "True" if scrape_metrics else "False")
-
-
-def generate_kfp_dag_and_resolve_project(run, project=None):
-    workflow = run.get("pipeline_runtime", {}).get("workflow_manifest")
-    if not workflow:
-        return None, project, None
-    workflow = json.loads(workflow)
-
-    templates = {}
-    for template in workflow["spec"]["templates"]:
-        project = project or get_in(
-            template, ["metadata", "annotations", project_annotation], ""
-        )
-        name = template["name"]
-        templates[name] = {
-            "run_type": get_in(
-                template, ["metadata", "annotations", run_annotation], ""
-            ),
-            "function": get_in(
-                template, ["metadata", "annotations", function_annotation], ""
-            ),
-        }
-
-    nodes = workflow["status"].get("nodes", {})
-    dag = {}
-    for node in nodes.values():
-        name = node["displayName"]
-        record = {
-            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
-        }
-
-        # snake case
-        # align kfp fields to mlrun snake case convention
-        # create snake_case for consistency.
-        # retain the camelCase for compatibility
-        for key in list(record.keys()):
-            record[inflection.underscore(key)] = record[key]
-
-        record["parent"] = node.get("boundaryID", "")
-        record["name"] = name
-        record["children"] = node.get("children", [])
-        if name in templates:
-            record["function"] = templates[name].get("function")
-            record["run_type"] = templates[name].get("run_type")
-        dag[node["id"]] = record
-
-    return dag, project, workflow["status"].get("message", "")
-
-
-def format_summary_from_kfp_run(
-    kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
-):
-    override_project = project if project and project != "*" else None
-    dag, project, message = generate_kfp_dag_and_resolve_project(
-        kfp_run, override_project
-    )
-    run_id = get_in(kfp_run, "run.id")
-    logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
-
-    # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
-    if not run_db:
-        run_db = mlrun.db.get_run_db()
-
-    # enrich DAG with mlrun run info
-    runs = run_db.list_runs(project=project, labels=f"workflow={run_id}")
-
-    for run in runs:
-        step = get_in(run, ["metadata", "labels", "mlrun/runner-pod"])
-        if step and step in dag:
-            dag[step]["run_uid"] = get_in(run, "metadata.uid")
-            dag[step]["kind"] = get_in(run, "metadata.labels.kind")
-            error = get_in(run, "status.error")
-            if error:
-                dag[step]["error"] = error
-
-    short_run = {
-        "graph": dag,
-        "run": mlrun.utils.helpers.format_run(kfp_run["run"]),
-    }
-    short_run["run"]["project"] = project
-    short_run["run"]["message"] = message
-    logger.debug("Completed summary formatting", run_id=run_id, project=project)
-    return short_run
 
 
 def show_kfp_run(run, clear_output=False):

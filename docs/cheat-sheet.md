@@ -620,7 +620,7 @@ Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html)
 
 ### Sources
 
-Docs: [Sources](./serving/available-steps.html#sources)
+Docs: [Sources](./feature-store/sources-targets.html#sources)
 
 ```python
 from mlrun.datastore.sources import CSVSource, ParquetSource, BigQuerySource, KafkaSource
@@ -666,7 +666,7 @@ snowflake_df = snowflake_source.to_dataframe()
 
 ### Targets
 
-Docs: [Targets](./serving/available-steps.html#targets)
+Docs: [Targets](./feature-store/sources-targets.html#targets), [Partitioning on Parquet target](./feature-store/sources-targets.html#partitioning-on-parquet-target)
 
 ```python
 from mlrun.datastore.targets import CSVTarget, ParquetTarget

@@ -38,7 +38,7 @@ training and serves as the input to the model training process. During model ser
 
 ![How feature store works](../_static/images/feature-store-flow.png)
 
-The common flow when working with the feature store is to first define the feature set with its source, transformation graph, and targets. 
+The common flow when working with the feature store is to first define the feature set with its source, transformation graph, and targets. (See the supported {ref}`sources-targets`.)
 MLRun's robust transformation engine performs complex operations with just a few lines of Python code. To test the 
 execution process, call the `infer` method with a sample DataFrame. This runs all operations in memory without storing the results. 
 

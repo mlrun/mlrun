@@ -728,7 +728,7 @@ def code_to_function(
         if _kind == RuntimeKinds.serving:
             _is_nuclio = True
             _sub_kind = serving_subkind
-        elif _kind == RuntimeKinds.deployment:
+        elif _kind == RuntimeKinds.application:
             _is_nuclio = True
         return _is_nuclio, _sub_kind
 

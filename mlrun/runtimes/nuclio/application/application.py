@@ -114,7 +114,7 @@ class ApplicationSpec(NuclioSpec):
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
 
-    @min_nuclio_versions("1.12.12")
+    @min_nuclio_versions("1.12.7")
     def __init__(self, spec=None, metadata=None):
         super().__init__(metadata, spec)
 

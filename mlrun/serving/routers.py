@@ -32,6 +32,7 @@ from mlrun.utils import logger, now_date
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
+from ..feature_store import get_feature_vector
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
@@ -1162,7 +1163,9 @@ class EnrichmentModelRouter(ModelRouter):
 
     def post_init(self, mode="sync"):
         super().post_init(mode)
-        self._feature_service = self.feature_vector.get_online_feature_service(
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 
@@ -1304,7 +1307,9 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
 
     def post_init(self, mode="sync"):
         super().post_init(mode)
-        self._feature_service = self.feature_vector.get_online_feature_service(
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 

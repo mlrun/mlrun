@@ -1443,6 +1443,24 @@ def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 
 
+def normalize_project_username(username: str):
+    username = username.lower()
+
+    # remove domain if exists
+    username = username.split("@")[0]
+
+    # replace non r'a-z0-9\-_' chars with empty string
+    username = inflection.parameterize(username, separator="")
+
+    # replace underscore with dashes
+    username = inflection.dasherize(username)
+
+    # ensure ends with alphanumeric
+    username = username.rstrip("-_")
+
+    return username
+
+
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
 # without importing fastapi in the client
 async def run_in_threadpool(func, *args, **kwargs):

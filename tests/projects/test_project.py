@@ -144,10 +144,14 @@ def test_sync_functions_preserves_existing(rundb_mock):
 
     project.sync_functions(always=False)
     assert old_trainer is not project.spec._function_objects["auto-trainer"]
+    assert old_trainer is not project.get_function("auto-trainer")
     assert old_describe is project.spec._function_objects["describe"]
+    assert old_describe is project.get_function("describe")
 
+    project._initialized = False
     project.sync_functions(always=True)
     assert old_describe is not project.spec._function_objects["describe"]
+    assert old_describe is not project.get_function("describe")
 
 
 def test_sync_functions_unavailable_file():

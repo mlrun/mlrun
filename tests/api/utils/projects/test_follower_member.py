@@ -25,6 +25,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import server.api.crud
+import server.api.utils.background_tasks
 import server.api.utils.projects.follower
 import server.api.utils.projects.remotes.leader
 import server.api.utils.singletons.db
@@ -60,6 +61,7 @@ def test_sync_projects(
     db: sqlalchemy.orm.Session,
     projects_follower: server.api.utils.projects.follower.Member,
     nop_leader: server.api.utils.projects.remotes.leader.Member,
+    monkeypatch,
 ):
     project_nothing_changed = _generate_project(name="project-nothing-changed")
     project_in_creation = _generate_project(
@@ -88,6 +90,15 @@ def test_sync_projects(
         name="project-will-be-unarchived",
         state=mlrun.common.schemas.ProjectState.archived,
     )
+
+    # check race condition with background task where sync might want to create a project that is just deleted
+    project_just_deleted = _generate_project(name="project-just-deleted")
+    monkeypatch.setattr(
+        server.api.utils.background_tasks.InternalBackgroundTasksHandler,
+        "get_active_background_task_by_kind",
+        lambda _, kind, raise_on_not_found: project_just_deleted.metadata.name in kind,
+    )
+
     for _project in [
         project_nothing_changed,
         project_in_creation,
@@ -108,6 +119,7 @@ def test_sync_projects(
                 project_offline,
                 project_moved_to_deletion,
                 project_will_be_unarchived,
+                project_just_deleted,
             ],
             None,
         )
@@ -475,7 +487,7 @@ def test_list_project_leader_format(
 def _assert_list_projects(
     db_session: sqlalchemy.orm.Session,
     projects_follower: server.api.utils.projects.follower.Member,
-    expected_projects: typing.List[mlrun.common.schemas.Project],
+    expected_projects: list[mlrun.common.schemas.Project],
     **kwargs,
 ):
     projects = projects_follower.list_projects(db_session, **kwargs)

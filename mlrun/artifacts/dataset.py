@@ -14,7 +14,7 @@
 import os
 import pathlib
 from io import StringIO
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -246,9 +246,8 @@ class DatasetArtifact(Artifact):
                     body=body, target=self.target_path, artifact_path=artifact_path
                 )
             else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Unable to upload dataset, dataframe is not defined"
-                )
+                # don't fail if no df or body
+                self.spec.size, self.metadata.hash = None, None
 
     def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
         if not artifact_path:
@@ -657,7 +656,7 @@ def update_dataset_meta(
 
 def upload_dataframe(
     df, target_path, format, src_path=None, **kw
-) -> Tuple[Optional[int], Optional[str]]:
+) -> tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
         mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
         return (

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-from typing import List
 
 import pandas as pd
 import pytest
@@ -104,7 +103,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     )
     @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
     def test_sql_source_basic(
-        self, source_name: str, key: str, parse_dates: List[str], fset_engine: str
+        self, source_name: str, key: str, parse_dates: list[str], fset_engine: str
     ):
         from sqlalchemy_utils import create_database, database_exists
 

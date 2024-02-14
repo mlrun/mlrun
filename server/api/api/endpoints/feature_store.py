@@ -14,7 +14,7 @@
 #
 import asyncio
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -226,9 +226,9 @@ async def list_feature_sets(
     name: str = None,
     state: str = None,
     tag: str = None,
-    entities: List[str] = Query(None, alias="entity"),
-    features: List[str] = Query(None, alias="feature"),
-    labels: List[str] = Query(None, alias="label"),
+    entities: list[str] = Query(None, alias="entity"),
+    features: list[str] = Query(None, alias="feature"),
+    labels: list[str] = Query(None, alias="label"),
     partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(
         None, alias="partition-by"
     ),
@@ -463,8 +463,8 @@ async def list_features(
     project: str,
     name: str = None,
     tag: str = None,
-    entities: List[str] = Query(None, alias="entity"),
-    labels: List[str] = Query(None, alias="label"),
+    entities: list[str] = Query(None, alias="entity"),
+    labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -499,7 +499,7 @@ async def list_entities(
     project: str,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query(None, alias="label"),
+    labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -615,7 +615,7 @@ async def list_feature_vectors(
     name: str = None,
     state: str = None,
     tag: str = None,
-    labels: List[str] = Query(None, alias="label"),
+    labels: list[str] = Query(None, alias="label"),
     partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(
         None, alias="partition-by"
     ),

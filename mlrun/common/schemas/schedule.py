@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -119,7 +119,7 @@ class ScheduleRecord(ScheduleInput):
     project: str
     last_run_uri: Optional[str]
     state: Optional[str]
-    labels: Optional[List[LabelRecord]]
+    labels: Optional[list[LabelRecord]]
     next_run_time: Optional[datetime]
 
     class Config:
@@ -135,7 +135,7 @@ class ScheduleOutput(ScheduleRecord):
 
 
 class SchedulesOutput(BaseModel):
-    schedules: List[ScheduleOutput]
+    schedules: list[ScheduleOutput]
 
 
 class ScheduleIdentifier(BaseModel):

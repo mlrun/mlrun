@@ -5,7 +5,7 @@ This section demonstrates how to import a function from the hub into your projec
 
 **In this section**
 - [MLRun Function hub](#mlrun-function-hub)
-- [Private function hub](#private-function-hub)
+- [Custom function hub](#custom-function-hub)
 - [Setting the project configuration](#setting-the-project-configuration)
 - [Loading functions from the hub](#loading-functions-from-the-hub)
 - [View the function params](#view-the-function-params)
@@ -24,7 +24,7 @@ You can search and filter the categories and kinds to find a function that meets
 
 ![Hub](../_static/images/marketplace-ui.png)
 
-## Private function hub
+## Custom function hub
 You can create your own function hub, and connect it to MLRun. Then you can import functions (with their tags) from your custom hub.
 
 ### Create a custom hub
@@ -72,7 +72,7 @@ To add a hub, run:
 ```python
 import mlrun.common.schemas
 
-# Add a private hub to the top of the list
+# Add a custom hub to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
     order=-1,
 	source=mlrun.common.schemas.HubSource(
@@ -144,7 +144,7 @@ To load the `describe` function from the MLRun function hub:
 project.set_function('hub://describe', 'describe')
 ```
 
-To load the same function from your private hub:
+To load the same function from your custom hub:
 ```python
 project.set_function('hub://<hub-name>/describe', 'describe')
 ```

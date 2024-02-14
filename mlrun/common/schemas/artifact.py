@@ -30,7 +30,7 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
     # and should not be used as such
     link = "link"
 
-    def to_kinds_filter(self) -> typing.Tuple[typing.List[str], bool]:
+    def to_kinds_filter(self) -> tuple[list[str], bool]:
         link_kind = ArtifactCategories.link.value
 
         if self.value == ArtifactCategories.model.value:
@@ -81,8 +81,8 @@ class ArtifactSpec(pydantic.BaseModel):
     inline: typing.Optional[str]
     size: typing.Optional[int]
     db_key: typing.Optional[str]
-    extra_data: typing.Optional[typing.Dict[str, typing.Any]]
-    unpackaging_instructions: typing.Optional[typing.Dict[str, typing.Any]]
+    extra_data: typing.Optional[dict[str, typing.Any]]
+    unpackaging_instructions: typing.Optional[dict[str, typing.Any]]
 
     class Config:
         extra = pydantic.Extra.allow

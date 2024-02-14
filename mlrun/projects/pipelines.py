@@ -299,6 +299,72 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
     }
 
 
+# When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
+# converts it to a k8s object. As part of the flow in the Compile.compile() method,
+# we call _create_and_write_workflow, which builds a dictionary from the workflow and then writes it to a file.
+# Unfortunately, the kfp sdk does not provide an API for configuring priority_class_name and other attributes.
+# I ran across the following problem when seeking for a method to set the priority_class_name:
+# https://github.com/kubeflow/pipelines/issues/3594
+# When we patch the _create_and_write_workflow, we can eventually obtain the dictionary right before we write it
+# to a file and enrich it with argo compatible fields, make sure you looking for the same argo version we use
+# https://github.com/argoproj/argo-workflows/blob/release-2.7/pkg/apis/workflow/v1alpha1/workflow_types.go
+def _create_enriched_mlrun_workflow(
+    self,
+    pipeline_func: typing.Callable,
+    pipeline_name: typing.Optional[str] = None,
+    pipeline_description: typing.Optional[str] = None,
+    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
+    pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
+):
+    """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
+    workflow = self._original_create_workflow(
+        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
+    )
+    # We don't want to interrupt the original flow and don't know all the scenarios the function could be called.
+    # that's why we have try/except on all the code of the enrichment and also specific try/except for errors that
+    # we know can be raised.
+    try:
+        functions = []
+        if pipeline_context.functions:
+            try:
+                functions = pipeline_context.functions.values()
+            except Exception as err:
+                logger.debug(
+                    "Unable to retrieve project functions, not enriching workflow with mlrun",
+                    error=err_to_str(err),
+                )
+                return workflow
+
+        # enrich each pipeline step with your desire k8s attribute
+        for kfp_step_template in workflow["spec"]["templates"]:
+            if kfp_step_template.get("container"):
+                for function_obj in functions:
+                    # we condition within each function since the comparison between the function and
+                    # the kfp pod may change depending on the attribute type.
+                    _set_function_attribute_on_kfp_pod(
+                        kfp_step_template,
+                        function_obj,
+                        "PriorityClassName",
+                        "priority_class_name",
+                    )
+                    _enrich_kfp_pod_security_context(
+                        kfp_step_template,
+                        function_obj,
+                    )
+    except mlrun.errors.MLRunInvalidArgumentError:
+        raise
+    except Exception as err:
+        logger.debug(
+            "Something in the enrichment of kfp pods failed", error=err_to_str(err)
+        )
+    return workflow
+
+
+# patching function as class method
+kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow
+kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
+
+
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     project_instance, name, tag, hash_key = parse_versioned_object_uri(
         key, project.metadata.name
@@ -358,7 +424,7 @@ class _PipelineRunStatus:
     def __init__(
         self,
         run_id: str,
-        engine: typing.Type["_PipelineRunner"],
+        engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: str = "",
@@ -429,7 +495,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -507,7 +573,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -650,7 +716,7 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -739,7 +805,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str = None,
         namespace: str = None,
         source: str = None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -909,7 +975,7 @@ def load_and_run(
     save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
-    workflow_arguments: typing.Dict[str, typing.Any] = None,
+    workflow_arguments: dict[str, typing.Any] = None,
     artifact_path: str = None,
     workflow_handler: typing.Union[str, typing.Callable] = None,
     namespace: str = None,

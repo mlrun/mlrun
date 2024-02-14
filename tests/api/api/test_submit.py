@@ -14,7 +14,6 @@
 #
 import http
 import json
-import typing
 import unittest.mock
 from http import HTTPStatus
 
@@ -540,8 +539,8 @@ def test_submit_job_failure_params_exceed_int64(
     client: TestClient,
     pod_create_mock,
     task_name: str,
-    parameters: typing.Dict[str, int],
-    hyperparameters: typing.Dict[str, typing.List[int]],
+    parameters: dict[str, int],
+    hyperparameters: dict[str, list[int]],
 ) -> None:
     project_name = "params-exceed-int64"
     project_artifact_path = f"/{project_name}"

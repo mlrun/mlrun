@@ -17,7 +17,7 @@ import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import (
     APIRouter,
@@ -143,6 +143,7 @@ async def get_function(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 async def delete_function(
+    request: Request,
     project: str,
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -180,7 +181,9 @@ async def delete_function(
                 project=project,
             )
             chief_client = server.api.utils.clients.chief.Client()
-            await chief_client.delete_schedule(project=project, name=name)
+            await chief_client.delete_schedule(
+                project=project, name=name, request=request
+            )
         else:
             await run_in_threadpool(
                 get_scheduler().delete_schedule, db_session, project, name
@@ -196,7 +199,7 @@ async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -355,7 +358,7 @@ async def start_function(
         db_session,
         function.metadata.project,
         background_tasks,
-        _start_function,
+        _start_function_wrapper,
         background_timeout,
         None,
         # args for _start_function
@@ -898,6 +901,21 @@ def _parse_start_function_body(db_session, data):
         )
 
     return new_function(runtime=runtime)
+
+
+async def _start_function_wrapper(
+    function,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
+):
+    await run_in_threadpool(
+        _start_function,
+        function,
+        auth_info,
+        client_version,
+        client_python_version,
+    )
 
 
 def _start_function(

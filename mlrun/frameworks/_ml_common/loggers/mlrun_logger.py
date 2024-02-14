@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import re
-from typing import Dict, List
 
 import numpy as np
 import plotly.graph_objects as go
@@ -39,7 +38,7 @@ class MLRunLogger(Logger):
 
         :param context: MLRun context to log to. The context parameters can be logged as static hyperparameters.
         """
-        super(MLRunLogger, self).__init__()
+        super().__init__()
 
         # An MLRun context to log to:
         self._context = context
@@ -47,7 +46,7 @@ class MLRunLogger(Logger):
         # Prepare the artifacts dictionary:
         self._artifacts = {}  # type: Dict[str, Artifact]
 
-    def get_artifacts(self) -> Dict[str, Artifact]:
+    def get_artifacts(self) -> dict[str, Artifact]:
         """
         Get the artifacts created by this logger.
 
@@ -55,7 +54,7 @@ class MLRunLogger(Logger):
         """
         return self._artifacts
 
-    def get_metrics(self) -> Dict[str, float]:
+    def get_metrics(self) -> dict[str, float]:
         """
         Generate a metrics summary to log along the model.
 
@@ -144,7 +143,7 @@ class MLRunLogger(Logger):
 
     @staticmethod
     def _produce_convergence_plot_artifact(
-        name: str, values: List[float]
+        name: str, values: list[float]
     ) -> PlotlyArtifact:
         """
         Produce the convergences for the provided metric according.

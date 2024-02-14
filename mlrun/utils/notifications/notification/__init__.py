@@ -32,7 +32,7 @@ class NotificationTypes(str, enum.Enum):
     slack = NotificationKind.slack.value
     webhook = NotificationKind.webhook.value
 
-    def get_notification(self) -> typing.Type[NotificationBase]:
+    def get_notification(self) -> type[NotificationBase]:
         return {
             self.console: ConsoleNotification,
             self.git: GitNotification,
@@ -41,7 +41,7 @@ class NotificationTypes(str, enum.Enum):
             self.webhook: WebhookNotification,
         }.get(self)
 
-    def inverse_dependencies(self) -> typing.List[str]:
+    def inverse_dependencies(self) -> list[str]:
         """
         Some notifications should only run if another notification type didn't run.
         Per given notification type, return a list of notification types that should not run in order for this
@@ -52,7 +52,7 @@ class NotificationTypes(str, enum.Enum):
         }.get(self, [])
 
     @classmethod
-    def all(cls) -> typing.List[str]:
+    def all(cls) -> list[str]:
         return list(
             [
                 cls.console,

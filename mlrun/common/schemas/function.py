@@ -106,7 +106,7 @@ class ServiceAccount(pydantic.BaseModel):
 
 
 class StateThresholds(pydantic.BaseModel):
-    default: typing.Optional[typing.Dict[str, str]]
+    default: typing.Optional[dict[str, str]]
 
 
 class FunctionSpec(pydantic.BaseModel):

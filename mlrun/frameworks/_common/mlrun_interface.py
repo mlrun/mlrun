@@ -17,7 +17,7 @@ import functools
 import inspect
 from abc import ABC
 from types import FunctionType, MethodType
-from typing import Any, Dict, Generic, List, Tuple, Union
+from typing import Any, Generic, Union
 
 from .utils import CommonTypes
 
@@ -173,7 +173,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _insert_properties(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        properties: Dict[str, Any] = None,
+        properties: dict[str, Any] = None,
     ):
         """
         Insert the properties of the interface to the object. The properties default values are being copied (not deep
@@ -238,7 +238,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
     @classmethod
     def _replace_properties(
-        cls, obj: CommonTypes.MLRunInterfaceableType, properties: Dict[str, Any] = None
+        cls, obj: CommonTypes.MLRunInterfaceableType, properties: dict[str, Any] = None
     ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
@@ -282,7 +282,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
     @classmethod
     def _replace_functions(
-        cls, obj: CommonTypes.MLRunInterfaceableType, functions: List[str] = None
+        cls, obj: CommonTypes.MLRunInterfaceableType, functions: list[str] = None
     ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
@@ -420,7 +420,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         passed_args: tuple = None,
         passed_kwargs: dict = None,
         default_value: Any = None,
-    ) -> Tuple[Any, Union[str, int, None]]:
+    ) -> tuple[Any, Union[str, int, None]]:
         """
         Get a passed argument (from *args or **kwargs) to a function. If the argument was not found the default value
         will be returned. In addition, the keyword of the argument in `kwargs` or the index of the argument in `args`

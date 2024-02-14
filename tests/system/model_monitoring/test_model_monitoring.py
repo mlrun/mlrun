@@ -325,7 +325,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"
         ]
-        total = sum((m[1] for m in predictions_per_second))
+        total = sum(m[1] for m in predictions_per_second)
         assert total > 0
 
 
@@ -367,10 +367,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         # Ingest data
-        mlrun.feature_store.ingest(diabetes_set, train_set)
-        mlrun.feature_store.ingest(
-            label_set, target_set, targets=[mlrun.datastore.targets.ParquetTarget()]
-        )
+        diabetes_set.ingest(train_set)
+        label_set.ingest(target_set, targets=[mlrun.datastore.targets.ParquetTarget()])
 
         # Define feature vector and save it to MLRun's feature store DB
         fv = mlrun.feature_store.FeatureVector(
@@ -773,6 +771,9 @@ class TestBatchDrift(TestMLRunSystem):
 
     project_name = "pr-batch-drift"
 
+    def custom_setup(self):
+        mlrun.runtimes.utils.global_context.set(None)
+
     def test_batch_drift(self):
         # Main validations:
         # 1 - Generate new model endpoint record through get_or_create_model_endpoint() within MLRun SDK
@@ -993,6 +994,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.function_name = f"{cls.name_prefix}-function"
         cls._train()
 
+    def custom_setup(self):
+        mlrun.runtimes.utils.global_context.set(None)
+
     @classmethod
     def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
         rng = np.random.default_rng(seed=23)
@@ -1081,6 +1085,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.infer_results_df[
             mlrun.common.schemas.EventFieldType.TIMESTAMP
         ] = datetime.utcnow()
+
+    def custom_setup(self):
+        mlrun.runtimes.utils.global_context.set(None)
 
     def _log_model(self) -> str:
         model = self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]

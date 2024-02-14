@@ -29,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.runtimes.base
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -45,6 +46,53 @@ def context():
 
 def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+class RemoteBuilderMock:
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func,
+            with_mlrun,
+            mlrun_version_specifier=None,
+            skip_deployed=False,
+            builder_env=None,
+            force_build=False,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                    },
+                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
+                },
+            }
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock
 
 
 def test_sync_functions(rundb_mock):
@@ -100,6 +148,20 @@ def test_sync_functions_preserves_existing(rundb_mock):
 
     project.sync_functions(always=True)
     assert old_describe is not project.spec._function_objects["describe"]
+
+
+def test_sync_functions_unavailable_file():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec._function_definitions["non-existing-function"] = {
+        "handler": "func",
+        "image": "mlrun/mlrun",
+        "kind": "job",
+        "name": "func",
+        "url": "func.py",
+    }
+    with pytest.raises(mlrun.errors.MLRunMissingDependencyError):
+        project.sync_functions()
 
 
 def test_export_project_dir_doesnt_exist():
@@ -829,6 +891,7 @@ def test_import_artifact_using_relative_path():
     artifact = project.import_artifact("artifact.yaml", "y")
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
+    assert artifact.spec.db_key == "y"
 
 
 @pytest.mark.parametrize(
@@ -1062,10 +1125,11 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         (
             "./",
             pytest.raises(
-                ValueError,
+                mlrun.errors.MLRunInvalidArgumentError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': './'. Got a path to a non-existing file. Path must be absolute or "
+                        "relative to the project code path i.e. <project.spec.get_code_path()>/<workflow_path>)."
                     )
                 ),
             ),
@@ -1073,10 +1137,10 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         (
             "https://test",
             pytest.raises(
-                ValueError,
+                mlrun.errors.MLRunInvalidArgumentError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': 'https://test'. Got a remote URL without a file suffix."
                     )
                 ),
             ),
@@ -1084,19 +1148,17 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         (
             "",
             pytest.raises(
-                ValueError,
-                match=str(
-                    re.escape(
-                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
-                    )
-                ),
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=str(re.escape("workflow_path must be provided.")),
             ),
         ),
         ("https://test.py", does_not_raise()),
         # relative path
         ("./workflow.py", does_not_raise()),
+        ("./assets/handler.py", does_not_raise()),
         # only file name
         ("workflow.py", does_not_raise()),
+        ("assets/handler.py", does_not_raise()),
         # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
@@ -1104,9 +1166,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         ),
     ],
 )
-def test_set_workflow_with_invalid_path(
-    chdir_to_test_location, workflow_path, exception
-):
+def test_set_workflow_path_validation(chdir_to_test_location, workflow_path, exception):
     proj = mlrun.new_project("proj", save=False)
     with exception:
         proj.set_workflow("main", workflow_path)
@@ -1116,6 +1176,13 @@ def test_set_workflow_local_engine():
     proj = mlrun.new_project("proj", save=False)
     with pytest.raises(ValueError):
         proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
+
+
+def test_run_non_existing_workflow(rundb_mock):
+    proj = mlrun.new_project("proj", save=False)
+    proj.set_function("hub://describe", "describe")
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        proj.run("non-existing-workflow")
 
 
 def test_project_ops():
@@ -1379,23 +1446,19 @@ def test_init_function_from_dict_function_in_spec():
                 "name": "sparkjob-from-github",
                 "tag": "latest",
                 "project": project_name,
-                "categories": [],
             },
             "spec": {
                 "command": "simple_job.py",
-                "args": [],
                 "image": ".sparkjob-from-github:latest",
                 "build": {
                     "source": "./",
                     "base_image": "iguazio/spark-app:3.5.5-b697",
-                    "commands": [],
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
                 },
                 "description": "",
                 "disable_auto_mount": False,
                 "clone_target_dir": "/home/mlrun_code/",
-                "env": [],
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -1427,15 +1490,13 @@ def test_init_function_from_dict_function_in_spec():
                 "executor_preemption_mode": "prevent",
                 "affinity": None,
                 "tolerations": None,
-                "security_context": {},
+                "node_selector": None,
                 "executor_affinity": None,
                 "executor_tolerations": None,
+                "executor_node_selector": None,
                 "driver_affinity": None,
                 "driver_tolerations": None,
-                "volume_mounts": [],
-                "volumes": [],
-                "driver_volume_mounts": [],
-                "executor_volume_mounts": [],
+                "driver_node_selector": None,
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
             },
             "verbose": False,
@@ -1474,8 +1535,73 @@ def test_load_project_from_yaml_with_function(context):
                 ignore_order=True,
                 exclude_paths=[
                     "root['spec']['build']['code_origin']",
-                    "root['metadata']['categories']",
                 ],
             )
             == {}
         )
+
+
+def test_project_create_remote():
+    # test calling create_remote without git_init=True on project creation
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        assert project.spec.repo is not None
+        assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
+
+
+@pytest.mark.parametrize(
+    "source_url, pull_at_runtime, base_image, image_name, target_dir",
+    [
+        (None, None, "aaa/bbb", "ccc/ddd", None),
+        ("git://some/repo", False, None, ".some-image", None),
+        (
+            "git://some/other/repo",
+            False,
+            ".some-base-image",
+            "some-repo/some-target-image",
+            "/target/path/for/source",
+        ),
+        ("git://some/repo", True, None, ".some-image", "/target/path"),
+    ],
+)
+def test_project_build_image(
+    source_url, pull_at_runtime, base_image, image_name, target_dir, remote_builder_mock
+):
+    project_name = "project1"
+
+    project = mlrun.new_project(project_name, save=False)
+
+    if source_url:
+        project.set_source(source_url, pull_at_runtime=pull_at_runtime)
+
+    project.build_image(image=image_name, base_image=base_image, target_dir=target_dir)
+
+    (
+        build_config,
+        clone_target_dir,
+    ) = remote_builder_mock.get_build_config_and_target_dir()
+
+    # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
+    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    if pull_at_runtime:
+        assert build_config.load_source_on_run is None
+        assert build_config.source is None
+        assert clone_target_dir is None
+    else:
+        assert not build_config.load_source_on_run
+        assert build_config.source == source_url
+        assert clone_target_dir == target_dir
+
+    assert build_config.image == image_name
+    # If no base image was used, then mlrun/mlrun is expected
+    assert build_config.base_image == base_image or "mlrun/mlrun"
+    assert project.default_image == image_name

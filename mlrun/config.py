@@ -17,7 +17,7 @@ Configuration system.
 Configuration can be in either a configuration file specified by
 MLRUN_CONFIG_FILE environment variable or by environment variables.
 
-Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
+Environment variables are in the format "MLRUN_HTTPDB__PORT=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
@@ -131,6 +131,9 @@ default_config = {
         # migration progress.
         "artifact_migration_batch_size": 200,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
+        "datasets": {
+            "max_preview_columns": 100,
+        },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
@@ -190,6 +193,7 @@ default_config = {
                 "load_project": "60",
                 "run_abortion": "600",
                 "abort_grace_period": "10",
+                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -217,7 +221,7 @@ default_config = {
                     "pending_scheduled": "1h",
                     "pending_not_scheduled": "-1",  # infinite
                     "image_pull_backoff": "1h",
-                    "running": "24h",
+                    "executing": "24h",
                 }
             },
         },
@@ -274,7 +278,7 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://,ds://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.common.schemas.APIStates for options
@@ -337,7 +341,7 @@ default_config = {
             #  ---------------------------------------------------------------------
             # Note: adding a mode requires special handling on
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
-            # - mlrun.runtimes.function.enrich_function_with_ingress
+            # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
         },
@@ -399,10 +403,13 @@ default_config = {
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "2 minutes",
+            "project_owners_cache_ttl": "30 seconds",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
-            "project_owners_cache_ttl": "30 seconds",
+            "iguazio_client_job_cache_ttl": "20 minutes",
+            "nuclio_project_deletion_verification_timeout": "60 seconds",
+            "nuclio_project_deletion_verification_interval": "5 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -457,7 +464,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -650,6 +657,7 @@ default_config = {
         # used for igz client when emitting events
         "access_key": "",
     },
+    "grafana_url": "",
 }
 
 _is_running_as_api = None
@@ -1101,7 +1109,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_project_path_template(
+            return mlrun.utils.helpers.template_artifact_path(
                 artifact_path=artifact_path + file_path, project=project
             )
 
@@ -1111,7 +1119,7 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
-    def get_s3_storage_options(self) -> typing.Dict[str, typing.Any]:
+    def get_s3_storage_options(self) -> dict[str, typing.Any]:
         """
         Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
         graph uses this method for generating the storage options for S3 parquet target path.
@@ -1140,9 +1148,12 @@ class Config:
 
         return storage_options
 
-    def is_explicit_ack(self) -> bool:
+    def is_explicit_ack(self, version=None) -> bool:
+        if not version:
+            version = self.nuclio_version
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.9"
+            not version
+            or semver.VersionInfo.parse(version) >= semver.VersionInfo.parse("1.12.10")
         )
 
 

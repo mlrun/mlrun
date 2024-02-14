@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import unittest.mock
 from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.common.schemas
 import mlrun.model
 import server.api.db.sqldb.helpers
 import server.api.initial_data
@@ -90,6 +92,62 @@ def test_runs_with_notifications(db: DBInterface, db_session: Session):
     assert len(runs) == num_runs
     runs = db.list_runs(db_session, project=project_name, with_notifications=True)
     assert len(runs) == 0
+
+    db.del_runs(db_session, project=project_name)
+    db.verify_project_has_no_related_resources(db_session, project_name)
+
+
+def test_list_runs_with_notifications_identical_run_names(
+    db: DBInterface, db_session: Session
+):
+    project_name = "project"
+
+    _create_new_run(db, db_session, project=project_name, name="test-run", uid="uid1")
+    notification = mlrun.model.Notification(
+        kind="slack",
+        when=["completed", "error"],
+        name="test-notification",
+        message="test-message",
+        condition="blabla",
+        severity="info",
+        params={"some-param": "some-value"},
+    )
+    db.store_run_notifications(db_session, [notification], "uid1", project_name)
+
+    # same name, different uid
+    _create_new_run(db, db_session, project=project_name, name="test-run", uid="uid2")
+
+    # default query with partition should only return the last run of the same name. this is done in the endpoint
+    # and in the httpdb client, so we'll implement it here manually as this db instance goes directly to the sql db
+    # implementation.
+    partition_by = mlrun.common.schemas.RunPartitionByField.name
+    partition_sort_by = mlrun.common.schemas.SortField.updated
+
+    runs = db.list_runs(
+        db_session,
+        project=project_name,
+        with_notifications=True,
+        partition_by=partition_by,
+        partition_sort_by=partition_sort_by,
+    )
+    assert len(runs) == 1
+
+    runs = db.list_runs(
+        db_session,
+        project=project_name,
+        with_notifications=False,
+        partition_by=partition_by,
+        partition_sort_by=partition_sort_by,
+    )
+    assert len(runs) == 1
+
+    # without partitioning, we should get all runs when querying without notifications and only the first run
+    # when querying with notifications
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == 1
+
+    runs = db.list_runs(db_session, project=project_name, with_notifications=False)
+    assert len(runs) == 2
 
     db.del_runs(db_session, project=project_name)
     db.verify_project_has_no_related_resources(db_session, project_name)
@@ -307,18 +365,36 @@ def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
+    with unittest.mock.patch(
+        "server.api.db.sqldb.helpers.update_labels", return_value=None
+    ) as update_labels_mock:
+        db.update_run(
+            db_session,
+            {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+            uid,
+            project,
+            iteration,
+        )
+        run = db.read_run(db_session, uid, project, iteration)
+        assert run["metadata"]["project"] == project
+        assert run["metadata"]["name"] == name
+        assert run["metadata"]["some-new-field"] == "value"
+        assert run["spec"]["another-new-field"] == "value"
+        assert update_labels_mock.call_count == 0
+
+
+def test_update_run_labels(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
     db.update_run(
         db_session,
-        {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+        {"metadata.labels": {"a": "b"}},
         uid,
         project,
         iteration,
     )
     run = db.read_run(db_session, uid, project, iteration)
-    assert run["metadata"]["project"] == project
-    assert run["metadata"]["name"] == name
-    assert run["metadata"]["some-new-field"] == "value"
-    assert run["spec"]["another-new-field"] == "value"
+    assert run["metadata"]["labels"] == {"a": "b"}
 
 
 def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: Session):

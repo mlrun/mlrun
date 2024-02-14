@@ -19,20 +19,20 @@ import inspect
 import itertools
 import json
 import os
-import pathlib
 import re
+import string
 import sys
-import time
 import typing
 import warnings
 from datetime import datetime, timezone
 from importlib import import_module
 from os import path
 from types import ModuleType
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional
 
 import anyio
 import git
+import inflection
 import numpy as np
 import packaging.version
 import pandas
@@ -50,9 +50,15 @@ import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
 from mlrun.config import config
-from mlrun.errors import err_to_str
 
 from .logger import create_logger
+from .retryer import (  # noqa: F401
+    AsyncRetryer,
+    Retryer,
+    create_exponential_backoff,
+    create_linear_backoff,
+    create_step_backoff,
+)
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -272,40 +278,12 @@ def validate_v3io_stream_consumer_group(
     )
 
 
-def get_regex_list_as_string(regex_list: List) -> str:
+def get_regex_list_as_string(regex_list: list) -> str:
     """
     This function is used to combine a list of regex strings into a single regex,
     with and condition between them.
     """
-    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
-
-
-def is_file_path_invalid(code_path: str, file_path: str) -> bool:
-    """
-    The function checks if the given file_path is a valid path.
-    If the file_path is a relative path, it is completed by joining it with the code_path.
-    Otherwise, the file_path is used as is.
-    Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
-    If the file_path has no suffix, it is considered invalid.
-
-    :param code_path: The base directory or code path to search for the file in case of relative file_path
-    :param file_path: The file path to be validated
-    :return: True if the file path is invalid, False otherwise
-    """
-    if not file_path:
-        return True
-
-    if file_path.startswith("./") or (
-        "://" not in file_path and os.path.basename(file_path) == file_path
-    ):
-        abs_path = os.path.join(code_path, file_path.lstrip("./"))
-    else:
-        abs_path = file_path
-
-    return (
-        not (os.path.isfile(abs_path) or "://" in file_path)
-        or not pathlib.Path(file_path).suffix
-    )
+    return "".join([f"(?={regex})" for regex in regex_list]) + ".*$"
 
 
 def tag_name_regex_as_string() -> str:
@@ -368,7 +346,7 @@ def verify_dict_items_type(
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)}, "
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -393,8 +371,11 @@ def get_pretty_types_names(types):
     return types[0].__name__
 
 
-def now_date():
-    return datetime.now(timezone.utc)
+def now_date(tz: timezone = timezone.utc) -> datetime:
+    return datetime.now(tz=tz)
+
+
+datetime_now = now_date
 
 
 def to_date_str(d):
@@ -660,11 +641,24 @@ def dict_to_json(struct):
 
 
 def parse_artifact_uri(uri, default_project=""):
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    """
+    Parse artifact URI into project, key, tag, iter, tree
+    URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>]
+
+    :param uri:            uri to parse
+    :param default_project: default project name if not in URI
+    :returns: a tuple of:
+        [0] = project name
+        [1] = key
+        [2] = iteration
+        [3] = tag
+        [4] = tree
+    """
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
-            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
         )
     group_dict = match.groupdict()
     iteration = group_dict["iteration"]
@@ -680,7 +674,7 @@ def parse_artifact_uri(uri, default_project=""):
         group_dict["key"],
         iteration,
         group_dict["tag"],
-        group_dict["uid"],
+        group_dict["tree"],
     )
 
 
@@ -706,7 +700,7 @@ def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
 
@@ -795,7 +789,7 @@ def gen_html_table(header, rows=None):
 def new_pipe_metadata(
     artifact_path: str = None,
     cleanup_ttl: int = None,
-    op_transformers: typing.List[typing.Callable] = None,
+    op_transformers: list[typing.Callable] = None,
 ):
     from kfp.dsl import PipelineConf
 
@@ -901,7 +895,7 @@ def get_docker_repository_or_default(repository: str) -> str:
     return repository
 
 
-def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
+def get_parsed_docker_registry() -> tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
@@ -951,95 +945,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
-def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
-    # remove artifact related fields before calculating hash
-    object_dict.setdefault("metadata", {})
-    labels = object_dict["metadata"].pop("labels", None)
-    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
-
-    # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
-    # so further updates of the artifacts will have the same hash
-    db_key = object_dict.get("spec", {}).pop("db_key", None)
-
-    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
-    if not object_dict["metadata"].get("key"):
-        raise ValueError("artifact key is not set")
-    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
-    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
-
-    # calc hash and fill
-    uid = fill_object_hash(object_dict, "uid")
-
-    # restore original values
-    if labels:
-        object_dict["metadata"]["labels"] = labels
-    if object_updated_timestamp:
-        object_dict["metadata"]["updated"] = object_updated_timestamp
-    if db_key:
-        object_dict.setdefault("spec", {})["db_key"] = db_key
-    return uid
-
-
 def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
-
-
-def create_linear_backoff(base=2, coefficient=2, stop_value=120):
-    """
-    Create a generator of linear backoff. Check out usage example in test_helpers.py
-    """
-    x = 0
-    comparison = min if coefficient >= 0 else max
-
-    while True:
-        next_value = comparison(base + x * coefficient, stop_value)
-        yield next_value
-        x += 1
-
-
-def create_step_backoff(steps=None):
-    """
-    Create a generator of steps backoff.
-    Example: steps = [[2, 5], [20, 10], [120, None]] will produce a generator in which the first 5
-    values will be 2, the next 10 values will be 20 and the rest will be 120.
-    :param steps: a list of lists [step_value, number_of_iteration_in_this_step]
-    """
-    steps = steps if steps is not None else [[2, 10], [10, 10], [120, None]]
-    steps = iter(steps)
-
-    # Get first step
-    step = next(steps)
-    while True:
-        current_step_value, current_step_remain = step
-        if current_step_remain == 0:
-            # No more in this step, moving on
-            step = next(steps)
-        elif current_step_remain is None:
-            # We are in the last step, staying here forever
-            yield current_step_value
-        elif current_step_remain > 0:
-            # Still more remains in this step, just reduce the remaining number
-            step[1] -= 1
-            yield current_step_value
-
-
-def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
-    """
-    Create a generator of exponential backoff. Check out usage example in test_helpers.py
-    :param base: exponent base
-    :param max_value: max limit on the result
-    :param scale_factor: factor to be used as linear scaling coefficient
-    """
-    exponent = 1
-    while True:
-        # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
-        # risking going behind max_int
-        next_value = scale_factor * (base**exponent)
-        if next_value < max_value:
-            exponent += 1
-            yield next_value
-        else:
-            yield max_value
 
 
 def retry_until_successful(
@@ -1059,64 +966,35 @@ def retry_until_successful(
     :param kwargs: functions kwargs
     :return: function result
     """
-    start_time = time.time()
-    last_exception = None
+    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
 
-    # Check if backoff is just a simple interval
-    if isinstance(backoff, int) or isinstance(backoff, float):
-        backoff = create_linear_backoff(base=backoff, coefficient=0)
 
-    first_interval = next(backoff)
-    if timeout and timeout <= first_interval:
-        logger.warning(
-            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
-            f" Set timeout to be higher than backoff."
-        )
-
-    # If deadline was not provided or deadline not reached
-    while timeout is None or time.time() < start_time + timeout:
-        next_interval = first_interval or next(backoff)
-        first_interval = None
-        try:
-            result = _function(*args, **kwargs)
-            return result
-
-        except mlrun.errors.MLRunFatalFailureError as exc:
-            raise exc.original_exception
-        except Exception as exc:
-            last_exception = exc
-
-            # If next interval is within allowed time period - wait on interval, abort otherwise
-            if timeout is None or time.time() + next_interval < start_time + timeout:
-                if logger is not None and verbose:
-                    logger.debug(
-                        f"Operation not yet successful, Retrying in {next_interval} seconds."
-                        f" exc: {err_to_str(exc)}"
-                    )
-
-                time.sleep(next_interval)
-            else:
-                break
-
-    if logger is not None:
-        logger.warning(
-            f"Operation did not complete on time. last exception: {last_exception}"
-        )
-
-    raise Exception(
-        f"Failed to execute command by the given deadline."
-        f" last_exception: {last_exception},"
-        f" function_name: {_function.__name__},"
-        f" timeout: {timeout}"
-    ) from last_exception
+async def retry_until_successful_async(
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+):
+    """
+    Runs function with given *args and **kwargs.
+    Tries to run it until success or timeout reached (timeout is optional)
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
+    :param timeout: pass None if timeout is not wanted, number of seconds if it is
+    :param logger: a logger so we can log the failures
+    :param verbose: whether to log the failure on each retry
+    :param _function: function to run
+    :param args: functions args
+    :param kwargs: functions kwargs
+    :return: function result
+    """
+    return await AsyncRetryer(
+        backoff, timeout, logger, verbose, _function, *args, **kwargs
+    ).run()
 
 
 def get_ui_url(project, uid=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
-        url = "{}/{}/{}/jobs".format(
-            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-        )
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/jobs"
         if uid:
             url += f"/monitor/{uid}/overview"
     return url
@@ -1132,7 +1010,7 @@ def get_workflow_url(project, id=None):
 
 
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=typing.List[str]
+    exception: Exception, strings_list=list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1176,7 +1054,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None
@@ -1290,7 +1170,27 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     return time_obj.isoformat()
 
 
-def as_list(element: Any) -> List[Any]:
+def enrich_datetime_with_tz_info(timestamp_string):
+    if not timestamp_string:
+        return timestamp_string
+
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
+    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+
+
+def has_timezone(timestamp):
+    try:
+        dt = parser.parse(timestamp) if isinstance(timestamp, str) else timestamp
+
+        # Check if the parsed datetime object has timezone information
+        return dt.tzinfo is not None
+    except ValueError:
+        return False
+
+
+def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 
 
@@ -1309,7 +1209,20 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def fill_project_path_template(artifact_path, project):
+def template_artifact_path(artifact_path, project, run_uid="project"):
+    """
+    Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
+    If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
+    level artifact.
+    """
+    if not artifact_path:
+        return artifact_path
+    artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
+    artifact_path = _fill_project_path_template(artifact_path, project)
+    return artifact_path
+
+
+def _fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
     if artifact_path and (
@@ -1412,6 +1325,12 @@ def format_run(run: dict, with_project=False) -> dict:
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None
+
+    # pipelines are yet to populate the status or workflow has failed
+    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # set to unknown to ensure a status is returned
+    if run["status"] is None:
+        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
 
     return run
 
@@ -1524,6 +1443,24 @@ def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 
 
+def normalize_project_username(username: str):
+    username = username.lower()
+
+    # remove domain if exists
+    username = username.split("@")[0]
+
+    # replace non r'a-z0-9\-_' chars with empty string
+    username = inflection.parameterize(username, separator="")
+
+    # replace underscore with dashes
+    username = inflection.dasherize(username)
+
+    # ensure ends with alphanumeric
+    username = username.rstrip("-_")
+
+    return username
+
+
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
 # without importing fastapi in the client
 async def run_in_threadpool(func, *args, **kwargs):
@@ -1570,7 +1507,33 @@ def iterate_list_by_chunks(
 
 
 def to_parquet(df, *args, **kwargs):
+    import pyarrow.lib
+
     # version set for pyspark compatibility, and is needed as of pyarrow 13 due to timestamp incompatibility
     if "version" not in kwargs:
         kwargs["version"] = "2.4"
-    df.to_parquet(*args, **kwargs)
+    try:
+        df.to_parquet(*args, **kwargs)
+    except pyarrow.lib.ArrowInvalid as ex:
+        if re.match(
+            "Fragment would be written into [0-9]+. partitions. This exceeds the maximum of [0-9]+",
+            str(ex),
+        ):
+            raise mlrun.errors.MLRunRuntimeError(
+                """Maximum number of partitions exceeded. To resolve this, change
+partition granularity by setting time_partitioning_granularity or partition_cols, or disable partitioning altogether by
+setting partitioned=False"""
+            ) from ex
+        else:
+            raise ex
+
+
+def is_ecr_url(registry: str) -> bool:
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    return ".ecr." in registry and ".amazonaws.com" in registry
+
+
+def get_local_file_schema() -> list:
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
+    return ["file"] + list(string.ascii_lowercase)

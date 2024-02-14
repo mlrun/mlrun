@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC, abstractmethod
-from typing import Tuple, Union
+from typing import Union
 
 from sklearn.datasets import (
     make_classification,
@@ -50,8 +50,8 @@ class MLFunctions(ABC):
     def get_dataset(
         algorithm_functionality: AlgorithmFunctionality, for_training: bool
     ) -> Union[
-        Tuple[MLTypes.DatasetType, MLTypes.DatasetType],
-        Tuple[
+        tuple[MLTypes.DatasetType, MLTypes.DatasetType],
+        tuple[
             MLTypes.DatasetType,
             MLTypes.DatasetType,
             MLTypes.DatasetType,

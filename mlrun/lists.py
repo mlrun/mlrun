@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
-from typing import List
 
 import pandas as pd
 
@@ -119,7 +118,7 @@ class RunList(list):
         if not display:
             return html
 
-    def to_objects(self) -> List["mlrun.RunObject"]:
+    def to_objects(self) -> list["mlrun.RunObject"]:
         """Return a list of Run Objects"""
         return [mlrun.RunObject.from_dict(run) for run in self]
 
@@ -215,11 +214,11 @@ class ArtifactList(list):
         if not display:
             return html
 
-    def to_objects(self) -> List[Artifact]:
+    def to_objects(self) -> list[Artifact]:
         """return as a list of artifact objects"""
         return [dict_to_artifact(artifact) for artifact in self]
 
-    def dataitems(self) -> List["mlrun.DataItem"]:
+    def dataitems(self) -> list["mlrun.DataItem"]:
         """return as a list of DataItem objects"""
         dataitems = []
         for item in self:
@@ -227,9 +226,3 @@ class ArtifactList(list):
             if artifact:
                 dataitems.append(mlrun.get_dataitem(artifact))
         return dataitems
-
-
-class FunctionList(list):
-    def __init__(self):
-        pass
-        # TODO

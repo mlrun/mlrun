@@ -15,21 +15,47 @@
 import tarfile
 import tempfile
 import typing
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 import pandas as pd
+import semver
 
 import mlrun.datastore
 
 
-def store_path_to_spark(path):
+def store_path_to_spark(path, spark_options=None):
     schemas = ["redis://", "rediss://", "ds://"]
     if any(path.startswith(schema) for schema in schemas):
         url = urlparse(path)
         if url.path:
             path = url.path
+    elif path.startswith("gcs://"):
+        path = "gs:" + path[len("gcs:") :]
     elif path.startswith("v3io:///"):
         path = "v3io:" + path[len("v3io:/") :]
+    elif path.startswith("az://"):
+        account_key = None
+        path = "wasbs:" + path[len("az:") :]
+        prefix = "spark.hadoop.fs.azure.account.key."
+        if spark_options:
+            for key in spark_options:
+                if key.startswith(prefix):
+                    account_key = key[len(prefix) :]
+                    break
+        if account_key:
+            # transfer "wasb://basket/some/path" to wasb://basket@account_key.blob.core.windows.net/some/path
+            parsed_url = urlparse(path)
+            new_netloc = f"{parsed_url.hostname}@{account_key}"
+            path = urlunparse(
+                (
+                    parsed_url.scheme,
+                    new_netloc,
+                    parsed_url.path,
+                    parsed_url.params,
+                    parsed_url.query,
+                    parsed_url.fragment,
+                )
+            )
     elif path.startswith("s3://"):
         if path.startswith("s3:///"):
             # 's3:///' not supported since mlrun 0.9.0 should use s3:// instead
@@ -44,9 +70,7 @@ def store_path_to_spark(path):
     return path
 
 
-def parse_kafka_url(
-    url: str, bootstrap_servers: typing.List = None
-) -> typing.Tuple[str, typing.List]:
+def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
@@ -112,7 +136,16 @@ def filter_df_generator(
 def _execute_time_filter(
     df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
 ):
-    df[time_column] = pd.to_datetime(df[time_column])
+    if semver.parse(pd.__version__)["major"] >= 2:
+        # pandas 2 is too strict by default (ML-5629)
+        kwargs = {
+            "format": "mixed",
+            "yearfirst": True,
+        }
+    else:
+        # pandas 1 may fail on format "mixed" (ML-5661)
+        kwargs = {}
+    df[time_column] = pd.to_datetime(df[time_column], **kwargs)
     if start_time:
         df = df[df[time_column] > start_time]
     if end_time:
@@ -122,7 +155,7 @@ def _execute_time_filter(
 
 def select_columns_from_df(
     df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    columns: typing.List[str],
+    columns: list[str],
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not columns:
         return df
@@ -134,7 +167,7 @@ def select_columns_from_df(
 
 def select_columns_generator(
     dfs: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    columns: typing.List[str],
+    columns: list[str],
 ) -> typing.Iterator[pd.DataFrame]:
     for df in dfs:
         yield df[columns]
@@ -144,7 +177,7 @@ def _generate_sql_query_with_time_filter(
     table_name: str,
     engine: "sqlalchemy.engine.Engine",  # noqa: F821,
     time_column: str,
-    parse_dates: typing.List[str],
+    parse_dates: list[str],
     start_time: pd.Timestamp,
     end_time: pd.Timestamp,
 ):

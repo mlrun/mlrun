@@ -32,10 +32,10 @@ import server.api.db.sqldb.models
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
+from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
 from mlrun.utils import (
-    fill_artifact_object_hash,
     is_legacy_artifact,
     is_link_artifact,
     logger,
@@ -135,7 +135,7 @@ def update_default_configuration_data():
 def _resolve_needed_operations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
     force_from_scratch: bool = False,
-) -> typing.Tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool]:
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
     )
@@ -463,7 +463,7 @@ def _migrate_artifacts_table_v2(
     ).count()
 
     if total_artifacts_count == 0:
-        # no artifacts to migrate
+        logger.info("No v1 artifacts in the system, skipping migration")
         return
 
     logger.info(
@@ -577,21 +577,20 @@ def _migrate_artifacts_batch(
 
         # iteration - the artifact's iteration
         iteration = artifact_metadata.get("iter", None)
-        if iteration is not None:
-            new_artifact.iteration = int(iteration)
+        new_artifact.iteration = int(iteration) if iteration else 0
 
         # best iteration
         # if iteration == 0 it means it is from a single run since link artifacts were already
         # handled above - so we can set is as best iteration.
         # otherwise set to false, the best iteration artifact will be updated later
-        if iteration is not None and iteration == 0:
+        if new_artifact.iteration == 0:
             new_artifact.best_iteration = True
         else:
             new_artifact.best_iteration = False
 
         # uid - calculate as the hash of the artifact object
         uid = fill_artifact_object_hash(
-            artifact_dict, iteration, new_artifact.producer_id
+            artifact_dict, new_artifact.iteration, new_artifact.producer_id
         )
         new_artifact.uid = uid
 
@@ -774,9 +773,7 @@ def _get_migration_state():
     If the state file does not exist, return 0.
     """
     try:
-        with open(
-            config.artifacts.artifact_migration_state_file_path, "r"
-        ) as state_file:
+        with open(config.artifacts.artifact_migration_state_file_path) as state_file:
             state = json.load(state_file)
             return state.get("last_migrated_id", 0), set(
                 state.get("link_artifact_ids", [])

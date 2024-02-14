@@ -14,7 +14,7 @@
 #
 import json
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
@@ -174,12 +174,12 @@ async def list_model_endpoints(
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
-    metrics: List[str] = Query([], alias="metric"),
+    metrics: list[str] = Query([], alias="metric"),
     top_level: bool = Query(False, alias="top-level"),
-    uids: List[str] = Query(None, alias="uid"),
+    uids: list[str] = Query(None, alias="uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
@@ -268,7 +268,7 @@ async def get_model_endpoint(
     endpoint_id: str,
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
-    metrics: List[str] = Query([], alias="metric"),
+    metrics: list[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request

@@ -16,7 +16,7 @@ import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
 
 
-def handler(context: mlrun.run.MLClientCtx):
+def handler(context: mlrun.run.MLClientCtx) -> None:
     """
     Run model monitoring application processor
 
@@ -27,5 +27,3 @@ def handler(context: mlrun.run.MLClientCtx):
         project=context.project,
     )
     monitor_app_controller.run()
-    if monitor_app_controller.endpoints_exceptions:
-        context.logger.error(monitor_app_controller.endpoints_exceptions)

@@ -28,7 +28,7 @@ class ClientSpec(pydantic.BaseModel):
     mpijob_crd_version: typing.Optional[str]
     ui_url: typing.Optional[str]
     artifact_path: typing.Optional[str]
-    feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
+    feature_store_data_prefixes: typing.Optional[dict[str, str]]
     spark_app_image: typing.Optional[str]
     spark_app_image_tag: typing.Optional[str]
     spark_history_server_path: typing.Optional[str]
@@ -58,8 +58,6 @@ class ClientSpec(pydantic.BaseModel):
     sql_url: typing.Optional[str]
     model_endpoint_monitoring_store_type: typing.Optional[str]
     model_endpoint_monitoring_endpoint_store_connection: typing.Optional[str]
-    # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
-    ce_mode: typing.Optional[str]
     ce: typing.Optional[dict]
     # not passing them as one object as it possible client user would like to override only one of the params
     calculate_artifact_hash: typing.Optional[str]

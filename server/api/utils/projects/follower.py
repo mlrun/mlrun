@@ -31,7 +31,9 @@ import mlrun.utils.singleton
 import server.api.crud
 import server.api.db.session
 import server.api.utils.auth.verifier
+import server.api.utils.background_tasks
 import server.api.utils.clients.iguazio
+import server.api.utils.helpers
 import server.api.utils.periodic
 import server.api.utils.projects.member as project_member
 import server.api.utils.projects.remotes.leader
@@ -46,6 +48,10 @@ class Member(
 ):
     def initialize(self):
         logger.info("Initializing projects follower")
+        self._is_chief = (
+            mlrun.mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        )
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
         self._leader_client: server.api.utils.projects.remotes.leader.Member
@@ -65,32 +71,24 @@ class Member(
         )
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-        try:
-            # Basically the delete operation in our projects mechanism is fully consistent, meaning the leader won't
-            # remove the project from its persistency (the source of truth) until it was successfully removed from all
-            # followers. Therefore, when syncing projects from the leader, we don't need to search for the deletions
-            # that may happen without us knowing about it (therefore full_sync by default is false). When we
-            # introduced the chief/worker mechanism, we needed to change the follower to keep its projects in the DB
-            # instead of in cache. On the switch, since we were using cache and the projects table in the DB was not
-            # maintained, we know we may have projects that shouldn't be there anymore, ideally we would have trigger
-            # the full sync only once on the switch, but since we don't have a good heuristic to identify the switch
-            # we're doing a full_sync on every initialization
-            full_sync = (
-                mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.common.schemas.ClusterizationRole.chief
-            )
-            self._sync_projects(full_sync=full_sync)
-        except Exception as exc:
-            logger.warning(
-                "Initial projects sync failed",
-                exc=err_to_str(exc),
-                traceback=traceback.format_exc(),
-            )
-        self._start_periodic_sync()
+        if self._is_chief:
+            try:
+                # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
+                # chief-worker model.
+                # TODO: remove full_sync=True in 1.7.0 if no issues arise
+                self._sync_projects(full_sync=True)
+            except Exception as exc:
+                logger.warning(
+                    "Initial projects sync failed",
+                    exc=err_to_str(exc),
+                    traceback=traceback.format_exc(),
+                )
+            self._start_periodic_sync()
 
     def shutdown(self):
         logger.info("Shutting down projects leader")
-        self._stop_periodic_sync()
+        if self._is_chief:
+            self._stop_periodic_sync()
 
     def create_project(
         self,
@@ -100,8 +98,10 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
@@ -140,8 +140,10 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
@@ -169,8 +171,10 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if self._is_request_from_leader(projects_role):
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:
@@ -196,10 +200,13 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
+        background_task_name: str = None,
     ) -> bool:
-        if self._is_request_from_leader(projects_role):
+        if server.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             server.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy
+                db_session, name, deletion_strategy, auth_info, background_task_name
             )
         else:
             return self._leader_client.delete_project(
@@ -230,16 +237,18 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.schemas.ProjectsFormat.leader
-            and not self._is_request_from_leader(projects_role)
+            and not server.api.utils.helpers.is_request_from_leader(
+                projects_role, leader_name=self._leader_name
+            )
         ):
             raise mlrun.errors.MLRunAccessDeniedError(
                 "Leader format is allowed only to the leader"
@@ -260,11 +269,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await server.api.crud.Projects().list_project_summaries(
             db_session, owner, labels, state, names
@@ -278,6 +287,7 @@ class Member(
     ) -> mlrun.common.schemas.ProjectSummary:
         return await server.api.crud.Projects().get_project_summary(db_session, name)
 
+    @server.api.utils.helpers.ensure_running_on_chief
     def _start_periodic_sync(self):
         # the > 0 condition is to allow ourselves to disable the sync from configuration
         if self._periodic_sync_interval_seconds > 0:
@@ -292,9 +302,11 @@ class Member(
                 self._sync_projects,
             )
 
+    @server.api.utils.helpers.ensure_running_on_chief
     def _stop_periodic_sync(self):
         server.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
+    @server.api.utils.helpers.ensure_running_on_chief
     def _sync_projects(self, full_sync=False):
         """
         :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
@@ -333,13 +345,16 @@ class Member(
     def _store_projects_from_leader(self, db_session, db_projects, leader_projects):
         db_projects_names = [project.metadata.name for project in db_projects.projects]
 
-        # Don't add projects in non-terminal state if they didn't exist before to prevent race conditions
+        # Don't add projects in non-terminal state if they didn't exist before, or projects that are currently being
+        # deleted to prevent race conditions
         filtered_projects = []
         for leader_project in leader_projects:
             if (
                 leader_project.status.state
                 not in mlrun.common.schemas.ProjectState.terminal_states()
                 and leader_project.metadata.name not in db_projects_names
+            ) or self._project_deletion_background_task_exists(
+                leader_project.metadata.name
             ):
                 continue
             filtered_projects.append(leader_project)
@@ -350,6 +365,25 @@ class Member(
             server.api.crud.Projects().store_project(
                 db_session, project.metadata.name, project
             )
+
+    @staticmethod
+    def _project_deletion_background_task_exists(project_name):
+        background_task_kinds = [
+            task_format.format(project_name)
+            for task_format in [
+                server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper,
+                server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion,
+            ]
+        ]
+        return any(
+            [
+                server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+                    background_task_kind,
+                    raise_on_not_found=False,
+                )
+                for background_task_kind in background_task_kinds
+            ]
+        )
 
     def _archive_projects_missing_from_leader(
         self, db_session, db_projects, leader_projects
@@ -393,22 +427,15 @@ class Member(
                 latest_updated_at = epoch
             self._synced_until_datetime = latest_updated_at
 
-    def _is_request_from_leader(
-        self, projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole]
-    ) -> bool:
-        if projects_role and projects_role.value == self._leader_name:
-            return True
-        return False
-
     @staticmethod
     def _is_project_matching_labels(
-        labels: typing.List[str], project: mlrun.common.schemas.Project
+        labels: list[str], project: mlrun.common.schemas.Project
     ):
         if not project.metadata.labels:
             return False
         for label in labels:
             if "=" in label:
-                name, value = [v.strip() for v in label.split("=", 1)]
+                name, value = (v.strip() for v in label.split("=", 1))
                 if name not in project.metadata.labels:
                     return False
                 return value == project.metadata.labels[name]

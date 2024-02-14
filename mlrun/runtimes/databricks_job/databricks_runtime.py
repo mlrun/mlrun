@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from ast import FunctionDef, parse, unparse
 from base64 import b64decode, b64encode
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import mlrun
+import mlrun.runtimes.kubejob as kubejob
+import mlrun.runtimes.pod as pod
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.model import HyperParamOptions, RunObject
-from mlrun.runtimes.kubejob import KubejobRuntime
 
 
 def get_log_artifacts_code(runobj: RunObject, task_parameters: dict):
@@ -52,9 +52,82 @@ def replace_log_artifact_function(code: str, log_artifacts_code: str):
     return unparse(parsed_code), is_replaced
 
 
-class DatabricksRuntime(KubejobRuntime):
+class DatabricksSpec(pod.KubeResourceSpec):
+    def __init__(
+        self,
+        command=None,
+        args=None,
+        image=None,
+        mode=None,
+        volumes=None,
+        volume_mounts=None,
+        env=None,
+        resources=None,
+        default_handler=None,
+        pythonpath=None,
+        entry_points=None,
+        description=None,
+        workdir=None,
+        replicas=None,
+        image_pull_policy=None,
+        service_account=None,
+        build=None,
+        image_pull_secret=None,
+        node_name=None,
+        node_selector=None,
+        affinity=None,
+        disable_auto_mount=False,
+        priority_class_name=None,
+        tolerations=None,
+        preemption_mode=None,
+        security_context=None,
+        clone_target_dir=None,
+        state_thresholds=None,
+    ):
+        super().__init__(
+            command=command,
+            image=image,
+            mode=mode,
+            build=build,
+            entry_points=entry_points,
+            description=description,
+            workdir=workdir,
+            default_handler=default_handler,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+            env=env,
+            resources=resources,
+            replicas=replicas,
+            image_pull_policy=image_pull_policy,
+            service_account=service_account,
+            image_pull_secret=image_pull_secret,
+            args=args,
+            node_name=node_name,
+            node_selector=node_selector,
+            affinity=affinity,
+            priority_class_name=priority_class_name,
+            disable_auto_mount=disable_auto_mount,
+            pythonpath=pythonpath,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
+            security_context=security_context,
+            clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
+        )
+        self._termination_grace_period_seconds = 60
+
+
+class DatabricksRuntime(kubejob.KubejobRuntime):
     kind = "databricks"
     _is_remote = True
+
+    @property
+    def spec(self) -> DatabricksSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", DatabricksSpec)
 
     @staticmethod
     def _verify_returns(returns):
@@ -123,14 +196,13 @@ class DatabricksRuntime(KubejobRuntime):
             if value:
                 task_parameters[key] = value  # in order to handle reruns.
         runspec.spec.parameters["task_parameters"] = task_parameters
-        current_file = os.path.abspath(__file__)
-        current_dir = os.path.dirname(current_file)
-        databricks_runtime_wrap_path = os.path.join(
-            current_dir, "databricks_wrapper.py"
-        )
-        with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
-            wrap_code = databricks_runtime_wrap_file.read()
-            wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
+        wrap_code = b"""
+from mlrun.runtimes.databricks_job import databricks_wrapper
+
+def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
+        databricks_wrapper.run_mlrun_databricks_job(context, task_parameters, **kwargs)
+"""
+        wrap_code = b64encode(wrap_code).decode("utf-8")
         self.spec.build.functionSourceCode = wrap_code
         runspec.spec.handler = "run_mlrun_databricks_job"
 
@@ -143,23 +215,23 @@ class DatabricksRuntime(KubejobRuntime):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[Dict[str, list]] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if local:

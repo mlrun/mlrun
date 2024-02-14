@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import collections
 import datetime
 import json
 import os
 import typing
 
-import pandas as pd
 import storey
 
 import mlrun
@@ -27,6 +26,7 @@ import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.prometheus
+import mlrun.serving.states
 import mlrun.utils
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -49,7 +49,7 @@ class EventStreamProcessor:
         parquet_batching_timeout_secs: int,
         parquet_target: str,
         sample_window: int = 10,
-        aggregate_windows: typing.Optional[typing.List[str]] = None,
+        aggregate_windows: typing.Optional[list[str]] = None,
         aggregate_period: str = "30s",
         model_monitoring_access_key: str = None,
     ):
@@ -133,7 +133,7 @@ class EventStreamProcessor:
         self.tsdb_batching_max_events = tsdb_batching_max_events
         self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
 
-    def apply_monitoring_serving_graph(self, fn):
+    def apply_monitoring_serving_graph(self, fn: mlrun.runtimes.ServingRuntime) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 20 steps
         of different operations that are executed on the events from the model server. Each event has
@@ -162,26 +162,32 @@ class EventStreamProcessor:
         :param fn: A serving function.
         """
 
-        graph = fn.set_topology("flow")
+        graph = typing.cast(
+            mlrun.serving.states.RootFlowStep,
+            fn.set_topology(mlrun.serving.states.StepKinds.flow),
+        )
 
         # Step 1 - Event routing based on the provided path
         def apply_event_routing():
-            graph.add_step(
-                "EventRouting",
-                full_event=True,
-                project=self.project,
+            typing.cast(
+                mlrun.serving.TaskStep,
+                graph.add_step(
+                    "EventRouting",
+                    full_event=True,
+                    project=self.project,
+                ),
             ).respond()
 
         apply_event_routing()
 
-        # Step 2 - Filter out events with no '-' in path which indicates that the event is supposed to be processed
+        # Step 2 - Filter out events with '-' in the path basename from going forward
         # through the next steps of the stream graph
         def apply_storey_filter_stream_events():
             # Remove none values from each event
             graph.add_step(
                 "storey.Filter",
                 "filter_stream_event",
-                _fn="('-' not in event.path)",
+                _fn="('-' not in event.path.split('/')[-1])",
                 full_event=True,
             )
 
@@ -260,30 +266,18 @@ class EventStreamProcessor:
 
         apply_storey_aggregations()
 
-        # Step 8 - Emits the event in window size of events based on sample_window size (10 by default)
-        def apply_storey_sample_window():
-            graph.add_step(
-                "storey.steps.SampleWindow",
-                name="sample",
-                after="Rename",
-                window_size=self.sample_window,
-                key=EventFieldType.ENDPOINT_ID,
-            )
-
-        apply_storey_sample_window()
-
-        # Steps 9-11 - KV/SQL branch
-        # Step 9 - Filter relevant keys from the event before writing the data into the database table
+        # Steps 8-10 - KV/SQL branch
+        # Step 8 - Filter relevant keys from the event before writing the data into the database table
         def apply_process_before_endpoint_update():
             graph.add_step(
                 "ProcessBeforeEndpointUpdate",
                 name="ProcessBeforeEndpointUpdate",
-                after="sample",
+                after="Rename",
             )
 
         apply_process_before_endpoint_update()
 
-        # Step 10 - Write the filtered event to KV/SQL table. At this point, the serving graph updates the stats
+        # Step 9 - Write the filtered event to KV/SQL table. At this point, the serving graph updates the stats
         # about average latency and the amount of predictions over time
         def apply_update_endpoint():
             graph.add_step(
@@ -296,7 +290,7 @@ class EventStreamProcessor:
 
         apply_update_endpoint()
 
-        # Step 11 (only for KV target) - Apply infer_schema on the model endpoints table for generating schema file
+        # Step 10 (only for KV target) - Apply infer_schema on the model endpoints table for generating schema file
         # which will be used by Grafana monitoring dashboards
         def apply_infer_schema():
             graph.add_step(
@@ -310,6 +304,18 @@ class EventStreamProcessor:
 
         if self.model_endpoint_store_target == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
+
+        # Step 11 - Emits the event in window size of events based on sample_window size (10 by default)
+        def apply_storey_sample_window():
+            graph.add_step(
+                "storey.steps.SampleWindow",
+                name="sample",
+                after="Rename",
+                window_size=self.sample_window,
+                key=EventFieldType.ENDPOINT_ID,
+            )
+
+        apply_storey_sample_window()
 
         # Steps 12-19 - TSDB branch (skip to Prometheus if in CE env)
         # Steps 20-21 - Prometheus branch
@@ -522,10 +528,6 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
 
         # Getting event timestamp and endpoint_id
         base_event = {k: event[k] for k in base_fields}
-        base_event[EventFieldType.TIMESTAMP] = pd.to_datetime(
-            base_event[EventFieldType.TIMESTAMP],
-            format=EventFieldType.TIME_FORMAT,
-        )
 
         # base_metrics includes the stats about the average latency and the amount of predictions over time
         base_metrics = {
@@ -627,14 +629,14 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         self.project: str = project
 
         # First and last requests timestamps (value) of each endpoint (key)
-        self.first_request: typing.Dict[str, str] = dict()
-        self.last_request: typing.Dict[str, str] = dict()
+        self.first_request: dict[str, str] = dict()
+        self.last_request: dict[str, str] = dict()
 
         # Number of errors (value) per endpoint (key)
-        self.error_count: typing.Dict[str, int] = collections.defaultdict(int)
+        self.error_count: dict[str, int] = collections.defaultdict(int)
 
         # Set of endpoints in the current events
-        self.endpoints: typing.Set[str] = set()
+        self.endpoints: set[str] = set()
 
     def do(self, full_event):
         event = full_event.body
@@ -736,8 +738,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
             return None
 
-        # Adjust timestamp format
-        timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
+        # Convert timestamp to a datetime object
+        timestamp = datetime.datetime.fromisoformat(timestamp)
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
@@ -803,8 +805,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
     @staticmethod
     def is_list_of_numerics(
-        field: typing.List[typing.Union[int, float, dict, list]],
-        dict_path: typing.List[str],
+        field: list[typing.Union[int, float, dict, list]],
+        dict_path: list[str],
     ):
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
@@ -847,7 +849,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         endpoint_id: str,
         validation_function,
         field: typing.Any,
-        dict_path: typing.List[str],
+        dict_path: list[str],
     ):
         if validation_function(field, dict_path):
             return True
@@ -855,7 +857,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         return False
 
 
-def is_not_none(field: typing.Any, dict_path: typing.List[str]):
+def is_not_none(field: typing.Any, dict_path: list[str]):
     if field is not None:
         return True
     logger.error(
@@ -944,7 +946,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 return self.label_columns[endpoint_id]
         return None
 
-    def do(self, event: typing.Dict):
+    def do(self, event: dict):
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         # Get feature names and label columns
@@ -1043,9 +1045,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
     @staticmethod
     def _map_dictionary_values(
-        event: typing.Dict,
-        named_iters: typing.List,
-        values_iters: typing.List,
+        event: dict,
+        named_iters: list,
+        values_iters: list,
         mapping_dictionary: str,
     ):
         """Adding name-value pairs to event dictionary based on two provided lists of names and values. These pairs
@@ -1080,7 +1082,7 @@ class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
         self.project = project
         self.model_endpoint_store_target = model_endpoint_store_target
 
-    def do(self, event: typing.Dict):
+    def do(self, event: dict):
         update_endpoint_record(
             project=self.project,
             endpoint_id=event.pop(EventFieldType.ENDPOINT_ID),
@@ -1115,7 +1117,7 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.table = table
         self.keys = set()
 
-    def do(self, event: typing.Dict):
+    def do(self, event: dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)

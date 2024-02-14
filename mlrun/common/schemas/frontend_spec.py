@@ -52,23 +52,21 @@ class FeatureFlags(pydantic.BaseModel):
 
 class FrontendSpec(pydantic.BaseModel):
     jobs_dashboard_url: typing.Optional[str]
-    abortable_function_kinds: typing.List[str] = []
+    model_monitoring_dashboard_url: typing.Optional[str]
+    abortable_function_kinds: list[str] = []
     feature_flags: FeatureFlags
     default_function_priority_class_name: typing.Optional[str]
-    valid_function_priority_class_names: typing.List[str] = []
-    default_function_image_by_kind: typing.Dict[str, str] = {}
+    valid_function_priority_class_names: list[str] = []
+    default_function_image_by_kind: dict[str, str] = {}
     function_deployment_target_image_template: typing.Optional[str]
     function_deployment_target_image_name_prefix_template: str
-    function_deployment_target_image_registries_to_enforce_prefix: typing.List[str] = []
+    function_deployment_target_image_registries_to_enforce_prefix: list[str] = []
     function_deployment_mlrun_requirement: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
-    auto_mount_params: typing.Dict[str, str] = {}
+    auto_mount_params: dict[str, str] = {}
     default_artifact_path: str
     default_function_pod_resources: Resources = Resources()
     default_function_preemption_mode: str
-    feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
-    allowed_artifact_path_prefixes_list: typing.List[str]
-
-    # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
-    ce_mode: typing.Optional[str]
+    feature_store_data_prefixes: typing.Optional[dict[str, str]]
+    allowed_artifact_path_prefixes_list: list[str]
     ce: typing.Optional[dict]

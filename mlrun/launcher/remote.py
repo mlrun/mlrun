@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
+import pandas as pd
 import requests
 
 import mlrun.common.schemas.schedule
@@ -39,7 +40,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -47,16 +48,16 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: Dict[str, list] = None,
+        hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
         self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
@@ -180,3 +181,14 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             resp = runtime._get_db_run(run)
 
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)
+
+    @classmethod
+    def _validate_run_single_param(cls, param_name, param_value):
+        if isinstance(param_value, pd.DataFrame):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"Parameter '{param_name}' has an unsupported value of type"
+                f" 'pandas.DataFrame' in remote execution."
+            )
+        super()._validate_run_single_param(
+            param_name=param_name, param_value=param_value
+        )

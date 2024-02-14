@@ -38,7 +38,7 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_filename = here / "test.txt"
-with open(test_filename, "r") as f:
+with open(test_filename) as f:
     test_string = f.read()
 
 # Used to test dataframe functionality (will be saved as csv)
@@ -96,7 +96,7 @@ class TestAwsS3:
         )
         profile = DatastoreProfileS3(
             name="s3ds_profile",
-            access_key=self._access_key_id,
+            access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(profile)

@@ -21,6 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.feature_store.feature_set
 import tests.api.api.utils
 from mlrun.common.schemas.feature_store import (
     FeatureSet,
@@ -727,6 +728,51 @@ def test_features_list(db: Session, client: TestClient) -> None:
     assert (
         features_response["features"][1]["feature_set_digest"]["metadata"]["tag"] == tag
     )
+
+
+def test_feature_set_add_feature_labels(db: Session, client: TestClient) -> None:
+    project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+    tag = "my_tag1"
+    name = "feature_set_test"
+    feature_set = _generate_feature_set(name)
+    feature_set["spec"]["features"] = [
+        {"name": "feature1", "value_type": "str"},
+        {"name": "feature2", "value_type": "float"},
+    ]
+    feature_set["metadata"]["tag"] = tag
+    feature_set_response = _store_and_assert_feature_set(
+        client, project_name, name, tag, feature_set
+    )
+    feature_set_obj = mlrun.feature_store.feature_set.FeatureSet.from_dict(
+        feature_set_response
+    )
+
+    # validate the features are stored
+    _list_and_assert_objects(client, "features", project_name, "", 2)
+
+    label_key = "some-key"
+    label_value = "some-value"
+
+    # add the same feature but with labels
+    feature_set_obj.add_feature(
+        name="feature1",
+        feature=mlrun.feature_store.Feature(
+            value_type="str",
+            description="some description",
+            labels={
+                label_key: label_value,
+            },
+        ),
+    )
+
+    feature_set = feature_set_obj.to_dict()
+    # bypass some DB bug, same as done in FeatureSet.save()
+    feature_set["spec"]["features"] = feature_set["spec"].get("features", [])
+    _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
+
+    # validate the feature was stored with the labels
+    _list_and_assert_objects(client, "features", project_name, f"label={label_key}", 1)
 
 
 def test_no_feature_leftovers_when_storing_feature_sets(

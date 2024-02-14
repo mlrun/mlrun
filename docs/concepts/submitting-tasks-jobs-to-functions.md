@@ -10,8 +10,9 @@
 
 Use the {py:meth}`~mlrun.projects.run_function` method for invoking a job over MLRun batch functions. 
 The `run_function` method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
-Alternatively, you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
+Alternatively, you can pass a **`Task`** object that holds all of the 
 parameters plus the advanced options. 
+See: {py:func}`~mlrun.model.new_task`, and the example in [run_function](../projects/run-build-deploy.html#run-function).
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You
  need to specify which handler you intend to call in the run command. 
@@ -31,15 +32,13 @@ data movement, tracking, and security in an optimal way.  Read more about [data 
 
 When a type hint is available for an argument, MLRun automatically parses the DataItem to the hinted type (when the hinted type is supported).
 
-You can use `run_function` as a `project` methods, or as global (`mlrun.`) methods. For example:
+Use `run_function` as a `project` methods. For example:
 
     # run the "train" function in myproject
     run_results = myproject.run_function("train", inputs={"data": data_url})  
     
-    # run the "train" function in the current/active project (or in a pipeline)
-    run_results = mlrun.run_function("train", inputs={"data": data_url})  
-    
-The first parameter in `run_function` is the function name (in the project), or it can be a function object if you want to 
+   
+The first parameter in `run_function` is either the function name (in the project), or a function object if you want to 
 use functions that you imported/created ad hoc, or modify a function spec, for example:
 
     run_results = project.run_function(fn, params={"label_column": "label"}, inputs={'data': data_url})

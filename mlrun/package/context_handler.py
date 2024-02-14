@@ -15,9 +15,8 @@
 import inspect
 import os
 from collections import OrderedDict
-from typing import Dict, List, Union
+from typing import Union
 
-from mlrun import mlconf
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
@@ -182,7 +181,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: List[Union[Dict[str, str], str, None]],
+        log_hints: list[Union[dict[str, str], str, None]],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -194,7 +193,7 @@ class ContextHandler:
         :param log_hints: List of log hints (logging configurations) to use.
         """
         # Pack and log only from the logging worker (in case of multi-workers job like OpenMPI):
-        if self._is_logging_worker():
+        if self._context.is_logging_worker():
             # Verify the outputs and log hints are the same length:
             self._validate_objects_to_log_hints_length(
                 outputs=outputs, log_hints=log_hints
@@ -230,7 +229,7 @@ class ContextHandler:
         # Clear packagers outputs:
         self._packagers_manager.clear_packagers_outputs()
 
-    def set_labels(self, labels: Dict[str, str]):
+    def set_labels(self, labels: dict[str, str]):
         """
         Set the given labels with the stored context.
 
@@ -240,7 +239,7 @@ class ContextHandler:
             self._context.set_label(key=key, value=value)
 
     def _collect_packagers(
-        self, packagers: List[str], is_mandatory: bool, is_custom_packagers: bool
+        self, packagers: list[str], is_mandatory: bool, is_custom_packagers: bool
     ):
         """
         Collect packagers with the stored manager. The collection can ignore errors raised by setting the mandatory flag
@@ -308,27 +307,10 @@ class ContextHandler:
                 is_custom_packagers=False,
             )
 
-    def _is_logging_worker(self):
-        """
-        Check if the current worker is the logging worker.
-
-        :return: True if the context belongs to the logging worker and False otherwise.
-        """
-        # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
-        # configuration:
-        if self._context.labels.get("kind", "job") == "mpijob":
-            # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
-            # the following template: ...-worker-<rank>
-            rank = int(self._context.labels["host"].rsplit("-", 1)[1])
-            return rank == mlconf.packagers.logging_worker
-
-        # Single worker is always the logging worker:
-        return True
-
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: List[Union[Dict[str, str], str, None]],
+        log_hints: list[Union[dict[str, str], str, None]],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import sys
 import typing
@@ -106,9 +105,15 @@ def _get_edges(hist: Histogram) -> BinEdges:
 
 
 def pad_hist(hist: Histogram) -> None:
-    """Add [-inf, x_0] and [x_n, inf] bins to the histogram inplace"""
+    """
+    Add [-inf, x_0] and [x_n, inf] bins to the histogram inplace unless present
+    """
     counts = _get_counts(hist)
     edges = _get_edges(hist)
+
+    is_padded = edges[0] == -_MAX_FLOAT and edges[-1] == _MAX_FLOAT
+    if is_padded:
+        return
 
     counts.insert(0, 0)
     edges.insert(0, -_MAX_FLOAT)
@@ -122,5 +127,7 @@ def pad_features_hist(feature_stats: FeatureStats) -> None:
     Given a feature statistics dictionary, pad the histograms with edges bins
     inplace to cover input statistics from -inf to inf.
     """
+    hist_key = "hist"
     for feature in feature_stats.values():
-        pad_hist(Histogram(feature["hist"]))
+        if hist_key in feature:
+            pad_hist(Histogram(feature[hist_key]))

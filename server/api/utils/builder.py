@@ -44,9 +44,9 @@ def make_dockerfile(
     extra: str = "",
     user_unix_id: int = None,
     enriched_group_id: int = None,
-    builder_env: typing.List[client.V1EnvVar] = None,
+    builder_env: list[client.V1EnvVar] = None,
     extra_args: str = "",
-    project_secrets: typing.List[client.V1EnvVar] = None,
+    project_secrets: list[client.V1EnvVar] = None,
 ):
     """
     Generates the content of a Dockerfile for building a container image.
@@ -157,6 +157,7 @@ def make_kaniko_pod(
     runtime_spec=None,
     registry=None,
     extra_args="",
+    extra_labels={},
     project_secrets=None,
 ):
     extra_runtime_spec = {}
@@ -238,6 +239,7 @@ def make_kaniko_pod(
         project=project,
         default_pod_spec_attributes=extra_runtime_spec,
         resources=resources,
+        labels=extra_labels,
     )
     envs = (builder_env or []) + (project_secrets or [])
     kpod.env = envs or None
@@ -276,7 +278,7 @@ def make_kaniko_pod(
             commands.append("echo ${CODE} | base64 -d > /empty/" + name)
         if requirements:
             # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
-            requirements_file_content = "{0}\n".format("\n".join(requirements))
+            requirements_file_content = "{}\n".format("\n".join(requirements))
             env["REQUIREMENTS"] = b64encode(
                 requirements_file_content.encode("utf-8")
             ).decode("utf-8")
@@ -293,8 +295,7 @@ def make_kaniko_pod(
         )
 
     # when using ECR we need init container to create the image repository
-    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    if ".ecr." in registry and ".amazonaws.com" in registry:
+    if mlrun.utils.helpers.is_ecr_url(registry):
         end = dest.find(":")
         if end == -1:
             end = len(dest)
@@ -346,7 +347,7 @@ def configure_kaniko_ecr_init_container(
 
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
-        aws_credentials_file_env_value = "/tmp/credentials"
+        aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
         init_container_env[
@@ -362,7 +363,7 @@ def configure_kaniko_ecr_init_container(
         # mount the AWS credentials secret
         kpod.mount_secret(
             config.httpdb.builder.docker_registry_secret,
-            path="/tmp",
+            path="/tmp/aws",
         )
 
     kpod.append_init_container(
@@ -509,6 +510,7 @@ def build_image(
         extra_args=extra_args,
     )
 
+    label_prefix = mlrun.runtimes.utils.mlrun_key
     kpod = make_kaniko_pod(
         project,
         context,
@@ -526,6 +528,11 @@ def build_image(
         runtime_spec=runtime_spec,
         registry=registry,
         extra_args=extra_args,
+        extra_labels={
+            label_prefix + "name": name,
+            label_prefix + "function": runtime.metadata.name,
+            label_prefix + "tag": runtime.metadata.tag or "latest",
+        },
     )
 
     if to_mount:
@@ -606,7 +613,7 @@ def resolve_upgrade_pip_command(commands=None):
 
 def build_runtime(
     auth_info: mlrun.common.schemas.AuthInfo,
-    runtime,
+    runtime: mlrun.runtimes.BaseRuntime,
     with_mlrun=True,
     mlrun_version_specifier=None,
     skip_deployed=False,
@@ -622,7 +629,7 @@ def build_runtime(
     if skip_deployed and runtime.is_deployed():
         mlrun.utils.logger.info(
             "Skipping build, runtime is already deployed",
-            runtime_uid=runtime.metadata.uid,
+            runtime_name=runtime.metadata.name,
             project=project,
         )
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
@@ -795,8 +802,8 @@ def resolve_image_target(image_target: str, registry: str = None) -> str:
 
 
 def _generate_builder_env(
-    project: str, builder_env: typing.Dict
-) -> (typing.List[client.V1EnvVar], typing.List[client.V1EnvVar]):
+    project: str, builder_env: dict
+) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
     k8s = server.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
@@ -861,8 +868,8 @@ def _parse_extra_args_for_dockerfile(extra_args: str) -> dict:
 
 
 def _resolve_build_requirements(
-    requirements: typing.Union[typing.List, str],
-    commands: typing.List,
+    requirements: typing.Union[list, str],
+    commands: list,
     with_mlrun: bool,
     mlrun_version_specifier: typing.Optional[str],
     client_version: typing.Optional[str],

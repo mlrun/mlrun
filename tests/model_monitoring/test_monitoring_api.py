@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+from unittest.mock import Mock, patch
+
 import mlrun.model_monitoring.api
+from mlrun.db import RunDBInterface
+from mlrun.model_monitoring import ModelEndpoint
 
 
 def test_read_dataset_as_dataframe():
@@ -36,3 +41,27 @@ def test_read_dataset_as_dataframe():
     )
     feature_columns.remove("feature_2")
     assert list(df.columns) == feature_columns
+
+
+def test_record_result_updates_last_request() -> None:
+    db_mock = Mock(spec=RunDBInterface)
+    datetime_mock = datetime.datetime(
+        2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.timezone.utc
+    )
+    with patch("mlrun.model_monitoring.api.datetime_now", return_value=datetime_mock):
+        with patch("mlrun.model_monitoring.api.mlrun.get_run_db", return_value=db_mock):
+            with patch(
+                "mlrun.model_monitoring.api.get_or_create_model_endpoint",
+                spec=ModelEndpoint,
+            ):
+                mlrun.model_monitoring.api.record_results(
+                    project="some-project",
+                    model_path="path/to/model",
+                    model_endpoint_name="my-endpoint",
+                )
+
+    db_mock.patch_model_endpoint.assert_called_once()
+    assert (
+        db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
+        == datetime_mock.isoformat()
+    ), "last_request attribute of the model endpoint was not updated as expected"

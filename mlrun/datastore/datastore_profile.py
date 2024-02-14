@@ -30,7 +30,10 @@ from ..secrets import get_secret_or_env
 class DatastoreProfile(pydantic.BaseModel):
     type: str
     name: str
-    _private_attributes: typing.List = ()
+    _private_attributes: list = ()
+
+    class Config:
+        extra = pydantic.Extra.forbid
 
     @pydantic.validator("name")
     def lower_case(cls, v):
@@ -78,8 +81,8 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     _private_attributes = "kwargs_private"
     bootstrap_servers: str
     topic: str
-    kwargs_public: typing.Optional[typing.Dict]
-    kwargs_private: typing.Optional[typing.Dict]
+    kwargs_public: typing.Optional[dict]
+    kwargs_private: typing.Optional[dict]
 
     def attributes(self):
         attributes = {"bootstrap_servers": self.bootstrap_servers}
@@ -93,15 +96,15 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
 class DatastoreProfileKafkaSource(DatastoreProfile):
     type: str = pydantic.Field("kafka_source")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
-    brokers: typing.Union[str, typing.List[str]]
-    topics: typing.Union[str, typing.List[str]]
+    brokers: typing.Union[str, list[str]]
+    topics: typing.Union[str, list[str]]
     group: typing.Optional[str] = "serving"
     initial_offset: typing.Optional[str] = "earliest"
-    partitions: typing.Optional[typing.Union[str, typing.List[str]]]
+    partitions: typing.Optional[typing.Union[str, list[str]]]
     sasl_user: typing.Optional[str]
     sasl_pass: typing.Optional[str]
-    kwargs_public: typing.Optional[typing.Dict]
-    kwargs_private: typing.Optional[typing.Dict]
+    kwargs_public: typing.Optional[dict]
+    kwargs_private: typing.Optional[dict]
 
     def attributes(self):
         attributes = {}
@@ -131,18 +134,18 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
-    _private_attributes = ("access_key", "secret_key")
+    _private_attributes = ("access_key_id", "secret_key")
     endpoint_url: typing.Optional[str] = None
     force_non_anonymous: typing.Optional[str] = None
     profile_name: typing.Optional[str] = None
     assume_role_arn: typing.Optional[str] = None
-    access_key: typing.Optional[str] = None
+    access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
 
     def secrets(self) -> dict:
         res = {}
-        if self.access_key:
-            res["AWS_ACCESS_KEY_ID"] = self.access_key
+        if self.access_key_id:
+            res["AWS_ACCESS_KEY_ID"] = self.access_key_id
         if self.secret_key:
             res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
         if self.endpoint_url:
@@ -224,7 +227,13 @@ class DatastoreProfileGCS(DatastoreProfile):
     type: str = pydantic.Field("gcs")
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
-    gcp_credentials: typing.Optional[str] = None
+    gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
+
+    @pydantic.validator("gcp_credentials", pre=True, always=True)
+    def convert_dict_to_json(cls, v):
+        if isinstance(v, dict):
+            return json.dumps(v)
+        return v
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
@@ -358,7 +367,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             )
 
 
-def datastore_profile_read(url):
+def datastore_profile_read(url, project_name="", secrets: dict = None):
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -366,7 +375,7 @@ def datastore_profile_read(url):
         )
 
     profile_name = parsed_url.hostname
-    project_name = parsed_url.username or mlrun.mlconf.default_project
+    project_name = project_name or mlrun.mlconf.default_project
     datastore = TemporaryClientDatastoreProfiles().get(profile_name)
     if datastore:
         return datastore
@@ -376,11 +385,11 @@ def datastore_profile_read(url):
     project_ds_name_private = DatastoreProfile.generate_secret_key(
         profile_name, project_name
     )
-    private_body = get_secret_or_env(project_ds_name_private)
+    private_body = get_secret_or_env(project_ds_name_private, secret_provider=secrets)
     if not public_profile or not private_body:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Unable to retrieve the datastore profile '{url}' from either the server or local environment."
-            "Make sure the profile is registered correctly, or if running in a local environment,"
+            f"Unable to retrieve the datastore profile '{url}' from either the server or local environment. "
+            "Make sure the profile is registered correctly, or if running in a local environment, "
             "use register_temporary_client_datastore_profile() to provide credentials locally."
         )
 
@@ -397,24 +406,3 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
     It's beneficial for testing purposes.
     """
     TemporaryClientDatastoreProfiles().add(profile)
-
-
-def datastore_profile_embed_url_scheme(url):
-    profile = datastore_profile_read(url)
-    parsed_url = urlparse(url)
-    scheme = profile.type
-    # Add scheme as a password to the network location part
-    netloc = f"{parsed_url.username or ''}:{scheme}@{parsed_url.netloc}"
-
-    # Construct the new URL
-    new_url = urlunparse(
-        [
-            parsed_url.scheme,
-            netloc,
-            parsed_url.path,
-            parsed_url.params,
-            parsed_url.query,
-            parsed_url.fragment,
-        ]
-    )
-    return new_url

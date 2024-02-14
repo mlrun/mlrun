@@ -57,6 +57,14 @@ class Client(
             "GET", f"background-tasks/{name}", request
         )
 
+    async def get_internal_background_tasks(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        """
+        internal background tasks are managed by the chief only
+        """
+        return await self._proxy_request_to_chief("GET", "background-tasks", request)
+
     async def trigger_migrations(
         self, request: fastapi.Request = None
     ) -> fastapi.Response:
@@ -157,15 +165,17 @@ class Client(
             "POST", "build/function", request, json
         )
 
-    async def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
+    async def delete_project(
+        self, name, request: fastapi.Request, api_version: typing.Optional[str] = None
+    ) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
         that is why we re-route requests to chief
         """
         # timeout is greater than default as delete project can take a while because it deletes all the
-        # project resources (depends on the deletion strategy)
+        # project resources (depends on the deletion strategy and api version)
         return await self._proxy_request_to_chief(
-            "DELETE", f"projects/{name}", request, timeout=120
+            "DELETE", f"projects/{name}", request, timeout=120, version=api_version
         )
 
     async def get_clusterization_spec(
@@ -215,12 +225,26 @@ class Client(
             json,
         )
 
+    async def deploy_monitoring_batch_job(
+        self, project: str, request: fastapi.Request, json: dict
+    ):
+        """
+        Model monitoring batch includes a scheduled job which is handled by the chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST",
+            f"projects/{project}/jobs/batch-monitoring",
+            request,
+            json,
+        )
+
     async def _proxy_request_to_chief(
         self,
         method,
         path,
         request: fastapi.Request = None,
         json: dict = None,
+        version: str = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -231,6 +255,7 @@ class Client(
         async with self._send_request_to_api(
             method=method,
             path=path,
+            version=version,
             raise_on_failure=raise_on_failure,
             **request_kwargs,
         ) as chief_response:
@@ -249,6 +274,9 @@ class Client(
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
+            request_kwargs["headers"].setdefault(
+                "x-request-id", request.state.request_id
+            )
 
         # mask clients host with worker's host
         origin_host = request_kwargs.get("headers", {}).pop("host", None)
@@ -298,10 +326,16 @@ class Client(
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api(
-        self, method, path, raise_on_failure: bool = False, **kwargs
+        self,
+        method,
+        path,
+        version: str = None,
+        raise_on_failure: bool = False,
+        **kwargs,
     ) -> aiohttp.ClientResponse:
+        version = version or mlrun.mlconf.api_base_version
         await self._ensure_session()
-        url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
+        url = f"{self._api_url}/api/{version}/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20

@@ -50,7 +50,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
 
-    def write_model_endpoint(self, endpoint: typing.Dict[str, typing.Any]):
+    def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """
         Create a new endpoint record in the KV table.
 
@@ -72,7 +72,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         self._infer_kv_schema()
 
     def update_model_endpoint(
-        self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]
+        self, endpoint_id: str, attributes: dict[str, typing.Any]
     ):
         """
         Update a model endpoint record with a given attributes.
@@ -114,7 +114,7 @@ class KVModelEndpointStore(ModelEndpointStore):
     def get_model_endpoint(
         self,
         endpoint_id: str,
-    ) -> typing.Dict[str, typing.Any]:
+    ) -> dict[str, typing.Any]:
         """
         Get a single model endpoint record.
 
@@ -167,10 +167,10 @@ class KVModelEndpointStore(ModelEndpointStore):
         self,
         model: str = None,
         function: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         top_level: bool = None,
-        uids: typing.List = None,
-    ) -> typing.List[typing.Dict[str, typing.Any]]:
+        uids: list = None,
+    ) -> list[dict[str, typing.Any]]:
         """
         Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
         By default, when no filters are applied, all available model endpoints for the given project will
@@ -208,7 +208,10 @@ class KVModelEndpointStore(ModelEndpointStore):
             items = cursor.all()
 
         except Exception as exc:
-            logger.warning("Failed retrieving raw data from kv table", exc=exc)
+            logger.warning(
+                "Failed retrieving raw data from kv table",
+                exc=mlrun.errors.err_to_str(exc),
+            )
             return endpoint_list
 
         # Create a list of model endpoints unique ids
@@ -236,9 +239,7 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         return endpoint_list
 
-    def delete_model_endpoints_resources(
-        self, endpoints: typing.List[typing.Dict[str, typing.Any]]
-    ):
+    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
         """
         Delete all model endpoints resources in both KV and the time series DB.
 
@@ -293,11 +294,12 @@ class KVModelEndpointStore(ModelEndpointStore):
                 backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
                 table=filtered_path,
             )
-        except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
-            # Frames might raise an exception if schema file does not exist.
-            logger.warning("Failed to delete TSDB schema file:", err=e)
-            pass
-
+        except v3io_frames.errors.DeleteError as e:
+            if "No TSDB schema file found" not in str(e):
+                logger.warning(
+                    f"Failed to delete TSDB table '{filtered_path}'",
+                    err=mlrun.errors.err_to_str(e),
+                )
         # Final cleanup of tsdb path
         tsdb_path.replace("://u", ":///u")
         store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
@@ -306,11 +308,11 @@ class KVModelEndpointStore(ModelEndpointStore):
     def get_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
-        metrics: typing.List[str],
+        metrics: list[str],
         start: str = "now-1h",
         end: str = "now",
         access_key: str = None,
-    ) -> typing.Dict[str, typing.List[typing.Tuple[str, float]]]:
+    ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
         `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
@@ -392,7 +394,7 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         return metrics_mapping
 
-    def _generate_tsdb_paths(self) -> typing.Tuple[str, str]:
+    def _generate_tsdb_paths(self) -> tuple[str, str]:
         """Generate a short path to the TSDB resources and a filtered path for the frames object
         :return: A tuple of:
              [0] = Short path to the TSDB resources
@@ -451,7 +453,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         project: str,
         function: str = None,
         model: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         top_level: bool = False,
     ) -> str:
         """

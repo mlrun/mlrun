@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import enum
-import getpass
 import http
 import re
 import typing
 from base64 import b64encode
 from os import environ
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
@@ -92,6 +91,7 @@ class FunctionStatus(ModelObj):
 
 class FunctionSpec(ModelObj):
     _dict_fields = spec_fields
+    _default_fields_to_strip = []
 
     def __init__(
         self,
@@ -123,9 +123,9 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
-        # the build.source is cloned/extracted to the specified clone_target_dir
+        # The build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
-        self.clone_target_dir = clone_target_dir or ""
+        self.clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -147,6 +147,9 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _is_remote = False
     _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + [
+        "status",  # Function status describes the state rather than configuration
+    ]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -196,7 +199,7 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
-    def set_categories(self, categories: List[str]):
+    def set_categories(self, categories: list[str]):
         self.metadata.categories = mlrun.utils.helpers.as_list(categories)
 
     @property
@@ -270,7 +273,7 @@ class BaseRuntime(ModelObj):
             mlrun.model.Credentials.generate_access_key
         )
 
-    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> List[Dict]:
+    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> list[dict]:
         """
         Prepares a runtime environment as it's expected by kubernetes.models.V1Container
 
@@ -291,23 +294,23 @@ class BaseRuntime(ModelObj):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[Dict[str, list]] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -358,7 +361,7 @@ class BaseRuntime(ModelObj):
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
         :param state_thresholds:    Dictionary of states to time thresholds. The state will be matched against the
-                pod's status. The threshold should be a time string that conforms to timelength python package
+                k8s resource's status. The threshold should be a time string that conforms to timelength python package
                 standards and is at least 1 minute (-1 for infinite).
                 If the phase is active for longer than the threshold, the run will be aborted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
@@ -404,7 +407,7 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject = None) -> Dict:
+    def _generate_runtime_env(self, runobj: RunObject = None) -> dict:
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
@@ -441,8 +444,9 @@ class BaseRuntime(ModelObj):
 
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
-        if "owner" not in meta.labels:
-            meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
+        mlrun.runtimes.utils.enrich_run_labels(
+            meta.labels, [mlrun.runtimes.constants.RunLabels.owner]
+        )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.user}}", meta.labels["owner"]
@@ -550,7 +554,12 @@ class BaseRuntime(ModelObj):
             if err:
                 updates["status.error"] = err_to_str(err)
 
-        elif not was_none and last_state != "completed":
+        elif (
+            not was_none
+            and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state
+            not in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+        ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)
                 updates = runtime_cls._get_run_completion_updates(resp)
@@ -575,7 +584,7 @@ class BaseRuntime(ModelObj):
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError(f"handler must be provided for {self.kind} runtime")
+            raise RunError(f"Handler must be provided for {self.kind} runtime")
 
     def _has_pipeline_param(self) -> bool:
         # check if the runtime has pipeline parameters
@@ -612,7 +621,7 @@ class BaseRuntime(ModelObj):
         namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
         if namespace_domain is not None:
             return f"docker-registry.{namespace_domain}:80/{image[1:]}"
-        raise RunError("local container registry is not defined")
+        raise RunError("Local container registry is not defined")
 
     def as_step(
         self,
@@ -633,7 +642,7 @@ class BaseRuntime(ModelObj):
         use_db=True,
         verbose=None,
         scrape_metrics=False,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
         auto_build: bool = False,
     ):
         """Run a local or remote task.
@@ -739,7 +748,7 @@ class BaseRuntime(ModelObj):
                     body = fp.read()
             if self.kind == mlrun.runtimes.RuntimeKinds.serving:
                 body = body + mlrun_footer.format(
-                    mlrun.runtimes.serving.serving_subkind
+                    mlrun.runtimes.nuclio.serving.serving_subkind
                 )
 
         self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
@@ -751,7 +760,7 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[List[str]] = None,
+        requirements: Optional[list[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
         requirements_file: str = "",
@@ -773,7 +782,7 @@ class BaseRuntime(ModelObj):
 
     def with_commands(
         self,
-        commands: List[str],
+        commands: list[str],
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
     ):
@@ -854,13 +863,6 @@ class BaseRuntime(ModelObj):
         return launcher.save_function(
             self, tag=tag, versioned=versioned, refresh=refresh
         )
-
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude=exclude)
-        if strip:
-            if "status" in struct:
-                del struct["status"]
-        return struct
 
     def doc(self):
         print("function:", self.metadata.name)

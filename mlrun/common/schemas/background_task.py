@@ -37,6 +37,7 @@ class BackgroundTaskState(mlrun.common.types.StrEnum):
 
 class BackgroundTaskMetadata(pydantic.BaseModel):
     name: str
+    kind: typing.Optional[str]
     project: typing.Optional[str]
     created: typing.Optional[datetime.datetime]
     updated: typing.Optional[datetime.datetime]
@@ -57,3 +58,7 @@ class BackgroundTask(pydantic.BaseModel):
     metadata: BackgroundTaskMetadata
     spec: BackgroundTaskSpec
     status: BackgroundTaskStatus
+
+
+class BackgroundTaskList(pydantic.BaseModel):
+    background_tasks: list[BackgroundTask]

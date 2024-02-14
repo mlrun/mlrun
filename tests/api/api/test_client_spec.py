@@ -124,7 +124,7 @@ def test_client_spec(
     assert response_body["feature_store_data_prefixes"]["redisnosql"] == (
         feature_store_data_prefix_redisnosql
     )
-    assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
+    assert response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
     assert response_body["function"]["spec"]["security_context"]["enrichment_mode"] == (
         mlrun.common.schemas.SecurityContextEnrichmentModes.override

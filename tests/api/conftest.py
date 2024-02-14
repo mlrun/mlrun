@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 import unittest.mock
+from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Generator
 
 import deepdiff
 import httpx
 import kfp
 import pytest
+import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
@@ -28,11 +30,13 @@ import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.db.factory
 import mlrun.launcher.factory
+import mlrun.utils.singleton
 import server.api.crud
 import server.api.launcher
 import server.api.rundb.sqldb
 import server.api.runtime_handlers.mpijob
 import server.api.utils.clients.iguazio
+import server.api.utils.projects.remotes.leader as project_leader
 import server.api.utils.runtimes.nuclio
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
@@ -132,9 +136,9 @@ def client(db) -> Generator:
 
 
 @pytest.fixture()
-def unprefixed_client(db) -> Generator:
+def unversioned_client(db) -> Generator:
     """
-    unprefixed_client is a test client that doesn't have the version prefix in the url.
+    unversioned_client is a test client that doesn't have the version prefix in the url.
     When using this client, the version prefix must be added to the url manually.
     This is useful when tests use several endpoints that are not under the same version prefix.
     """
@@ -144,9 +148,9 @@ def unprefixed_client(db) -> Generator:
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
-        with TestClient(app) as test_client_v2:
-            set_base_url_for_test_client(test_client_v2, API_PREFIX)
-            yield test_client_v2
+        with TestClient(app) as unversioned_test_client:
+            set_base_url_for_test_client(unversioned_test_client, API_PREFIX)
+            yield unversioned_test_client
 
 
 @pytest.fixture()
@@ -330,10 +334,105 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 @pytest.fixture()
-def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
     k8s_secrets_mock.mock_functions(
         server.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch
     )
     yield k8s_secrets_mock
+
+
+class MockedProjectFollowerIguazioClient(
+    project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton
+):
+    def __init__(self):
+        self._db_session = None
+        self._unversioned_client = None
+
+    def create_project(
+        self,
+        session: str,
+        project: mlrun.common.schemas.Project,
+        wait_for_completion: bool = True,
+    ) -> bool:
+        server.api.crud.Projects().create_project(self._db_session, project)
+        return False
+
+    def update_project(
+        self,
+        session: str,
+        name: str,
+        project: mlrun.common.schemas.Project,
+    ):
+        pass
+
+    def delete_project(
+        self,
+        session: str,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
+    ) -> bool:
+        api_version = "v2"
+        igz_version = mlrun.mlconf.get_parsed_igz_version()
+        if igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
+            api_version = "v1"
+
+        self._unversioned_client.delete(
+            f"{api_version}/projects/{name}",
+            headers={
+                mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader,
+                mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy,
+            },
+        )
+
+        # Mock waiting for completion in iguazio (return False to indicate 'not running in background')
+        return False
+
+    def list_projects(
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
+        return [], None
+
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.common.schemas.Project:
+        pass
+
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
+        pass
+
+    def get_project_owner(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.common.schemas.ProjectOwner:
+        pass
+
+
+@pytest.fixture()
+def mock_project_follower_iguazio_client(
+    db: sqlalchemy.orm.Session, unversioned_client: TestClient
+):
+    """
+    This fixture mocks the project leader iguazio client.
+    """
+    mlrun.config.config.httpdb.projects.leader = "iguazio"
+    mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
+    old_iguazio_client = server.api.utils.clients.iguazio.Client
+    server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
+    server.api.utils.singletons.project_member.initialize_project_member()
+    iguazio_client = MockedProjectFollowerIguazioClient()
+    iguazio_client._db_session = db
+    iguazio_client._unversioned_client = unversioned_client
+
+    yield iguazio_client
+
+    server.api.utils.clients.iguazio.Client = old_iguazio_client

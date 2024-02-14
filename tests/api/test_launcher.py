@@ -88,7 +88,7 @@ def test_validate_state_thresholds_success():
     server.api.launcher.ServerSideLauncher._validate_state_thresholds(
         state_thresholds={
             "pending_scheduled": "-1",
-            "running": "1000s",
+            "executing": "1000s",
             "image_pull_backoff": "3m",
         }
     )
@@ -100,7 +100,7 @@ def test_validate_state_thresholds_success():
         (
             {
                 "pending_scheduled": "-1",
-                "running": "1000s",
+                "executing": "1000s",
                 "image_pull_backoff": "3mm",
             },
             "Threshold '3mm' for state 'image_pull_backoff' is not a valid timelength string. "
@@ -121,9 +121,9 @@ def test_validate_state_thresholds_success():
         ),
         (
             {
-                "running": "10",
+                "executing": "10",
             },
-            "Threshold '10' for state 'running' is not a valid timelength string. "
+            "Threshold '10' for state 'executing' is not a valid timelength string. "
             'Error: Input TimeLength "10" contains no valid Value and Scale pairs.',
         ),
     ],

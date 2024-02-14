@@ -43,15 +43,13 @@ def run_command(cmd):
     """
     Runs a shell command and returns its output and exit status.
     """
-    result = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
-    )
+    result = subprocess.run(cmd, capture_output=True, shell=True)
     return result.stdout.decode("utf-8"), result.returncode
 
 
 def create_ingress_resource(domain_name, ipadd):
     # Replace the placeholder string with the actual domain name
-    yaml_manifest = """
+    yaml_manifest = f"""
     apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
@@ -59,7 +57,7 @@ def create_ingress_resource(domain_name, ipadd):
         nginx.ingress.kubernetes.io/auth-cache-duration: 200 202 5m, 401 30s
         nginx.ingress.kubernetes.io/auth-cache-key: $host$http_x_remote_user$http_cookie$http_authorization
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
-        nginx.ingress.kubernetes.io/whitelist-source-range: "{}"
+        nginx.ingress.kubernetes.io/whitelist-source-range: "{ipadd}"
         nginx.ingress.kubernetes.io/service-upstream: "true"
         nginx.ingress.kubernetes.io/ssl-redirect: "false"
       labels:
@@ -69,7 +67,7 @@ def create_ingress_resource(domain_name, ipadd):
     spec:
       ingressClassName: nginx
       rules:
-      - host: {}
+      - host: {domain_name}
         http:
           paths:
           - backend:
@@ -81,9 +79,9 @@ def create_ingress_resource(domain_name, ipadd):
             pathType: ImplementationSpecific
       tls:
       - hosts:
-        - {}
+        - {domain_name}
         secretName: ingress-tls
-    """.format(ipadd, domain_name, domain_name)
+    """
     subprocess.run(
         ["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True
     )
@@ -93,21 +91,17 @@ def get_ingress_controller_version():
     # Run the kubectl command and capture its output
     kubectl_cmd = "kubectl"
     namespace = "default-tenant"
-    grep_cmd = "grep shell.default-tenant"
+    grep_cmd = "grep mlrun-api.default-tenant"
     awk_cmd1 = "awk '{print $3}'"
-    awk_cmd2 = "awk -F shell.default-tenant '{print $2}'"
+    awk_cmd2 = "awk -F mlrun-api.default-tenant '{print $2}'"
     cmd = f"{kubectl_cmd} get ingress -n {namespace} | {grep_cmd} | {awk_cmd1} | {awk_cmd2}"
-    result = subprocess.run(
-        cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
+    result = subprocess.run(cmd, shell=True, check=True, capture_output=True)
     return result.stdout.decode("utf-8").strip()
 
 
 def get_svc_password(namespace, service_name, key):
     cmd = f'kubectl get secret --namespace {namespace} {service_name} -o jsonpath="{{.data.{key}}}" | base64 --decode'
-    result = subprocess.run(
-        cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
+    result = subprocess.run(cmd, shell=True, check=True, capture_output=True)
     return result.stdout.decode("utf-8").strip()
 
 
@@ -129,6 +123,29 @@ def add_repos():
     for repo, url in repos.items():
         cmd = f"helm repo add {repo} {url}"
         subprocess.run(cmd.split(), check=True)
+
+
+def add_env_to_deployment(namespace, deployment_name, env_vars):
+    try:
+        # Build the kubectl command to patch the deployment with new environment variables
+        kubectl_command = [
+            "kubectl",
+            "patch",
+            "deployment",
+            deployment_name,
+            f"--namespace={namespace}",
+            "--type=json",
+            "--patch",
+            f'[{{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": {env_vars}}}]',
+        ]
+
+        # Execute the kubectl command
+        subprocess.run(kubectl_command, check=True)
+
+        print(f"Environment added/updated to the deployment '{deployment_name}'")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
 
 
 def install_redisinsight(ipadd):
@@ -175,16 +192,14 @@ def install_redisinsight(ipadd):
         full_domain = "redisinsight" + fqdn
         create_ingress_resource(full_domain, ipadd)
         deployment_name = "redisinsight"
-        container_name = "redisinsight-chart"
-        env_name = "RITRUSTEDORIGINS"
-        full_domain = full_domain
         pfull_domain = "https://" + full_domain
-        patch_command = (
-            f'kubectl patch deployment -n devtools {deployment_name} -p \'{{"spec":{{"template":{{"spec":{{'
-            f'"containers":[{{"name":"{container_name}","env":[{{"name":"{env_name}","value":"'
-            f"{pfull_domain}\"}}]}}]}}}}}}}}'"
+        env_vars = [
+            {"name": "RITRUSTEDORIGINS", "value": pfull_domain},
+            {"name": "RIPROXYENABLE", "value": "true"},
+        ]
+        add_env_to_deployment(
+            namespace="devtools", deployment_name=deployment_name, env_vars=env_vars
         )
-        subprocess.run(patch_command, shell=True)
         clean_command = "rm -rf redisinsight-chart-0.1.0.tgz*"
         subprocess.run(clean_command, shell=True)
     else:

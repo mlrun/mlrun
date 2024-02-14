@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import typing
 
 
@@ -61,7 +62,7 @@ class ThresholdStates:
     # where it is scheduled, or initialization tasks specified in the pod's configuration are not yet completed.
     pending_scheduled = "pending_scheduled"
     pending_not_scheduled = "pending_not_scheduled"
-    running = "running"
+    executing = "executing"
     image_pull_backoff = "image_pull_backoff"
 
     @staticmethod
@@ -69,12 +70,12 @@ class ThresholdStates:
         return [
             ThresholdStates.pending_scheduled,
             ThresholdStates.pending_not_scheduled,
-            ThresholdStates.running,
+            ThresholdStates.executing,
             ThresholdStates.image_pull_backoff,
         ]
 
     @staticmethod
-    def from_pod_phase(pod_phase: str, pod: typing.Dict) -> typing.Optional[str]:
+    def from_pod_phase(pod_phase: str, pod: dict) -> typing.Optional[str]:
         if pod_phase == PodPhases.pending:
             if ThresholdStates.is_pod_in_image_pull_backoff(pod):
                 return ThresholdStates.image_pull_backoff
@@ -84,12 +85,12 @@ class ThresholdStates:
                 return ThresholdStates.pending_not_scheduled
 
         elif pod_phase == PodPhases.running:
-            return ThresholdStates.running
+            return ThresholdStates.executing
 
         return None
 
     @staticmethod
-    def is_pod_scheduled(pod: typing.Dict):
+    def is_pod_scheduled(pod: dict):
         conditions = pod["status"].get("conditions", []) or []
         for condition in conditions:
             if condition["type"] == "PodScheduled" and condition["status"] == "True":
@@ -97,7 +98,7 @@ class ThresholdStates:
         return False
 
     @staticmethod
-    def is_pod_in_image_pull_backoff(pod: typing.Dict):
+    def is_pod_in_image_pull_backoff(pod: dict):
         container_statuses = pod.get("status").get("container_statuses", []) or []
         for container_status in container_statuses:
             state_waiting = container_status.get("state", {}).get("waiting", {}) or {}
@@ -106,7 +107,7 @@ class ThresholdStates:
         return False
 
 
-class MPIJobCRDVersions(object):
+class MPIJobCRDVersions:
     v1 = "v1"
     v1alpha1 = "v1alpha1"
 
@@ -126,7 +127,7 @@ class MPIJobCRDVersions(object):
         }[version]
 
 
-class RunStates(object):
+class RunStates:
     completed = "completed"
     error = "error"
     running = "running"
@@ -165,6 +166,17 @@ class RunStates(object):
         ]
 
     @staticmethod
+    def abortion_states():
+        return [
+            RunStates.aborted,
+            RunStates.aborting,
+        ]
+
+    @staticmethod
+    def error_and_abortion_states():
+        return list(set(RunStates.error_states()) | set(RunStates.abortion_states()))
+
+    @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
@@ -174,6 +186,18 @@ class RunStates(object):
             RunStates.running,
             RunStates.pending,
             # TODO: add aborting state once we have it
+        ]
+
+
+class RunLabels(enum.Enum):
+    owner = "owner"
+    v3io_user = "v3io_user"
+
+    @staticmethod
+    def all():
+        return [
+            RunLabels.owner,
+            RunLabels.v3io_user,
         ]
 
 

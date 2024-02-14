@@ -33,7 +33,7 @@ def main():
                 "The Databricks credentials path does not exist."
                 " Please manually cancel the job from the Databricks environment."
             )
-    with open(credentials_path, "r") as yaml_file:
+    with open(credentials_path) as yaml_file:
         loaded_data = yaml.safe_load(yaml_file)
     # use for flat yaml only
     for key, value in loaded_data.items():
@@ -49,7 +49,7 @@ def main():
             not in [RunLifeCycleState.TERMINATING, RunLifeCycleState.TERMINATED]
         ):
             raise MLRunRuntimeError(
-                f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}."
+                f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}. "
                 f"Please check the status of this task in the Databricks environment."
             )
         print(f"Cancelling task {task_id} has succeeded.")

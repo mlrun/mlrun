@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Dict, List, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -156,7 +156,7 @@ class MapValues(StepToDict, MLRunStep):
 
     def __init__(
         self,
-        mapping: Dict[str, Dict[Union[str, int, bool], Any]],
+        mapping: dict[str, dict[Union[str, int, bool], Any]],
         with_original_features: bool = False,
         suffix: str = "mapped",
         **kwargs,
@@ -377,7 +377,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Dict[str, Any] = None,
+        mapping: dict[str, Any] = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -423,7 +423,7 @@ class Imputer(StepToDict, MLRunStep):
 
 
 class OneHotEncoder(StepToDict, MLRunStep):
-    def __init__(self, mapping: Dict[str, List[Union[int, str]]], **kwargs):
+    def __init__(self, mapping: dict[str, list[Union[int, str]]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -514,7 +514,7 @@ class DateExtractor(StepToDict, MLRunStep):
 
     def __init__(
         self,
-        parts: Union[Dict[str, str], List[str]],
+        parts: Union[dict[str, str], list[str]],
         timestamp_col: str = None,
         **kwargs,
     ):
@@ -633,11 +633,11 @@ class SetEventMetadata(MapClass):
 
     def __init__(
         self,
-        id_path: str = None,
-        key_path: str = None,
-        random_id: bool = None,
+        id_path: Optional[str] = None,
+        key_path: Optional[str] = None,
+        random_id: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Set the event metadata (id, key) from the event body
 
         set the event metadata fields (id and key) from the event body data structure
@@ -695,7 +695,7 @@ class SetEventMetadata(MapClass):
 
 
 class DropFeatures(StepToDict, MLRunStep):
-    def __init__(self, features: List[str], **kwargs):
+    def __init__(self, features: list[str], **kwargs):
         """Drop all the features from feature list
 
         :param features:    string list of the features names to drop
@@ -709,7 +709,7 @@ class DropFeatures(StepToDict, MLRunStep):
                                         )
             # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
-            df_pandas = fstore.ingest(feature_set, data)
+            df_pandas = feature_set.ingest(data)
 
         """
         super().__init__(**kwargs)

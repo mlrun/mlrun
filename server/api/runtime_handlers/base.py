@@ -16,7 +16,7 @@ import traceback
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -47,9 +47,8 @@ from server.api.db.base import DBInterface
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
     kind = "base"
-    class_modes: Dict[RuntimeClassMode, str] = {}
+    class_modes: dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
-    pod_grace_period_seconds = 0
 
     @abstractmethod
     def run(
@@ -92,7 +91,7 @@ class BaseRuntimeHandler(ABC):
 
     def build_output_from_runtime_resources(
         self,
-        runtime_resources_list: List[mlrun.common.schemas.RuntimeResources],
+        runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -177,7 +176,7 @@ class BaseRuntimeHandler(ABC):
         )
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
-    def monitor_runs(self, db: DBInterface, db_session: Session) -> List[dict]:
+    def monitor_runs(self, db: DBInterface, db_session: Session) -> list[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
         runtime_resources, runtime_resource_is_crd = self._get_runtime_resources(
@@ -486,7 +485,7 @@ class BaseRuntimeHandler(ABC):
 
     def _get_possible_mlrun_class_label_values(
         self, class_mode: Union[RuntimeClassMode, str] = None
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
         handler kind
@@ -661,7 +660,7 @@ class BaseRuntimeHandler(ABC):
             mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
-        runtime_resources_list: List[mlrun.common.schemas.RuntimeResources],
+        runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -677,7 +676,7 @@ class BaseRuntimeHandler(ABC):
         db: DBInterface,
         db_session: Session,
         namespace: str,
-        deleted_resources: List[Dict],
+        deleted_resources: list[dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
@@ -693,7 +692,7 @@ class BaseRuntimeHandler(ABC):
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+    ) -> tuple[bool, Optional[datetime], Optional[str]]:
         """
         Override this if the runtime has CRD resources.
         :return: Tuple with:
@@ -710,7 +709,7 @@ class BaseRuntimeHandler(ABC):
         project: str,
         uid: str,
         crd_object,
-        run: Dict,
+        run: dict,
     ):
         """
         Update the UI URL for relevant jobs.
@@ -718,8 +717,8 @@ class BaseRuntimeHandler(ABC):
         pass
 
     def _resolve_pod_status_info(
-        self, pod: Dict
-    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        self, pod: dict
+    ) -> tuple[bool, Optional[datetime], Optional[str]]:
         """
         :return: Tuple with:
         1. bool determining whether the pod is in terminal state
@@ -759,7 +758,7 @@ class BaseRuntimeHandler(ABC):
         return f"mlrun/class in ({', '.join(class_values)})"
 
     @staticmethod
-    def _get_crd_info() -> Tuple[str, str, str]:
+    def _get_crd_info() -> tuple[str, str, str]:
         """
         Override this if the runtime has CRD resources. this should return the CRD info:
         crd group, crd version, crd plural
@@ -770,7 +769,7 @@ class BaseRuntimeHandler(ABC):
     def _expect_pods_without_uid() -> bool:
         return False
 
-    def _list_pods(self, namespace: str, label_selector: str = None) -> List:
+    def _list_pods(self, namespace: str, label_selector: str = None) -> list:
         pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
             namespace, selector=label_selector
         )
@@ -779,7 +778,7 @@ class BaseRuntimeHandler(ABC):
         pods = [pod.to_dict() for pod in pods]
         return pods
 
-    def _list_crd_objects(self, namespace: str, label_selector: str = None) -> List:
+    def _list_crd_objects(self, namespace: str, label_selector: str = None) -> list:
         crd_group, crd_version, crd_plural = self._get_crd_info()
         crd_objects = []
         if crd_group and crd_version and crd_plural:
@@ -802,7 +801,7 @@ class BaseRuntimeHandler(ABC):
     def _wait_for_pods_deletion(
         self,
         namespace: str,
-        deleted_pods: List[Dict],
+        deleted_pods: list[dict],
         label_selector: str = None,
     ):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
@@ -827,13 +826,26 @@ class BaseRuntimeHandler(ABC):
                 timeout=timeout,
                 interval=self.wait_for_deletion_interval,
             )
-            mlrun.utils.retry_until_successful(
-                self.wait_for_deletion_interval,
-                timeout,
-                logger,
-                True,
-                _verify_pods_removed,
-            )
+            try:
+                mlrun.utils.retry_until_successful(
+                    self.wait_for_deletion_interval,
+                    timeout,
+                    logger,
+                    True,
+                    _verify_pods_removed,
+                )
+            except mlrun.errors.MLRunRetryExhaustedError as exc:
+                logger.warning(
+                    "Failed waiting for pods deletion, force deleting pods",
+                    exc=err_to_str(exc),
+                )
+                for deleted_pod_name in deleted_pod_names:
+                    # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in
+                    # terminating state, so we're forcing deletion after the grace period passed in this case.
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                        deleted_pod_name, namespace, grace_period_seconds=0
+                    )
+
             logger.debug(
                 "Successfully waited for pods deletion",
                 timeout=timeout,
@@ -842,7 +854,7 @@ class BaseRuntimeHandler(ABC):
 
     def _wait_for_crds_underlying_pods_deletion(
         self,
-        deleted_crds: List[Dict],
+        deleted_crds: list[dict],
         label_selector: str = None,
     ):
         # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
@@ -914,7 +926,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         pods = (
@@ -961,7 +973,7 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                    pod.metadata.name, namespace, self.pod_grace_period_seconds
+                    pod.metadata.name, namespace
                 )
                 deleted_pods.append(pod_dict)
             except Exception as exc:
@@ -980,7 +992,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         crd_group, crd_version, crd_plural = self._get_crd_info()
@@ -1006,6 +1018,14 @@ class BaseRuntimeHandler(ABC):
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(crd_object)
+
+                    if not desired_run_state and not force:
+                        logger.warning(
+                            "Could not resolve run state from CRD object. Skipping deletion",
+                            crd_object_name=crd_object["metadata"]["name"],
+                        )
+                        continue
+
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -1059,7 +1079,7 @@ class BaseRuntimeHandler(ABC):
         self,
         db: DBInterface,
         db_session: Session,
-        runtime_resource: Dict,
+        runtime_resource: dict,
         run_state: str,
     ):
         project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
@@ -1089,8 +1109,8 @@ class BaseRuntimeHandler(ABC):
         self,
         db: DBInterface,
         db_session: Session,
-        runtime_resource: Dict,
-    ) -> Tuple[bool, Optional[datetime]]:
+        runtime_resource: dict,
+    ) -> tuple[bool, Optional[datetime]]:
         """
         A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
         resource. This function will verify whether the Run object related to this runtime resource is in transient
@@ -1177,14 +1197,14 @@ class BaseRuntimeHandler(ABC):
         self,
         db: DBInterface,
         db_session: Session,
-        project_run_uid_map: Dict,
-        runtime_resource: Dict,
+        project_run_uid_map: dict,
+        runtime_resource: dict,
         runtime_resource_is_crd: bool,
         namespace: str,
         project: str = None,
         uid: str = None,
         name: str = None,
-        stale_runs: List[dict] = None,
+        stale_runs: list[dict] = None,
     ):
         if not project and not uid and not name:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
@@ -1213,7 +1233,7 @@ class BaseRuntimeHandler(ABC):
         )
 
         # If threshold exceeded, an abort run job will be triggered.
-        if threshold_exceeded:
+        if threshold_exceeded or not run_state:
             return
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1236,12 +1256,12 @@ class BaseRuntimeHandler(ABC):
 
     def _resolve_resource_state_and_apply_threshold(
         self,
-        run: Dict,
-        runtime_resource: Dict,
+        run: dict,
+        runtime_resource: dict,
         runtime_resource_is_crd: bool,
         namespace: str,
-        stale_runs: List[dict] = None,
-    ) -> Tuple[str, bool]:
+        stale_runs: list[dict] = None,
+    ) -> tuple[str, bool]:
         threshold_exceeded = False
 
         if runtime_resource_is_crd:
@@ -1250,7 +1270,7 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            if in_terminal_state:
+            if in_terminal_state or not run_state:
                 return run_state, False
 
             run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})
@@ -1281,11 +1301,11 @@ class BaseRuntimeHandler(ABC):
 
     def _apply_state_threshold(
         self,
-        run: Dict,
-        pod: Dict,
+        run: dict,
+        pod: dict,
         namespace: str,
-        stale_runs: List[dict] = None,
-    ) -> Tuple[str, bool]:
+        stale_runs: list[dict] = None,
+    ) -> tuple[str, bool]:
         pod_phase = pod["status"]["phase"]
         run_state = PodPhases.pod_phase_to_run_state(pod_phase)
 
@@ -1319,7 +1339,7 @@ class BaseRuntimeHandler(ABC):
 
         # Threshold exceeded, add run to stale runs list
         logger.warning(
-            "Runtime resource exceeded state threshold. Run will be aborted.",
+            "Runtime resource exceeded state threshold. Run will be aborted",
             runtime_resource_name=pod["metadata"]["name"],
             run_state=run_state,
             pod_phase=pod_phase,
@@ -1344,8 +1364,8 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _resolve_run_threshold(
-        run: Dict, pod_phase: str, pod: Dict
-    ) -> Tuple[Optional[int], Optional[str]]:
+        run: dict, pod_phase: str, pod: dict
+    ) -> tuple[Optional[int], Optional[str]]:
         threshold_state = ThresholdStates.from_pod_phase(pod_phase, pod)
         if not threshold_state or not run:
             return None, None
@@ -1360,8 +1380,8 @@ class BaseRuntimeHandler(ABC):
 
     def _build_list_resources_response(
         self,
-        pod_resources: List[mlrun.common.schemas.RuntimeResource] = None,
-        crd_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        pod_resources: list[mlrun.common.schemas.RuntimeResource] = None,
+        crd_resources: list[mlrun.common.schemas.RuntimeResource] = None,
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -1398,8 +1418,8 @@ class BaseRuntimeHandler(ABC):
 
     def _build_grouped_by_project_list_resources_response(
         self,
-        pod_resources: List[mlrun.common.schemas.RuntimeResource] = None,
-        crd_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        pod_resources: list[mlrun.common.schemas.RuntimeResource] = None,
+        crd_resources: list[mlrun.common.schemas.RuntimeResource] = None,
     ) -> mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
@@ -1414,8 +1434,8 @@ class BaseRuntimeHandler(ABC):
 
     def _build_grouped_by_job_list_resources_response(
         self,
-        pod_resources: List[mlrun.common.schemas.RuntimeResource] = None,
-        crd_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        pod_resources: list[mlrun.common.schemas.RuntimeResource] = None,
+        crd_resources: list[mlrun.common.schemas.RuntimeResource] = None,
     ) -> mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
@@ -1499,7 +1519,7 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _ensure_run_logs_collected(
-        db: DBInterface, db_session: Session, project: str, uid: str, run: Dict = None
+        db: DBInterface, db_session: Session, project: str, uid: str, run: dict = None
     ):
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
@@ -1522,16 +1542,16 @@ class BaseRuntimeHandler(ABC):
         uid: str,
         name: str,
         run_state: str,
-        run: Dict = None,
+        run: dict = None,
         search_run: bool = True,
-    ) -> Tuple[bool, str, dict]:
+    ) -> tuple[bool, str, dict]:
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
-            if db_run_state == run_state:
-                return False, run_state, run
+            if not run_state or db_run_state == run_state:
+                return False, db_run_state, run
 
             if db_run_state == RunStates.aborting:
                 logger.debug(
@@ -1578,15 +1598,27 @@ class BaseRuntimeHandler(ABC):
                 )
 
         logger.info("Updating run state", run_state=run_state)
-        run.setdefault("status", {})["state"] = run_state
-        run["status"]["last_update"] = now_date().isoformat()
-        run["status"]["reason"] = ""
-        run["status"]["error"] = ""
-        db.store_run(db_session, run, uid, project)
+        run_updates = {
+            "status.state": run_state,
+            "status.last_update": now_date().isoformat(),
+            # run is not in terminal state, so reset reason and error
+            "status.reason": "",
+            "status.error": "",
+        }
+        run = db.update_run(db_session, run_updates, uid, project)
 
         return True, run_state, run
 
-    def _ensure_run(self, db, db_session, name, project, run, search_run, uid):
+    def _ensure_run(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        name: str,
+        project: str,
+        run: dict,
+        search_run: bool,
+        uid: str,
+    ):
         if run is None:
             run = {}
         if not run and search_run:
@@ -1609,10 +1641,13 @@ class BaseRuntimeHandler(ABC):
                     "labels": {"kind": self.kind},
                 }
             }
+            if search_run:
+                db.store_run(db_session, run, uid, project)
+
         return run
 
     @staticmethod
-    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:
+    def _resolve_runtime_resource_run(runtime_resource: dict) -> tuple[str, str, str]:
         project = (
             runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/project")
         )
@@ -1627,7 +1662,7 @@ class BaseRuntimeHandler(ABC):
         return project, uid, name
 
     @staticmethod
-    def _build_pod_resources(pods) -> List[mlrun.common.schemas.RuntimeResource]:
+    def _build_pod_resources(pods) -> list[mlrun.common.schemas.RuntimeResource]:
         pod_resources = []
         for pod in pods:
             pod_resources.append(
@@ -1642,7 +1677,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _build_crd_resources(
         custom_objects,
-    ) -> List[mlrun.common.schemas.RuntimeResource]:
+    ) -> list[mlrun.common.schemas.RuntimeResource]:
         crd_resources = []
         for custom_object in custom_objects:
             crd_resources.append(

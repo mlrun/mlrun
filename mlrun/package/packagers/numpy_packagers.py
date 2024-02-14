@@ -16,7 +16,7 @@ import os
 import pathlib
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ from ..utils import ArtifactType, SupportedFormat
 from .default_packager import DefaultPackager
 
 # Type for collection of numpy arrays (list / dict of arrays):
-NumPyArrayCollectionType = Union[List[np.ndarray], Dict[str, np.ndarray]]
+NumPyArrayCollectionType = Union[list[np.ndarray], dict[str, np.ndarray]]
 
 
 class _Formatter(ABC):
@@ -194,7 +194,7 @@ class _NPZFormatter(_Formatter):
             save_function(file_path, **obj)
 
     @classmethod
-    def load(cls, file_path: str, **load_kwargs: dict) -> Dict[str, np.ndarray]:
+    def load(cls, file_path: str, **load_kwargs: dict) -> dict[str, np.ndarray]:
         """
         Load the arrays from the given 'npz' file path.
 
@@ -226,7 +226,7 @@ class NumPySupportedFormat(SupportedFormat[_Formatter]):
     }
 
     @classmethod
-    def get_single_array_formats(cls) -> List[str]:
+    def get_single_array_formats(cls) -> list[str]:
         """
         Get the supported formats for saving one numpy array.
 
@@ -235,7 +235,7 @@ class NumPySupportedFormat(SupportedFormat[_Formatter]):
         return [cls.NPY, cls.TXT, cls.GZ, cls.CSV]
 
     @classmethod
-    def get_multi_array_formats(cls) -> List[str]:
+    def get_multi_array_formats(cls) -> list[str]:
         """
         Get the supported formats for saving a collection (multiple) numpy arrays - e.g. list of arrays or dictionary of
         arrays.
@@ -310,7 +310,7 @@ class NumPyNDArrayPackager(DefaultPackager):
         key: str,
         file_format: str = DEFAULT_NUMPY_ARRAY_FORMAT,
         **save_kwargs,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack an array as a file by the given format.
 
@@ -342,7 +342,7 @@ class NumPyNDArrayPackager(DefaultPackager):
         obj: np.ndarray,
         key: str,
         file_format: str = "",
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack an array as a dataset.
 
@@ -442,7 +442,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
         key: str,
         file_format: str = DEFAULT_NUMPPY_ARRAY_COLLECTION_FORMAT,
         **save_kwargs,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack an array collection as a file by the given format.
 
@@ -476,7 +476,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
         data_item: DataItem,
         file_format: str = None,
         allow_pickle: bool = False,
-    ) -> Dict[str, np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         """
         Unpack a numppy array collection from file.
 
@@ -545,7 +545,7 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     ``dict[str, numpy.ndarray]`` packager.
     """
 
-    PACKABLE_OBJECT_TYPE = Dict[str, np.ndarray]
+    PACKABLE_OBJECT_TYPE = dict[str, np.ndarray]
 
     def is_packable(
         self, obj: Any, artifact_type: str = None, configurations: dict = None
@@ -583,7 +583,7 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
 
         return True
 
-    def pack_result(self, obj: Dict[str, np.ndarray], key: str) -> dict:
+    def pack_result(self, obj: dict[str, np.ndarray], key: str) -> dict:
         """
         Pack a dictionary of numpy arrays as a result.
 
@@ -604,7 +604,7 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
         data_item: DataItem,
         file_format: str = None,
         allow_pickle: bool = False,
-    ) -> Dict[str, np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         """
         Unpack a numppy array dictionary from file.
 
@@ -630,7 +630,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
     ``list[numpy.ndarray]`` packager.
     """
 
-    PACKABLE_OBJECT_TYPE = List[np.ndarray]
+    PACKABLE_OBJECT_TYPE = list[np.ndarray]
 
     def is_packable(
         self, obj: Any, artifact_type: str = None, configurations: dict = None
@@ -665,7 +665,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
 
         return True
 
-    def pack_result(self, obj: List[np.ndarray], key: str) -> dict:
+    def pack_result(self, obj: list[np.ndarray], key: str) -> dict:
         """
         Pack a list of numpy arrays as a result.
 
@@ -681,7 +681,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
         data_item: DataItem,
         file_format: str = None,
         allow_pickle: bool = False,
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         """
         Unpack a numppy array list from file.
 

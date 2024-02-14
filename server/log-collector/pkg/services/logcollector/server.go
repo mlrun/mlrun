@@ -342,6 +342,10 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return nil
 	}
 
+	if request.Offset < 0 {
+		return errors.New("Offset cannot be negative")
+	}
+
 	// get log file path
 	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
 	if err != nil {
@@ -426,15 +430,16 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	return nil
 }
 
-// HasLogs returns true if the log file exists for a given run id
-func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogsRequest) (*protologcollector.HasLogsResponse, error) {
+// GetLogSize returns the size of the log file for a given run id
+func (s *Server) GetLogSize(ctx context.Context, request *protologcollector.GetLogSizeRequest) (*protologcollector.GetLogSizeResponse, error) {
 	s.Logger.DebugWithCtx(ctx,
-		"Received has log request",
+		"Received get log size request",
 		"runUID", request.RunUID,
 		"project", request.ProjectName)
 
 	// get log file path
-	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
+	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
+	if err != nil {
 		if strings.Contains(errors.RootCause(err).Error(), "not found") {
 
 			// if the log file is not found, return false but no error
@@ -442,30 +447,47 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 				"Log file not found",
 				"runUID", request.RunUID,
 				"projectName", request.ProjectName)
-			return &protologcollector.HasLogsResponse{
+			return &protologcollector.GetLogSizeResponse{
 				Success: true,
-				HasLogs: false,
+				LogSize: -1,
 			}, nil
 		}
 
 		// if there was an error, return it
 		s.Logger.ErrorWithCtx(ctx,
-			"Failed to check if has log file",
+			"Failed to check if log file exists",
 			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 			"runUID", request.RunUID,
 			"projectName", request.ProjectName)
 
 		// do not return the 'err' itself, so that mlrun api would catch the response
 		// and will resolve the response on its own.
-		return &protologcollector.HasLogsResponse{
+		return &protologcollector.GetLogSizeResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
 		}, nil
 	}
-	return &protologcollector.HasLogsResponse{
+
+	// open log file and calc its size
+	currentLogFileSize, err := common.GetFileSize(filePath)
+	if err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get log file size",
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName)
+		err = errors.Wrapf(err, "Failed to get log file size for run id %s", request.RunUID)
+		return &protologcollector.GetLogSizeResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
+		}, nil
+	}
+
+	return &protologcollector.GetLogSizeResponse{
 		Success: true,
-		HasLogs: true,
+		LogSize: currentLogFileSize,
 	}, nil
 }
 

@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import concurrent
+import concurrent.futures
 import copy
 import json
 import traceback
+import typing
 from enum import Enum
 from io import BytesIO
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy
 import numpy as np
@@ -209,16 +211,6 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
-class ExecutorTypes:
-    # TODO: Remove in 1.5.0.
-    thread = "thread"
-    process = "process"
-
-    @staticmethod
-    def all():
-        return [ExecutorTypes.thread, ExecutorTypes.process]
-
-
 class ParallelRunnerModes(str, Enum):
     """Supported parallel running modes for VotingEnsemble"""
 
@@ -313,17 +305,12 @@ class ParallelRun(BaseModelRouter):
         )
         self.name = name or "ParallelRun"
         self.extend_event = extend_event
-        if isinstance(executor_type, ExecutorTypes):
-            executor_type = str(executor_type)
-            logger.warn(
-                "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
-                # TODO: In 1.5.0 to remove ExecutorTypes
-                FutureWarning,
-            )
         self.executor_type = ParallelRunnerModes(executor_type)
-        self._pool: Union[
-            concurrent.futures.ProcessPoolExecutor,
-            concurrent.futures.ThreadPoolExecutor,
+        self._pool: typing.Optional[
+            Union[
+                concurrent.futures.ProcessPoolExecutor,
+                concurrent.futures.ThreadPoolExecutor,
+            ]
         ] = None
 
     def _apply_logic(self, results: dict, event=None):
@@ -498,7 +485,7 @@ class VotingEnsemble(ParallelRun):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        weights: Dict[str, float] = None,
+        weights: dict[str, float] = None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
@@ -716,7 +703,7 @@ class VotingEnsemble(ParallelRun):
             )
         return model, None, subpath
 
-    def _majority_vote(self, all_predictions: List[List[int]], weights: List[float]):
+    def _majority_vote(self, all_predictions: list[list[int]], weights: list[float]):
         """
         Returns most predicted class for each event
 
@@ -740,7 +727,7 @@ class VotingEnsemble(ParallelRun):
         weighted_res = one_hot_representation @ weights
         return np.argmax(weighted_res, axis=1).tolist()
 
-    def _mean_vote(self, all_predictions: List[List[float]], weights: List[float]):
+    def _mean_vote(self, all_predictions: list[list[float]], weights: list[float]):
         """
         Returns weighted mean of the predictions
 
@@ -754,7 +741,7 @@ class VotingEnsemble(ParallelRun):
     def _is_int(self, value):
         return float(value).is_integer()
 
-    def logic(self, predictions: List[List[Union[int, float]]], weights: List[float]):
+    def logic(self, predictions: list[list[Union[int, float]]], weights: list[float]):
         """
         Returns the final prediction of all the models after applying the desire logic
 
@@ -970,7 +957,7 @@ class VotingEnsemble(ParallelRun):
                 raise Exception('Expected "inputs" to be a list')
         return request
 
-    def _normalize_weights(self, weights_dict: Dict[str, float]):
+    def _normalize_weights(self, weights_dict: dict[str, float]):
         """
         Normalized all the weights such that abs(weights_sum - 1.0) <= 0.001
         and adding 0 weight to all the routes that doesn't appear in the dict.
@@ -1124,7 +1111,7 @@ class EnrichmentModelRouter(ModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = {},
+        impute_policy: dict = None,
         **kwargs,
     ):
         """Model router with feature enrichment (from the feature store)
@@ -1169,14 +1156,17 @@ class EnrichmentModelRouter(ModelRouter):
         )
 
         self.feature_vector_uri = feature_vector_uri
-        self.impute_policy = impute_policy
+        self.impute_policy = impute_policy or {}
 
         self._feature_service = None
 
     def post_init(self, mode="sync"):
+        from ..feature_store import get_feature_vector
+
         super().post_init(mode)
-        self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri,
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 
@@ -1205,7 +1195,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         prediction_col_name: str = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = {},
+        impute_policy: dict = None,
         **kwargs,
     ):
         """Voting Ensemble with feature enrichment (from the feature store)
@@ -1312,14 +1302,17 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         )
 
         self.feature_vector_uri = feature_vector_uri
-        self.impute_policy = impute_policy
+        self.impute_policy = impute_policy or {}
 
         self._feature_service = None
 
     def post_init(self, mode="sync"):
+        from ..feature_store import get_feature_vector
+
         super().post_init(mode)
-        self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri,
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 

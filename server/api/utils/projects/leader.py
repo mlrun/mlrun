@@ -110,11 +110,12 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
+        background_task_name: str = None,
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:
             self._run_on_all_followers(
-                False, "delete_project", db_session, name, deletion_strategy
+                False, "delete_project", db_session, name, deletion_strategy, auth_info
             )
         finally:
             self._projects_in_deletion.remove(name)

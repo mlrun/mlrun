@@ -92,7 +92,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         self.provider = provider
 
 
-class RemoteSparkProviders(object):
+class RemoteSparkProviders:
     iguazio = "iguazio"
 
 

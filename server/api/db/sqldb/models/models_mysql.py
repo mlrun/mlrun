@@ -213,7 +213,7 @@ with warnings.catch_warnings():
         Tag = make_artifact_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        key = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
         producer_id = Column(String(255, collation=SQLCollationUtil.collation()))

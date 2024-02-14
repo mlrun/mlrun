@@ -1147,13 +1147,14 @@ class TestProject(TestMLRunSystem):
         data = {"col1": [1, 2], "col2": [3, 4]}
         data_frame = pd.DataFrame(data=data)
         key = "my-df"
+        data_frame.to_parquet(local_path)
         dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
             key, df=data_frame, format="parquet", target_path=local_path
         )
         project_1.log_artifact(dataset_artifact)
 
         # export the artifact to a zip file
-        dataset_artifact = project_1.get_artifact("my-df")
+        dataset_artifact = project_1.get_artifact(key)
         export_path = f"{str(self.assets_path)}/exported_dataset.zip"
         dataset_artifact.export(export_path)
 
@@ -1168,6 +1169,57 @@ class TestProject(TestMLRunSystem):
         # validate that the artifact was imported properly and was uploaded to the store
         data_item = mlrun.get_dataitem(imported_artifact.target_path).get()
         assert data_item
+
+    def test_export_import_zip_artifact(self):
+        project_1_name = "project-1"
+        self.custom_project_names_to_delete.append(project_1_name)
+        project_1 = mlrun.new_project(project_1_name, context=str(self.assets_path))
+
+        # create a file artifact that will be zipped by the packager
+        create_artifact_function = project_1.set_function(
+            func="create_file_artifact.py",
+            name="create-artifact",
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        create_artifact_function.run(
+            handler="create_file_artifact",
+            local=True,
+            returns=["text_dir: path"],
+        )
+
+        # export the artifact to a zip file
+        artifact = project_1.get_artifact(
+            "create-artifact-create-file-artifact_text_dir"
+        )
+        exported_path = os.path.join(self.assets_path, "artifact.zip")
+        artifact.export(exported_path)
+
+        # create a new project and import the artifact
+        project_2_name = "project-2"
+        self.custom_project_names_to_delete.append(project_2_name)
+        project_2 = mlrun.new_project(project_2_name, context=str(self.assets_path))
+
+        new_artifact_key = "new-artifact"
+        project_2.import_artifact(exported_path, new_key=new_artifact_key)
+
+        use_artifact_function = project_2.set_function(
+            func="use_artifact.py", name="use-artifact", kind="job", image="mlrun/mlrun"
+        )
+
+        # try to use the artifact in a function
+        use_artifact_run = use_artifact_function.run(
+            handler="use_artifact",
+            local=True,
+            inputs={"artifact": project_2.get_artifact_uri(new_artifact_key)},
+        )
+
+        # make sure the function run was successful, meaning the artifact was extracted successfully
+        # from the zip by the packager
+        assert (
+            use_artifact_run.state()
+            not in mlrun.runtimes.constants.RunStates.error_states()
+        )
 
     def test_load_project_with_artifact_db_key(self):
         project_1_name = "test-load-with-artifact"
@@ -1226,7 +1278,8 @@ class TestProject(TestMLRunSystem):
 
         # create a new project from the same spec, and validate the artifact was loaded properly
         project3 = mlrun.load_project(context=context, name=project_3_name)
-        artifacts = project3.list_artifacts(name=artifact_db_key_2)
+        # since it is imported from yaml, the artifact is saved with the set key
+        artifacts = project3.list_artifacts(name=another_artifact_key)
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == another_artifact_key
 

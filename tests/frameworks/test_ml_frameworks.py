@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import json
-import typing
 
 import pytest
 
@@ -65,7 +64,7 @@ FRAMEWORKS_ALGORITHM_FUNCTIONALITIES = [
 
 
 def framework_algorithm_functionality_pair_ids(
-    framework_algorithm_functionality_pair: typing.Tuple[str, str],
+    framework_algorithm_functionality_pair: tuple[str, str],
 ) -> str:
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     return f"{framework}-{algorithm_functionality}"
@@ -76,7 +75,7 @@ def framework_algorithm_functionality_pair_ids(
     FRAMEWORKS_ALGORITHM_FUNCTIONALITIES,
     ids=framework_algorithm_functionality_pair_ids,
 )
-def test_training(framework_algorithm_functionality_pair: typing.Tuple[str, str]):
+def test_training(framework_algorithm_functionality_pair: tuple[str, str]):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
     (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
@@ -114,7 +113,7 @@ def test_training(framework_algorithm_functionality_pair: typing.Tuple[str, str]
 )
 def test_evaluation(
     rundb_mock,
-    framework_algorithm_functionality_pair: typing.Tuple[str, str],
+    framework_algorithm_functionality_pair: tuple[str, str],
 ):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:

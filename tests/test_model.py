@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
+
+import deepdiff
 import pytest
 
 import mlrun.common.schemas
@@ -30,9 +33,8 @@ def test_enum_yaml_dump():
         (
             True,
             (
-                '{"spec": {"outputs": [], "secret_sources": [], "notifications": [{"kind": '
-                '"webhook", "name": "notification-test", "message": "completed", "severity": '
-                '"info", "when": ["completed", "error"], "condition": ""}]}, "metadata": '
+                '{"spec": {"notifications": [{"kind": "webhook", "name": "notification-test", "message": "completed", '
+                '"severity": "info", "when": ["completed", "error"], "condition": ""}]}, "metadata": '
                 '{"iteration": 0}, "status": {"state": "created"}}'
             ),
             False,
@@ -40,9 +42,8 @@ def test_enum_yaml_dump():
         (
             False,
             (
-                '{"spec": {"outputs": [], "secret_sources": [], "notifications": [{"kind": '
-                '"webhook", "name": "notification-test", "message": "completed", "severity": '
-                '"info", "when": ["completed", "error"], "condition": "", "params": {"url": '
+                '{"spec": {"notifications": [{"kind": "webhook", "name": "notification-test", "message": "completed", '
+                '"severity": "info", "when": ["completed", "error"], "condition": "", "params": {"url": '
                 '"https://url", "method": "PUT", "override_body": "AAAAAAAAAAAAAAAAAAAA"}}]}, '
                 '"metadata": {"iteration": 0}, "status": {"state": "created"}}'
             ),
@@ -50,18 +51,12 @@ def test_enum_yaml_dump():
         ),
         (
             True,
-            (
-                '{"spec": {"outputs": [], "secret_sources": []}, "metadata": {"iteration": '
-                '0}, "status": {"state": "created"}}'
-            ),
+            ('{"metadata": {"iteration": 0}, "status": {"state": "created"}}'),
             True,
         ),
         (
             False,
-            (
-                '{"spec": {"outputs": [], "secret_sources": []}, "metadata": {"iteration": '
-                '0}, "status": {"state": "created"}}'
-            ),
+            ('{"metadata": {"iteration": 0}, "status": {"state": "created"}}'),
             True,
         ),
     ],
@@ -88,7 +83,12 @@ def test_runobject_to_json_with_exclude_params(
     )
 
     # Check if the JSON result matches the expected result
-    assert json_result == expected_result
+    assert (
+        deepdiff.DeepDiff(
+            json.loads(json_result), json.loads(expected_result), ignore_order=True
+        )
+        == {}
+    )
 
     # Ensure the 'params' attribute of the notification is set back to the object
     if not is_empty:

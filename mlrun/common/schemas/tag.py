@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import pydantic
 
@@ -29,4 +28,4 @@ class TagObjects(pydantic.BaseModel):
 
     kind: str
     # TODO: Add more types to the list for new supported tagged objects
-    identifiers: typing.List[ArtifactIdentifier]
+    identifiers: list[ArtifactIdentifier]

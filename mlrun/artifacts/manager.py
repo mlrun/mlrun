@@ -132,6 +132,12 @@ class ArtifactManager:
         #  ModelArtifact is a directory.
         if isinstance(item, ModelArtifact):
             return
+        # Could happen in the import artifact scenario - that path is None.
+        if item.target_path:
+            return
+        #  in DatasetArtifact
+        if hasattr(item, "df") and item.df is not None:
+            return
         parsed_url = urlparse(path)
         schema = parsed_url.scheme
         #  we are not checking remote paths yet.

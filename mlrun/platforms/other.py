@@ -14,7 +14,6 @@
 #
 # this file is based on the code from kubeflow pipelines git
 import os
-from typing import Dict
 
 import kfp.dsl
 
@@ -274,7 +273,7 @@ def mount_s3(
     return _use_s3_cred
 
 
-def set_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
+def set_env_variables(env_vars_dict: dict[str, str] = None, **kwargs):
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
     as either a dictionary of name-value pairs, or as arguments to the function.

@@ -35,9 +35,9 @@ from mlrun.utils import logger
 def _create_enriched_mlrun_workflow(
     self,
     pipeline_func: typing.Callable,
-    pipeline_name: typing.Optional[typing.Text] = None,
-    pipeline_description: typing.Optional[typing.Text] = None,
-    params_list: typing.Optional[typing.List[dsl.PipelineParam]] = None,
+    pipeline_name: typing.Optional[str] = None,
+    pipeline_description: typing.Optional[str] = None,
+    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""

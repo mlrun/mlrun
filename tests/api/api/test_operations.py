@@ -80,7 +80,13 @@ def _mock_migration_process(*args, **kwargs):
 
 @pytest.fixture
 def _mock_waiting_for_migration():
+    original_init_data = server.api.initial_data.init_data
+    server.api.initial_data.init_data = unittest.mock.MagicMock()
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_migrations
+    try:
+        yield
+    finally:
+        server.api.initial_data.init_data = original_init_data
 
 
 def test_migrations_success(
@@ -91,8 +97,6 @@ def test_migrations_success(
     _mock_waiting_for_migration,
     client: fastapi.testclient.TestClient,
 ) -> None:
-    original_init_data = server.api.initial_data.init_data
-    server.api.initial_data.init_data = _mock_migration_process
     response = client.get("projects")
     # error cause we're waiting for migrations
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
@@ -100,6 +104,7 @@ def test_migrations_success(
     # not initialized until we're not doing migrations
     assert server.api.utils.singletons.scheduler.get_scheduler() is None
     # trigger migrations
+    server.api.initial_data.init_data = _mock_migration_process
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
@@ -119,9 +124,6 @@ def test_migrations_success(
     assert response.status_code == http.HTTPStatus.OK.value
     # should be initialized
     assert server.api.utils.singletons.scheduler.get_scheduler() is not None
-
-    # tear down
-    server.api.initial_data.init_data = original_init_data
 
 
 def _generate_background_task_schema(

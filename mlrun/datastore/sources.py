@@ -17,7 +17,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import pandas as pd
 import semver
@@ -118,7 +118,10 @@ class BaseSourceDriver(DataSource):
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"Conversion of a source of type '{type(self).__name__}' "
+            "to a Spark dataframe is not possible, as this operation is not supported"
+        )
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
         if not (columns or time_field):
@@ -167,10 +170,10 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         schedule: str = None,
-        parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        parse_dates: Union[None, int, str, list[int], list[str]] = None,
         **kwargs,
     ):
         super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
@@ -296,7 +299,7 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -797,7 +800,7 @@ class OnlineSource(BaseSourceDriver):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         workers: int = None,
@@ -897,7 +900,7 @@ class StreamSource(OnlineSource):
             engine = function.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
-            kwargs["workerAllocationMode"] = "static"
+            kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
             self.path,
@@ -986,8 +989,12 @@ class KafkaSource(OnlineSource):
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                "workerAllocationMode", "static"
+                "worker_allocation_mode", "static"
             )
+
+        trigger_kwargs = {}
+        if "max_workers" in extra_attributes:
+            trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
@@ -997,7 +1004,7 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
-            max_workers=extra_attributes.pop("max_workers", 4),
+            **trigger_kwargs,
         )
         function = function.add_trigger("kafka", trigger)
 
@@ -1015,6 +1022,12 @@ class KafkaSource(OnlineSource):
             function.spec.max_replicas = 1
 
         return function
+
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+        raise NotImplementedError(
+            "Conversion of a source of type 'KafkaSource' "
+            "to a Spark dataframe is not possible, as this operation is not supported by Spark"
+        )
 
 
 class SQLSource(BaseSourceDriver):
@@ -1034,7 +1047,7 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        parse_dates: List[str] = None,
+        parse_dates: list[str] = None,
         **kwargs,
     ):
         """

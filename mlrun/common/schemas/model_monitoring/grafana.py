@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
@@ -34,8 +34,8 @@ class GrafanaStringColumn(GrafanaColumn):
 
 
 class GrafanaTable(BaseModel):
-    columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[float, int, str]]]] = []
+    columns: list[GrafanaColumn]
+    rows: list[list[Optional[Union[float, int, str]]]] = []
     type: str = "table"
 
     def add_row(self, *args):
@@ -49,7 +49,7 @@ class GrafanaDataPoint(BaseModel):
 
 class GrafanaTimeSeriesTarget(BaseModel):
     target: str
-    datapoints: List[Tuple[float, int]] = []
+    datapoints: list[tuple[float, int]] = []
 
     def add_data_point(self, data_point: GrafanaDataPoint):
         self.datapoints.append((data_point.value, data_point.timestamp))

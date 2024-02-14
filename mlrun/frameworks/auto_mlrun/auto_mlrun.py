@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Callable, Dict, List, Tuple, Type, Union
+from typing import Callable, Union
 
 import mlrun
 from mlrun.artifacts import get_model
@@ -165,7 +165,7 @@ def get_framework_by_class_name(model: CommonTypes.ModelType) -> str:
     )
 
 
-def framework_to_model_handler(framework: str) -> Type[ModelHandler]:
+def framework_to_model_handler(framework: str) -> type[ModelHandler]:
     """
     Get the ModelHandler class of the given framework's name.
 
@@ -262,7 +262,7 @@ class AutoMLRun:
     @staticmethod
     def _get_framework(
         model: CommonTypes.ModelType = None, model_path: str = None
-    ) -> Union[Tuple[str, dict]]:
+    ) -> Union[tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
         only if the model path is of a logged model artifact (store object uri).
@@ -322,8 +322,8 @@ class AutoMLRun:
         model_path: str,
         model_name: str = None,
         context: mlrun.MLClientCtx = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         framework: str = None,
         **kwargs,
@@ -420,8 +420,8 @@ class AutoMLRun:
         model_name: str = None,
         tag: str = "",
         model_path: str = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         context: mlrun.MLClientCtx = None,
         framework: str = None,

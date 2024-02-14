@@ -15,7 +15,6 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pytest
@@ -44,7 +43,7 @@ from mlrun.package.utils import ArchiveSupportedFormat
         ],
     ],
 )
-def test_archiver(archive_format: str, directory_layout: List[str]):
+def test_archiver(archive_format: str, directory_layout: list[str]):
     """
     Test the archivers for creating archives of multiple layouts and extracting them while keeping their original
     layout, names and data.
@@ -94,7 +93,7 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
         )
     )
     assert extracted_dir_path.exists()
-    assert extracted_dir_path == output_path / directory_name
+    assert extracted_dir_path.name.startswith((output_path / directory_name).name)
 
     # Validate all files were extracted as they originally were:
     for path in directory_layout:

@@ -1112,7 +1112,7 @@ class EnrichmentModelRouter(ModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = {},
+        impute_policy: dict = None,
         **kwargs,
     ):
         """Model router with feature enrichment (from the feature store)
@@ -1157,7 +1157,7 @@ class EnrichmentModelRouter(ModelRouter):
         )
 
         self.feature_vector_uri = feature_vector_uri
-        self.impute_policy = impute_policy
+        self.impute_policy = impute_policy or {}
 
         self._feature_service = None
 
@@ -1194,7 +1194,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         prediction_col_name: str = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = {},
+        impute_policy: dict = None,
         **kwargs,
     ):
         """Voting Ensemble with feature enrichment (from the feature store)
@@ -1301,7 +1301,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         )
 
         self.feature_vector_uri = feature_vector_uri
-        self.impute_policy = impute_policy
+        self.impute_policy = impute_policy or {}
 
         self._feature_service = None
 

@@ -19,6 +19,8 @@ import tempfile
 import typing
 import uuid
 
+import kfp
+from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun

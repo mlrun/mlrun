@@ -1913,10 +1913,14 @@ class SQLTarget(BaseStoreTarget):
                 for col, col_type in self.schema.items():
                     col_type_sql = TYPE_TO_SQL_TYPE.get(col_type)
                     if col_type_sql is None:
-                        raise TypeError(f"'{col_type}' unsupported type for column '{col}'")
+                        raise TypeError(
+                            f"'{col_type}' unsupported type for column '{col}'"
+                        )
                     columns.append(
                         sqlalchemy.Column(
-                            col, col_type_sql, primary_key=(col in primary_key_for_check)
+                            col,
+                            col_type_sql,
+                            primary_key=(col in primary_key_for_check),
                         )
                     )
 

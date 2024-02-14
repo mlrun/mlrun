@@ -93,7 +93,6 @@ class FeaturesDriftTablePlot:
 
     def produce(
         self,
-        features: list[str],
         sample_set_statistics: dict,
         inputs_statistics: dict,
         metrics: dict[str, Union[dict, float]],
@@ -102,8 +101,6 @@ class FeaturesDriftTablePlot:
         """
         Produce the html code of the table plot with the given information and the stored configurations in the class.
 
-        :param features:              List of all the features names to include in the table. These names expected to be
-                                      in the statistics and metrics dictionaries.
         :param sample_set_statistics: The sample set calculated statistics dictionary.
         :param inputs_statistics:     The inputs calculated statistics dictionary.
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.
@@ -113,7 +110,7 @@ class FeaturesDriftTablePlot:
         """
         # Plot the drift table:
         figure = self._plot(
-            features=features,
+            features=list(inputs_statistics.keys()),
             sample_set_statistics=sample_set_statistics,
             inputs_statistics=inputs_statistics,
             metrics=metrics,
@@ -293,15 +290,22 @@ class FeaturesDriftTablePlot:
         :return: The feature row - `Table` trace.
         """
         # Add '\n' to the feature name in order to make it fit into its cell:
-        feature_name = "<br>".join(self._separate_feature_name(feature_name))
+        html_feature_name = "<br>".join(self._separate_feature_name(feature_name))
 
         # Initialize the cells values list with the bold feature name as the first value:
-        cells_values = [f"<b>{feature_name}</b>"]
+        cells_values = [f"<b>{html_feature_name}</b>"]
 
         # Add the statistics columns:
         for column in self._statistics_columns:
             cells_values.append(sample_statistics[column])
-            cells_values.append(input_statistics[column])
+            try:
+                cells_values.append(input_statistics[column])
+            except KeyError:
+                raise ValueError(
+                    f"The `input_statistics['{feature_name}']` dictionary "
+                    f"does not include the expected key '{column}'. "
+                    "Please check the current data."
+                )
 
         # Add the metrics columns:
         for column in self._metrics_columns:
@@ -517,18 +521,27 @@ class FeaturesDriftTablePlot:
         # Start going over the features and plot each row, histogram and notification:
         row = 3  # We are currently at row 3 counting the headers.
         for feature in features:
-            # Add the feature values:
-            main_figure.add_trace(
-                self._plot_feature_row_table(
-                    feature_name=feature,
-                    sample_statistics=sample_set_statistics[feature],
-                    input_statistics=inputs_statistics[feature],
-                    metrics=metrics[feature],
-                    row_height=row_height,
-                ),
-                row=row,
-                col=1,
-            )
+            try:
+                # Add the feature values:
+                main_figure.add_trace(
+                    self._plot_feature_row_table(
+                        feature_name=feature,
+                        sample_statistics=sample_set_statistics[feature],
+                        input_statistics=inputs_statistics[feature],
+                        metrics=metrics[feature],
+                        row_height=row_height,
+                    ),
+                    row=row,
+                    col=1,
+                )
+            except KeyError:
+                raise ValueError(
+                    "`sample_set_statistics` does not contain the expected "
+                    f"key '{feature}' from `inputs_statistics`. Please verify "
+                    "the data integrity.\n"
+                    f"{sample_set_statistics.keys() = }\n"
+                    f"{inputs_statistics.keys() = }\n"
+                )
             # Add the histograms (both traces are added to the same subplot figure):
             sample_hist, input_hist = self._plot_histogram_scatters(
                 sample_hist=sample_set_statistics[feature]["hist"],

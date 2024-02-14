@@ -668,7 +668,7 @@ def perform_drift_analysis(
     possible_drift_threshold: float,
     artifacts_tag: str = "",
     db_session=None,
-):
+) -> None:
     """
     Calculate drift per feature and produce the drift table artifact for logging post prediction. Note that most of
     the calculations were already made through the monitoring batch job.
@@ -694,7 +694,7 @@ def perform_drift_analysis(
     metrics = model_endpoint.status.drift_measures
     inputs_statistics = model_endpoint.status.current_stats
 
-    inputs_statistics.pop("timestamp", None)
+    inputs_statistics.pop(EventFieldType.TIMESTAMP, None)
 
     # Calculate drift for each feature
     virtual_drift = VirtualDrift()
@@ -706,7 +706,6 @@ def perform_drift_analysis(
 
     # Drift table plot
     html_plot = FeaturesDriftTablePlot().produce(
-        features=list(inputs_statistics.keys()),
         sample_set_statistics=sample_set_statistics,
         inputs_statistics=inputs_statistics,
         metrics=metrics,

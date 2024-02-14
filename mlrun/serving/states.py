@@ -1542,6 +1542,7 @@ def _init_async_objects(context, steps):
                     result_path=step.result_path,
                     name=step.name,
                     context=context,
+                    pass_context=step._inject_context,
                 )
             if (
                 respond_supported

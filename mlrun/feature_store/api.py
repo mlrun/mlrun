@@ -114,44 +114,6 @@ def get_offline_features(
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
 ):
-    return _get_offline_features(
-        feature_vector,
-        entity_rows,
-        entity_timestamp_column,
-        target,
-        run_config,
-        drop_columns,
-        start_time,
-        end_time,
-        with_indexes,
-        update_stats,
-        engine,
-        engine_args,
-        query,
-        order_by,
-        spark_service,
-        timestamp_for_filtering,
-    )
-
-
-def _get_offline_features(
-    feature_vector: Union[str, FeatureVector],
-    entity_rows=None,
-    entity_timestamp_column: str = None,
-    target: DataTargetBase = None,
-    run_config: RunConfig = None,
-    drop_columns: list[str] = None,
-    start_time: Union[str, datetime] = None,
-    end_time: Union[str, datetime] = None,
-    with_indexes: bool = False,
-    update_stats: bool = False,
-    engine: str = None,
-    engine_args: dict = None,
-    query: str = None,
-    order_by: Union[str, list[str]] = None,
-    spark_service: str = None,
-    timestamp_for_filtering: Union[str, dict[str, str]] = None,
-) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata
@@ -212,6 +174,44 @@ def _get_offline_features(
                                     merge process using start_time and end_time params.
 
     """
+    return _get_offline_features(
+        feature_vector,
+        entity_rows,
+        entity_timestamp_column,
+        target,
+        run_config,
+        drop_columns,
+        start_time,
+        end_time,
+        with_indexes,
+        update_stats,
+        engine,
+        engine_args,
+        query,
+        order_by,
+        spark_service,
+        timestamp_for_filtering,
+    )
+
+
+def _get_offline_features(
+    feature_vector: Union[str, FeatureVector],
+    entity_rows=None,
+    entity_timestamp_column: str = None,
+    target: DataTargetBase = None,
+    run_config: RunConfig = None,
+    drop_columns: list[str] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
+    with_indexes: bool = False,
+    update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
+    query: str = None,
+    order_by: Union[str, list[str]] = None,
+    spark_service: str = None,
+    timestamp_for_filtering: Union[str, dict[str, str]] = None,
+) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "entity_timestamp_column param "
@@ -281,24 +281,6 @@ def get_online_feature_service(
     update_stats: bool = False,
     entity_keys: list[str] = None,
 ):
-    return _get_online_feature_service(
-        feature_vector,
-        run_config,
-        fixed_window_type,
-        impute_policy,
-        update_stats,
-        entity_keys,
-    )
-
-
-def _get_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
-    run_config: RunConfig = None,
-    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
-    update_stats: bool = False,
-    entity_keys: list[str] = None,
-) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
@@ -362,6 +344,24 @@ def _get_online_feature_service(
     :return:                    Initialize the `OnlineVectorService`.
                                 Will be used in subclasses where `support_online=True`.
     """
+    return _get_online_feature_service(
+        feature_vector,
+        run_config,
+        fixed_window_type,
+        impute_policy,
+        update_stats,
+        entity_keys,
+    )
+
+
+def _get_online_feature_service(
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
+    update_stats: bool = False,
+    entity_keys: list[str] = None,
+) -> OnlineVectorService:
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
     feature_vector = _features_to_vector_and_check_permissions(

@@ -30,7 +30,6 @@ from typing import Callable, Dict, List, Optional, Union
 import dotenv
 import git
 import git.exc
-import inflection
 import kfp
 import nuclio
 import requests
@@ -171,7 +170,7 @@ def new_project(
     :param name:         project name
     :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
-    :param user_project: add the current user name to the provided project name (making it unique per user)
+    :param user_project: add the current username to the provided project name (making it unique per user)
     :param remote:       remote Git url
     :param from_template:     path to project YAML/zip file that will be used as a template
     :param secrets:      key:secret dict or SecretsStore used to download sources
@@ -319,7 +318,7 @@ def load_project(
     :param init_git:        if True, will git init the context dir
     :param subpath:         project subpath (within the archive)
     :param clone:           if True, always clone (delete any existing content)
-    :param user_project:    add the current user name to the project name (for db:// prefixes)
+    :param user_project:    add the current username to the project name (for db:// prefixes)
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
@@ -420,7 +419,7 @@ def get_or_create_project(
     save: bool = True,
     parameters: dict = None,
 ) -> "MlrunProject":
-    """Load a project from MLRun DB, or create/import if doesnt exist
+    """Load a project from MLRun DB, or create/import if it does not exist
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -620,9 +619,9 @@ def _add_username_to_project_name_if_needed(name, user_project):
         if not name:
             raise ValueError("user_project must be specified together with name")
         username = environ.get("V3IO_USERNAME") or getpass.getuser()
-        normalized_username = inflection.dasherize(username.lower())
+        normalized_username = mlrun.utils.normalize_project_username(username.lower())
         if username != normalized_username:
-            logger.info(
+            logger.debug(
                 "Username was normalized to match the required pattern for project name",
                 username=username,
                 normalized_username=normalized_username,

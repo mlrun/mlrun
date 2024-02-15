@@ -43,7 +43,7 @@ The number of replicas per function depends on the  source:
    - `function.spec.max_replicas = 3`. Default = 4	
    
    and the number of workers is set with:
-   - `KafkaSource(attributes={"max_workers": 1})`
+   - `KafkaSource(attributes={"max_workers": 1})`. Default = 1
    
 The consumer function has one buffer per worker, measured in number of messages, holding the incoming events that were received by the worker and are waiting to be 
 processed. Once this buffer is full, events need to be processed so that the function is able to receive more events. The buffer size is 

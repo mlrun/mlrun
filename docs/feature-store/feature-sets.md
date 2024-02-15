@@ -32,8 +32,13 @@ The feature set object contains the following information:
 Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
 * **name** &mdash; The feature set name is a unique name within a project. 
-* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the key columns 
+* **entities** &mdash; Each feature set must be associated with one or more index columns. When joining feature sets, the key columns 
    are determined by the relations field if it exists, and otherwise by the entities.
+   
+```{admonition} Caution
+Avoid using timestamps or bool as entities.
+```   
+   
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
    - spark &mdash; Good for simple batch transformations

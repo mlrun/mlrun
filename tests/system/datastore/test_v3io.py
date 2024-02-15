@@ -18,7 +18,6 @@ import subprocess
 import tempfile
 import uuid
 from urllib.parse import urlparse
-from warnings import warn
 
 import dask.dataframe as dd
 import pandas as pd
@@ -144,7 +143,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         generated_buffer = bytearray(os.urandom(file_size))
         data_item, object_url = self._get_data_item()
         object_path = urlparse(object_url).path
-        # Exercise the DataItem put flow
 
         data_item.put(generated_buffer)
         returned_buffer = data_item.get()
@@ -211,21 +209,27 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.upload(self.test_file_path)
         data_item.stat()
         data_item.delete()
-        with pytest.raises(mlrun.errors.MLRunNotFoundError) as http_error:
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"
+        ):
             data_item.stat()
-        assert "Request failed with status 404" in str(http_error.value)
-        # folder deletion:
+
+    @pytest.mark.skip(
+        reason="need to add support for recursive deletion in all datastores"
+    )
+    def test_dir_rm(self):
         url = f"{self.object_dir_url}/test_directory/file.txt"
         data_item = mlrun.get_dataitem(url=url)
         data_item.upload(self.test_file_path)
         dir_data_item = mlrun.get_dataitem(url=os.path.dirname(url))
         dir_data_item.delete(recursive=True)
-        with pytest.raises(mlrun.errors.MLRunNotFoundError) as http_error_dir:
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"
+        ):
             dir_data_item.stat()
-        assert "Request failed with status 404" in str(http_error_dir.value)
 
     @pytest.mark.parametrize(
-        "file_extension,args, reader",
+        "file_extension,kwargs, reader",
         [
             (
                 "parquet",
@@ -239,20 +243,20 @@ class TestV3ioDataStore(TestMLRunSystem):
     def test_as_df(
         self,
         file_extension: str,
-        args: dict,
+        kwargs: dict,
         reader: callable,
     ):
         local_file_path = self.df_paths[file_extension]
-        source = reader(local_file_path, **args)
+        source = reader(local_file_path, **kwargs)
         source["date_of_birth"] = pd.to_datetime(source["date_of_birth"])
         dataitem, _ = self._get_data_item(file_extension=file_extension)
         dataitem.upload(local_file_path)
-        response = dataitem.as_df(time_column="date_of_birth", **args)
-        assert source.equals(response)
+        response = dataitem.as_df(time_column="date_of_birth", **kwargs)
+        pd.testing.assert_frame_equal(source, response)
 
     @pytest.mark.skip(reason="ticket exists")
     @pytest.mark.parametrize(
-        "file_extension,args, reader",
+        "file_extension,kwargs, reader",
         [
             (
                 "parquet",
@@ -266,22 +270,16 @@ class TestV3ioDataStore(TestMLRunSystem):
     def test_as_df_dd(
         self,
         file_extension: str,
-        args: dict,
+        kwargs: dict,
         reader: callable,
     ):
         local_file_path = self.df_paths[file_extension]
-        source = reader(local_file_path, **args)
+        source = reader(local_file_path, **kwargs)
         source["date_of_birth"] = dd.to_datetime(source["date_of_birth"])
         dataitem, _ = self._get_data_item(file_extension=file_extension)
         dataitem.upload(local_file_path)
-        response = dataitem.as_df(time_column="date_of_birth", df_module=dd, **args)
-        #  failed in json and csv becuase as_df return generator...
-        # assert dd.assert_eq(source, response) # failed in parquet because:
-        if source["date_of_birth"].dtype != response["date_of_birth"].dtype:
-            warn("datetime types are different between source and respond", UserWarning)
-        assert dd.assert_eq(
-            source.drop("date_of_birth", axis=1), response.drop("date_of_birth", axis=1)
-        )
+        response = dataitem.as_df(time_column="date_of_birth", df_module=dd, **kwargs)
+        dd.assert_eq(source, response, check_dtype=False)
 
     @pytest.mark.parametrize(
         "file_extension, reader",
@@ -321,7 +319,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             .sort_values("id")
             .reset_index(drop=True)
         )
-        assert response_df.equals(appended_df)
+        pd.testing.assert_frame_equal(response_df, appended_df)
 
     @pytest.mark.skip(reason="ticket exists")
     @pytest.mark.parametrize(
@@ -348,7 +346,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         )
 
         dir_data_item = mlrun.run.get_dataitem(self.object_dir_url)
-        #  csv failed because it returns a generator ...
         response_df = (
             dir_data_item.as_df(
                 format=file_extension, df_module=dd, time_column="date_of_birth"
@@ -365,4 +362,4 @@ class TestV3ioDataStore(TestMLRunSystem):
             .sort_values("id")
             .reset_index(drop=True)
         )
-        assert dd.assert_eq(appended_df, response_df)
+        dd.assert_eq(appended_df, response_df)

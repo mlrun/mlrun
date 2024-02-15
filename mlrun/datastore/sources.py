@@ -861,7 +861,7 @@ class StreamSource(OnlineSource):
         **kwargs,
     ):
         """
-        Sets stream source for the flow. If stream doesn't exist it will create it.
+        Sets the stream source for the flow. If the stream doesn't exist it will create it.
 
         :param name: stream name. Default "stream"
         :param group: consumer group. Default "serving"

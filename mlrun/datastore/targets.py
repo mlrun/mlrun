@@ -727,7 +727,7 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
-    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+    """Parquet target storage driver, used to materialize feature set/vector data into parquet files.
 
     :param name:       optional, target name. By default will be called ParquetTarget
     :param path:       optional, Output path. Can be either a file or directory.

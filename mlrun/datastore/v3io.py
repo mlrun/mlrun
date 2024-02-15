@@ -51,7 +51,6 @@ class V3ioStore(DataStore):
         elif self.endpoint.startswith("http://"):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
-        # after endpoint http removal - because endpoint can be without any http/https.
         self.client = v3io.dataplane.Client(access_key=token, endpoint=self.url)
         self.object = self.client.object
         self.auth = None
@@ -63,7 +62,7 @@ class V3ioStore(DataStore):
 
     def _do_object_request(self, function: callable, *args, **kwargs):
         try:
-            return function(self.object, *args, **kwargs)
+            return function(*args, **kwargs)
         except HttpResponseError as http_response_error:
             raise mlrun.errors.err_for_status_code(
                 status_code=http_response_error.status_code,
@@ -101,13 +100,13 @@ class V3ioStore(DataStore):
         if file_size <= ONE_MB:
             with open(src_path, "rb") as source_file:
                 data = source_file.read()
-                self._do_object_request(
-                    v3io.dataplane.object.Model.put,
-                    container=container,
-                    path=path,
-                    body=data,
-                    append=False,
-                )
+            self._do_object_request(
+                self.object.put,
+                container=container,
+                path=path,
+                body=data,
+                append=False,
+            )
             return
         # chunk must be a multiple of the ALLOCATIONGRANULARITY
         # https://docs.python.org/3/library/mmap.html
@@ -125,9 +124,9 @@ class V3ioStore(DataStore):
                     access=mmap.ACCESS_READ,
                     offset=file_offset,
                 ) as mmap_obj:
-                    append = True if file_offset else False
+                    append = file_offset != 0
                     self._do_object_request(
-                        v3io.dataplane.object.Model.put,
+                        self.object.put,
                         container=container,
                         path=path,
                         body=mmap_obj,
@@ -141,12 +140,12 @@ class V3ioStore(DataStore):
     def get(self, key, size=None, offset=0):
         container, path = split_path(self._join(key))
         return self._do_object_request(
-            function=v3io.dataplane.object.Model.get,
+            function=self.object.get,
             container=container,
             path=path,
             offset=offset,
             num_bytes=size,
-        ).body
+        ).output
 
     def _put(self, key, data, append=False, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
@@ -154,7 +153,7 @@ class V3ioStore(DataStore):
         buffer_size = len(data)  # in bytes
         if buffer_size <= ONE_MB:
             self._do_object_request(
-                v3io.dataplane.object.Model.put,
+                self.object.put,
                 container=container,
                 path=path,
                 body=data,
@@ -171,7 +170,7 @@ class V3ioStore(DataStore):
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
             append = True if buffer_offset or append else False
             self._do_object_request(
-                v3io.dataplane.object.Model.put,
+                self.object.put,
                 container=container,
                 path=path,
                 body=data[buffer_offset : buffer_offset + chunk_size],
@@ -185,9 +184,9 @@ class V3ioStore(DataStore):
     def stat(self, key):
         container, path = split_path(self._join(key))
         response = self._do_object_request(
-            function=v3io.dataplane.object.Model.head, container=container, path=path
+            function=self.object.head, container=container, path=path
         )
-        head = dict(response.headers.items())
+        head = dict(response.headers)
         size = int(head.get("Content-Length", "0"))
         datestr = head.get("Last-Modified", "0")
         modified = time.mktime(

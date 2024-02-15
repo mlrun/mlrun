@@ -167,8 +167,9 @@ You can also deploy a model from within an ML pipeline (check the various demos 
 ## Model monitoring
 
 Model activities can be tracked into a real-time stream and time-series DB. The monitoring data
-is used to create real-time dashboards and track model accuracy and drift. 
-To set the tracking stream options, specify the following function spec attributes:
+is used to create real-time dashboards, detect drift, and analyze performance. 
+
+To monitor a deployed model, apply `set_tracking()` on your serving function and specify the function spec attributes:
 
         fn.set_tracking(stream_path, batch, sample)
 
@@ -176,3 +177,4 @@ To set the tracking stream options, specify the following function spec attribut
 (e.g. kafka://kafka.default.svc.cluster.local:9092)
 * **sample** &mdash; optional, sample every N requests
 * **batch** &mdash; optional, send micro-batches every N requests
+* **tracking_policy** &mdash; optional, model tracking configurations, such as setting the scheduling policy of the model monitoring batch job

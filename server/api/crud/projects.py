@@ -26,6 +26,7 @@ import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.db.session
+import server.api.utils.background_tasks
 import server.api.utils.clients.nuclio
 import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
@@ -100,8 +101,12 @@ class Projects(
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        background_task_name: str = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
+        self._enrich_project_with_deletion_background_task_name(
+            session, name, background_task_name
+        )
         if (
             deletion_strategy.is_restricted()
             or deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
@@ -471,4 +476,19 @@ class Projects(
             logger,
             False,
             _verify_no_project_function_pods,
+        )
+
+    @staticmethod
+    def _enrich_project_with_deletion_background_task_name(
+        session: sqlalchemy.orm.Session, name: str, background_task_name: str
+    ):
+        if not background_task_name:
+            return
+
+        project_patch = {
+            "status": {"deletion_background_task_name": background_task_name}
+        }
+
+        server.api.utils.singletons.db.get_db().patch_project(
+            session, name, project_patch
         )

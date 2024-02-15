@@ -110,6 +110,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
+        background_task_name: str = None,
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:

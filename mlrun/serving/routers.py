@@ -1111,7 +1111,7 @@ class EnrichmentModelRouter(ModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = {},
+        impute_policy: dict = None,
         **kwargs,
     ):
         """Model router with feature enrichment (from the feature store)
@@ -1156,14 +1156,17 @@ class EnrichmentModelRouter(ModelRouter):
         )
 
         self.feature_vector_uri = feature_vector_uri
-        self.impute_policy = impute_policy
+        self.impute_policy = impute_policy or {}
 
         self._feature_service = None
 
     def post_init(self, mode="sync"):
+        from ..feature_store import get_feature_vector
+
         super().post_init(mode)
-        self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri,
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 
@@ -1192,7 +1195,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         prediction_col_name: str = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = {},
+        impute_policy: dict = None,
         **kwargs,
     ):
         """Voting Ensemble with feature enrichment (from the feature store)
@@ -1299,14 +1302,17 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         )
 
         self.feature_vector_uri = feature_vector_uri
-        self.impute_policy = impute_policy
+        self.impute_policy = impute_policy or {}
 
         self._feature_service = None
 
     def post_init(self, mode="sync"):
+        from ..feature_store import get_feature_vector
+
         super().post_init(mode)
-        self._feature_service = mlrun.feature_store.get_online_feature_service(
-            feature_vector=self.feature_vector_uri,
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 

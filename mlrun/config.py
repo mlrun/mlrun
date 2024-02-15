@@ -1148,11 +1148,12 @@ class Config:
 
         return storage_options
 
-    def is_explicit_ack(self) -> bool:
+    def is_explicit_ack(self, version=None) -> bool:
+        if not version:
+            version = self.nuclio_version
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version
-            or semver.VersionInfo.parse(self.nuclio_version)
-            >= semver.VersionInfo.parse("1.12.10")
+            not version
+            or semver.VersionInfo.parse(version) >= semver.VersionInfo.parse("1.12.10")
         )
 
 

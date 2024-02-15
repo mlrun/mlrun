@@ -367,7 +367,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             )
 
 
-def datastore_profile_read(url, project_name=""):
+def datastore_profile_read(url, project_name="", secrets: dict = None):
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -385,7 +385,7 @@ def datastore_profile_read(url, project_name=""):
     project_ds_name_private = DatastoreProfile.generate_secret_key(
         profile_name, project_name
     )
-    private_body = get_secret_or_env(project_ds_name_private)
+    private_body = get_secret_or_env(project_ds_name_private, secret_provider=secrets)
     if not public_profile or not private_body:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Unable to retrieve the datastore profile '{url}' from either the server or local environment. "

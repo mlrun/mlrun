@@ -14,6 +14,8 @@
 #
 
 import pathlib
+import tempfile
+import uuid
 
 import pytest
 
@@ -59,3 +61,20 @@ class TestAPIArtifacts(TestMLRunSystem):
         assert (
             "Failed committing changes to DB" in run["status"]["error"]
         ), "run should fail with a reason"
+
+    @pytest.mark.enterprise
+    def test_import_artifact(self):
+        temp_dir = tempfile.mkdtemp()
+        key = f"artifact_key_{uuid.uuid4()}"
+        body = "my test artifact"
+        artifact = self.project.log_artifact(
+            key, body=body, local_path=f"{temp_dir}/test_artifact.txt"
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".yaml", delete=True
+        ) as temp_file:
+            artifact.export(temp_file.name)
+            artifact = self.project.import_artifact(
+                temp_file.name, new_key=f"imported_artifact_key_{uuid.uuid4()}"
+            )
+        assert artifact.to_dataitem().get().decode() == body

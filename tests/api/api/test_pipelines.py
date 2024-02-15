@@ -302,9 +302,68 @@ def test_create_pipeline(
     assert response_body["id"] == "some-run-id"
 
 
-def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetail:
+@pytest.mark.parametrize(
+    "status_phase, run_state, expected_phase",
+    [
+        ("Succeeded", "completed", "Succeeded"),
+        ("Succeeded", "error", "Failed"),
+        ("Succeeded", "aborted", "Failed"),
+        ("Succeeded", "aborting", "Succeeded"),
+        ("Failed", "completed", "Succeeded"),
+        ("Failed", "error", "Failed"),
+        ("Failed", "aborted", "Failed"),
+        ("Failed", "aborting", "Failed"),
+        ("Error", "completed", "Succeeded"),
+        ("Running", "completed", "Running"),
+        ("Running", "error", "Running"),
+        ("Running", "aborted", "Running"),
+        ("Running", "aborting", "Running"),
+        ("Pending", "completed", "Pending"),
+        ("Pending", "error", "Pending"),
+        ("Pending", "aborted", "Pending"),
+        ("Pending", "aborting", "Pending"),
+        ("Skipped", "completed", "Skipped"),
+        ("Skipped", "error", "Skipped"),
+        ("Skipped", "aborted", "Skipped"),
+        ("Skipped", "aborting", "Skipped"),
+    ],
+)
+def test_get_pipeline_summary_format(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+    status_phase,
+    run_state,
+    expected_phase,
+) -> None:
+    api_run_detail = _generate_get_run_mock(status_phase=status_phase)
+    _mock_get_run(kfp_client_mock, api_run_detail)
+    # runner pod as defined in _generate_workflow_manifest
+    runner_pod = "minimal-pipeline-rmtvd"
+    run = {
+        "metadata": {
+            "name": "run1",
+            "labels": {"mlrun/runner-pod": runner_pod, "workflow": "id1"},
+        },
+        "status": {"state": run_state},
+    }
+    server.api.crud.Runs().store_run(db, run, "some-uid")
+    formatted_run = server.api.crud.Pipelines()._format_run(
+        db,
+        api_run_detail.to_dict()["run"],
+        mlrun.common.schemas.PipelinesFormat.summary,
+        api_run_detail.to_dict(),
+    )
+    assert formatted_run["graph"][runner_pod]["phase"] == expected_phase
+
+
+def _generate_get_run_mock(
+    status_phase: str = None,
+) -> kfp_server_api.models.api_run_detail.ApiRunDetail:
     workflow_manifest = _generate_workflow_manifest()
-    workflow_manifest_with_status = _generate_workflow_manifest(with_status=True)
+    workflow_manifest_with_status = _generate_workflow_manifest(
+        with_status=True, status_phase=status_phase
+    )
     return kfp_server_api.models.api_run_detail.ApiRunDetail(
         run=kfp_server_api.models.api_run.ApiRun(
             id="id1",
@@ -424,7 +483,7 @@ def _generate_list_runs_project_name_mocks():
     ]
 
 
-def _generate_workflow_manifest(with_status=False):
+def _generate_workflow_manifest(with_status=False, status_phase=None):
     workflow_manifest = {
         "metadata": {
             "name": "minimal-pipeline-rmtvd",
@@ -434,7 +493,7 @@ def _generate_workflow_manifest(with_status=False):
                 "pipeline/runid": "c74810e9-a5ae-4ad4-bb1f-efd38e529c0f",
                 "pipelines.kubeflow.org/kfp_sdk_version": "1.0.1",
                 "workflows.argoproj.io/completed": "true",
-                "workflows.argoproj.io/phase": "Succeeded",
+                "workflows.argoproj.io/phase": status_phase or "Succeeded",
             },
             "annotations": {
                 "pipelines.kubeflow.org/kfp_sdk_version": "1.0.1",
@@ -518,7 +577,7 @@ def _generate_workflow_manifest(with_status=False):
     }
     if with_status:
         workflow_manifest["status"] = {
-            "phase": "Succeeded",
+            "phase": status_phase or "Succeeded",
             "startedAt": "2021-08-23T00:01:31Z",
             "finishedAt": "2021-08-23T00:02:06Z",
             "nodes": {
@@ -528,7 +587,7 @@ def _generate_workflow_manifest(with_status=False):
                     "displayName": "minimal-pipeline-rmtvd",
                     "type": "DAG",
                     "templateName": "minimal-pipeline",
-                    "phase": "Succeeded",
+                    "phase": status_phase or "Succeeded",
                     "startedAt": "2021-08-23T00:01:31Z",
                     "finishedAt": "2021-08-23T00:02:06Z",
                     "inputs": {"parameters": [{"name": "fail", "value": "False"}]},

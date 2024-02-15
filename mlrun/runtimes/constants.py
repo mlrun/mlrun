@@ -15,6 +15,8 @@
 import enum
 import typing
 
+import mlrun.run
+
 
 class PodPhases:
     """
@@ -187,6 +189,21 @@ class RunStates:
             RunStates.pending,
             # TODO: add aborting state once we have it
         ]
+
+    @staticmethod
+    def run_state_to_pipeline_status(run_state: str) -> typing.Optional[str]:
+        if not run_state or run_state not in RunStates.all():
+            return None
+        return {
+            RunStates.completed: mlrun.run.RunStatuses.succeeded,
+            RunStates.error: mlrun.run.RunStatuses.failed,
+            RunStates.running: mlrun.run.RunStatuses.running,
+            RunStates.created: mlrun.run.RunStatuses.pending,
+            RunStates.pending: mlrun.run.RunStatuses.pending,
+            RunStates.unknown: mlrun.run.RunStatuses.error,
+            RunStates.aborted: mlrun.run.RunStatuses.failed,
+            RunStates.aborting: mlrun.run.RunStatuses.failed,
+        }[run_state]
 
 
 class RunLabels(enum.Enum):

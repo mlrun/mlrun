@@ -759,6 +759,30 @@ def format_summary_from_kfp_run(
             if error:
                 dag[step]["error"] = error
 
+            step_phase = dag[step].get("phase")
+            if step_phase and step_phase in set(
+                mlrun.run.RunStatuses.stable_statuses()
+            ).difference({mlrun.run.RunStatuses.skipped}):
+                run_state = get_in(run, "status.state")
+                if (
+                    run_state
+                    and run_state
+                    in mlrun.runtimes.constants.RunStates.terminal_states()
+                ):
+                    resolved_step_phase = (
+                        mlrun.runtimes.constants.RunStates.run_state_to_pipeline_status(
+                            run_state
+                        )
+                    )
+                    if resolved_step_phase != step_phase:
+                        logger.debug(
+                            "Replacing step phase with state of run",
+                            step_phase=step_phase,
+                            resolved_step_phase=resolved_step_phase,
+                            run_state=run_state,
+                        )
+                        dag[step]["phase"] = resolved_step_phase
+
     short_run = {
         "graph": dag,
         "run": mlrun.utils.helpers.format_run(kfp_run["run"]),

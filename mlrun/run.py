@@ -69,12 +69,14 @@ from .utils import (
 )
 
 
+# TODO: These are pipeline run statuses, needs to be renamed or moved to a more appropriate place
 class RunStatuses:
     succeeded = "Succeeded"
     failed = "Failed"
     skipped = "Skipped"
     error = "Error"
     running = "Running"
+    pending = "Pending"
 
     @staticmethod
     def all():
@@ -84,6 +86,7 @@ class RunStatuses:
             RunStatuses.skipped,
             RunStatuses.error,
             RunStatuses.running,
+            RunStatuses.pending,
         ]
 
     @staticmethod

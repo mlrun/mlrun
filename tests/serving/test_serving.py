@@ -25,7 +25,7 @@ from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.runtimes import nuclio_init_hook
-from mlrun.runtimes.serving import serving_subkind
+from mlrun.runtimes.nuclio.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import (
     GraphContext,

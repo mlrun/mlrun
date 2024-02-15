@@ -19,9 +19,10 @@ import typing
 import pymysql
 
 import mlrun.utils
+from mlrun.config import config as mlconf
 
 
-class MySQLUtil(object):
+class MySQLUtil:
     dsn_env_var = "MLRUN_HTTPDB__DSN"
     dsn_regex = (
         r"mysql\+pymysql://(?P<username>.+)@(?P<host>.+):(?P<port>\d+)/(?P<database>.+)"
@@ -110,4 +111,4 @@ class MySQLUtil(object):
 
     @staticmethod
     def get_dsn() -> str:
-        return os.environ.get(MySQLUtil.dsn_env_var, "")
+        return os.environ.get(MySQLUtil.dsn_env_var, mlconf.httpdb.dsn)

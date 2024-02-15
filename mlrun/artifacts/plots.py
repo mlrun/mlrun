@@ -176,7 +176,7 @@ class BokehArtifact(Artifact):
         if figure is not None and not isinstance(figure, Figure):
             raise ValueError(
                 "BokehArtifact requires the figure parameter to be a "
-                "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
+                f"'bokeh.plotting.Figure' but received '{type(figure)}'"
             )
 
         # Call the artifact initializer:
@@ -412,7 +412,7 @@ class LegacyBokehArtifact(LegacyArtifact):
         if figure is not None and not isinstance(figure, Figure):
             raise ValueError(
                 "BokehArtifact requires the figure parameter to be a "
-                "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
+                f"'bokeh.plotting.Figure' but received '{type(figure)}'"
             )
 
         # Call the artifact initializer:

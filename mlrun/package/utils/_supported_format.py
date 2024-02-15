@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import Dict, Generic, List, Type, TypeVar, Union
+from typing import Generic, TypeVar, Union
 
 # A generic type for a supported format handler class type:
 FileHandlerType = TypeVar("FileHandlerType")
@@ -29,10 +29,10 @@ class SupportedFormat(ABC, Generic[FileHandlerType]):
 
     # The map to use in the method `get_format_handler`. A dictionary of string key to a class type to handle that
     # format. New supported formats and handlers should be added to it:
-    _FORMAT_HANDLERS_MAP: Dict[str, Type[FileHandlerType]] = {}
+    _FORMAT_HANDLERS_MAP: dict[str, type[FileHandlerType]] = {}
 
     @classmethod
-    def get_all_formats(cls) -> List[str]:
+    def get_all_formats(cls) -> list[str]:
         """
         Get all supported formats.
 
@@ -45,7 +45,7 @@ class SupportedFormat(ABC, Generic[FileHandlerType]):
         ]
 
     @classmethod
-    def get_format_handler(cls, fmt: str) -> Type[FileHandlerType]:
+    def get_format_handler(cls, fmt: str) -> type[FileHandlerType]:
         """
         Get the format handler to the provided format (file extension):
 

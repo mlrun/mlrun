@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -41,7 +41,7 @@ class ROCCurvePlan(MLPlotPlan):
         average: str = "macro",
         max_fpr: float = None,
         multi_class: str = "raise",
-        labels: List[str] = None,
+        labels: list[str] = None,
     ):
         """
         Initialize a receiver operating characteristic plan with the given configuration.
@@ -75,7 +75,7 @@ class ROCCurvePlan(MLPlotPlan):
         self._labels = labels
 
         # Continue the initialization for the MLPlan:
-        super(ROCCurvePlan, self).__init__(need_probabilities=True)
+        super().__init__(need_probabilities=True)
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
@@ -97,7 +97,7 @@ class ROCCurvePlan(MLPlotPlan):
         model: MLTypes.ModelType = None,
         x: MLTypes.DatasetType = None,
         **kwargs,
-    ) -> Dict[str, Artifact]:
+    ) -> dict[str, Artifact]:
         """
         Produce the roc curve according to the ground truth (y) and predictions (y_pred) values. If predictions are not
         available, the model and a dataset can be given to produce them.

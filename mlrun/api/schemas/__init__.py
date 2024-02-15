@@ -48,7 +48,7 @@ import mlrun.common.schemas.secret as old_secret
 import mlrun.common.schemas.tag as old_tag
 
 
-class DeprecationHelper(object):
+class DeprecationHelper:
     """A helper class to deprecate old schemas"""
 
     def __init__(self, new_target, version="1.4.0"):

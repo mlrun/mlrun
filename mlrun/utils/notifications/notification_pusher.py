@@ -32,7 +32,7 @@ from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_proce
 from .notification import NotificationBase, NotificationTypes
 
 
-class _NotificationPusherBase(object):
+class _NotificationPusherBase:
     def _push(
         self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
     ):
@@ -95,15 +95,11 @@ class NotificationPusher(_NotificationPusherBase):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications: typing.List[
-            typing.Tuple[
-                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
-            ]
+        self._sync_notifications: list[
+            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
-        self._async_notifications: typing.List[
-            typing.Tuple[
-                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
-            ]
+        self._async_notifications: list[
+            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
 
         for run in self._runs:
@@ -401,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
 
 
 class CustomNotificationPusher(_NotificationPusherBase):
-    def __init__(self, notification_types: typing.List[str] = None):
+    def __init__(self, notification_types: list[str] = None):
         notifications = {
             notification_type: NotificationTypes(notification_type).get_notification()()
             for notification_type in notification_types
@@ -446,7 +442,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
     def add_notification(
         self,
         notification_type: str,
-        params: typing.Dict[str, str] = None,
+        params: dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(params)
@@ -471,9 +467,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         else:
             logger.warning(f"No notification of type {notification_type} in project")
 
-    def edit_notification(
-        self, notification_type: str, params: typing.Dict[str, str] = None
-    ):
+    def edit_notification(self, notification_type: str, params: dict[str, str] = None):
         self.remove_notification(notification_type)
         self.add_notification(notification_type, params)
 

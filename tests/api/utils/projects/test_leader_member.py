@@ -97,7 +97,7 @@ def test_projects_sync_mid_deletion(
     leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     """
-    This reproduces a bug in which projects sync is running mid deletion
+    This reproduces a bug in which projects sync is running during project deletion
     The sync starts after the project was removed from followers, but before it was removed from the leader, meaning the
     sync will recognize the project is missing in the followers, and create it in them, so finally after the delete
     process ends, the project exists in the followers, and not in the leader, on the next sync, the project will be
@@ -492,12 +492,12 @@ def test_delete_project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
     )
     projects_leader.create_project(
-        None,
+        db,
         project,
     )
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
-    projects_leader.delete_project(None, project_name)
+    projects_leader.delete_project(db, project_name)
     _assert_no_projects_in_followers([leader_follower, nop_follower])
 
 

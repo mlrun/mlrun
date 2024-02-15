@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Union
 
 import torch
 from torch import Tensor
@@ -53,20 +53,20 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: PyTorchModelHandler,
         log_model_tag: str = "",
-        log_model_labels: Dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_parameters: Dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_extra_data: Dict[
+        log_model_labels: dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_parameters: dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_extra_data: dict[
             str, Union[PyTorchTypes.TrackableType, Artifact]
         ] = None,
-        dynamic_hyperparameters: Dict[
+        dynamic_hyperparameters: dict[
             str,
-            Tuple[
+            tuple[
                 str,
-                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -107,7 +107,7 @@ class MLRunLoggingCallback(LoggingCallback):
         :param auto_log:                 Whether or not to enable auto logging for logging the context parameters and
                                          trying to track common static and dynamic hyperparameters.
         """
-        super(MLRunLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -160,7 +160,7 @@ class MLRunLoggingCallback(LoggingCallback):
 
         :param epoch: The epoch that has just ended.
         """
-        super(MLRunLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Create child context to hold the current epoch's results:
         self._logger.log_epoch_to_context(epoch=epoch)

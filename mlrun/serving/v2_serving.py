@@ -15,7 +15,7 @@
 import threading
 import time
 import traceback
-from typing import Dict, Union
+from typing import Union
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
@@ -362,19 +362,19 @@ class V2ModelServer(StepToDict):
 
         return request
 
-    def preprocess(self, request: Dict, operation) -> Dict:
+    def preprocess(self, request: dict, operation) -> dict:
         """preprocess the event body before validate and action"""
         return request
 
-    def postprocess(self, request: Dict) -> Dict:
+    def postprocess(self, request: dict) -> dict:
         """postprocess, before returning response"""
         return request
 
-    def predict(self, request: Dict) -> Dict:
+    def predict(self, request: dict) -> dict:
         """model prediction operation"""
         raise NotImplementedError()
 
-    def explain(self, request: Dict) -> Dict:
+    def explain(self, request: dict) -> dict:
         """model explain operation"""
         raise NotImplementedError()
 

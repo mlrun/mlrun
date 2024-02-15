@@ -29,8 +29,6 @@ from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
 class V2ModelServer(StepToDict):
-    """base model serving class (v2), using similar API to KFServing v2 and Triton"""
-
     def __init__(
         self,
         context=None,

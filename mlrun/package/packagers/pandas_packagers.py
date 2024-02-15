@@ -17,7 +17,7 @@ import os
 import pathlib
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Any, List, Tuple, Union
+from typing import Any, Union
 
 import pandas as pd
 
@@ -70,7 +70,7 @@ class _Formatter(ABC):
         pass
 
     @staticmethod
-    def _flatten_dataframe(dataframe: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
+    def _flatten_dataframe(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         """
         Flatten the dataframe: moving all indexes to be columns at the start (from column 0) and lowering the columns
         levels to 1, renaming them from tuples. All columns and index info is stored so it can be unflatten later on.
@@ -733,7 +733,7 @@ class PandasDataFramePackager(DefaultPackager):
         file_format: str = None,
         flatten: bool = True,
         **to_kwargs,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a dataframe as a file by the given format.
 
@@ -857,7 +857,7 @@ class PandasSeriesPackager(PandasDataFramePackager):
     PACKABLE_OBJECT_TYPE = pd.Series
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.FILE
 
-    def get_supported_artifact_types(self) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `PandasDataFramePackager` but
         without the 'dataset' artifact type support.
@@ -886,7 +886,7 @@ class PandasSeriesPackager(PandasDataFramePackager):
         file_format: str = None,
         flatten: bool = True,
         **to_kwargs,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a series as a file by the given format.
 

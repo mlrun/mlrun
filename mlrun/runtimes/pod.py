@@ -105,6 +105,50 @@ class KubeResourceSpec(FunctionSpec):
         "security_context",
         "state_thresholds",
     ]
+    _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "replicas",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "priority_class_name",
+        "tolerations",
+        "preemption_mode",
+        "security_context",
+    ]
+    _k8s_fields_to_serialize = [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "env",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "tolerations",
+        "security_context",
+    ]
+    _fields_to_serialize = FunctionSpec._fields_to_serialize + _k8s_fields_to_serialize
+    _fields_to_enrich = FunctionSpec._fields_to_enrich + [
+        "env",  # Removing sensitive data from env
+    ]
+    _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
+        # TODO: affinity, tolerations and node_selector are skipped due to preemption mode transitions.
+        #  Preemption mode 'none' depends on the previous mode while the default mode may enrich these values.
+        #  When we allow 'None' values for these attributes we get their true values and they will undo the default
+        #  enrichment when creating the runtime from dict.
+        #  The enrichment should move to the server side and then this can be removed.
+        "affinity",
+        "tolerations",
+        "node_selector",
+    ]
 
     def __init__(
         self,
@@ -222,7 +266,7 @@ class KubeResourceSpec(FunctionSpec):
         self._affinity = transform_attribute_to_k8s_class_instance("affinity", affinity)
 
     @property
-    def tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+    def tolerations(self) -> list[k8s_client.V1Toleration]:
         return self._tolerations
 
     @tolerations.setter
@@ -264,15 +308,42 @@ class KubeResourceSpec(FunctionSpec):
     def termination_grace_period_seconds(self) -> typing.Optional[int]:
         return self._termination_grace_period_seconds
 
-    def to_dict(self, fields=None, exclude=None):
-        exclude = exclude or []
-        _exclude = ["affinity", "tolerations", "security_context"]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-        api = k8s_client.ApiClient()
-        for field in _exclude:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        """
+        Serialize a field to a dict, list, or primitive type.
+        If field_name is in _k8s_fields_to_serialize, we will apply k8s serialization
+        """
+        k8s_api = k8s_client.ApiClient()
+        if field_name in self._k8s_fields_to_serialize:
+            return k8s_api.sanitize_for_serialization(getattr(self, field_name))
+        return super()._serialize_field(struct, field_name, strip)
+
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        k8s_api = k8s_client.ApiClient()
+        if strip:
+            if field_name == "env":
+                # We first try to pull from struct because the field might have been already serialized and if not,
+                # we pull from self
+                envs = struct.get(field_name, None) or getattr(self, field_name, None)
+                if envs:
+                    serialized_envs = k8s_api.sanitize_for_serialization(envs)
+                    for env in serialized_envs:
+                        if env["name"].startswith("V3IO_"):
+                            env["value"] = ""
+                    return serialized_envs
+        return super()._enrich_field(struct=struct, field_name=field_name, strip=strip)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ):
+        if strip:
+            # Reset this, since mounts and env variables were cleared.
+            struct["disable_auto_mount"] = False
+        return super()._apply_enrichment_before_to_dict_completion(struct, strip)
 
     def update_vols_and_mounts(
         self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
@@ -455,7 +526,7 @@ class KubeResourceSpec(FunctionSpec):
             return {}
         return resources
 
-    def _merge_node_selector(self, node_selector: typing.Dict[str, str]):
+    def _merge_node_selector(self, node_selector: dict[str, str]):
         if not node_selector:
             return
 
@@ -464,7 +535,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _merge_tolerations(
         self,
-        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations: list[k8s_client.V1Toleration],
         tolerations_field_name: str,
     ):
         if not tolerations:
@@ -649,7 +720,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _merge_node_selector_term_to_node_affinity(
         self,
-        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
+        node_selector_terms: list[k8s_client.V1NodeSelectorTerm],
         affinity_field_name: str,
     ):
         if not node_selector_terms:
@@ -694,7 +765,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_affinity_node_selector_requirement(
         self,
-        node_selector_requirements: typing.List[k8s_client.V1NodeSelectorRequirement],
+        node_selector_requirements: list[k8s_client.V1NodeSelectorRequirement],
         affinity_field_name: str = "affinity",
     ):
         """
@@ -749,20 +820,18 @@ class KubeResourceSpec(FunctionSpec):
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
-        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
-        node_selector_requirements_to_prune: typing.List[
-            k8s_client.V1NodeSelectorRequirement
-        ],
-    ) -> typing.List[k8s_client.V1NodeSelectorTerm]:
+        node_selector_terms: list[k8s_client.V1NodeSelectorTerm],
+        node_selector_requirements_to_prune: list[k8s_client.V1NodeSelectorRequirement],
+    ) -> list[k8s_client.V1NodeSelectorTerm]:
         """
         Goes over each expression in all the terms provided and removes the expressions if it matches
         one of the requirements provided to remove
 
         :return: New list of terms without the provided node selector requirements
         """
-        new_node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm] = []
+        new_node_selector_terms: list[k8s_client.V1NodeSelectorTerm] = []
         for term in node_selector_terms:
-            new_node_selector_requirements: typing.List[
+            new_node_selector_requirements: list[
                 k8s_client.V1NodeSelectorRequirement
             ] = []
             for node_selector_requirement in term.match_expressions:
@@ -791,7 +860,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_tolerations(
         self,
-        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations: list[k8s_client.V1Toleration],
         tolerations_field_name: str = "tolerations",
     ):
         """
@@ -820,7 +889,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_node_selector(
         self,
-        node_selector: typing.Dict[str, str],
+        node_selector: dict[str, str],
         node_selector_field_name: str,
     ):
         """
@@ -926,28 +995,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude, strip=strip)
-        api = k8s_client.ApiClient()
-        struct = api.sanitize_for_serialization(struct)
-        if strip:
-            spec = struct["spec"]
-            for attr in [
-                "volumes",
-                "volume_mounts",
-                "driver_volume_mounts",
-                "executor_volume_mounts",
-            ]:
-                if attr in spec:
-                    del spec[attr]
-            if "env" in spec and spec["env"]:
-                for ev in spec["env"]:
-                    if ev["name"].startswith("V3IO_"):
-                        ev["value"] = ""
-            # Reset this, since mounts and env variables were cleared.
-            spec["disable_auto_mount"] = False
-        return struct
 
     def apply(self, modify):
         """
@@ -1065,7 +1112,7 @@ class KubeResource(BaseRuntime):
 
     def set_state_thresholds(
         self,
-        state_thresholds: typing.Dict[str, str],
+        state_thresholds: dict[str, str],
         patch: bool = True,
     ):
         """
@@ -1126,9 +1173,9 @@ class KubeResource(BaseRuntime):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[k8s_client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[k8s_client.V1Toleration]] = None,
+        tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
     ):
         """
         Enables to control on which k8s node the job will run

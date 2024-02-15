@@ -257,7 +257,7 @@ class LogCollectorClient(
     async def stop_logs(
         self,
         project: str,
-        run_uids: typing.List[str] = None,
+        run_uids: list[str] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
@@ -286,7 +286,7 @@ class LogCollectorClient(
     async def delete_logs(
         self,
         project: str,
-        run_uids: typing.List[str] = None,
+        run_uids: list[str] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:

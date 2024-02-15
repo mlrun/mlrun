@@ -15,7 +15,7 @@ import json
 import os
 import os.path
 from copy import deepcopy
-from typing import Dict, List, Union
+from typing import Union
 
 import inflection
 from kfp import dsl
@@ -195,7 +195,7 @@ def mlrun_op(
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: List[Union[str, Dict[str, str]]] = None,
+    returns: list[Union[str, dict[str, str]]] = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -480,7 +480,6 @@ def deploy_op(
     function,
     func_url=None,
     source="",
-    dashboard="",
     project="",
     models: list = None,
     env: dict = None,
@@ -490,8 +489,6 @@ def deploy_op(
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
-    if dashboard:
-        cmd += ["-d", dashboard]
     if tag:
         cmd += ["--tag", tag]
     if verbose:

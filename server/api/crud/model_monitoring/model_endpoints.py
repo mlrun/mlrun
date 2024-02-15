@@ -89,7 +89,7 @@ class ModelEndpoints:
                             model_obj.spec.feature_stats
                         )
                     )
-                model_endpoint.status.feature_stats = model_obj.spec.feature_stats
+                    model_endpoint.status.feature_stats = model_obj.spec.feature_stats
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
                 model_label_names = [
@@ -338,7 +338,7 @@ class ModelEndpoints:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
-        metrics: typing.List[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -409,12 +409,12 @@ class ModelEndpoints:
         project: str,
         model: str = None,
         function: str = None,
-        labels: typing.List[str] = None,
-        metrics: typing.List[str] = None,
+        labels: list[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
         top_level: bool = False,
-        uids: typing.List[str] = None,
+        uids: list[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
@@ -583,14 +583,14 @@ class ModelEndpoints:
                 f"The length of model endpoint feature_stats is not equal to the "
                 f"length of model endpoint feature names and labels "
                 f"feature_stats({len_of_feature_stats}), "
-                f"feature_names({len_of_feature_names}),"
+                f"feature_names({len_of_feature_names}), "
                 f"label_names({len_of_label_names}"
             )
 
     @staticmethod
     def _adjust_feature_names_and_stats(
         model_endpoint,
-    ) -> typing.Tuple[typing.Dict, typing.List]:
+    ) -> tuple[dict, list]:
         """
         Create a clean matching version of feature names for both `feature_stats` and `feature_names`. Please note that
         label names exist only in `feature_stats` and `label_names`.
@@ -618,7 +618,7 @@ class ModelEndpoints:
     def _add_real_time_metrics(
         model_endpoint_store: mlrun.model_monitoring.ModelEndpointStore,
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: typing.List[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> mlrun.common.schemas.ModelEndpoint:
@@ -661,7 +661,7 @@ class ModelEndpoints:
 
     @staticmethod
     def _convert_into_model_endpoint_object(
-        endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False
+        endpoint: dict[str, typing.Any], feature_analysis: bool = False
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Create a `ModelEndpoint` object according to a provided model endpoint dictionary.

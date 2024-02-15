@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.artifacts.base
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
@@ -54,6 +55,11 @@ class Artifacts(
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
+
+        if mlrun.utils.helpers.is_legacy_artifact(artifact):
+            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact
+            ).to_dict()
 
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -133,7 +139,7 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "",
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         since=None,
         until=None,
         kind: typing.Optional[str] = None,
@@ -142,7 +148,7 @@ class Artifacts(
         best_iteration: bool = False,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         producer_id: str = None,
-    ) -> typing.List:
+    ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
@@ -193,7 +199,7 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "latest",
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         producer_id: str = None,
     ):

@@ -300,12 +300,14 @@ async def test_do_not_escape_cookie(
         assert (
             request.cookies["session"] == expected_cookie_header
         ), "Cookie session escaping is malfunctioning"
+        assert request.headers["x-request-id"] == "test-request-id"
         return aiohttp.web.Response(status=200)
 
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
     mock_request._cookies = {"session": session_cookie}
     mock_request._query_params = starlette.datastructures.QueryParams()
+    mock_request.state.request_id = "test-request-id"
 
     app = aiohttp.web.Application()
     app.router.add_post("/api/v1/operations/migrations", handler)

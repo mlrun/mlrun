@@ -108,7 +108,7 @@ class FeatureStore(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
-    ) -> typing.List[typing.Tuple[str, str, str]]:
+    ) -> list[tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_set.name, tag)
         """
@@ -123,9 +123,9 @@ class FeatureStore(
         name: str,
         tag: typing.Optional[str] = None,
         state: str = None,
-        entities: typing.List[str] = None,
-        features: typing.List[str] = None,
-        labels: typing.List[str] = None,
+        entities: list[str] = None,
+        features: list[str] = None,
+        labels: list[str] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -170,8 +170,8 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        entities: typing.List[str] = None,
-        labels: typing.List[str] = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_features(
@@ -189,7 +189,7 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_entities(
@@ -271,7 +271,7 @@ class FeatureStore(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
-    ) -> typing.List[typing.Tuple[str, str, str]]:
+    ) -> list[tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_vector.name, tag)
         """
@@ -286,7 +286,7 @@ class FeatureStore(
         name: str,
         tag: typing.Optional[str] = None,
         state: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -463,7 +463,7 @@ class FeatureStore(
         db_session: sqlalchemy.orm.Session,
         object_schema: typing.ClassVar,
         project: str,
-    ) -> typing.List[typing.Tuple[str, str, str]]:
+    ) -> list[tuple[str, str, str]]:
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
             return server.api.utils.singletons.db.get_db().list_feature_sets_tags(

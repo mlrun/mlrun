@@ -105,7 +105,7 @@ def link_html(text, link=""):
 
 
 def artifacts_html(
-    artifacts: typing.List[dict],
+    artifacts: list[dict],
     attribute_name: str = "path",
 ):
     """

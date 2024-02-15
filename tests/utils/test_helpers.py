@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -54,6 +55,34 @@ def test_retry_until_successful_fatal_failure():
         mlrun.utils.helpers.retry_until_successful(
             0, 1, logger, True, _raise_fatal_failure
         )
+
+
+def test_retry_until_successful_sync():
+    counter = 0
+
+    def increase_counter():
+        nonlocal counter
+        counter += 1
+        if counter < 3:
+            raise Exception("error")
+
+    mlrun.utils.helpers.retry_until_successful(0, 3, logger, True, increase_counter)
+
+
+@pytest.mark.asyncio
+async def test_retry_until_successful_async():
+    counter = 0
+
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        nonlocal counter
+        counter += 1
+        if counter < 3:
+            raise Exception("error")
+
+    await mlrun.utils.helpers.retry_until_successful_async(
+        0, 3, logger, True, increase_counter
+    )
 
 
 @pytest.mark.parametrize(
@@ -927,3 +956,30 @@ def test_retry_until_successful():
 def test_iterate_list_by_chunks(iterable_list, chunk_size, expected_chunked_list):
     chunked_list = mlrun.utils.iterate_list_by_chunks(iterable_list, chunk_size)
     assert list(chunked_list) == expected_chunked_list
+
+
+@pytest.mark.parametrize(
+    "username,expected_normalized_username",
+    [
+        # sanity, all good
+        ("test", "test"),
+        # ensure ends with alphanumeric
+        ("test.", "test"),
+        ("test-", "test"),
+        # lowercase
+        ("TestUser", "testuser"),
+        # remove special characters
+        ("UserName!@#$", "username"),
+        # dasherize
+        ("user_name", "user-name"),
+        ("User-Name_123", "user-name-123"),
+        # everything with @ (email-like username)
+        ("User_Name@domain.com", "user-name"),
+        ("user@domain.com", "user"),
+        ("user.name@example.com", "username"),
+        ("user_name@example.com", "user-name"),
+    ],
+)
+def test_normalize_username(username, expected_normalized_username):
+    normalized_username = mlrun.utils.helpers.normalize_project_username(username)
+    assert normalized_username == expected_normalized_username

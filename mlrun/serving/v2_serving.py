@@ -221,7 +221,7 @@ class V2ModelServer(StepToDict):
 
     def _pre_event_processing_actions(self, event, event_body, op):
         self._check_readiness(event)
-        if "dict" in op:
+        if "_dict" in op:
             event_body = self._inputs_to_list(event_body)
         request = self.preprocess(event_body, op)
         return self.validate(request, op)
@@ -401,16 +401,23 @@ class V2ModelServer(StepToDict):
                 "to the model server and to load it by `load()` function"
             )
         inputs = request.get("inputs")
-        if isinstance(inputs, list) and all(isinstance(item, dict) for item in inputs):
-            new_inputs = [
-                [input_dict[key] for key in input_order] for input_dict in inputs
-            ]
-        elif isinstance(inputs, dict):
-            new_inputs = [inputs[key] for key in input_order]
-        else:
+        try:
+            if isinstance(inputs, list) and all(
+                isinstance(item, dict) for item in inputs
+            ):
+                new_inputs = [
+                    [input_dict[key] for key in input_order] for input_dict in inputs
+                ]
+            elif isinstance(inputs, dict):
+                new_inputs = [inputs[key] for key in input_order]
+            else:
+                raise mlrun.MLRunInvalidArgumentError(
+                    "When using predict_dict or infer_dict operation the inputs must be "
+                    "of type `list[dict]` or `dict`"
+                )
+        except KeyError:
             raise mlrun.MLRunInvalidArgumentError(
-                "When using predict_dict or infer_dict operation the inputs must be "
-                "of type `list[dict]` or `dict`"
+                f"Input dictionary don't contain all the necessary input keys : {input_order}"
             )
         request["inputs"] = new_inputs
         return request

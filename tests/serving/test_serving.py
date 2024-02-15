@@ -131,6 +131,10 @@ testdata_iris_dict = (
     '{"inputs": {"sepal width (cm)": 3.5, "sepal length (cm)": 5.1, '
     '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
 )
+testdata_iris_dict_error = (
+    '{"inputs": {"sepal width (cm)": 3.5, '
+    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+)
 testdata_2 = '{"inputs": [5, 5]}'
 
 
@@ -542,12 +546,20 @@ def test_v2_infer_dict(rundb_mock):
     fn.add_model("m1", model_uri, "ModelTestingClass", multiplier=100)
 
     server = fn.to_mock_server()
-    resp_list = server.test("/v2/models/m1/infer", testdata_iris)
+    resp_list_1 = server.test("/v2/models/m1/infer", testdata_iris)
+    resp_list_2 = server.test("/v2/models/m1/predict", testdata_iris)
     resp_dict = server.test("/v2/models/m1/infer_dict", testdata_iris_dict)
-    assert resp_dict.get("outputs") == resp_list.get("outputs")
+    assert (
+        resp_dict.get("outputs")
+        == resp_list_1.get("outputs")
+        == resp_list_2.get("outputs")
+    )
 
     with pytest.raises(RuntimeError):
         server.test("/v2/models/m1/infer_dict", testdata_iris)
+
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m1/infer_dict", testdata_iris_dict_error)
 
 
 def test_v2_custom_handler():

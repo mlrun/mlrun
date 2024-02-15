@@ -145,7 +145,7 @@ class V3ioStore(DataStore):
             path=path,
             offset=offset,
             num_bytes=size,
-        ).output
+        ).body
 
     def _put(self, key, data, append=False, max_chunk_size: int = ONE_GB):
         """helper function for put method, allows for controlling max_chunk_size in testing"""

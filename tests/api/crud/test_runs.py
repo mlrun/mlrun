@@ -188,6 +188,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         [
             mlrun.runtimes.constants.RunStates.running,
             mlrun.runtimes.constants.RunStates.pending,
+            mlrun.runtimes.constants.RunStates.aborting,
         ],
     )
     async def test_delete_run_failure(self, db: sqlalchemy.orm.Session, run_state):
@@ -206,13 +207,19 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             "uid",
             project=project,
         )
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
             await server.api.crud.Runs().delete_run(db, "uid", 0, project)
 
-        assert (
-            f"Can not delete run in {run_state} state, consider aborting the run first"
-            in str(exc.value)
-        )
+        if run_state == mlrun.runtimes.constants.RunStates.aborting:
+            assert (
+                f"Can not delete run in {run_state} state, wait for the run to finish aborting first"
+                in str(exc.value)
+            )
+        else:
+            assert (
+                f"Can not delete run in {run_state} state, consider aborting the run first"
+                in str(exc.value)
+            )
 
     def test_run_abortion_failure(self, db: sqlalchemy.orm.Session):
         project = "project-name"

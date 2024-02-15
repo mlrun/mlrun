@@ -193,8 +193,11 @@ class Runs(
             run_state
             in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Can not delete run in {run_state} state, consider aborting the run first"
+            message = "consider aborting the run first"
+            if run_state == mlrun.runtimes.constants.RunStates.aborting:
+                message = "wait for the run to finish aborting first"
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Can not delete run in {run_state} state, {message}"
             )
 
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")

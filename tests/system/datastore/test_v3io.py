@@ -279,7 +279,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         dataitem, _ = self._get_data_item(file_extension=file_extension)
         dataitem.upload(local_file_path)
         response = dataitem.as_df(time_column="date_of_birth", df_module=dd, **kwargs)
-        dd.assert_eq(source, response, check_dtype=False)
+        dd.assert_eq(source, response)
 
     @pytest.mark.parametrize(
         "file_extension, reader",

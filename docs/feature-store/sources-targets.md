@@ -56,9 +56,6 @@ Configure partitioning with:
 - `partition_cols` &mdash; Optional. Name of columns from the data to partition by. 
 - `time_partitioning_granularity` &mdash; Optional. The smallest time unit to partition the data by, in the format /year/month/day/hour (default). For example “hour” yields the smallest possible partitions.
 
-Disable partitioning with:
-- `ParquetTarget(partitioned=False)`
-
 For example:
 - `ParquetTarget()` partitions by year/month/day/hour/
 - `ParquetTarget(partition_cols=[])` writes to a directory without partitioning
@@ -66,3 +63,5 @@ For example:
 - `ParquetTarget(time_partitioning_granularity="day")` partitions by year/month/day/
 - `ParquetTarget(partition_cols=["col1", "col2"], time_partitioning_granularity="day")` partitions by col1/col2/year/month/day/
 
+Disable partitioning with:
+- `ParquetTarget(partitioned=False)`

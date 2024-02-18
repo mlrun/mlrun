@@ -179,7 +179,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-    ) -> typing.Union[mlrun.runtimes.ServingRuntime, None]:
+    ) -> typing.Union[tuple[mlrun.runtimes.ServingRuntime, typing.Any], None]:
         """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,

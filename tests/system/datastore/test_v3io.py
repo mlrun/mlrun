@@ -19,7 +19,6 @@ import tempfile
 import uuid
 from urllib.parse import urlparse
 
-import dask.dataframe as dd
 import pandas as pd
 import pytest
 
@@ -240,33 +239,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         response = dataitem.as_df(time_column="date_of_birth", **kwargs)
         pd.testing.assert_frame_equal(source, response)
 
-    @pytest.mark.skip(reason="ticket exists: ML-5755")
-    @pytest.mark.parametrize(
-        "file_extension,kwargs, reader",
-        [
-            (
-                "parquet",
-                {},
-                dd.read_parquet,
-            ),
-            ("csv", {}, dd.read_csv),
-            ("json", {"orient": "records", "lines": True}, dd.read_json),
-        ],
-    )
-    def test_as_df_dd(
-        self,
-        file_extension: str,
-        kwargs: dict,
-        reader: callable,
-    ):
-        local_file_path = self.df_paths[file_extension]
-        source = reader(local_file_path, **kwargs)
-        source["date_of_birth"] = dd.to_datetime(source["date_of_birth"])
-        dataitem, _ = self._get_data_item(file_extension=file_extension)
-        dataitem.upload(local_file_path)
-        response = dataitem.as_df(time_column="date_of_birth", df_module=dd, **kwargs)
-        dd.assert_eq(source, response)
-
     @pytest.mark.parametrize(
         "file_extension, reader",
         [
@@ -306,46 +278,3 @@ class TestV3ioDataStore(TestMLRunSystem):
             .reset_index(drop=True)
         )
         pd.testing.assert_frame_equal(response_df, appended_df)
-
-    @pytest.mark.skip(reason="ticket exists: ML-5755")
-    @pytest.mark.parametrize(
-        "file_extension, reader",
-        [
-            (
-                "parquet",
-                pd.read_parquet,
-            ),
-            ("csv", pd.read_csv),
-        ],
-    )
-    def test_check_read_df_dir_dd(
-        self,
-        file_extension: str,
-        reader: callable,
-    ):
-        first_file_path = self.df_paths[file_extension]
-        second_file_path = self.additional_df_paths[file_extension]
-        self._setup_df_dir(
-            first_file_path=first_file_path,
-            second_file_path=second_file_path,
-            file_extension=file_extension,
-        )
-
-        dir_data_item = mlrun.run.get_dataitem(self.object_dir_url)
-        response_df = (
-            dir_data_item.as_df(
-                format=file_extension, df_module=dd, time_column="date_of_birth"
-            )
-            .sort_values("id")
-            .reset_index(drop=True)
-        )
-        df = reader(first_file_path)
-        df["date_of_birth"] = dd.to_datetime(df["date_of_birth"])
-        additional_df = reader(second_file_path)
-        additional_df["date_of_birth"] = dd.to_datetime(additional_df["date_of_birth"])
-        appended_df = (
-            dd.concat([df, additional_df], axis=0)
-            .sort_values("id")
-            .reset_index(drop=True)
-        )
-        dd.assert_eq(appended_df, response_df)

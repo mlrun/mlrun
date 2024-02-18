@@ -56,7 +56,7 @@ where `[a-z]+` is the name of an aggregation.
 
 ```{admonition} Warning
 You must ensure that your features will not conflict with the automatically generated feature names. For example, 
-when using `add_aggregation()` on a feature X, you may get a genegated feature name of `X_count_1h`. 
+when using `add_aggregation()` on a feature X, you may get a generated feature name of `X_count_1h`. 
 But if your dataset already contains `X_count_1h`, this would result in either unreliable aggregations or errors.
 ```
 
@@ -145,7 +145,7 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 ## Built-in transformations
 
 MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.html) that can be 
-applied as steps in the feature-set's internal execution graph. To add steps to the graph,  
+applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
 reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 

@@ -150,6 +150,12 @@ project.build_function(
 )
 ```
 
+When using an ECR registry and not providing a secret name, MLRun assumes that an EC2 instance role is used to authorize access to ECR. 
+In this case MLRun clears out AWS credentials provided by project-secrets or environment variables (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) 
+from the Kaniko pod used for building the image. Otherwise Kaniko would attempt to use these credentials for ECR access instead of using the 
+instance role. This means it's not possible to build an image with both ECR access via instance role and S3 access using a different set of 
+credentials. To build this image, the instance role that has access to ECR must have the permissions required to access S3.
+
 #### Using self-signed registry
 If you need to build your function and push the resulting container image to an external Docker registry that uses a self-signed SSL certificate,
 you can use Kaniko with the `--skip-tls-verify` flag.

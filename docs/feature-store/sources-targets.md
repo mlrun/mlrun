@@ -4,7 +4,7 @@
 
 - [Sources](#sources)
 - [Targets](#targets)
-- [Partitioning on Parquet target](#partitioning-on-parquet-target)
+- [ParquetTarget](#parquettarget)
 
 
 
@@ -32,22 +32,32 @@
 | [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget)| The Parquet target storage driver, used to materialize feature set/vector data into parquet files (online target). | Y      | Y     | Y      |
 | [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  | Writes all incoming events into a V3IO stream (offline target).                                                    | Y      | N     | N      |
 
-## Parquet target
+## ParquetTarget
 
 ### Partitioning
-Partitioning is supported for {py:meth}`~mlrun.datastore.ParquetTarget` when `using engine=pandas`. 
 
-Partitioning organizes data in Parquet files by dividing large data sets into smaller and more manageable pieces. The data is divided
+When writing data to a {py:meth}`~mlrun.datastore.ParquetTarget`, you can use partitioning. Partitioning organizes data 
+in Parquet files by dividing large data sets into smaller and more manageable pieces. The data is divided
 into separate files according to specific criteria, for example: date, time, or specific values in a column.
-Partitioning, when configured correctly, improves read performance by reducing the amount of data that needs to be processed for any given function.
+Partitioning, when configured correctly, improves read performance by reducing the amount of data that needs to be 
+processed for any given function, for example, when reading back a limited time range with `get_offline_features()`.
 
-`ParquetTarget(path="my_file.parquet")` writes to a single Parquet file.
+```{note} 
+When partitioning with a pandas engine, the `ParquetTarget(path="my_file.parquet")` writes to a single Parquet file. 
+`ingest()` calls `df.to_parquet()` once, with all the data. A single `df.to_parquet()` call cannot write to more than 1024 partitions.
+```
+storey processes the data row by row (as a streaming engine, it doesn't get all the data up front, so it needs to process row by row). 
+These rows are batched together according to the partitions defined, and they are 
+written to each partition separately. (Therefore, storey does not have the 1024 limitation.)
 
 Configure partitioning with:
 - `partitioned` &mdash; Optional. Whether to partition the file. False by default. If True without passing any other partition fields, the data is partitioned by /year/month/day/hour.
 - `key_bucketing_number` &mdash; Optional. None by default: does not partition by key. 0 partitions by the key as is. Any other number "X" creates X partitions and hashes the keys to one of them.
 - `partition_cols` &mdash; Optional. Name of columns from the data to partition by. 
-- `time_partitioning_granularity` &mdash; Optional. The smallest time unit to partition the data by. For example “hour” yields the smallest possible partitions, in the format /year/month/day/hour.
+- `time_partitioning_granularity` &mdash; Optional. The smallest time unit to partition the data by, in the format /year/month/day/hour (default). For example “hour” yields the smallest possible partitions.
+
+Disable partitioning with:
+- `ParquetTarget(partitioned=False)`
 
 For example:
 - `ParquetTarget()` partitions by year/month/day/hour/

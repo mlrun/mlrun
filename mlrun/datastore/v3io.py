@@ -60,7 +60,8 @@ class V3ioStore(DataStore):
         elif username and password:
             self.headers = basic_auth_header(username, password)
 
-    def _do_object_request(self, function: callable, *args, **kwargs):
+    @staticmethod
+    def _do_object_request(function: callable, *args, **kwargs):
         try:
             return function(*args, **kwargs)
         except HttpResponseError as http_response_error:

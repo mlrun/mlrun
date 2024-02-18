@@ -3098,9 +3098,7 @@ class HTTPRunDB(RunDBInterface):
             "base_period": base_period,
         }
         path = f"projects/{project}/jobs/model-monitoring-controller"
-
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
+        self.api_call(method="POST", path=path, params=params)
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]

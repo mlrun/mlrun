@@ -241,7 +241,7 @@ async def delete_project(
     except mlrun.errors.MLRunNotFoundError as exc:
         if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
             logger.debug(
-                "Project no found in leader, ensuring project deleted in mlrun",
+                "Project not found in leader, ensuring project deleted in mlrun",
                 err=mlrun.errors.err_to_str(exc),
             )
             force_delete = True

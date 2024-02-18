@@ -214,20 +214,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         ):
             data_item.stat()
 
-    @pytest.mark.skip(
-        reason="need to add support for recursive deletion in all datastores"
-    )
-    def test_dir_rm(self):
-        url = f"{self.object_dir_url}/test_directory/file.txt"
-        data_item = mlrun.get_dataitem(url=url)
-        data_item.upload(self.test_file_path)
-        dir_data_item = mlrun.get_dataitem(url=os.path.dirname(url))
-        dir_data_item.delete(recursive=True)
-        with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"
-        ):
-            dir_data_item.stat()
-
     @pytest.mark.parametrize(
         "file_extension,kwargs, reader",
         [

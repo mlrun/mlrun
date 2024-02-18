@@ -42,10 +42,10 @@ into separate files according to specific criteria, for example: date, time, or 
 Partitioning, when configured correctly, improves read performance by reducing the amount of data that needs to be 
 processed for any given function, for example, when reading back a limited time range with `get_offline_features()`.
 
-```{note} 
-When partitioning with a pandas engine, the `ParquetTarget(path="my_file.parquet")` writes to a single Parquet file. 
-`ingest()` calls `df.to_parquet()` once, with all the data. A single `df.to_parquet()` call cannot write to more than 1024 partitions.
-```
+When using the pandas engine for ingestion, pandas incurs a maximum limit of 1024 partitions on each ingestion.
+If the data being ingested spans over more than 1024 partitions, the ingestion fails.
+Decrease the number of partitions by increasing the `time_partitioning_granularity`.
+
 storey processes the data row by row (as a streaming engine, it doesn't get all the data up front, so it needs to process row by row). 
 These rows are batched together according to the partitions defined, and they are 
 written to each partition separately. (Therefore, storey does not have the 1024 limitation.)
@@ -65,3 +65,7 @@ For example:
 
 Disable partitioning with:
 - `ParquetTarget(partitioned=False)`
+
+## NoSql target
+
+The storey engine does not support features of type string with a value containing both quote (') and double-quote (").

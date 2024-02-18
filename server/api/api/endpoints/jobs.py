@@ -21,6 +21,7 @@ import mlrun.common.schemas
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 from mlrun.model_monitoring import TrackingPolicy
+from mlrun.projects.operations import BuildStatus
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.endpoints.functions import process_model_monitoring_secret
@@ -175,7 +176,10 @@ async def create_model_monitoring_controller(
     controller_policy = TrackingPolicy(
         default_controller_image=default_controller_image, base_period=base_period
     )
-    controller_function = MonitoringDeployment().deploy_model_monitoring_controller(
+    (
+        controller_function,
+        ready,
+    ) = MonitoringDeployment().deploy_model_monitoring_controller(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         db_session=db_session,
@@ -183,9 +187,6 @@ async def create_model_monitoring_controller(
         tracking_policy=controller_policy,
     )
 
-    if isinstance(controller_function, mlrun.runtimes.kubejob.KubejobRuntime):
-        controller_function = controller_function.to_dict()
-
-    return {
-        "func": controller_function,
-    }
+    return BuildStatus(
+        ready, {"image": controller_function.spec.image}, function=controller_function
+    )

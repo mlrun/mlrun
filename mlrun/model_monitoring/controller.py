@@ -339,6 +339,7 @@ class MonitoringApplicationController:
         """
         Main method for run all the relevant monitoring applications on each endpoint
         """
+        logger.info("Start controller running")
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             monitoring_functions = self.project_obj.list_model_monitoring_functions()

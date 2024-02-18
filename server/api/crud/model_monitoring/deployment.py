@@ -15,6 +15,7 @@
 import pathlib
 import typing
 
+import nuclio
 import sqlalchemy.orm
 from fastapi import Depends
 
@@ -178,7 +179,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
+    ) -> typing.Union[mlrun.runtimes.ServingRuntime, None]:
         """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
@@ -204,13 +205,46 @@ class MonitoringDeployment:
             tracking_policy=tracking_policy,
         )
 
-        return self.deploy_model_monitoring_batch_processing(
+        logger.info(
+            "Checking if model monitoring writer is already deployed",
+            project=project,
+        )
+        try:
+            # validate that the model monitoring stream has not yet been deployed
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                project=project,
+                tag="",
+                auth_info=auth_info,
+            )
+            logger.info(
+                "Detected model monitoring controller processing function already deployed",
+                project=project,
+            )
+            return
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info(
+                "Deploying model monitoring controller processing function",
+                project=project,
+            )
+
+        fn = self._get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
-            tracking_policy=tracking_policy,
+            image=tracking_policy.default_controller_image,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+
+        fn.add_trigger(
+            "cron_interval",
+            spec=nuclio.CronTrigger(interval=f"{tracking_policy.base_period}m"),
+        )
+        return server.api.api.endpoints.functions._build_function(
+            db_session=db_session,
+            auth_info=auth_info,
+            function=fn,
         )
 
     def deploy_model_monitoring_batch_processing(
@@ -485,15 +519,17 @@ class MonitoringDeployment:
         """
         filename = (
             str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
-            if function_name == "model-monitoring-batch"
+            if function_name == mm_constants.MonitoringFunctionNames.BATCH
             else str(_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
-        function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
+        function = mlrun.code_to_function(
             name=function_name,
             project=project,
             filename=filename,
-            kind="job",
+            kind="job"
+            if function_name == mm_constants.MonitoringFunctionNames.BATCH
+            else "serving",
             image=image,
             handler="handler",
         )

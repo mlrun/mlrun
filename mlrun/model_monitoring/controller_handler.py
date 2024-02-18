@@ -16,14 +16,16 @@ import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
 
 
-def handler(context: mlrun.run.MLClientCtx) -> None:
+def handler(context: mlrun.run.MLClientCtx, event) -> None:
     """
     Run model monitoring application processor
 
     :param context: the MLRun context
+    :param event:   trigger event
     """
-    monitor_app_controller = MonitoringApplicationController(
-        context=context,
-        project=context.project,
-    )
-    monitor_app_controller.run()
+    if event.trigger.kind == 'cron':
+        monitor_app_controller = MonitoringApplicationController(
+            context=context,
+            project=context.project,
+        )
+        monitor_app_controller.run()

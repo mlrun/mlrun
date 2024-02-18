@@ -25,12 +25,12 @@
 | Class name                                                                                                    | Description                                                                                        | storey | spark | pandas |
 | --------------------------------------------------                                                            | -------------------------------------------------------                                            | ---    | ---   | ---    |
 | [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)        | Writes events to a CSV file (offline target).                                                                       | Y      | Y     | Y      |
-| [mlrun.datastore.KafkaTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.KafkaTarget)    | Writes all incoming events into a Kafka stream (online target).                                                    |  |  |  |
-| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)    | The default online target. Persists the data in V3IO table to its associated storage by key (online target).                                  | Y      | Y     | Y      |
+| [mlrun.datastore.KafkaTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.KafkaTarget)    | Writes all incoming events into a Kafka stream (online target).                                                    | Y | N | N |
+| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)    | The default online target. Persists the data in V3IO table to its associated storage by key (online target).       | Y      | Y     | Y      |
 | mlrun.datastore.RedisNoSqlTarget                                                                              | Persists the data in Redis table to its associated storage by key (online target).                                 | Y      | Y     | N      |
-| mlrun.datastore.SqlTarget                                                                                     | The default offline target. Persists the data in SQL table to its associated storage by key (offline target).                                   | Y      | N     | Y      |
+| mlrun.datastore.SqlTarget                                                                                     | The default offline target. Persists the data in SQL table to its associated storage by key (offline target).      | Y      | N     | Y      |
 | [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget)| The Parquet target storage driver, used to materialize feature set/vector data into parquet files (online target). | Y      | Y     | Y      |
-| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  | Writes all incoming events into a V3IO stream (offline target).                                                     | Y      | N     | N      |
+| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  | Writes all incoming events into a V3IO stream (offline target).                                                    | Y      | N     | N      |
 
 ## Parquet target
 

@@ -848,8 +848,6 @@ class HttpSource(OnlineSource):
 
 
 class StreamSource(OnlineSource):
-    """Sets stream source for the flow. If stream doesn't exist it will create it"""
-
     kind = "v3ioStream"
 
     def __init__(
@@ -863,7 +861,7 @@ class StreamSource(OnlineSource):
         **kwargs,
     ):
         """
-        Sets stream source for the flow. If stream doesn't exist it will create it
+        Sets the stream source for the flow. If the stream doesn't exist it will create it.
 
         :param name: stream name. Default "stream"
         :param group: consumer group. Default "serving"
@@ -915,8 +913,6 @@ class StreamSource(OnlineSource):
 
 
 class KafkaSource(OnlineSource):
-    """Sets kafka source for the flow"""
-
     kind = "kafka"
 
     def __init__(

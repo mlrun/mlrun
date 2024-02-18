@@ -23,9 +23,8 @@ def handler(context: mlrun.run.MLClientCtx, event) -> None:
     :param context: the MLRun context
     :param event:   trigger event
     """
-    if event.trigger.kind == 'cron':
-        monitor_app_controller = MonitoringApplicationController(
-            context=context,
-            project=context.project,
-        )
-        monitor_app_controller.run()
+    monitor_app_controller = MonitoringApplicationController(
+        context=context,
+        project=context.project,
+    )
+    monitor_app_controller.run()

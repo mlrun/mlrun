@@ -254,7 +254,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         response = dataitem.as_df(time_column="date_of_birth", **kwargs)
         pd.testing.assert_frame_equal(source, response)
 
-    @pytest.mark.skip(reason="ticket exists")
+    @pytest.mark.skip(reason="ticket exists: ML-5575")
     @pytest.mark.parametrize(
         "file_extension,kwargs, reader",
         [
@@ -321,7 +321,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         )
         pd.testing.assert_frame_equal(response_df, appended_df)
 
-    @pytest.mark.skip(reason="ticket exists")
+    @pytest.mark.skip(reason="ticket exists: ML-5575")
     @pytest.mark.parametrize(
         "file_extension, reader",
         [

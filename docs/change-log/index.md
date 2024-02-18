@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.0](v1-6-0-14-february-2024)
+- [v1.6.0](v1-6-0-20-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -13,7 +13,7 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
-## v1.6.0 (14 February 2024)
+## v1.6.0 (20 February 2024)
 
 ### Data store
 | ID |Description                                                                                         |
@@ -36,7 +36,7 @@
 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods) and {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`.
+|ML-3379,4997|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods) and {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`.
 |ML-3728|Labels added to pods that are running as part of KFP to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
 |ML-4032|You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers). |
 |ML-4182|Support for notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
@@ -86,6 +86,7 @@
 |ML-4608|The artifact `db_key` is now forwarded when registering an artifact.|
 |ML-4617|Fixed error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector.|
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
+|ML-4922|Preview and Metadata tabs now indicate when there are more columns that are not displayed.|
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
 |ML-4992|Fixed starting a spark job from source archive (using `with_source_archive()`).|
 |ML-5001|The **Monitoring workflows** page now states that it includes only workflows that have already been run. | 
@@ -96,7 +97,7 @@
 |ML-5091|Monitoring does not recreate a deleted run. |                                   |
 |ML-5146|Resolved OOM issues by reducing the memory footprint when monitoring runs. |
 |ML-5481|You can now use `build_image` using the project source. See the example in [build_image](../projects/run-build-deploy.html#build-image).|
-
+|ML-5576|FeatureSet can now ingest data that contains single quotes.|
 
 
 
@@ -871,7 +872,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4857|Local runs can be aborted in the UI, though the actual execution continues.|NA | v1.5.0 |
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
-|ML-4922|Preview and Metadata tabs do not show all columns, but there is no indication that more columns exist.|NA | v1.4.1 |
 |ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking requires a specific workflow. |See [Enable model monitoring](../monitoring/initial-setup-configuration.html#enabling-model-monitoring). |v1.6.0|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |

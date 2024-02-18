@@ -13,8 +13,9 @@
 # limitations under the License.
 import tempfile
 from os import path
-from typing import List
+from typing import Any
 
+import pandas as pd
 import yaml
 from deprecated import deprecated
 
@@ -68,8 +69,8 @@ class ModelArtifactSpec(ArtifactSpec):
         model_file=None,
         metrics=None,
         paraemeters=None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
         framework=None,
         algorithm=None,
         feature_vector=None,
@@ -91,8 +92,8 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_file = model_file
         self.metrics = metrics or {}
         self.parameters = paraemeters or {}
-        self.inputs: List[Feature] = inputs or []
-        self.outputs: List[Feature] = outputs or []
+        self.inputs: list[Feature] = inputs or []
+        self.outputs: list[Feature] = outputs or []
         self.framework = framework
         self.algorithm = algorithm
         self.feature_vector = feature_vector
@@ -101,21 +102,21 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> List[Feature]:
+    def inputs(self) -> list[Feature]:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: list[Feature]):
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> List[Feature]:
+    def outputs(self) -> list[Feature]:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: list[Feature]):
         self._outputs = ObjectList.from_list(Feature, outputs)
 
 
@@ -175,22 +176,22 @@ class ModelArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", ModelArtifactSpec)
 
     @property
-    def inputs(self) -> List[Feature]:
+    def inputs(self) -> list[Feature]:
         """input feature list"""
         return self.spec.inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: list[Feature]):
         """input feature list"""
         self.spec.inputs = inputs
 
     @property
-    def outputs(self) -> List[Feature]:
+    def outputs(self) -> list[Feature]:
         """input feature list"""
         return self.spec.outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: list[Feature]):
         """input feature list"""
         self.spec.outputs = outputs
 
@@ -260,6 +261,7 @@ class ModelArtifact(Artifact):
         """
         subset = df
         inferer = get_infer_interface(subset)
+        numeric_columns = self._extract_numeric_features(df)
         if label_columns:
             if not isinstance(label_columns, list):
                 label_columns = [label_columns]
@@ -273,8 +275,12 @@ class ModelArtifact(Artifact):
             )
         if with_stats:
             self.spec.feature_stats = inferer.get_stats(
-                df, options=InferOptions.Histogram, num_bins=num_bins
+                df[numeric_columns], options=InferOptions.Histogram, num_bins=num_bins
             )
+
+    @staticmethod
+    def _extract_numeric_features(df: pd.DataFrame) -> list[Any]:
+        return [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
 
     @property
     def is_dir(self):
@@ -445,8 +451,8 @@ class LegacyModelArtifact(LegacyArtifact):
         self.model_file = model_file
         self.parameters = parameters or {}
         self.metrics = metrics or {}
-        self.inputs: List[Feature] = inputs or []
-        self.outputs: List[Feature] = outputs or []
+        self.inputs: list[Feature] = inputs or []
+        self.outputs: list[Feature] = outputs or []
         self.extra_data = extra_data or {}
         self.framework = framework
         self.algorithm = algorithm
@@ -456,21 +462,21 @@ class LegacyModelArtifact(LegacyArtifact):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> List[Feature]:
+    def inputs(self) -> list[Feature]:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: list[Feature]):
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> List[Feature]:
+    def outputs(self) -> list[Feature]:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: list[Feature]):
         self._outputs = ObjectList.from_list(Feature, outputs)
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
@@ -642,8 +648,8 @@ def update_model(
     parameters: dict = None,
     metrics: dict = None,
     extra_data: dict = None,
-    inputs: List[Feature] = None,
-    outputs: List[Feature] = None,
+    inputs: list[Feature] = None,
+    outputs: list[Feature] = None,
     feature_vector: str = None,
     feature_weights: list = None,
     key_prefix: str = "",

@@ -176,7 +176,7 @@ async def create_model_monitoring_controller(
     controller_policy = TrackingPolicy(
         default_controller_image=default_controller_image, base_period=base_period
     )
-    function = MonitoringDeployment().deploy_model_monitoring_controller(
+    MonitoringDeployment().deploy_model_monitoring_controller(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         db_session=db_session,
@@ -184,9 +184,3 @@ async def create_model_monitoring_controller(
         tracking_policy=controller_policy,
     )
 
-    if function is not None:
-        return BuildStatus(
-            function[1], {"image": function[0].spec.image}, function=function[0]
-        )
-
-    return {"func": function}

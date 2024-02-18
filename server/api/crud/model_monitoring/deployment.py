@@ -527,9 +527,9 @@ class MonitoringDeployment:
             name=function_name,
             project=project,
             filename=filename,
-            kind="job"
+            kind=mlrun.run.RuntimeKinds.job
             if function_name == mm_constants.MonitoringFunctionNames.BATCH
-            else "serving",
+            else mlrun.run.RuntimeKinds.nuclio,
             image=image,
             handler="handler",
         )

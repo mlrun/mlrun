@@ -366,5 +366,6 @@ See:
 - {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
 
 ```{admonition} Note
-State thresholds are not supported for Nuclio runtimes as nuclio provides it's own monitoring and for dask runtime which can be monitored by the client.
+State thresholds are not supported for Nuclio/serving runtimes (since they have their own monitoring) or for the Dask runtime (which can be monitored by the client).
 ```
+

@@ -67,10 +67,10 @@ Project access can be restricted to a set of users and roles.
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Projects and automation <./projects/project.html>`
 {bdg-link-info}`CI/CD integration <./projects/ci-integration.html>`
-, {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`quick start <./tutorials/01-mlrun-basics.html>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
 {bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
-, {octicon}`video` **Videos:**
+<br> {octicon}`video` **Videos:**
 {bdg-link-warning}`Quick start <https://youtu.be/xI8KVGLlj7Q>`
 `````
 
@@ -82,10 +82,11 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Ingest and process data <ingesting-process-data>`
 {bdg-link-info}`Feature store <./feature-store/feature-store.html>`
-{bdg-link-info}`Data & artifacts <./concepts/data.html>`
-, {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`quick start <./tutorials/01-mlrun-basics.html>`
+{bdg-link-info}`Data and artifacts <./concepts/data.html>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
 {bdg-link-primary}`Feature store <./feature-store/basic-demo.html>`
 `````
 
@@ -96,13 +97,14 @@ MLRun allows you to easily build ML pipelines that take data from various source
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Develop and train models <development>`
 {bdg-link-info}`Model training and tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch runs and workflows <./concepts/runs-workflows.html>`
-, {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Train & eval models <./tutorials/02-model-training.html>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Train, compare, and register models <./tutorials/02-model-training.html>`
 {bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
-, {octicon}`video` **Videos:**
-{bdg-link-warning}`Train & compare models <https://youtu.be/bZgBsmLMdQo>`
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}`Train and compare models <https://youtu.be/bZgBsmLMdQo>`
 `````
 
 ### Deploy models and applications
@@ -112,13 +114,14 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Deploy models and applications <deployment>`
 {bdg-link-info}`Realtime pipelines <./serving/serving-graph.html>`
 {bdg-link-info}`Batch inference <./deployment/batch_inference.html>`
-, {octicon}`code-square` **Tutorials:**
+<br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Realtime serving <./tutorials/03-model-serving.html>`
 {bdg-link-primary}`Batch inference <./tutorials/07-batch-infer.html>`
 {bdg-link-primary}`Advanced pipeline <./tutorials/07-batch-infer.html>`
-, {octicon}`video` **Videos:**
+<br> {octicon}`video` **Videos:**
 {bdg-link-warning}`Serve pre-trained models <https://youtu.be/OUjOus4dZfw>`
 `````
 
@@ -129,9 +132,10 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Monitor and alert <monitoring>`
 {bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
-, {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Model monitoring & drift detection <./tutorials/05-model-monitoring.html>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
 
 <a id="core-components"></a>
@@ -192,11 +196,11 @@ MLRun includes the following major components:
 
 **{ref}`Serverless functions <Functions>`:** An automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 
-**{ref}`Data & artifacts <data-feature-store>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
+**{ref}`Data and artifacts <data-feature-store>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
 
 **{ref}`Feature store <feature-store>`:** Automatically collects, prepares, catalogs, and serves production data features for development (offline) and real-time (online) deployment using minimal engineering effort.
 
-**{ref}`Batch Runs & workflows <workflows>`:** Execute one or more functions with specific parameters and collect, track, and compare all their results and artifacts.
+**{ref}`Batch Runs and workflows <workflows>`:** Execute one or more functions with specific parameters and collect, track, and compare all their results and artifacts.
 
 **{ref}`Real-time serving pipeline <serving-graph>`:** Rapid deployment of scalable data and ML pipelines using real-time serverless technology, including API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 

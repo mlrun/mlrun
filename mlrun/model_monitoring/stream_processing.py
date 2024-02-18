@@ -803,18 +803,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
             )
 
-    @staticmethod
-    def is_list_of_numerics(
-        field: list[typing.Union[int, float, dict, list]],
-        dict_path: list[str],
-    ):
-        if all(isinstance(x, int) or isinstance(x, float) for x in field):
-            return True
-        logger.error(
-            f"List does not consist of only numeric values: {field} [Event -> {','.join(dict_path)}]"
-        )
-        return False
-
     def resume_state(self, endpoint_id):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them

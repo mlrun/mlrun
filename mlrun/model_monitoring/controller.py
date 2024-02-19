@@ -282,33 +282,31 @@ class MonitoringApplicationController:
 
     def __init__(
         self,
-        context: mlrun.run.MLClientCtx,
+        mlrun_context: mlrun.run.MLClientCtx,
         project: str,
     ):
         """
         Initialize Monitoring Application Processor object.
 
-        :param context:                     An MLRun context.
+        :param mlrun_context:               An MLRun context.
         :param project:                     Project name.
         """
-        self.context = context
+        self.context = mlrun_context
         self.project = project
         self.project_obj = mlrun.get_or_create_project(project)
 
-        context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
+        mlrun_context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
 
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
         self._batch_window_generator = _BatchWindowGenerator(
-            batch_dict=context.parameters[
+            batch_dict=os.getenv(
                 mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-            ]
+            )
         )
 
         # If provided, only model endpoints in that that list will be analyzed
-        self.model_endpoints = context.parameters.get(
-            mm_constants.EventFieldType.MODEL_ENDPOINTS, None
-        )
+        self.model_endpoints = None
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             self.project_obj,

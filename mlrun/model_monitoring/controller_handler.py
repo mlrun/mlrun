@@ -33,21 +33,9 @@ def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     context.logger.info(f"[David] Context = {context.__dict__}")
     mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
     context.logger.info(f"[David] Mlrun Context = {mlrun_context.to_dict()}")
-    if event.trigger.kind == 'cron':
-        # log something
-        context.logger.info('[David] Invoked from cron')
-        context.logger.info(f'[David]  {event.trigger._struct["attributes"]["interval"]}')
 
-    minutes = 1
-    hours = days = 0
-    batch_dict = {
-        mm_constants.EventFieldType.MINUTES: minutes,
-        mm_constants.EventFieldType.HOURS: hours,
-        mm_constants.EventFieldType.DAYS: days,
-    }
-    mlrun_context.parameters[mm_constants.EventFieldType.BATCH_INTERVALS_DICT] = batch_dict
     monitor_app_controller = MonitoringApplicationController(
-        context=mlrun_context,
+        mlrun_context=mlrun_context,
         project=mlrun_context.project,
     )
     monitor_app_controller.run()

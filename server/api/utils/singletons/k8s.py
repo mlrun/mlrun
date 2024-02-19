@@ -207,7 +207,15 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
 
-    def delete_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+    def delete_crd(
+        self,
+        name,
+        crd_group,
+        crd_version,
+        crd_plural,
+        namespace=None,
+        grace_period_seconds=None,
+    ):
         try:
             namespace = self.resolve_namespace(namespace)
             self.crdapi.delete_namespaced_custom_object(
@@ -216,6 +224,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 namespace,
                 crd_plural,
                 name,
+                grace_period_seconds=grace_period_seconds,
             )
             logger.info(
                 "Deleted crd object",

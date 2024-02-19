@@ -29,7 +29,7 @@ import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
-from mlrun.utils import now_date
+from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -452,7 +452,10 @@ class BaseStoreTarget(DataTargetBase):
             credentials_prefix_secrets,
         )
         if self.get_target_path() and self.get_target_path().startswith("ds://"):
-            return store, store.url + resolved_store_path
+            if hasattr(store, "kind") and store.kind == "v3io":
+                return store, "v3io:/" + resolved_store_path
+            else:
+                return store, store.url + resolved_store_path
         else:
             return store, self.get_target_path()
 
@@ -1192,7 +1195,11 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
-            _, path_with_container = parse_path(self.get_target_path())
+            store, target_path = self._get_store_and_path()
+            storage_options = store.get_storage_options()
+            access_key = storage_options.get("v3io_access_key") or access_key
+
+            _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1210,18 +1217,31 @@ class NoSqlTarget(NoSqlBaseTarget):
     def get_table_object(self):
         from storey import Table, V3ioDriver
 
-        # TODO use options/cred
-        endpoint, uri = parse_path(self.get_target_path())
+        store, target_path = self._get_store_and_path()
+        endpoint, uri = parse_path(target_path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        store_access_key = storage_options.get("v3io_access_key")
+        env_access_key = self._secrets.get(
+            "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+        )
+        if store_access_key and env_access_key and store_access_key != env_access_key:
+            logger.warning(
+                "The Spark v3io connector does not support access_key parameterization."
+                "Spark will disregard the store-provided key."
+            )
         spark_options = {
-            "path": store.spark_url + path,
+            "path": store_path_to_spark(target_path),
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1365,10 +1385,12 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        path = self.get_target_path()
+        store, path = self._get_store_and_path()
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
         endpoint, uri = parse_path(path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1379,7 +1401,9 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            storage=V3ioDriver(
+                webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
+            ),
             stream_path=uri,
             **self.attributes,
         )
@@ -1515,7 +1539,11 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_path(self.get_target_path())
+        store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key") or access_key
+
+        _, path_with_container = parse_path(target_path)
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(

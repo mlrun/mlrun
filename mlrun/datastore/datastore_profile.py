@@ -132,6 +132,21 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         return attributes
 
 
+class DatastoreProfileV3io(DatastoreProfile):
+    type: str = pydantic.Field("v3io")
+    v3io_access_key: typing.Optional[str] = None
+    _private_attributes = "v3io_access_key"
+
+    def url(self, subpath):
+        return f"v3io://{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.v3io_access_key:
+            res["V3IO_ACCESS_KEY"] = self.v3io_access_key
+        return res
+
+
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
     _private_attributes = ("access_key_id", "secret_key")
@@ -370,6 +385,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
         ds_profile_factory = {
+            "v3io": DatastoreProfileV3io,
             "s3": DatastoreProfileS3,
             "redis": DatastoreProfileRedis,
             "basic": DatastoreProfileBasic,

@@ -257,7 +257,7 @@ def test_get_client_spec_cached(
                 lambda argument: isinstance(argument, int),
                 map(
                     lambda closure: closure.cell_contents,
-                    server.api.api.endpoints.client_spec.get_settings.__closure__,
+                    server.api.api.endpoints.client_spec.get_cached_client_spec.__closure__,
                 ),
             )
         )

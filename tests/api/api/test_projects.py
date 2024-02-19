@@ -770,6 +770,12 @@ def test_projects_crud(
         ),
     )
 
+    # create - fail invalid label
+    invalid_project_create_request = project_1.dict()
+    invalid_project_create_request["metadata"]["labels"] = {".a": "invalid-label"}
+    response = client.post("projects", json=invalid_project_create_request)
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
     # create
     response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CREATED.value

@@ -66,7 +66,7 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        self._enrich_and_validate_before_creation(project)
+        self._enrich_and_validate(project)
         self._run_on_all_followers(True, "create_project", db_session, project)
         return self.get_project(db_session, project.metadata.name), False
 
@@ -79,7 +79,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        self._enrich_project(project)
+        self._enrich_and_validate(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", db_session, name, project)
         return self.get_project(db_session, name), False
@@ -266,7 +266,7 @@ class Member(
                 # Heuristically pick the first follower
                 project_follower_name = list(follower_names)[0]
                 project = followers_projects_map[project_follower_name][project_name]
-                self._enrich_and_validate_before_creation(project)
+                self._enrich_and_validate(project)
                 self._leader_follower.create_project(db_session, project)
             except Exception as exc:
                 logger.warning(
@@ -317,7 +317,7 @@ class Member(
                 project_name=project_name,
             )
             try:
-                self._enrich_and_validate_before_creation(project)
+                self._enrich_and_validate(project)
                 self._followers[follower_name].store_project(
                     db_session,
                     project_name,
@@ -349,7 +349,7 @@ class Member(
                 project_name=project_name,
             )
             try:
-                self._enrich_and_validate_before_creation(project)
+                self._enrich_and_validate(project)
                 self._followers[missing_follower].create_project(
                     db_session,
                     project,
@@ -425,9 +425,7 @@ class Member(
             raise ValueError(f"Unknown follower name: {name}")
         return followers_classes_map[name]
 
-    def _enrich_and_validate_before_creation(
-        self, project: mlrun.common.schemas.Project
-    ):
+    def _enrich_and_validate(self, project: mlrun.common.schemas.Project):
         self._enrich_project(project)
         self._validate_project(project)
 

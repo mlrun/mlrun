@@ -138,7 +138,7 @@ def verify_label_key(key):
         raise mlrun.errors.MLRunInvalidArgumentError("label key cannot be empty")
     if key.startswith("k8s.io") or key.startswith("kubernetes.io"):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "labels cannot start with 'k8s.io' or 'kubernetes.io'"
+            "Labels cannot start with 'k8s.io' or 'kubernetes.io'"
         )
 
     mlrun.utils.helpers.verify_field_regex(
@@ -154,18 +154,18 @@ def verify_label_key(key):
         prefix, name = parts
         if len(prefix) == 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "label key prefix cannot be empty"
+                "Label key prefix cannot be empty"
             )
 
         # prefix must adhere dns_1123_subdomain
         mlrun.utils.helpers.verify_field_regex(
-            f"project.metadata.labels.'{key}'",
+            f"Project.metadata.labels.'{key}'",
             prefix,
             mlrun.utils.regex.dns_1123_subdomain,
         )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "label key can only contain one '/'"
+            "Label key can only contain one '/'"
         )
 
     mlrun.utils.helpers.verify_field_regex(

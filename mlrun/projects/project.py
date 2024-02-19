@@ -706,7 +706,7 @@ class ProjectMetadata(ModelObj):
             return True
         if not isinstance(labels, dict):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "labels must be a dictionary of key-value pairs"
+                "Labels must be a dictionary of key-value pairs"
             )
         try:
             for key, value in labels.items():

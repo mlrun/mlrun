@@ -81,6 +81,7 @@ class Member(
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._enrich_project(project)
         mlrun.projects.ProjectMetadata.validate_project_name(name)
+        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", db_session, name, project)
         return self.get_project(db_session, name), False
@@ -288,7 +289,8 @@ class Member(
             missing_followers = set(follower_names).symmetric_difference(
                 self._followers.keys()
             )
-            if self._should_sync_project_to_followers(project_name):
+            project.metadata.name = project_name
+            if self._should_sync_project_to_followers(project):
                 if missing_followers:
                     self._create_project_in_missing_followers(
                         db_session,
@@ -364,14 +366,18 @@ class Member(
                     traceback=traceback.format_exc(),
                 )
 
-    def _should_sync_project_to_followers(self, project_name: str) -> bool:
+    def _should_sync_project_to_followers(
+        self, project: mlrun.common.schemas.Project
+    ) -> bool:
         """
         projects name validation is enforced on creation, the only way for a project name to be invalid is if it was
         created prior to 0.6.0, and the version was upgraded we do not want to sync these projects since it will
-        anyways fail (Nuclio doesn't allow these names as well)
+        anyway fail (Nuclio doesn't allow these names as well)
         """
         return mlrun.projects.ProjectMetadata.validate_project_name(
-            project_name, raise_on_failure=False
+            project.metadata.name, raise_on_failure=False
+        ) or mlrun.projects.ProjectMetadata.validate_project_labels(
+            project.metadata.labels, raise_on_failure=False
         )
 
     def _run_on_all_followers(
@@ -426,6 +432,7 @@ class Member(
     ):
         self._enrich_project(project)
         mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
+        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
 
     @staticmethod
     def _enrich_project(project: mlrun.common.schemas.Project):

@@ -95,6 +95,7 @@ def test_client_spec(
         "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
         "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
     }
+    server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -154,6 +155,8 @@ def test_client_spec_response_based_on_client_version(
     assert response_body["kfp_image"] == "mlrun/mlrun:unstable"
     assert response_body["dask_kfp_image"] == "mlrun/ml-base:unstable"
 
+    # clear case for next scenario
+    server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     # test response when the server has a version
     with unittest.mock.patch.object(
         mlrun.utils.version.Version, "get", return_value={"version": "1.3.0-rc23"}

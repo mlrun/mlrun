@@ -93,7 +93,6 @@ async def delete_project(
     # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response
     if deletion_strategy.strategy_to_check():
-        server.api.crud.Projects().verify_project_is_empty(db_session, name, auth_info)
         await run_in_threadpool(
             server.api.crud.Projects().verify_project_is_empty,
             db_session,

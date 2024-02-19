@@ -39,6 +39,7 @@ to the [feature store example](./basic-demo.html).
 - [Aggregations](#aggregations)
 - [Built-in transformations](#built-in-transformations)
 - [Custom transformations](#custom-transformations)
+- [Data transformation steps](#data-transformation-steps)
 
 ## Aggregations
 
@@ -282,6 +283,21 @@ feature_set = fstore.FeatureSet("fs-new",
 feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
 df_pandas = feature_set.ingest(data)
 ```
+
+## Data transformation steps
+
+The following table lists the available data-transformation steps. The next table details the ingestion engines support of these steps.
+
+| Class name            | Description                           | Storey | Spark | Pandas | 
+|----------------------------|----------------------------------| ---- | ---- | ---- | 
+| {py:meth}`#mlrun.feature_store.FeatureSet.add_aggregation`    | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. | Y  <br>Not supported with online target SQLTarget | Y  | N  | 
+| {py:meth}`mlrun.feature_store.steps.DateExtractor`            | Extract a date-time component. | Y | N  <br>Supports part extract (ex. day_of_week) but does not support boolean (ex. is_leap_year) | Y | 
+| {py:meth}`mlrun.feature_store.steps.DropFeatures`             | Drop features from feature list.  | Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.Imputer`                  | Replace None values with default values. | Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.MapValues`                | Map column values to new values.  | Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.OneHotEncoder`            | Create new binary fields, one per category (one hot encoded).  |  Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.SetEventMetadata`         | Set the event metadata (id, key, timestamp) from the event body. | Y      | N     | N      | 
+| {py:meth}`mlrun.feature_store.steps.FeaturesetValidator`      | Validate feature values according to the feature set validation policy | Y      | N     | Y      | 
 
 
 

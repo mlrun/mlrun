@@ -436,6 +436,7 @@ class TestRuntimeHandlerBase:
                 expected_custom_object_namespace,
                 crd_plural,
                 expected_custom_object_name,
+                grace_period_seconds=None,
             )
             for expected_custom_object_name in expected_custom_object_names
         ]

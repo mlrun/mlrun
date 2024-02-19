@@ -109,7 +109,10 @@ default_config = {
         "runs": {
             # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
             "batch_delete_runs_chunk_size": 10,
-        }
+        },
+        "resources": {
+            "delete_crd_resources_timeout": "5 minutes",
+        },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)

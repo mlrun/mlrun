@@ -64,8 +64,9 @@
 |ML-3663|New: How to build a docker image externally using a dockerfile and then use it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
 |ML-4048|New: Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).|
 |ML-5260|New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.html#load-code-at-runtime-using-a-non-default-source). |
+|ML-5602, ML-5680|Improved feature store documentation including sources and targets, and partitioning.|
 |NA|New: {ref}`project-setup`.|
-|NA|New: Example of a serving function with Git integration. See {ref}`serving-function`.
+|NA|Improved serving function example, and new example of a serving function with Git integration. See {ref}`serving-function`.
 
 
 ###  Closed issues

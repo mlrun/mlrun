@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import nuclio
 
 import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
@@ -23,9 +24,11 @@ def handler(context: mlrun.run.MLClientCtx, event) -> None:
     :param context: the MLRun context
     :param event:   trigger event
     """
-    print(context.__dict__)
+    print(f"[David] Event = {event.__repr__}")
+    print(f"[David] context = {context.__dict__}")
+    mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
     monitor_app_controller = MonitoringApplicationController(
-        context=context,
-        project=context.project,
+        context=mlrun_context,
+        project=mlrun_context.project,
     )
     monitor_app_controller.run()

@@ -36,6 +36,7 @@ def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     if event.trigger.kind == 'cron':
         # log something
         context.logger.info('[David] Invoked from cron')
+        context.logger.info(f'[David]  {event.trigger._struct["attributes"]["interval"]}')
 
     minutes = 1
     hours = days = 0

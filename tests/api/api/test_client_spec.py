@@ -26,6 +26,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.version
+import server.api.api.endpoints.client_spec
 import server.api.crud.client_spec
 
 
@@ -231,7 +232,40 @@ def test_get_client_spec_cached(
     ) as mocked_get_client:
         response = client.get("client-spec")
         assert response.status_code == http.HTTPStatus.OK.value
-        cached_response = client.get("client-spec")
-        assert cached_response.status_code == http.HTTPStatus.OK.value
+        for i in range(10):
+            cached_response = client.get("client-spec")
         assert response.json() == cached_response.json()
         assert mocked_get_client.call_count == 1
+
+        # different client version -> cache miss
+        invalidated_cached_response = client.get(
+            "client-spec", headers={"x-mlrun-client-version": "1.2.3"}
+        )
+        assert invalidated_cached_response.status_code == http.HTTPStatus.OK.value
+        assert mocked_get_client.call_count == 2
+
+        import time
+
+        # first request is still cached
+        cached_response = client.get("client-spec")
+        assert response.json() == cached_response.json()
+        assert mocked_get_client.call_count == 2
+
+        # extract given "ttl_seconds" from our lru-cached function
+        ttl_seconds = next(
+            filter(
+                lambda argument: isinstance(argument, int),
+                map(
+                    lambda closure: closure.cell_contents,
+                    server.api.api.endpoints.client_spec.get_settings.__closure__,
+                ),
+            )
+        )
+
+        # invalidate first request from cache (time-based expiration)
+        real_time_monotonic = time.monotonic()
+        with unittest.mock.patch.object(time, "monotonic") as monotonic_time:
+            monotonic_time.return_value = real_time_monotonic + ttl_seconds + 1
+            cached_response = client.get("client-spec")
+            assert cached_response.status_code == http.HTTPStatus.OK.value
+            assert mocked_get_client.call_count == 3

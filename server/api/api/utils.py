@@ -17,6 +17,7 @@ import copy
 import functools
 import json
 import re
+import time
 import traceback
 import typing
 import uuid
@@ -65,16 +66,38 @@ def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     raise HTTPException(status_code=status, detail=kw)
 
 
-@functools.lru_cache
-def expiring_lru_cache(ttl_seconds: int, func: typing.Callable, *args, **kwargs):
+def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
     """
-    A cache that expires after a given time.
-    :param ttl_seconds: The time to live of the cache in seconds.
-    :param func: The function to cache.
-    :param args: The function's arguments.
-    :param kwargs: The function's keyword arguments.
+    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
+    https://stackoverflow.com/a/71634221/5257501
     """
-    return func(*args, **kwargs)
+
+    class Result:
+        __slots__ = ("value", "death")
+
+        def __init__(self, value, death):
+            self.value = value
+            self.death = death
+
+    def decorator(func):
+        @functools.lru_cache(maxsize=maxsize, typed=typed)
+        def cached_func(*args, **kwargs):
+            value = func(*args, **kwargs)
+            death = time.monotonic() + ttl_seconds
+            return Result(value, death)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = cached_func(*args, **kwargs)
+            if result.death < time.monotonic():
+                result.value = func(*args, **kwargs)
+                result.death = time.monotonic() + ttl_seconds
+            return result.value
+
+        wrapper.cache_clear = cached_func.cache_clear
+        return wrapper
+
+    return decorator
 
 
 def log_path(project, uid) -> Path:

@@ -428,7 +428,3 @@ class Member(
             if latest_updated_at < epoch:
                 latest_updated_at = epoch
             self._synced_until_datetime = latest_updated_at
-
-    def _validate_project(self, project: mlrun.common.schemas.Project):
-        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
-        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)

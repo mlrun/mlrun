@@ -80,8 +80,6 @@ class Member(
         wait_for_completion: bool = True,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._enrich_project(project)
-        mlrun.projects.ProjectMetadata.validate_project_name(name)
-        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", db_session, name, project)
         return self.get_project(db_session, name), False
@@ -376,7 +374,7 @@ class Member(
         """
         return mlrun.projects.ProjectMetadata.validate_project_name(
             project.metadata.name, raise_on_failure=False
-        ) or mlrun.projects.ProjectMetadata.validate_project_labels(
+        ) and mlrun.projects.ProjectMetadata.validate_project_labels(
             project.metadata.labels, raise_on_failure=False
         )
 
@@ -431,8 +429,7 @@ class Member(
         self, project: mlrun.common.schemas.Project
     ):
         self._enrich_project(project)
-        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
-        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
+        self._validate_project(project)
 
     @staticmethod
     def _enrich_project(project: mlrun.common.schemas.Project):

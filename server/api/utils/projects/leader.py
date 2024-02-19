@@ -66,7 +66,7 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        self._enrich_and_validate_before_creation(project)
+        self._enrich_and_validate(project)
         self._run_on_all_followers(True, "create_project", db_session, project)
         return self.get_project(db_session, project.metadata.name), False
 
@@ -79,8 +79,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        self._enrich_project(project)
-        mlrun.projects.ProjectMetadata.validate_project_name(name)
+        self._enrich_and_validate(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", db_session, name, project)
         return self.get_project(db_session, name), False
@@ -269,7 +268,7 @@ class Member(
                 # Heuristically pick the first follower
                 project_follower_name = list(follower_names)[0]
                 project = followers_projects_map[project_follower_name][project_name]
-                self._enrich_and_validate_before_creation(project)
+                self._enrich_and_validate(project)
                 self._leader_follower.create_project(db_session, project)
             except Exception as exc:
                 logger.warning(
@@ -290,7 +289,8 @@ class Member(
             missing_followers = set(follower_names).symmetric_difference(
                 self._followers.keys()
             )
-            if self._should_sync_project_to_followers(project_name):
+            project.metadata.name = project_name
+            if self._should_sync_project_to_followers(project):
                 if missing_followers:
                     self._create_project_in_missing_followers(
                         db_session,
@@ -319,7 +319,7 @@ class Member(
                 project_name=project_name,
             )
             try:
-                self._enrich_and_validate_before_creation(project)
+                self._enrich_and_validate(project)
                 self._followers[follower_name].store_project(
                     db_session,
                     project_name,
@@ -351,7 +351,7 @@ class Member(
                 project_name=project_name,
             )
             try:
-                self._enrich_and_validate_before_creation(project)
+                self._enrich_and_validate(project)
                 self._followers[missing_follower].create_project(
                     db_session,
                     project,
@@ -366,14 +366,18 @@ class Member(
                     traceback=traceback.format_exc(),
                 )
 
-    def _should_sync_project_to_followers(self, project_name: str) -> bool:
+    def _should_sync_project_to_followers(
+        self, project: mlrun.common.schemas.Project
+    ) -> bool:
         """
         projects name validation is enforced on creation, the only way for a project name to be invalid is if it was
         created prior to 0.6.0, and the version was upgraded we do not want to sync these projects since it will
-        anyways fail (Nuclio doesn't allow these names as well)
+        anyway fail (Nuclio doesn't allow these names as well)
         """
         return mlrun.projects.ProjectMetadata.validate_project_name(
-            project_name, raise_on_failure=False
+            project.metadata.name, raise_on_failure=False
+        ) and mlrun.projects.ProjectMetadata.validate_project_labels(
+            project.metadata.labels, raise_on_failure=False
         )
 
     def _run_on_all_followers(
@@ -423,11 +427,9 @@ class Member(
             raise ValueError(f"Unknown follower name: {name}")
         return followers_classes_map[name]
 
-    def _enrich_and_validate_before_creation(
-        self, project: mlrun.common.schemas.Project
-    ):
+    def _enrich_and_validate(self, project: mlrun.common.schemas.Project):
         self._enrich_project(project)
-        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
+        self._validate_project(project)
 
     @staticmethod
     def _enrich_project(project: mlrun.common.schemas.Project):

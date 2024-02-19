@@ -99,6 +99,7 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        self._validate_project(project)
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
@@ -129,6 +130,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        self._validate_project(project)
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
@@ -408,24 +410,9 @@ class Member(
 
     def _update_latest_synced_datetime(self, latest_updated_at):
         if latest_updated_at:
-            # sanity and defensive programming - if the leader returned a latest_updated_at that is older
+            # sanity and defensive programming - if the leader returned the latest_updated_at that is older
             # than the epoch, we'll set it to the epoch
             epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))
             if latest_updated_at < epoch:
                 latest_updated_at = epoch
             self._synced_until_datetime = latest_updated_at
-
-    @staticmethod
-    def _is_project_matching_labels(
-        labels: typing.List[str], project: mlrun.common.schemas.Project
-    ):
-        if not project.metadata.labels:
-            return False
-        for label in labels:
-            if "=" in label:
-                name, value = [v.strip() for v in label.split("=", 1)]
-                if name not in project.metadata.labels:
-                    return False
-                return value == project.metadata.labels[name]
-            else:
-                return label in project.metadata.labels

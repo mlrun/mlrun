@@ -12,14 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import time
 import typing
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends, Header
 
 import mlrun.common.schemas
+import server.api.api.utils
 import server.api.crud
 
 router = APIRouter()
+
+
+def get_settings(
+    client_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
+) -> mlrun.common.schemas.ClientSpec:
+    return server.api.api.utils.expiring_lru_cache(
+        round(time.time() / 60),
+        server.api.crud.ClientSpec().get_client_spec,
+        client_version,
+        client_python_version,
+    )
 
 
 @router.get(
@@ -27,13 +45,6 @@ router = APIRouter()
     response_model=mlrun.common.schemas.ClientSpec,
 )
 def get_client_spec(
-    client_version: typing.Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.client_version
-    ),
-    client_python_version: typing.Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.python_version
-    ),
+    settings: mlrun.common.schemas.ClientSpec = Depends(get_settings),
 ):
-    return server.api.crud.ClientSpec().get_client_spec(
-        client_version=client_version, client_python_version=client_python_version
-    )
+    return settings

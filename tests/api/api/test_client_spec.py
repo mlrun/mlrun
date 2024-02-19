@@ -26,6 +26,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.version
+import server.api.crud.client_spec
 
 
 def test_client_spec(
@@ -217,3 +218,20 @@ def test_client_spec_response_based_on_client_version(
         response_body = response.json()
         assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc23"
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc23"
+
+
+def test_get_client_spec_cached(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    client_spec = server.api.crud.client_spec.ClientSpec().get_client_spec()
+    with unittest.mock.patch.object(
+        server.api.crud.client_spec.ClientSpec,
+        "get_client_spec",
+        return_value=client_spec,
+    ) as mocked_get_client:
+        response = client.get("client-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        cached_response = client.get("client-spec")
+        assert cached_response.status_code == http.HTTPStatus.OK.value
+        assert response.json() == cached_response.json()
+        assert mocked_get_client.call_count == 1

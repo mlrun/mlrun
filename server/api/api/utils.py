@@ -14,6 +14,7 @@
 #
 import collections
 import copy
+import functools
 import json
 import re
 import traceback
@@ -62,6 +63,11 @@ from server.api.utils.singletons.scheduler import get_scheduler
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
+
+
+@functools.lru_cache
+def expiring_lru_cache(ttl_seconds: int, func: typing.Callable, *args, **kwargs):
+    return func(*args, **kwargs)
 
 
 def log_path(project, uid) -> Path:

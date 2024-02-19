@@ -15,18 +15,36 @@ import nuclio
 
 import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import os
 
-
-def handler(context: mlrun.run.MLClientCtx, event) -> None:
+def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     """
     Run model monitoring application processor
 
     :param context: the MLRun context
     :param event:   trigger event
     """
-    print(f"[David] Event = {event.__repr__}")
-    print(f"[David] context = {context.__dict__}")
+    context.logger.info_with('[David] Got invoked',
+                             trigger_kind=event.trigger.kind,
+                             event_body=event.body,
+                             )
+    context.logger.info(f"[David] Event = {event.__repr__}")
+    context.logger.info(f"[David] Context = {context.__dict__}")
     mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
+    context.logger.info(f"[David] Mlrun Context = {mlrun_context.to_dict()}")
+    if event.trigger.kind == 'cron':
+        # log something
+        context.logger.info('[David] Invoked from cron')
+
+    minutes = 1
+    hours = days = 0
+    batch_dict = {
+        mm_constants.EventFieldType.MINUTES: minutes,
+        mm_constants.EventFieldType.HOURS: hours,
+        mm_constants.EventFieldType.DAYS: days,
+    }
+    mlrun_context.parameters[mm_constants.EventFieldType.BATCH_INTERVALS_DICT] = batch_dict
     monitor_app_controller = MonitoringApplicationController(
         context=mlrun_context,
         project=mlrun_context.project,

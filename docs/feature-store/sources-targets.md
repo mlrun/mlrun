@@ -5,6 +5,7 @@
 - [Sources](#sources)
 - [Targets](#targets)
 - [ParquetTarget](#parquettarget)
+- [NoSql target](#nosql-target)
 
 
 
@@ -44,7 +45,8 @@ processed for any given function, for example, when reading back a limited time 
 
 When using the pandas engine for ingestion, pandas incurs a maximum limit of 1024 partitions on each ingestion.
 If the data being ingested spans over more than 1024 partitions, the ingestion fails.
-Decrease the number of partitions by increasing the `time_partitioning_granularity`.
+Decrease the number of partitions by filtering the time (for example, using start_filter/end_filter of the 
+{py:meth}`~mlrun.datastore.ParquetSource`), and/or increasing the `time_partitioning_granularity`.
 
 storey processes the data row by row (as a streaming engine, it doesn't get all the data up front, so it needs to process row by row). 
 These rows are batched together according to the partitions defined, and they are 
@@ -68,4 +70,7 @@ Disable partitioning with:
 
 ## NoSql target
 
-The storey engine does not support features of type string with a value containing both quote (') and double-quote (").
+The {py:meth}`~mlrun.datastore.NoSqlTarget` is a V3IO key-value based target. It is the default target for real-time data. 
+It supports low latency data retrieval based on key access, making it ideal for online applications.
+
+The combination of a NoSQL target with the storey engine does not support features of type string with a value containing both quote (') and double-quote (").

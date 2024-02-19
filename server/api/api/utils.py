@@ -67,6 +67,13 @@ def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
 
 @functools.lru_cache
 def expiring_lru_cache(ttl_seconds: int, func: typing.Callable, *args, **kwargs):
+    """
+    A cache that expires after a given time.
+    :param ttl_seconds: The time to live of the cache in seconds.
+    :param func: The function to cache.
+    :param args: The function's arguments.
+    :param kwargs: The function's keyword arguments.
+    """
     return func(*args, **kwargs)
 
 

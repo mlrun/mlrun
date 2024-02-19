@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 
 	nuclio "github.com/nuclio/nuclio-sdk-go"
 )
@@ -21,6 +22,9 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	for k, v := range event.GetHeaders() {
+		httpRequest.Header[k] = []string{v.(string)}
+	}
 	recorder := httptest.NewRecorder()
 	reverseProxy.ServeHTTP(recorder, httpRequest)
 
@@ -32,16 +36,26 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
 	for key, value := range response.Header {
 		headers[key] = value[0]
 	}
-	return nuclio.Response{
+
+    // let the processor calculate the content length
+	delete(headers, "Content-Length")
+    return nuclio.Response{
 		StatusCode:  response.StatusCode,
 		Body:        recorder.Body.Bytes(),
 		ContentType: response.Header.Get("Content-Type"),
+		Headers:     headers,
 	}, nil
 }
 
 func InitContext(context *nuclio.Context) error {
 	sidecarHost := os.Getenv("SIDECAR_HOST")
 	sidecarPort := os.Getenv("SIDECAR_PORT")
+	if sidecarHost == "" {
+		sidecarHost = "http://localhost"
+	} else if !strings.Contains(sidecarHost, "://") {
+		sidecarHost = fmt.Sprintf("http://%s", sidecarHost)
+	}
+
 	// url for request forwarding
 	sidecarUrl := fmt.Sprintf("%s:%s", sidecarHost, sidecarPort)
 	parsedURL, err := url.Parse(sidecarUrl)

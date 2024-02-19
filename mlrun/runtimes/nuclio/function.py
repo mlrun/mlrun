@@ -603,7 +603,6 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def _wait_for_function_deployment(self, db, verbose=False):
-        text = ""
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
@@ -965,10 +964,14 @@ class RemoteRuntime(KubeResource):
         :param image:   Sidecar container image
         :param port:    Sidecar container port
         """
-        if not name or not image:
-            raise ValueError("Sidecar name and image must be specified")
+        # TODO: validate image on server side
+        if not name:
+            raise ValueError("Sidecar name must be specified")
 
-        sidecar = {"name": name, "image": image}
+        sidecar = self._set_sidecar(name)
+        if image:
+            sidecar["image"] = image
+
         if port:
             sidecar["ports"] = [
                 {
@@ -978,7 +981,15 @@ class RemoteRuntime(KubeResource):
                 }
             ]
 
-        self.spec.config["spec.sidecars"] = [sidecar]
+    def _set_sidecar(self, name: str) -> dict:
+        self.spec.config.setdefault("spec.sidecars", [])
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if sidecar["name"] == name:
+                return sidecar
+
+        sidecars.append({"name": name})
+        return sidecars[-1]
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

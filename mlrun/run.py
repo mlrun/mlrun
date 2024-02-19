@@ -748,11 +748,7 @@ def code_to_function(
     if kind == RuntimeKinds.application:
         if handler:
             raise ValueError("Handler is not supported for application runtime")
-
-        # TODO: Change and do something with the original filename
-        filename = str(
-            Path(__file__).parent / "./runtimes/nuclio/application/reverse_proxy.go"
-        )
+        filename = str(ApplicationRuntime.reverse_proxy_file_path)
         handler = "Handler"
 
     is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)
@@ -796,35 +792,29 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
-        if sub_kind == serving_subkind:
-            r = ServingRuntime()
-        elif kind == RuntimeKinds.application:
-            r = ApplicationRuntime()
-        else:
-            r = RemoteRuntime()
-            r.spec.function_kind = sub_kind
+        runtime = RuntimeKinds.resolve_nuclio_runtime(kind, sub_kind)
         # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
-        r.spec.default_handler = handler if sub_kind == "mlrun" else ""
-        r.spec.function_handler = (
+        runtime.spec.default_handler = handler if sub_kind == "mlrun" else ""
+        runtime.spec.function_handler = (
             handler if handler and ":" in handler else get_in(spec, "spec.handler")
         )
         if not embed_code:
-            r.spec.source = filename
+            runtime.spec.source = filename
         nuclio_runtime = get_in(spec, "spec.runtime")
         if nuclio_runtime and not nuclio_runtime.startswith("py"):
-            r.spec.nuclio_runtime = nuclio_runtime
+            runtime.spec.nuclio_runtime = nuclio_runtime
         if not name:
             raise ValueError("Missing required parameter: name")
-        r.metadata.name = name
-        r.spec.build.code_origin = code_origin
-        r.spec.build.origin_filename = filename or (name + ".ipynb")
-        update_common(r, spec)
-        return r
+        runtime.metadata.name = name
+        runtime.spec.build.code_origin = code_origin
+        runtime.spec.build.origin_filename = filename or (name + ".ipynb")
+        update_common(runtime, spec)
+        return runtime
 
     if kind is None or kind in ["", "Function"]:
         raise ValueError("please specify the function kind")
     elif kind in RuntimeKinds.all():
-        r = get_runtime_class(kind)()
+        runtime = get_runtime_class(kind)()
     else:
         raise ValueError(f"unsupported runtime ({kind})")
 
@@ -833,10 +823,10 @@ def code_to_function(
     if not name:
         raise ValueError("name must be specified")
     h = get_in(spec, "spec.handler", "").split(":")
-    r.handler = h[0] if len(h) <= 1 else h[1]
-    r.metadata = get_in(spec, "spec.metadata")
-    r.metadata.name = name
-    build = r.spec.build
+    runtime.handler = h[0] if len(h) <= 1 else h[1]
+    runtime.metadata = get_in(spec, "spec.metadata")
+    runtime.metadata.name = name
+    build = runtime.spec.build
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
     build.extra = get_in(spec, "spec.build.extra")
@@ -844,18 +834,18 @@ def code_to_function(
     build.builder_env = get_in(spec, "spec.build.builder_env")
     if not embed_code:
         if code_output:
-            r.spec.command = code_output
+            runtime.spec.command = code_output
         else:
-            r.spec.command = filename
+            runtime.spec.command = filename
 
     build.image = get_in(spec, "spec.build.image")
-    update_common(r, spec)
-    r.prepare_image_for_deploy()
+    update_common(runtime, spec)
+    runtime.prepare_image_for_deploy()
 
     if with_doc:
-        update_function_entry_points(r, code)
-    r.spec.default_handler = handler
-    return r
+        update_function_entry_points(runtime, code)
+    runtime.spec.default_handler = handler
+    return runtime
 
 
 def _run_pipeline(

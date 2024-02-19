@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pathlib
+
 from mlrun.common.schemas import AuthInfo
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
-from mlrun.runtimes.nuclio.function import NuclioSpec
+from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
 
 
 class ApplicationSpec(NuclioSpec):
@@ -111,8 +113,32 @@ class ApplicationSpec(NuclioSpec):
         self.internal_app_port = internal_app_port or 8080
 
 
+class ApplicationStatus(NuclioStatus):
+    def __init__(
+        self,
+        state=None,
+        nuclio_name=None,
+        address=None,
+        internal_invocation_urls=None,
+        external_invocation_urls=None,
+        build_pod=None,
+        container_image=None,
+    ):
+        super().__init__(
+            state=state,
+            nuclio_name=nuclio_name,
+            address=address,
+            internal_invocation_urls=internal_invocation_urls,
+            external_invocation_urls=external_invocation_urls,
+            build_pod=build_pod,
+            container_image=container_image,
+        )
+        self.application_image = None
+
+
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
+    reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
 
     @min_nuclio_versions("1.12.7")
     def __init__(self, spec=None, metadata=None):
@@ -125,6 +151,14 @@ class ApplicationRuntime(RemoteRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", ApplicationSpec)
+
+    @property
+    def status(self) -> ApplicationStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, "status", ApplicationStatus)
 
     def set_internal_app_port(self, port: int):
         port = int(port)
@@ -142,7 +176,7 @@ class ApplicationRuntime(RemoteRuntime):
         builder_env: dict = None,
         force_build: bool = False,
     ):
-        self._init_sidecar()
+        self._configure_application_sidecar()
         super().deploy(
             project,
             tag,
@@ -152,20 +186,18 @@ class ApplicationRuntime(RemoteRuntime):
             force_build,
         )
 
-    def _init_sidecar(self):
-        image = self.spec.image
+    def _configure_application_sidecar(self):
+        # Save the application image in the status to allow overriding it with the reverse proxy entry point
+        if self.spec.image and not self.status.application_image:
+            self.status.application_image = self.spec.image
 
-        # If the sidecar was already initialized, the image was cleared, so we need to take it from the config
-        if not image:
-            sidecars = self.spec.config.get("spec.sidecars")
-            if sidecars:
-                image = sidecars[0]["image"]
+        if self.status.container_image:
+            self.from_image(self.status.container_image)
 
         self._with_sidecar(
             name=f"{self.metadata.name}-sidecar",
-            image=image,
+            image=self.status.application_image,
             port=self.spec.internal_app_port,
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_app_port)
-        self.set_env("SIDECAR_HOST", "localhost")
-        self.spec.image = ""
+        self.set_env("SIDECAR_HOST", "http://localhost")

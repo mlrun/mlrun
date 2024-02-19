@@ -37,7 +37,6 @@ from .databricks_job.databricks_runtime import DatabricksRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
-<<<<<<< HEAD
 from .nuclio import (
     RemoteRuntime,
     ServingRuntime,
@@ -45,12 +44,7 @@ from .nuclio import (
     nuclio_init_hook,
 )
 from .nuclio.application import ApplicationRuntime
-<<<<<<< HEAD
-=======
-from .nuclio.deployment import DeploymentRuntime
->>>>>>> 0f159ce14 (more small stuff)
-=======
->>>>>>> 8f33e806e (fixes)
+from .nuclio.serving import serving_subkind
 from .remotesparkjob import RemoteSparkRuntime
 from .sparkjob import Spark3Runtime
 
@@ -221,6 +215,18 @@ class RuntimeKinds(object):
 
         # both spark and remote spark uses different mechanism for assigning images
         return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
+
+    @staticmethod
+    def resolve_nuclio_runtime(kind: str, sub_kind: str):
+        if sub_kind == serving_subkind:
+            return ServingRuntime()
+
+        if kind == RuntimeKinds.application:
+            return ApplicationRuntime()
+
+        runtime = RemoteRuntime()
+        runtime.spec.function_kind = sub_kind
+        return runtime
 
 
 def get_runtime_class(kind: str):

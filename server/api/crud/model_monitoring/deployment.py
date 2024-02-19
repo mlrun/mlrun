@@ -529,7 +529,7 @@ class MonitoringDeployment:
             filename=filename,
             kind=mlrun.run.RuntimeKinds.job
             if function_name == mm_constants.MonitoringFunctionNames.BATCH
-            else mlrun.run.RuntimeKinds.remote,
+            else mlrun.run.RuntimeKinds.nuclio,
             image=image,
             handler="handler",
         )

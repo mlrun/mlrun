@@ -23,6 +23,7 @@ def handler(context: mlrun.run.MLClientCtx, event) -> None:
     :param context: the MLRun context
     :param event:   trigger event
     """
+    print(context.__dict__)
     monitor_app_controller = MonitoringApplicationController(
         context=context,
         project=context.project,

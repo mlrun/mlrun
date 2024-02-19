@@ -114,44 +114,6 @@ def get_offline_features(
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
 ):
-    return _get_offline_features(
-        feature_vector,
-        entity_rows,
-        entity_timestamp_column,
-        target,
-        run_config,
-        drop_columns,
-        start_time,
-        end_time,
-        with_indexes,
-        update_stats,
-        engine,
-        engine_args,
-        query,
-        order_by,
-        spark_service,
-        timestamp_for_filtering,
-    )
-
-
-def _get_offline_features(
-    feature_vector: Union[str, FeatureVector],
-    entity_rows=None,
-    entity_timestamp_column: str = None,
-    target: DataTargetBase = None,
-    run_config: RunConfig = None,
-    drop_columns: list[str] = None,
-    start_time: Union[str, datetime] = None,
-    end_time: Union[str, datetime] = None,
-    with_indexes: bool = False,
-    update_stats: bool = False,
-    engine: str = None,
-    engine_args: dict = None,
-    query: str = None,
-    order_by: Union[str, list[str]] = None,
-    spark_service: str = None,
-    timestamp_for_filtering: Union[str, dict[str, str]] = None,
-) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata
@@ -212,6 +174,44 @@ def _get_offline_features(
                                     merge process using start_time and end_time params.
 
     """
+    return _get_offline_features(
+        feature_vector,
+        entity_rows,
+        entity_timestamp_column,
+        target,
+        run_config,
+        drop_columns,
+        start_time,
+        end_time,
+        with_indexes,
+        update_stats,
+        engine,
+        engine_args,
+        query,
+        order_by,
+        spark_service,
+        timestamp_for_filtering,
+    )
+
+
+def _get_offline_features(
+    feature_vector: Union[str, FeatureVector],
+    entity_rows=None,
+    entity_timestamp_column: str = None,
+    target: DataTargetBase = None,
+    run_config: RunConfig = None,
+    drop_columns: list[str] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
+    with_indexes: bool = False,
+    update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
+    query: str = None,
+    order_by: Union[str, list[str]] = None,
+    spark_service: str = None,
+    timestamp_for_filtering: Union[str, dict[str, str]] = None,
+) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "entity_timestamp_column param "
@@ -281,24 +281,6 @@ def get_online_feature_service(
     update_stats: bool = False,
     entity_keys: list[str] = None,
 ):
-    return _get_online_feature_service(
-        feature_vector,
-        run_config,
-        fixed_window_type,
-        impute_policy,
-        update_stats,
-        entity_keys,
-    )
-
-
-def _get_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
-    run_config: RunConfig = None,
-    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
-    update_stats: bool = False,
-    entity_keys: list[str] = None,
-) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
@@ -362,6 +344,24 @@ def _get_online_feature_service(
     :return:                    Initialize the `OnlineVectorService`.
                                 Will be used in subclasses where `support_online=True`.
     """
+    return _get_online_feature_service(
+        feature_vector,
+        run_config,
+        fixed_window_type,
+        impute_policy,
+        update_stats,
+        entity_keys,
+    )
+
+
+def _get_online_feature_service(
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
+    update_stats: bool = False,
+    entity_keys: list[str] = None,
+) -> OnlineVectorService:
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
     feature_vector = _features_to_vector_and_check_permissions(
@@ -439,40 +439,6 @@ def ingest(
     spark_context=None,
     overwrite=None,
 ) -> Optional[pd.DataFrame]:
-    if mlrun_context is None:
-        deprecated(
-            version="1.6.0",
-            reason="Calling 'ingest' with mlrun_context=None is deprecated and will be removed in 1.8.0,\
-            use 'FeatureSet.ingest()' instead",
-            category=FutureWarning,
-        )
-
-    return _ingest(
-        featureset,
-        source,
-        targets,
-        namespace,
-        return_df,
-        infer_options,
-        run_config,
-        mlrun_context,
-        spark_context,
-        overwrite,
-    )
-
-
-def _ingest(
-    featureset: Union[FeatureSet, str] = None,
-    source=None,
-    targets: list[DataTargetBase] = None,
-    namespace=None,
-    return_df: bool = True,
-    infer_options: InferOptions = InferOptions.default(),
-    run_config: RunConfig = None,
-    mlrun_context=None,
-    spark_context=None,
-    overwrite=None,
-) -> Optional[pd.DataFrame]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -519,6 +485,40 @@ def _ingest(
                           False for scheduled ingest - does not delete the target)
     :return:              if return_df is True, a dataframe will be returned based on the graph
     """
+    if mlrun_context is None:
+        deprecated(
+            version="1.6.0",
+            reason="Calling 'ingest' with mlrun_context=None is deprecated and will be removed in 1.8.0,\
+            use 'FeatureSet.ingest()' instead",
+            category=FutureWarning,
+        )
+
+    return _ingest(
+        featureset,
+        source,
+        targets,
+        namespace,
+        return_df,
+        infer_options,
+        run_config,
+        mlrun_context,
+        spark_context,
+        overwrite,
+    )
+
+
+def _ingest(
+    featureset: Union[FeatureSet, str] = None,
+    source=None,
+    targets: list[DataTargetBase] = None,
+    namespace=None,
+    return_df: bool = True,
+    infer_options: InferOptions = InferOptions.default(),
+    run_config: RunConfig = None,
+    mlrun_context=None,
+    spark_context=None,
+    overwrite=None,
+) -> Optional[pd.DataFrame]:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -769,26 +769,6 @@ def preview(
     verbose: bool = False,
     sample_size: int = None,
 ) -> pd.DataFrame:
-    return _preview(
-        featureset,
-        source,
-        entity_columns,
-        namespace,
-        options,
-        verbose,
-        sample_size,
-    )
-
-
-def _preview(
-    featureset: FeatureSet,
-    source,
-    entity_columns: list = None,
-    namespace=None,
-    options: InferOptions = None,
-    verbose: bool = False,
-    sample_size: int = None,
-) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
     example::
@@ -811,6 +791,26 @@ def _preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    return _preview(
+        featureset,
+        source,
+        entity_columns,
+        namespace,
+        options,
+        verbose,
+        sample_size,
+    )
+
+
+def _preview(
+    featureset: FeatureSet,
+    source,
+    entity_columns: list = None,
+    namespace=None,
+    options: InferOptions = None,
+    verbose: bool = False,
+    sample_size: int = None,
+) -> pd.DataFrame:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -905,6 +905,31 @@ def deploy_ingestion_service_v2(
     run_config: RunConfig = None,
     verbose=False,
 ) -> tuple[str, BaseRuntime]:
+    """Start real-time ingestion service using nuclio function
+
+    Deploy a real-time function implementing feature ingestion pipeline
+    the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
+
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
+    example::
+
+        source = HTTPSource()
+        func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
+        config = RunConfig(function=func)
+        deploy_ingestion_service_v2(my_set, source, run_config=config)
+
+    :param featureset:    feature set object or uri
+    :param source:        data source object describing the online or offline source
+    :param targets:       list of data target objects
+    :param name:          name for the job/function
+    :param run_config:    service runtime configuration (function object/uri, resources, etc..)
+    :param verbose:       verbose log
+
+    :return: URL to access the deployed ingestion service, and the function that was deployed (which will
+             differ from the function passed in via the run_config parameter).
+    """
     return _deploy_ingestion_service_v2(
         featureset,
         source,
@@ -923,31 +948,6 @@ def _deploy_ingestion_service_v2(
     run_config: RunConfig = None,
     verbose=False,
 ) -> tuple[str, BaseRuntime]:
-    """Start real-time ingestion service using nuclio function
-
-    Deploy a real-time function implementing feature ingestion pipeline
-    the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
-
-    the `run_config` parameter allow specifying the function and job configuration,
-    see: :py:class:`~mlrun.feature_store.RunConfig`
-
-    example::
-
-        source = HTTPSource()
-        func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
-        config = RunConfig(function=func)
-        my_set.deploy_ingestion_service(source, run_config=config)
-
-    :param featureset:    feature set object or uri
-    :param source:        data source object describing the online or offline source
-    :param targets:       list of data target objects
-    :param name:          name for the job/function
-    :param run_config:    service runtime configuration (function object/uri, resources, etc..)
-    :param verbose:       verbose log
-
-    :return: URL to access the deployed ingestion service, and the function that was deployed (which will
-             differ from the function passed in via the run_config parameter).
-    """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 

@@ -93,9 +93,14 @@ async def delete_project(
     # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response
     if deletion_strategy.strategy_to_check():
-        server.api.crud.Projects().verify_project_is_empty(db_session, name)
+        await run_in_threadpool(
+            server.api.crud.Projects().verify_project_is_empty,
+            db_session,
+            name,
+            auth_info,
+        )
         if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
-            # if the strategy is check, we don't want to delete the project, only to check if it is empty
+            # if the strategy is checked, we don't want to delete the project, only to check if it is empty
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
     task, task_name = await run_in_threadpool(

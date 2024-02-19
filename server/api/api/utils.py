@@ -18,6 +18,7 @@ import json
 import re
 import traceback
 import typing
+import uuid
 from hashlib import sha1, sha224
 from http import HTTPStatus
 from os import environ
@@ -1125,15 +1126,18 @@ def get_or_create_project_deletion_background_task(
             background_task_kind=background_task_kind,
         )
 
+    background_task_name = str(uuid.uuid4())
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         background_task_kind,
         mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
         _delete_project,
+        background_task_name,
         db_session=db_session,
         project_name=project_name,
         deletion_strategy=deletion_strategy,
         auth_info=auth_info,
         wait_for_project_deletion=wait_for_project_deletion,
+        background_task_name=background_task_name,
     )
 
 
@@ -1143,6 +1147,7 @@ async def _delete_project(
     deletion_strategy: mlrun.common.schemas.DeletionStrategy,
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
+    background_task_name: str,
 ):
     force_deleted = False
     try:
@@ -1154,6 +1159,7 @@ async def _delete_project(
             auth_info.projects_role,
             auth_info,
             wait_for_completion=True,
+            background_task_name=background_task_name,
         )
     except mlrun.errors.MLRunNotFoundError as exc:
         if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
@@ -1188,12 +1194,31 @@ async def _delete_project(
 def verify_project_is_deleted(project_name, auth_info):
     def _verify_project_is_deleted():
         try:
-            server.api.db.session.run_function_with_new_db_session(
+            project = server.api.db.session.run_function_with_new_db_session(
                 get_project_member().get_project, project_name, auth_info.session
             )
         except mlrun.errors.MLRunNotFoundError:
             return
         else:
+            project_status = project.status.dict()
+            if background_task_name := project_status.get(
+                "deletion_background_task_name"
+            ):
+                bg_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                    name=background_task_name, raise_on_not_found=False
+                )
+                if (
+                    bg_task
+                    and bg_task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.failed
+                ):
+                    # Background task failed, stop retrying
+                    raise mlrun.errors.MLRunFatalFailureError(
+                        original_exception=mlrun.errors.MLRunInternalServerError(
+                            f"Failed to delete project {project_name}: {bg_task.status.error}"
+                        )
+                    )
+
             raise mlrun.errors.MLRunInternalServerError(
                 f"Project {project_name} was not deleted"
             )

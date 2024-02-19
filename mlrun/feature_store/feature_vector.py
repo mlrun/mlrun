@@ -741,6 +741,64 @@ class FeatureVector(ModelObj):
         spark_service: str = None,
         timestamp_for_filtering: Union[str, dict[str, str]] = None,
     ):
+        """retrieve offline feature vector results
+
+        specify a feature vector object/uri and retrieve the desired features, their metadata
+        and statistics. returns :py:class:`~mlrun.feature_store.OfflineVectorResponse`,
+        results can be returned as a dataframe or written to a target
+
+        The start_time and end_time attributes allow filtering the data to a given time range, they accept
+        string values or pandas `Timestamp` objects, string values can also be relative, for example:
+        "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
+        for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
+        (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
+        Another option to filter the data is by the `query` argument - can be seen in the example.
+        example::
+
+            features = [
+                "stock-quotes.bid",
+                "stock-quotes.asks_sum_5h",
+                "stock-quotes.ask as mycol",
+                "stocks.*",
+            ]
+            vector = FeatureVector(features=features)
+            vector.get_offline_features(entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG']
+              and bid>100")
+            print(resp.to_dataframe())
+            print(vector.get_stats_table())
+            resp.to_parquet("./out.parquet")
+
+        :param entity_rows:             dataframe with entity rows to join with
+        :param target:                  where to write the results to
+        :param drop_columns:            list of columns to drop from the final result
+        :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
+                                        only if param entity_rows was specified.
+        :param run_config:              function and/or run configuration
+                                        see :py:class:`~mlrun.feature_store.RunConfig`
+        :param start_time:              datetime, low limit of time needed to be filtered. Optional.
+        :param end_time:                datetime, high limit of time needed to be filtered. Optional.
+        :param with_indexes:            Return vector with/without the entities and the timestamp_key of the feature
+                                        sets and with/without entity_timestamp_column and timestamp_for_filtering
+                                        columns. This property can be specified also in the feature vector spec
+                                        (feature_vector.spec.with_indexes)
+                                        (default False)
+        :param update_stats:            update features statistics from the requested feature sets on the vector.
+                                        (default False).
+        :param engine:                  processing engine kind ("local", "dask", or "spark")
+        :param engine_args:             kwargs for the processing engine
+        :param query:                   The query string used to filter rows on the output
+        :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
+        :param order_by:                Name or list of names to order by. The name or the names in the list can be the
+                                        feature name or the alias of the feature you pass in the feature list.
+        :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
+                                        dictionary ({<feature set name>: <timestamp column name>, ...})
+                                        that indicates the timestamp column name for each feature set. Optional.
+                                        By default, the filter executes on the timestamp_key of each feature set.
+                                        Note: the time filtering is performed on each feature set before the
+                                        merge process using start_time and end_time params.
+
+        """
+
         return mlrun.feature_store.api._get_offline_features(
             self,
             entity_rows,
@@ -768,6 +826,68 @@ class FeatureVector(ModelObj):
         update_stats: bool = False,
         entity_keys: list[str] = None,
     ):
+        """initialize and return online feature vector service api,
+        returns :py:class:`~mlrun.feature_store.OnlineVectorService`
+
+        :**usage**:
+            There are two ways to use the function:
+
+            1. As context manager
+
+                Example::
+
+                    with vector_uri.get_online_feature_service() as svc:
+                        resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                        print(resp)
+                        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                        print(resp)
+
+                Example with imputing::
+
+                    with vector_uri.get_online_feature_service(entity_keys=['id'],
+                                                    impute_policy={"*": "$mean", "amount": 0)) as svc:
+                        resp = svc.get([{"id": "C123487"}])
+
+            2. as simple function, note that in that option you need to close the session.
+
+                Example::
+
+                    svc = vector_uri.get_online_feature_service(entity_keys=['ticker'])
+                    try:
+                        resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                        print(resp)
+                        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                        print(resp)
+
+                    finally:
+                        svc.close()
+
+                Example with imputing::
+
+                    svc = vector_uri.get_online_feature_service(entity_keys=['id'],
+                                                    impute_policy={"*": "$mean", "amount": 0))
+                    try:
+                        resp = svc.get([{"id": "C123487"}])
+                    except Exception as e:
+                        handling exception...
+                    finally:
+                        svc.close()
+
+        :param run_config:          function and/or run configuration for remote jobs/services
+        :param impute_policy:       a dict with `impute_policy` per feature, the dict key is the feature name and the
+                                    dict value indicate which value will be used in case the feature is NaN/empty, the
+                                    replaced value can be fixed number for constants or $mean, $max, $min, $std, $count
+                                    for statistical values.
+                                    "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+        :param fixed_window_type:   determines how to query the fixed window values which were previously inserted by
+                                    ingest
+        :param update_stats:        update features statistics from the requested feature sets on the vector.
+                                    Default: False.
+        :param entity_keys:         Entity list of the first feature_set in the vector.
+                                    The indexes that are used to query the online service.
+        :return:                    Initialize the `OnlineVectorService`.
+                                    Will be used in subclasses where `support_online=True`.
+        """
         return mlrun.feature_store.api._get_online_feature_service(
             self,
             run_config,

@@ -181,6 +181,8 @@ def verify_field_regex(
     log_message: str = "Field is malformed. Does not match required pattern",
     mode: mlrun.common.schemas.RegexMatchModes = mlrun.common.schemas.RegexMatchModes.all,
 ) -> bool:
+    # limit the error message
+    max_chars = 63
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
@@ -193,7 +195,8 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
+                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -203,7 +206,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
+                f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -1441,6 +1444,24 @@ def is_file_path(filepath):
 
 def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
+
+
+def normalize_project_username(username: str):
+    username = username.lower()
+
+    # remove domain if exists
+    username = username.split("@")[0]
+
+    # replace non r'a-z0-9\-_' chars with empty string
+    username = inflection.parameterize(username, separator="")
+
+    # replace underscore with dashes
+    username = inflection.dasherize(username)
+
+    # ensure ends with alphanumeric
+    username = username.rstrip("-_")
+
+    return username
 
 
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool

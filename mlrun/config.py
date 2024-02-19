@@ -109,7 +109,10 @@ default_config = {
         "runs": {
             # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
             "batch_delete_runs_chunk_size": 10,
-        }
+        },
+        "resources": {
+            "delete_crd_resources_timeout": "5 minutes",
+        },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
@@ -408,7 +411,7 @@ default_config = {
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
             "iguazio_client_job_cache_ttl": "20 minutes",
-            "nuclio_project_deletion_verification_timeout": "60 seconds",
+            "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -1148,11 +1151,12 @@ class Config:
 
         return storage_options
 
-    def is_explicit_ack(self) -> bool:
+    def is_explicit_ack(self, version=None) -> bool:
+        if not version:
+            version = self.nuclio_version
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version
-            or semver.VersionInfo.parse(self.nuclio_version)
-            >= semver.VersionInfo.parse("1.12.10")
+            not version
+            or semver.VersionInfo.parse(version) >= semver.VersionInfo.parse("1.12.10")
         )
 
 

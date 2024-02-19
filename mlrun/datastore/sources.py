@@ -848,8 +848,6 @@ class HttpSource(OnlineSource):
 
 
 class StreamSource(OnlineSource):
-    """Sets stream source for the flow. If stream doesn't exist it will create it"""
-
     kind = "v3ioStream"
 
     def __init__(
@@ -863,7 +861,7 @@ class StreamSource(OnlineSource):
         **kwargs,
     ):
         """
-        Sets stream source for the flow. If stream doesn't exist it will create it
+        Sets the stream source for the flow. If the stream doesn't exist it will create it.
 
         :param name: stream name. Default "stream"
         :param group: consumer group. Default "serving"
@@ -900,7 +898,7 @@ class StreamSource(OnlineSource):
             engine = function.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
-            kwargs["workerAllocationMode"] = "static"
+            kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
             self.path,
@@ -915,8 +913,6 @@ class StreamSource(OnlineSource):
 
 
 class KafkaSource(OnlineSource):
-    """Sets kafka source for the flow"""
-
     kind = "kafka"
 
     def __init__(
@@ -989,8 +985,12 @@ class KafkaSource(OnlineSource):
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                "workerAllocationMode", "static"
+                "worker_allocation_mode", "static"
             )
+
+        trigger_kwargs = {}
+        if "max_workers" in extra_attributes:
+            trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
@@ -1000,7 +1000,7 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
-            max_workers=extra_attributes.pop("max_workers", 4),
+            **trigger_kwargs,
         )
         function = function.add_trigger("kafka", trigger)
 

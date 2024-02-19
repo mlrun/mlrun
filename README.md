@@ -33,7 +33,7 @@ In MLRun the assets, metadata, and services (data, functions, jobs, artifacts, m
 Projects can be imported/exported as a whole, mapped to git repositories or IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
 Project access can be restricted to a set of users and roles. 
 
-See: **Docs:** [Projects and Automation](https://docs.mlrun.org/en/latest/projects/project.html), [CI/CD Integration](https://docs.mlrun.org/en/latest/projects/ci-integration.html), **Tutorials:** [Quick start](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html), [Automated ML Pipeline](https://docs.mlrun.org/en/latest/tutorials/04-pipeline.html), **Video:** [quick start](https://youtu.be/xI8KVGLlj7Q).
+See: **Docs:** [Projects and Automation](https://docs.mlrun.org/en/latest/projects/project.html), [CI/CD Integration](https://docs.mlrun.org/en/latest/projects/ci-integration.html), **Tutorials:** [Quick start](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html), [Automated ML Pipeline](https://docs.mlrun.org/en/latest/tutorials/04-pipeline.html), **Video:** [Quick start](https://youtu.be/xI8KVGLlj7Q).
 
 ### Ingest and process data
 
@@ -46,13 +46,13 @@ See: **Docs:** [Ingest and process data](https://docs.mlrun.org/en/latest/data-p
 
 MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, tracks each experiments, register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services, integrate with any framework and can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
 
-See: **Docs:** [Develop and train models](https://docs.mlrun.org/en/latest/development/index.html), [Model Training and Tracking](https://docs.mlrun.org/en/latest/development/model-training-tracking.html), [Batch Runs and Workflows](https://docs.mlrun.org/en/latest/concepts/runs-workflows.html); **Tutorials:** [Train & Eval Models](https://docs.mlrun.org/en/latest/tutorials/02-model-training.html), [Automated ML Pipeline](https://docs.mlrun.org/en/latest/tutorials/04-pipeline.html); **Video:** [Training models](https://youtu.be/bZgBsmLMdQo).
+See: **Docs:** [Develop and train models](https://docs.mlrun.org/en/latest/development/index.html), [Model Training and Tracking](https://docs.mlrun.org/en/latest/development/model-training-tracking.html), [Batch Runs and Workflows](https://docs.mlrun.org/en/latest/concepts/runs-workflows.html); **Tutorials:** [Train, compare, and register models](https://docs.mlrun.org/en/latest/tutorials/02-model-training.html), [Automated ML Pipeline](https://docs.mlrun.org/en/latest/tutorials/04-pipeline.html); **Video:** [Train and compare models](https://youtu.be/bZgBsmLMdQo).
 
 ### Deploy models and applications
 
 MLRun rapidly deploys and manages production-grade real-time or batch application pipelines using elastic and resilient serverless functions. MLRun addresses the entire ML application: intercepting application/user requests, running data processing tasks, inferencing using one or more models, driving actions, and integrating with the application logic.
 
-See: **Docs:** [Deploy models and applications](https://docs.mlrun.org/en/latest/deployment/index.html), [Realtime Pipelines](https://docs.mlrun.org/en/latest/serving/serving-graph.html), [Batch Inference](https://docs.mlrun.org/en/latest/concepts/TBD.html), **Tutorials:** [Realtime Serving](https://docs.mlrun.org/en/latest/tutorials/03-model-serving.html), [Batch Inference](https://docs.mlrun.org/en/latest/tutorials/07-batch-infer.html), [Advanced Pipeline](https://docs.mlrun.org/en/latest/tutorials/07-batch-infer.html); **Video:** [Serving models](https://youtu.be/OUjOus4dZfw).
+See: **Docs:** [Deploy models and applications](https://docs.mlrun.org/en/latest/deployment/index.html), [Realtime Pipelines](https://docs.mlrun.org/en/latest/serving/serving-graph.html), [Batch Inference](https://docs.mlrun.org/en/latest/deployment/batch_inference.html), **Tutorials:** [Realtime Serving](https://docs.mlrun.org/en/latest/tutorials/03-model-serving.html), [Batch Inference](https://docs.mlrun.org/en/latest/tutorials/07-batch-infer.html), [Advanced Pipeline](https://docs.mlrun.org/en/latest/tutorials/07-batch-infer.html); **Video:** [Serving pre-trained models](https://youtu.be/OUjOus4dZfw).
 
 ### Monitor and alert
 
@@ -70,9 +70,9 @@ MLRun includes the following major components:
 
 [**Project Management:**](https://docs.mlrun.org/en/latest/projects/project.html) A service (API, SDK, DB, UI) that manages the different project assets (data, functions, jobs, workflows, secrets, etc.) and provides central control and metadata layer.  
 
-[**Serverless Functions:**](https://docs.mlrun.org/en/latest/runtimes/functions.html) automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
+[**Functions:**](https://docs.mlrun.org/en/latest/runtimes/functions.html) automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 
-[**Data & Artifacts:**](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html) Glueless connectivity to various data sources, metadata management, catalog, and versioning for structures/unstructured artifacts.
+[**Data & Artifacts:**](https://docs.mlrun.org/en/latest/concepts/data.html) Glueless connectivity to various data sources, metadata management, catalog, and versioning for structures/unstructured artifacts.
 
 [**Feature Store:**](https://docs.mlrun.org/en/latest/feature-store/feature-store.html) automatically collects, prepares, catalogs, and serves production data features for development (offline) and real-time (online) deployment using minimal engineering effort.
 

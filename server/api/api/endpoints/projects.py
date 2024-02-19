@@ -201,7 +201,7 @@ async def delete_project(
     # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response
     if deletion_strategy.strategy_to_check():
-        server.api.crud.Projects().verify_project_is_empty(db_session, name)
+        server.api.crud.Projects().verify_project_is_empty(db_session, name, auth_info)
         if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
             # if the strategy is check, we don't want to delete the project, only to check if it is empty
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
@@ -241,7 +241,7 @@ async def delete_project(
     except mlrun.errors.MLRunNotFoundError as exc:
         if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
             logger.debug(
-                "Project no found in leader, ensuring project deleted in mlrun",
+                "Project not found in leader, ensuring project deleted in mlrun",
                 err=mlrun.errors.err_to_str(exc),
             )
             force_delete = True
@@ -261,7 +261,7 @@ async def delete_project(
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     else:
-        # For iguzio < 3.5.5, the project deletion job is triggered while zebo does not wait for it to complete.
+        # For iguazio < 3.5.5, the project deletion job is triggered while iguazio does not wait for it to complete.
         # We wait for it here to make sure we respond with a proper status code.
         await run_in_threadpool(
             server.api.api.utils.verify_project_is_deleted, name, auth_info

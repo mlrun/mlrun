@@ -36,8 +36,6 @@ default_backoff_factor = 1
 
 
 class RemoteStep(storey.SendToHttp):
-    """class for calling remote endpoints"""
-
     def __init__(
         self,
         url: str,
@@ -240,8 +238,6 @@ class RemoteStep(storey.SendToHttp):
 
 
 class BatchHttpRequests(_ConcurrentJobExecution):
-    """class for calling remote endpoints in parallel"""
-
     def __init__(
         self,
         url: str = None,

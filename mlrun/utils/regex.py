@@ -21,9 +21,13 @@ pipeline_param = [r"{{pipelineparam:op=([\w\s_-]*);name=([\w\s_-]+)}}"]
 # k8s character limit is for 63 characters
 k8s_character_limit = [r"^.{0,63}$"]
 
+# k8s name
+# https://github.com/kubernetes/apimachinery/blob/kubernetes-1.25.16/pkg/util/validation/validation.go#L33
+qualified_name = [r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$"]
+
 # k8s label value format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L161
-label_value = k8s_character_limit + [r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$"]
+label_value = k8s_character_limit + qualified_name
 
 # DNS Subdomain (RFC 1123) - used by k8s for most resource names format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L204

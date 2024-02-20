@@ -24,7 +24,7 @@
 ### Feature store
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4622|Feature set and feature vector APIs are now part of the project APIs. See examples in [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
+|ML-4622|Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets` and [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
 |ML-5109|You can set `min_replicas` and `max_replicas` for `KafkaSource`. See [Consumer function configuration](../serving/graph-ha-cfg.html#consumer-function-configuration).|
 
 ### Model monitoring 
@@ -56,7 +56,7 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-3921|The Docker image for installation of mlrun was modified, resulting in better compatibility with external packages.|
-|ML-5193|Supports Pandas 2.0.                                                                               |
+|ML-5193|Support for Pandas 2.0.                                                                               |
 
 ### Documentation
 | ID     |Description                                                                                         |
@@ -64,7 +64,7 @@
 |ML-3663|New: How to build a docker image externally using a dockerfile and then use it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
 |ML-4048|New: Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).|
 |ML-5260|New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.html#load-code-at-runtime-using-a-non-default-source). |
-|ML-5602, ML-5680|Improved feature store documentation including sources and targets, and partitioning.|
+|ML-5602, ML-5680|Improved feature store documentation including sources and targets, and partitioning. See {ref}`sources-targets`.|
 |NA|New: {ref}`project-setup`.|
 |NA|Improved serving function example, and new example of a serving function with Git integration. See {ref}`serving-function`.
 
@@ -91,7 +91,7 @@
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
 |ML-4992|Fixed starting a spark job from source archive (using `with_source_archive()`).|
 |ML-5001|The **Monitoring workflows** page now states that it includes only workflows that have already been run. | 
-|ML-5042|**check msg**  After creating and deleting a project, a new project cannot be created in the same folder with the same context. |
+|ML-5042|After creating and deleting a project, a new project cannot be created in the same folder with the same context. |
 |ML-5048|UI Edit function dialog: When selecting **Use an existing image** and pressing **Deploy**, the existing image is used, as expected.|
 |ML-5078|`project.create_remote()` is no longer dependant on setting `init_git=True` on project creation. | 
 |ML-5089|When trying to delete a running job, an error opens that a running job cannot be deleted and it needs to be aborted first.|

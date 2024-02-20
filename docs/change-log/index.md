@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.0](v1-6-0-20-february-2024)
+- [v1.6.0](v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -13,7 +13,7 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
-## v1.6.0 (20 February 2024)
+## v1.6.0 (22 February 2024)
 
 ### Data store
 | ID |Description                                                                                         |

@@ -271,9 +271,8 @@ def validate_artifact_key_name(
     )
 
 
-def validate_inline_artifact_body_size(body: str) -> None:
-    body_length = len(body.encode("utf-8"))
-    if body_length > MYSQL_MEDIUMBLOB_BYTES:
+def validate_inline_artifact_body_size(body: typing.Union[str, bytes]) -> None:
+    if len(body) > MYSQL_MEDIUMBLOB_BYTES:
         raise mlrun.errors.MLRunPreconditionFailedError(
             "The body of the artifact exceeds the maximum allowed size. "
             "Please reduce the size of the artifact body and try again."

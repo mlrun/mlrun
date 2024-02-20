@@ -489,31 +489,45 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
 
 
 @pytest.mark.parametrize(
-    "body_size,expected_status_code,is_inline",
+    "body_size,expected_status_code,is_inline,body_char",
     [
         (
             MYSQL_MEDIUMBLOB_BYTES + 1,
             HTTPStatus.PRECONDITION_FAILED.value,
             True,
+            "a",
         ),  # Body size exceeds limit, expect 412
         (
             MYSQL_MEDIUMBLOB_BYTES - 1,
             HTTPStatus.OK.value,
             True,
+            "a",
         ),  # Body size within limit, expect 200
         (
             MYSQL_MEDIUMBLOB_BYTES + 1,
             HTTPStatus.OK.value,
             False,
+            "a",
         ),  # Not inline artifact, expect 200
+        (
+            MYSQL_MEDIUMBLOB_BYTES + 1,
+            HTTPStatus.PRECONDITION_FAILED.value,
+            True,
+            b"\x86",
+        ),  # Bytes artifact, expect 412
     ],
 )
 def test_store_oversized_artifact(
-    db: Session, client: TestClient, body_size, expected_status_code, is_inline
+    db: Session,
+    client: TestClient,
+    body_size,
+    expected_status_code,
+    is_inline,
+    body_char,
 ) -> None:
     _create_project(client)
     artifact = mlrun.artifacts.Artifact(
-        key=KEY, body="a" * body_size, is_inline=is_inline
+        key=KEY, body=body_char * body_size, is_inline=is_inline
     )
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),

@@ -93,7 +93,7 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
 
     @staticmethod
     def _calc_kl_div(
-        actual_dist: np.array, expected_dist: np.array, kld_scaling: float
+        actual_dist: np.ndarray, expected_dist: np.ndarray, kld_scaling: float
     ) -> float:
         """Return the asymmetric KL divergence"""
         # We take 0*log(0) == 0 for this calculation

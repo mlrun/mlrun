@@ -43,5 +43,9 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
 
     if run_owner:
         labels[mlrun_key + "owner"] = run_owner
+        if "@" in run_owner:
+            run_owner, domain = run_owner.split("@")
+            labels[mlrun_key + "owner"] = run_owner
+            labels[mlrun_key + "owner_domain"] = domain
 
     return labels

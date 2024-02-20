@@ -597,7 +597,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         if "@" in username:
             username, domain = username.split("@")
             labels["mlrun/username"] = username
-            labels["mlrun/domain"] = domain
+            labels["mlrun/username_domain"] = domain
         return labels
 
 

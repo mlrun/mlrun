@@ -22,6 +22,7 @@ from kubernetes.client.rest import ApiException
 import mlrun
 import mlrun.common.schemas
 import mlrun.common.secrets
+import mlrun.common.secrets as mlsecrets
 import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
@@ -68,7 +69,7 @@ class SecretTypes:
     v3io_fuse = "v3io/fuse"
 
 
-class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
+class K8sHelper(mlsecrets.SecretProviderInterface):
     def __init__(self, namespace=None, silent=False, log=True):
         self.namespace = namespace or mlrun.mlconf.namespace
         self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
@@ -401,7 +402,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             secret_data,
             namespace,
             type_=SecretTypes.v3io_fuse,
-            labels={"mlrun/username": username},
+            labels=self._resolve_secret_labels(username),
             retry_on_conflict=True,
         )
         return secret_name, action
@@ -586,6 +587,18 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             if encoded_value:
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
         return results
+
+    def _resolve_secret_labels(self, username):
+        if not username:
+            return {}
+        labels = {
+            "mlrun/username": username,
+        }
+        if "@" in username:
+            username, domain = username.split("@")
+            labels["mlrun/username"] = username
+            labels["mlrun/domain"] = domain
+        return labels
 
 
 class BasePod:

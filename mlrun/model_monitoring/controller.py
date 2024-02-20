@@ -295,14 +295,18 @@ class MonitoringApplicationController:
         self.project = project
         self.project_obj = mlrun.get_or_create_project(project)
 
-        mlrun_context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
+        mlrun_context.logger.debug(
+            f"Initializing {self.__class__.__name__}", project=project
+        )
 
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
         self._batch_window_generator = _BatchWindowGenerator(
-            batch_dict=json.loads(mlrun.get_secret_or_env(
-                mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-            ))
+            batch_dict=json.loads(
+                mlrun.get_secret_or_env(
+                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
+                )
+            )
         )
 
         # If provided, only model endpoints in that that list will be analyzed

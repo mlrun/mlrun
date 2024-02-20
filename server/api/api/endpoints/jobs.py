@@ -21,7 +21,6 @@ import mlrun.common.schemas
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 from mlrun.model_monitoring import TrackingPolicy
-from mlrun.projects.operations import BuildStatus
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.endpoints.functions import process_model_monitoring_secret
@@ -183,4 +182,3 @@ async def create_model_monitoring_controller(
         auth_info=auth_info,
         tracking_policy=controller_policy,
     )
-

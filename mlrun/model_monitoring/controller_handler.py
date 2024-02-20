@@ -15,8 +15,7 @@ import nuclio
 
 import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import os
+
 
 def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     """
@@ -25,17 +24,14 @@ def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     :param context: the MLRun context
     :param event:   trigger event
     """
-    context.logger.info_with('[David] Got invoked',
-                             trigger_kind=event.trigger.kind,
-                             event_body=event.body,
-                             )
-    context.logger.info(f"[David] Event = {event.__repr__}")
-    context.logger.info(f"[David] Context = {context.__dict__}")
-    mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
-    context.logger.info(f"[David] Mlrun Context = {mlrun_context.to_dict()}")
+    context.user_data.monitor_app_controller.run()
 
+
+def init_context(context):
+    mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
+    mlrun_context.logger.info("Initialize monitoring app controller")
     monitor_app_controller = MonitoringApplicationController(
         mlrun_context=mlrun_context,
         project=mlrun_context.project,
     )
-    monitor_app_controller.run()
+    setattr(context.user_data, "monitor_app_controller", monitor_app_controller)

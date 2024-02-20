@@ -236,7 +236,13 @@ class MonitoringDeployment:
             image=tracking_policy.default_controller_image,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
-        self._apply_access_key_and_mount_function(project, fn, model_monitoring_access_key, auth_info, mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)
+        self._apply_access_key_and_mount_function(
+            project,
+            fn,
+            model_monitoring_access_key,
+            auth_info,
+            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
         minutes = tracking_policy.base_period
         hours = days = 0
         batch_dict = {

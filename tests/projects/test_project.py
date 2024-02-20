@@ -1636,14 +1636,14 @@ def test_project_labels_validation(project_labels, valid):
 
 
 @pytest.mark.parametrize(
-    "project_file_name, expected_failure",
+    "project_file_name, expectation",
     [
-        ("project.yaml", False),
-        ("project.yml", False),
-        ("non-valid-file.yamrt", True),
+        ("project.yaml", does_not_raise()),
+        ("project.yml", does_not_raise()),
+        ("non-valid-file.yamrt", pytest.raises(mlrun.errors.MLRunNotFoundError)),
     ],
 )
-def test_load_project_dir(project_file_name, expected_failure):
+def test_load_project_dir(project_file_name, expectation):
     project_dir = "project-dir"
     os.makedirs(project_dir, exist_ok=True)
     try:
@@ -1652,12 +1652,9 @@ def test_load_project_dir(project_file_name, expected_failure):
             str(assets_path() / "project.yaml"),
             str(pathlib.Path(project_dir) / project_file_name),
         )
-        if not expected_failure:
+        with expectation:
             project = mlrun.load_project(project_dir, save=False)
             # just to make sure the project was loaded correctly from the file
             assert project.name == "pipe2"
-        else:
-            with pytest.raises(mlrun.errors.MLRunNotFoundError):
-                mlrun.load_project(project_dir)
     finally:
         shutil.rmtree(project_dir)

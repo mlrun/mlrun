@@ -3124,8 +3124,8 @@ class HTTPRunDB(RunDBInterface):
         """
 
         params = {
-            "image": image,
             "base_period": base_period,
+            "image": image,
             "overwrite": overwrite,
         }
         path = f"projects/{project}/model_monitoring/enable-model-monitoring"

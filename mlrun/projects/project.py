@@ -1999,10 +1999,11 @@ class MlrunProject(ModelObj):
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
             warnings.warn(
-                "'default_controller_image' is deprecated and will be removed in 1.9.0.",
+                "'default_controller_image' is deprecated and will be removed in 1.9.0, "
+                "use 'image' instead",
                 FutureWarning,
             )
-            image = image or default_controller_image
+            image = default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.enable_model_monitoring(
             project=self.name,

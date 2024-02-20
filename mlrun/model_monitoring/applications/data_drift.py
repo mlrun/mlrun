@@ -92,6 +92,9 @@ class MLRunDataDriftApplication(ModelMonitoringApplicationBase):
 
     NAME: Final[str] = "mlrun_data_drift"
     METRIC_KIND: Final[ResultKindApp] = ResultKindApp.data_drift
+
+    _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
+
     metrics: list[type[HistogramDistanceMetric]] = [
         HellingerDistance,
         KullbackLeiblerDivergence,
@@ -106,6 +109,9 @@ class MLRunDataDriftApplication(ModelMonitoringApplicationBase):
                                  If not provided, the default `DataDriftClassifier()` is used.
         """
         self._value_classifier = value_classifier or DataDriftClassifier()
+        assert self._REQUIRED_METRICS <= set(
+            self.metrics
+        ), "TVD and Hellinger distance are required for the general data drift result"
 
     def _compute_metrics_per_feature(
         self, sample_df_stats: DataFrame, feature_stats: DataFrame

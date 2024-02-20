@@ -585,8 +585,8 @@ def _load_project_dir(context, name="", subpath=""):
     project_file_path = path.join(context, subpath_str, "project.y*ml")
     function_file_path = path.join(context, subpath_str, "function.y*ml")
     setup_file_path = path.join(context, subpath_str, "project_setup.py")
-    project_files = glob.glob(project_file_path)
-    if len(project_files) > 0:
+
+    if project_files := glob.glob(project_file_path):
         # if there are multiple project files, use the first one
         project_file_path = project_files[0]
         with open(project_file_path) as fp:
@@ -594,7 +594,6 @@ def _load_project_dir(context, name="", subpath=""):
             struct = yaml.load(data, Loader=yaml.FullLoader)
             project = _project_instance_from_struct(struct, name)
             project.spec.context = context
-
     elif function_files := glob.glob(function_file_path):
         function_path = function_files[0]
         func = import_function(function_path)

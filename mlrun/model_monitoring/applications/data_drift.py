@@ -144,25 +144,50 @@ class MLRunDataDriftApplication(ModelMonitoringApplicationBase):
 
         return metrics_per_feature
 
+    def _add_general_drift_result(
+        self, results: list[ModelMonitoringApplicationResult], value: float
+    ) -> None:
+        results.append(
+            ModelMonitoringApplicationResult(
+                name="general_drift",
+                value=value,
+                kind=self.METRIC_KIND,
+                status=self._value_classifier.value_to_status(value),
+            )
+        )
+
     def _get_results(
         self, metrics_per_feature: dict[type[HistogramDistanceMetric], list[float]]
     ) -> list[ModelMonitoringApplicationResult]:
         """Average the metrics over the features and add the status"""
-        results = []
-        for metric_key, metric_values in metrics_per_feature.items():
+        results: list[ModelMonitoringApplicationResult] = []
+        hellinger_tvd_values: list[float] = []
+        for metric_class, metric_values in metrics_per_feature.items():
             self.context.logger.debug(
-                "Averaging metric over the features", metric_name=metric_key.NAME
+                "Averaging metric over the features", metric_name=metric_class.NAME
             )
             value = np.mean(metric_values)
-            status = self._value_classifier.value_to_status(value)
+            if metric_class == KullbackLeiblerDivergence:
+                # This metric is not bounded from above [0, inf).
+                # No status is currently reported for KL divergence
+                status = ResultStatusApp.irrelevant
+            else:
+                status = self._value_classifier.value_to_status(value)
+            if metric_class in self._REQUIRED_METRICS:
+                hellinger_tvd_values.append(value)
             results.append(
                 ModelMonitoringApplicationResult(
-                    name=f"{metric_key.NAME}_mean",
+                    name=f"{metric_class.NAME}_mean",
                     value=value,
                     kind=self.METRIC_KIND,
                     status=status,
                 )
             )
+
+        self._add_general_drift_result(
+            results=results, value=np.mean(hellinger_tvd_values)
+        )
+
         return results
 
     def do_tracking(
@@ -187,6 +212,7 @@ class MLRunDataDriftApplication(ModelMonitoringApplicationBase):
         metrics_per_feature = self._compute_metrics_per_feature(
             sample_df_stats=sample_df_stats, feature_stats=feature_stats
         )
+        self.context.logger.debug("Computing average per metric")
         results = self._get_results(metrics_per_feature)
         self.context.logger.debug("Finished running the application", results=results)
         return results

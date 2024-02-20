@@ -344,6 +344,11 @@ class MonitoringApplicationController:
         logger.info("Start controller running")
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
+            if not endpoints:
+                self.context.logger.info(
+                    "No model endpoints found", project=self.project
+                )
+                return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
                 applications_names = list(
@@ -353,7 +358,7 @@ class MonitoringApplicationController:
                 self.context.logger.info(
                     "No monitoring functions found", project=self.project
                 )
-                applications_names = []
+                return
 
         except Exception as e:
             self.context.logger.error("Failed to list endpoints", exc=e)

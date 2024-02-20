@@ -23,7 +23,10 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from mlrun import MLClientCtx
-from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp
+from mlrun.common.schemas.model_monitoring.constants import (
+    ResultKindApp,
+    ResultStatusApp,
+)
 from mlrun.model_monitoring.applications.data_drift import (
     DataDriftClassifier,
     InvalidMetricValueError,
@@ -136,4 +139,19 @@ class TestApplication:
     def test(
         application: MLRunDataDriftApplication, application_kwargs: dict[str, Any]
     ) -> None:
-        application.do_tracking(**application_kwargs)
+        results = application.do_tracking(**application_kwargs)
+        assert len(results) == 4, "Expected four results"
+        result_by_name: dict[str, dict] = {}
+        for res in results:
+            assert res.kind == ResultKindApp.data_drift, "The kind should be data drift"
+            res_dict = res.to_dict()
+            result_by_name[res_dict.pop("result_name")] = res_dict
+
+        assert (
+            result_by_name["kld_mean"]["result_status"] == ResultStatusApp.irrelevant
+        ), "KL divergence status is currently irrelevant"
+
+        assert (
+            result_by_name["general_drift"]["result_status"]
+            == ResultStatusApp.potential_detection
+        ), "Expected potential detection in the general drift"

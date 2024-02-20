@@ -343,6 +343,7 @@ class MonitoringApplicationController:
         """
         logger.info("Start controller running")
         try:
+            applications_names = []
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             if not endpoints:
                 self.context.logger.info(
@@ -355,55 +356,54 @@ class MonitoringApplicationController:
                 applications_names = list(
                     {app.metadata.name for app in monitoring_functions if app.status.state == "ready"}
                 )
-            else:
+            if not applications_names:
                 self.context.logger.info(
                     "No monitoring functions found", project=self.project
                 )
                 return
 
         except Exception as e:
-            self.context.logger.error("Failed to list endpoints", exc=e)
+            self.context.logger.error("Failed to list endpoints and monitoring applications", exc=e)
             return
-        if endpoints and applications_names:
-            # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
-            pool = concurrent.futures.ProcessPoolExecutor(
-                max_workers=min(len(endpoints), 10),
-            )
-            futures = []
-            for endpoint in endpoints:
+        # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
+        pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=min(len(endpoints), 10),
+        )
+        futures = []
+        for endpoint in endpoints:
+            if (
+                endpoint[mm_constants.EventFieldType.ACTIVE]
+                and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+                == mm_constants.ModelMonitoringMode.enabled.value
+            ):
+                # Skip router endpoint:
                 if (
-                    endpoint[mm_constants.EventFieldType.ACTIVE]
-                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
-                    == mm_constants.ModelMonitoringMode.enabled.value
+                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                    == mm_constants.EndpointType.ROUTER
                 ):
-                    # Skip router endpoint:
-                    if (
-                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                        == mm_constants.EndpointType.ROUTER
-                    ):
-                        # Router endpoint has no feature stats
-                        logger.info(
-                            f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
-                        )
-                        continue
-                    future = pool.submit(
-                        MonitoringApplicationController.model_endpoint_process,
-                        endpoint=endpoint,
-                        applications_names=applications_names,
-                        batch_window_generator=self._batch_window_generator,
-                        project=self.project,
-                        parquet_directory=self.parquet_directory,
-                        storage_options=self.storage_options,
-                        model_monitoring_access_key=self.model_monitoring_access_key,
+                    # Router endpoint has no feature stats
+                    logger.info(
+                        f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
                     )
-                    futures.append(future)
+                    continue
+                future = pool.submit(
+                    MonitoringApplicationController.model_endpoint_process,
+                    endpoint=endpoint,
+                    applications_names=applications_names,
+                    batch_window_generator=self._batch_window_generator,
+                    project=self.project,
+                    parquet_directory=self.parquet_directory,
+                    storage_options=self.storage_options,
+                    model_monitoring_access_key=self.model_monitoring_access_key,
+                )
+                futures.append(future)
 
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result:
-                    self.context.log_results(result)
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                self.context.log_results(result)
 
-            self._delete_old_parquet(endpoints=endpoints)
+        self._delete_old_parquet(endpoints=endpoints)
 
     @classmethod
     def model_endpoint_process(

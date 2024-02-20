@@ -745,17 +745,11 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # in list of events. This list will be used as the body for the storey event.
         events = []
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
-            # Validate that inputs are based on numeric values
-            if not self.is_valid(
-                endpoint_id,
-                self.is_list_of_numerics,
-                feature,
-                ["request", "inputs", f"[{i}]"],
-            ):
-                return None
-
             if not isinstance(prediction, list):
                 prediction = [prediction]
+
+            if not isinstance(feature, list):
+                feature = [feature]
 
             events.append(
                 {

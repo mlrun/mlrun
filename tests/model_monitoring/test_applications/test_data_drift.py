@@ -12,16 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+import logging
+from typing import Any
+from unittest.mock import Mock
+
+import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from mlrun import MLClientCtx
 from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp
 from mlrun.model_monitoring.applications.data_drift import (
     DataDriftClassifier,
     InvalidMetricValueError,
     InvalidThresholdValueError,
+    MLRunDataDriftApplication,
 )
+from mlrun.utils import Logger
 
 
 class TestDataDriftClassifier:
@@ -66,3 +75,65 @@ class TestDataDriftClassifier:
             DataDriftClassifier(potential=0.5, detected=0.7).value_to_status(value)
             == expected_status
         ), "The status is different than expected"
+
+
+class TestApplication:
+    @staticmethod
+    @pytest.fixture
+    def sample_df_stats() -> pd.DataFrame:
+        return pd.DataFrame.from_dict(
+            {
+                "f1": [0.1, 0.3, 0, 0.3, 0.05, 0.25],
+                "f2": [0, 0.5, 0, 0.2, 0.05, 0.25],
+                "l": [0.9, 0, 0, 0, 0, 0.1],
+            }
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def feature_stats() -> pd.DataFrame:
+        return pd.DataFrame.from_dict(
+            {
+                "f1": [0, 0, 0, 0.3, 0.7, 0],
+                "f2": [0, 0.45, 0.05, 0.15, 0.35, 0],
+                "l": [0.3, 0, 0, 0, 0, 0.7],
+            }
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def application() -> MLRunDataDriftApplication:
+        app = MLRunDataDriftApplication()
+        app.context = MLClientCtx(
+            log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
+        )
+        return app
+
+    @staticmethod
+    @pytest.fixture
+    def application_kwargs(
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
+        application: MLRunDataDriftApplication,
+    ) -> dict[str, Any]:
+        kwargs = {}
+        kwargs["application_name"] = application.NAME
+        kwargs["sample_df_stats"] = sample_df_stats
+        kwargs["feature_stats"] = feature_stats
+        kwargs["sample_df"] = Mock(spec=pd.DataFrame)
+        kwargs["start_infer_time"] = Mock(spec=pd.Timestamp)
+        kwargs["end_infer_time"] = Mock(spec=pd.Timestamp)
+        kwargs["latest_request"] = Mock(spec=pd.Timestamp)
+        kwargs["endpoint_id"] = Mock(spec=str)
+        kwargs["output_stream_uri"] = Mock(spec=str)
+        assert (
+            kwargs.keys()
+            == inspect.signature(application.do_tracking).parameters.keys()
+        )
+        return kwargs
+
+    @staticmethod
+    def test(
+        application: MLRunDataDriftApplication, application_kwargs: dict[str, Any]
+    ) -> None:
+        application.do_tracking(**application_kwargs)

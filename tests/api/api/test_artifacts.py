@@ -493,10 +493,10 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
     [
         (
             MYSQL_MEDIUMBLOB_BYTES + 1,
-            HTTPStatus.PRECONDITION_FAILED.value,
+            HTTPStatus.BAD_REQUEST.value,
             True,
             "a",
-        ),  # Body size exceeds limit, expect 412
+        ),  # Body size exceeds limit, expect 400
         (
             MYSQL_MEDIUMBLOB_BYTES - 1,
             HTTPStatus.OK.value,
@@ -511,10 +511,10 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
         ),  # Not inline artifact, expect 200
         (
             MYSQL_MEDIUMBLOB_BYTES + 1,
-            HTTPStatus.PRECONDITION_FAILED.value,
+            HTTPStatus.BAD_REQUEST.value,
             True,
             b"\x86",
-        ),  # Bytes artifact, expect 412
+        ),  # Bytes artifact, expect 400
     ],
 )
 def test_store_oversized_artifact(

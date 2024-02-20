@@ -10,7 +10,12 @@ The data source can be a DataFrame or files (e.g. csv, parquet). Files can be ei
 or remote (e.g. S3, Azure blob). MLRun also supports Google BigQuery as a data source. If you define a transformation graph, then 
 the ingestion process runs the graph transformations, infers metadata and stats, and writes the results to a target data store.
 
-When targets are not specified, data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
+When targets are not specified, data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).### Ingestion engines
+
+MLRun supports a few ingestion engines:
+- `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
+- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments
+- `spark` engine is designed for batch data.
 
 
 ```{admonition} Limitations

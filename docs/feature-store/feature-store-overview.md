@@ -54,6 +54,16 @@ serving process.
 
 The next step is to define the [feature vector](feature-vectors.html). Call the {py:meth}`~mlrun.feature_store.get_offline_features` function to join together features across different feature sets. 
 
+### Ingestion engines
+
+MLRun supports a few ingestion engines:
+
+- `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
+- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments
+- `spark` engine is designed for batch data.
+
+See also [transformation &mdash; engine support](./transformations.html#supporting-multiple-engines).
+
 ## Training and serving using the feature store 
 
 <br><img src="../_static/images/feature-store.png" alt="feature-store-training" width="800"/><br>

@@ -156,7 +156,7 @@ def test_client_spec_response_based_on_client_version(
     assert response_body["kfp_image"] == "mlrun/mlrun:unstable"
     assert response_body["dask_kfp_image"] == "mlrun/ml-base:unstable"
 
-    # clear case for next scenario
+    # clear cache for next scenario
     server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     # test response when the server has a version
     with unittest.mock.patch.object(

@@ -223,7 +223,8 @@ async def delete_project(
             db_session,
             auth_info,
         )
-        background_tasks.add_task(task)
+        if task:
+            background_tasks.add_task(task)
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     is_running_in_background = False

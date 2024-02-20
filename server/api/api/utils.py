@@ -1069,7 +1069,7 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 def get_or_create_project_deletion_background_task(
     project_name: str, deletion_strategy: str, db_session, auth_info
-) -> tuple[typing.Callable, str]:
+) -> tuple[typing.Optional[typing.Callable], str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1116,10 +1116,11 @@ def get_or_create_project_deletion_background_task(
 
     background_task_kind = background_task_kind_format.format(project_name)
     try:
-        return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+        task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
             background_task_kind,
             raise_on_not_found=True,
         )
+        return None, task.metadata.name
     except mlrun.errors.MLRunNotFoundError:
         logger.debug(
             "Existing background task not found, creating new one",

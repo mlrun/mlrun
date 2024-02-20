@@ -94,7 +94,8 @@ class MonitoringDeployment:
         :param image:                       The image of the model monitoring controller, writer & monitoring
                                             stream functions, which are real time nuclio functino.
                                             By default, the image is mlrun/mlrun.
-        :param overwrite:                   If true, overwrite the existing model monitoring controller. By default, False.
+        :param overwrite:                   If true, overwrite the existing model monitoring controller.
+                                            By default, False.
         """
         self.deploy_model_monitoring_controller(
             project=project,

@@ -63,20 +63,11 @@ def _init_engine(dsn=None):
         if max_overflow is None:
             max_overflow = config.httpdb.max_workers
 
-        # tests connections for liveness upon each checkout
-        pool_pre_ping = config.httpdb.db.connections_pool_pre_ping
-        if pool_pre_ping is None:
-            pool_pre_ping = True
-
-        # his setting causes the pool to recycle connections after the given number of seconds has passed
-        pool_recycle = config.httpdb.db.connections_pool_recycle
-        if pool_recycle is None:
-            pool_recycle = 60 * 60
         kwargs = {
             "pool_size": pool_size,
             "max_overflow": max_overflow,
-            "pool_pre_ping": pool_pre_ping,
-            "pool_recycle": pool_recycle,
+            "pool_pre_ping": config.httpdb.db.connections_pool_pre_ping,
+            "pool_recycle": config.httpdb.db.connections_pool_recycle,
         }
     engine = create_engine(dsn, **kwargs)
     _engines[dsn] = engine

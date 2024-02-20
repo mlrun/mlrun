@@ -3099,7 +3099,7 @@ class HTTPRunDB(RunDBInterface):
             "base_period": base_period,
             "overwrite": overwrite,
         }
-        path = f"projects/{project}/jobs/model-monitoring-controller"
+        path = f"projects/{project}/model_monitoring/model-monitoring-controller"
         self.api_call(method="POST", path=path, params=params)
 
     def enable_model_monitoring(
@@ -3130,7 +3130,7 @@ class HTTPRunDB(RunDBInterface):
             "base_period": base_period,
             "overwrite": overwrite,
         }
-        path = f"projects/{project}/jobs/enable-model-monitoring"
+        path = f"projects/{project}/model_monitoring/enable-model-monitoring"
         self.api_call(method="POST", path=path, params=params)
 
     def create_hub_source(

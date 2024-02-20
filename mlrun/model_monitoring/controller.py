@@ -341,7 +341,7 @@ class MonitoringApplicationController:
         """
         Main method for run all the relevant monitoring applications on each endpoint
         """
-        logger.info("Start controller running")
+        logger.info("Start running monitoring controller")
         try:
             applications_names = []
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
@@ -354,7 +354,11 @@ class MonitoringApplicationController:
             if monitoring_functions:
                 # Gets only application in ready state
                 applications_names = list(
-                    {app.metadata.name for app in monitoring_functions if app.status.state == "ready"}
+                    {
+                        app.metadata.name
+                        for app in monitoring_functions
+                        if app.status.state == "ready"
+                    }
                 )
             if not applications_names:
                 self.context.logger.info(
@@ -363,7 +367,9 @@ class MonitoringApplicationController:
                 return
 
         except Exception as e:
-            self.context.logger.error("Failed to list endpoints and monitoring applications", exc=e)
+            self.context.logger.error(
+                "Failed to list endpoints and monitoring applications", exc=e
+            )
             return
         # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
         pool = concurrent.futures.ProcessPoolExecutor(

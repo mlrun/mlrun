@@ -78,7 +78,9 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        overwrite: bool = False,
     ):
         """
         Invoking monitoring deploying functions.
@@ -89,21 +91,30 @@ class MonitoringDeployment:
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
         """
-        # self.deploy_model_monitoring_stream_processing(
-        #     project=project,
-        #     model_monitoring_access_key=model_monitoring_access_key,
-        #     db_session=db_session,
-        #     auth_info=auth_info,
-        #     stream_image=tracking_policy.stream_image,
-        # )
-        self.deploy_model_monitoring_batch_processing(
+        self.deploy_model_monitoring_controller(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
-            tracking_policy=tracking_policy,
-            tracking_offset=Seconds(self._max_parquet_save_interval),
-            function_name=mm_constants.MonitoringFunctionNames.BATCH,
+            controller_image=image,
+            base_period=base_period,
+            overwrite=overwrite,
+        )
+
+        self.deploy_model_monitoring_writer_application(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            writer_image=image,
+        )
+
+        self.deploy_model_monitoring_stream_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            stream_image=image,
         )
 
     def deploy_model_monitoring_stream_processing(
@@ -112,7 +123,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        stream_image: str = 'mlrun/mlrun',
+        stream_image: str = "mlrun/mlrun",
     ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -686,7 +697,7 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring stream function when the stream is
                                             schema is V3IO.
         :param auth_info:                   The auth info of the request.
-        :param function_name:             the name of the function that be applied with the stream trigger,
+        :param function_name:               The name of the function that be applied with the stream trigger,
                                             None for model_monitoring_stream
 
         :return: ServingRuntime object with stream trigger.

@@ -836,7 +836,8 @@ def _deploy_serving_monitoring(
         monitoring_deploy = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment()
         )
-        monitoring_deploy.deploy_monitoring_functions(
+        # TODO : delete when batch is deprecated.
+        monitoring_deploy.deploy_model_monitoring_batch_processing(
             project=fn.metadata.project,
             db_session=db_session,
             auth_info=auth_info,

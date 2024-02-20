@@ -43,6 +43,9 @@ async def enable_model_monitoring(
     While the main goal of the controller function is to handle the monitoring processing and triggering
     applications, the goal of the model monitoring writer function is to write all the monitoring
     application results to the databases.
+    And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+    is detected. It processes the new events into statistics that are then written to statistics databases.
+
 
     :param project:                  Project name.
     :param request:                  fastapi request for the HTTP connection.

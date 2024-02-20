@@ -17,11 +17,13 @@ import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_BYTES
 from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
@@ -484,3 +486,34 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
     assert not is_legacy_artifact(artifact)
     assert artifact["metadata"]["key"] == KEY
     assert artifact["metadata"]["tree"] == tree
+
+
+@pytest.mark.parametrize(
+    "body_size,expected_status_code,is_inline",
+    [
+        (
+            MYSQL_MEDIUMBLOB_BYTES + 1,
+            HTTPStatus.PRECONDITION_FAILED.value,
+            True,
+        ),  # Body size exceeds limit, expect 412
+        (
+            MYSQL_MEDIUMBLOB_BYTES - 1,
+            HTTPStatus.OK.value,
+            True,
+        ),  # Body size within limit, expect 200
+        (MYSQL_MEDIUMBLOB_BYTES + 1, HTTPStatus.OK.value, False),  # Not inline artifact
+    ],
+)
+def test_store_overflowing_artifact(
+    db: Session, client: TestClient, body_size, expected_status_code, is_inline
+) -> None:
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(
+        key=KEY, body="a" * body_size, is_inline=is_inline
+    )
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+
+    assert resp.status_code == expected_status_code

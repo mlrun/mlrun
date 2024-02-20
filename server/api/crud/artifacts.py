@@ -23,6 +23,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_BYTES
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
@@ -224,3 +225,10 @@ class Artifacts(
                         path=path,
                         err=err_to_str(err),
                     )
+        if "spec" in artifact and "inline" in artifact["spec"]:
+            body_length = len(artifact["spec"]["inline"].encode("utf-8"))
+            if body_length > MYSQL_MEDIUMBLOB_BYTES:
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    "The body of the artifact exceeds the maximum allowed size. "
+                    "Please reduce the size of the artifact body and try again."
+                )

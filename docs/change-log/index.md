@@ -78,7 +78,7 @@
 |ML-3856|Documentation: Add how to update a feature set with appending ingestion (and not create a new FS on every ingest). See [Ingest data locally](../data-prep/ingest-data-fs.html#ingest-data-locally).|
 |ML-4093|Documentation: Improved description of [handlers](../runtimes/create-and-use-functions.html#using-set-function) and {ref}`functions`. |
 |ML-4370|Hyper-param and single runs no longer generate artifacts with the same name. |
-|ML-4563|A local runtime that consumes more memory than the Jupyter service pod, and that previously caused a restart of the pod, can now be deleted. |
+|ML-4563|Local jobs can now be aborted in the UI. |
 |ML-4613|UI: Fixed the map type hint in the Batch Inference Parameters. |
 |ML-4642|The UI no longer gets stuck when there is a high number of query results. | 
 |ML-4678|When tagging a specific version of a model using the SDK, it does not clear the tags from the rest of the versions.|
@@ -895,7 +895,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4855|MLRun supports TensorFlow up to 2.13.1.
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
-|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
+|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.html#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Upgrade the client to v1.6.0 or higher. | v1.6.0 |
 
 ## Deprecations and removed code

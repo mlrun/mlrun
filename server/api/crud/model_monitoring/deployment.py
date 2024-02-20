@@ -112,7 +112,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        stream_image: str = 'mlrun/mlrun',
     ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -158,7 +158,7 @@ class MonitoringDeployment:
         fn = self._initial_model_monitoring_stream_processing_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
-            tracking_policy=tracking_policy,
+            stream_image=stream_image,
             auth_info=auth_info,
             parquet_target=parquet_target,
         )
@@ -178,7 +178,9 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        base_period: int,
+        overwrite: bool = False,
+        controller_image: str = "mlrun/mlrun",
     ) -> typing.Union[tuple[mlrun.runtimes.ServingRuntime, typing.Any], None]:
         """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
@@ -190,50 +192,41 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations, including the required controller
-                                            configurations such as the base period (5 minutes by default) and
-                                            the default controller image (`mlrun/mlrun` by default).
 
         :return: Model monitoring controller job as a runtime function.
         """
 
-        self.deploy_model_monitoring_writer_application(
-            project=project,
-            model_monitoring_access_key=model_monitoring_access_key,
-            db_session=db_session,
-            auth_info=auth_info,
-            tracking_policy=tracking_policy,
-        )
-
+        if not overwrite:
+            logger.info(
+                "Checking if model monitoring controller is already deployed",
+                project=project,
+            )
+            try:
+                # validate that the model monitoring stream has not yet been deployed
+                mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                    name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                    project=project,
+                    tag="",
+                    auth_info=auth_info,
+                )
+                logger.info(
+                    "Detected model monitoring controller processing function already deployed",
+                    project=project,
+                )
+                return
+            except mlrun.errors.MLRunNotFoundError:
+                pass
         logger.info(
-            "Checking if model monitoring writer is already deployed",
+            "Deploying model monitoring controller processing function",
             project=project,
         )
-        try:
-            # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                project=project,
-                tag="",
-                auth_info=auth_info,
-            )
-            logger.info(
-                "Detected model monitoring controller processing function already deployed",
-                project=project,
-            )
-            return
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Deploying model monitoring controller processing function",
-                project=project,
-            )
 
         fn = self._get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
-            image=tracking_policy.default_controller_image,
+            image=controller_image,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
         self._apply_access_key_and_mount_function(
@@ -243,7 +236,7 @@ class MonitoringDeployment:
             auth_info,
             mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
-        minutes = tracking_policy.base_period
+        minutes = base_period
         hours = days = 0
         batch_dict = {
             mm_constants.EventFieldType.MINUTES: minutes,
@@ -257,7 +250,7 @@ class MonitoringDeployment:
 
         fn.add_trigger(
             "cron_interval",
-            spec=nuclio.CronTrigger(interval=f"{tracking_policy.base_period}m"),
+            spec=nuclio.CronTrigger(interval=f"{base_period}m"),
         )
         return server.api.api.endpoints.functions._build_function(
             db_session=db_session,
@@ -390,11 +383,11 @@ class MonitoringDeployment:
 
     def deploy_model_monitoring_writer_application(
         self,
-        project,
-        model_monitoring_access_key,
-        db_session,
-        auth_info,
-        tracking_policy,
+        project: str,
+        model_monitoring_access_key: str,
+        db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        writer_image: str = "mlrun/mlrun",
     ):
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
@@ -405,7 +398,6 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
         """
 
         logger.info(
@@ -433,7 +425,7 @@ class MonitoringDeployment:
         fn = self._initial_model_monitoring_writer_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
-            tracking_policy=tracking_policy,
+            writer_image=writer_image,
             auth_info=auth_info,
         )
 
@@ -450,7 +442,7 @@ class MonitoringDeployment:
         self,
         project: str,
         model_monitoring_access_key: str,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        stream_image: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         parquet_target: str,
     ):
@@ -488,7 +480,7 @@ class MonitoringDeployment:
                 project=project,
                 filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
                 kind=mlrun.run.RuntimeKinds.serving,
-                image=tracking_policy.stream_image,
+                image=stream_image,
             ),
         )
 
@@ -787,7 +779,7 @@ class MonitoringDeployment:
         return function
 
     def _initial_model_monitoring_writer_function(
-        self, project, model_monitoring_access_key, tracking_policy, auth_info
+        self, project, model_monitoring_access_key, writer_image, auth_info
     ):
         """
         Initialize model monitoring writer function.
@@ -808,7 +800,7 @@ class MonitoringDeployment:
             project=project,
             filename=str(_MONITORING_WRITER_FUNCTION_PATH),
             kind="serving",
-            image=tracking_policy.default_controller_image,
+            image=writer_image,
         )
 
         # Create writer monitoring serving graph

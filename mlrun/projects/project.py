@@ -1975,6 +1975,8 @@ class MlrunProject(ModelObj):
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
+        overwrite: bool = False,
+        image: str = "mlrun/mlrun",
     ) -> dict:
         r"""
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
@@ -1990,11 +1992,13 @@ class MlrunProject(ModelObj):
                                          will be the following cron expression: "\*/{base_period} \* \* \* \*".
         :returns: model monitoring controller job as a dictionary.
         """
+        #TODO : Depreaction to default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.create_model_monitoring_controller(
+        return db.enable_model_monitoring(
             project=self.name,
             default_controller_image=default_controller_image,
             base_period=base_period,
+            overwrite=overwrite,
         )
 
     def disable_model_monitoring(self):

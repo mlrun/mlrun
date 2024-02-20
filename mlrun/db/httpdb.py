@@ -3076,6 +3076,7 @@ class HTTPRunDB(RunDBInterface):
         project: str = "",
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
+        overwrite: bool = False,
     ):
         """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
@@ -3096,8 +3097,40 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "default_controller_image": default_controller_image,
             "base_period": base_period,
+            "overwrite": overwrite,
         }
         path = f"projects/{project}/jobs/model-monitoring-controller"
+        self.api_call(method="POST", path=path, params=params)
+
+    def enable_model_monitoring(
+        self,
+        project: str = "",
+        image: str = "mlrun/mlrun",
+        base_period: int = 10,
+        overwrite: bool = False,
+    ):
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+
+        :param project:                  Project name.
+        :param image:                    The default image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are a real time nuclio functino, will be deployed with
+                                         the same image. By default, the image is mlrun/mlrun.
+        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
+                                         is running. By default, the base period is 5 minutes.
+        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
+                  runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "image": image,
+            "base_period": base_period,
+            "overwrite": overwrite,
+        }
+        path = f"projects/{project}/jobs/enable-model-monitoring"
         self.api_call(method="POST", path=path, params=params)
 
     def create_hub_source(

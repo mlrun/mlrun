@@ -63,9 +63,12 @@ def _init_engine(dsn=None):
         max_overflow = config.httpdb.db.connections_pool_max_overflow
         if max_overflow is None:
             max_overflow = config.httpdb.max_workers
+
         kwargs = {
             "pool_size": pool_size,
             "max_overflow": max_overflow,
+            "pool_pre_ping": config.httpdb.db.connections_pool_pre_ping,
+            "pool_recycle": config.httpdb.db.connections_pool_recycle,
         }
     engine = create_engine(dsn, **kwargs)
     _engines[dsn] = engine

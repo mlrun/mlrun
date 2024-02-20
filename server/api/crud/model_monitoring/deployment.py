@@ -62,7 +62,7 @@ class MonitoringDeployment:
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
          1. model monitoring stream
          2. model monitoring batch
-         3. model monitoring batch application
+         3. model monitoring controller
          4. model monitoring writer
 
         :param parquet_batching_max_events: Maximum number of events that will be used for writing the monitoring
@@ -83,13 +83,18 @@ class MonitoringDeployment:
         overwrite: bool = False,
     ):
         """
-        Invoking monitoring deploying functions.
+        Deploy model monitoring application controller, writer and stream functions.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
+        :param base_period:                 The time period in minutes in which the model monitoring controller function
+                                            triggers. By default, the base period is 10 minutes.
+        :param image:                       The image of the model monitoring controller, writer & monitoring
+                                            stream functions, which are real time nuclio functino.
+                                            By default, the image is mlrun/mlrun.
+        :param overwrite:                   If true, overwrite the existing model monitoring controller. By default, False.
         """
         self.deploy_model_monitoring_controller(
             project=project,
@@ -134,7 +139,8 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
+        :param stream_image:                The image of the model monitoring stream function.
+                                            By default, the image is mlrun/mlrun.
         """
 
         logger.info(
@@ -190,19 +196,24 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         base_period: int,
-        overwrite: bool = False,
         controller_image: str = "mlrun/mlrun",
+        overwrite: bool = False,
     ) -> typing.Union[tuple[mlrun.runtimes.ServingRuntime, typing.Any], None]:
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 5 min.
+        Deploy model monitoring application controller function.
+        The main goal of the controller function is to handle the monitoring processing and triggering applications.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
+        :param base_period:                 The time period in minutes in which the model monitoring controller function
+                                            triggers. By default, the base period is 10 minutes.
+        :param controller_image:            The image of the model monitoring controller function.
+                                            By default, the image is mlrun/mlrun.
+        :param overwrite:                   If true, overwrite the existing model monitoring controller.
+                                            By default, False.
+
 
         :return: Model monitoring controller job as a runtime function.
         """
@@ -409,6 +420,8 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
+        :param writer_image:                The image of the model monitoring writer function.
+                                            By default, the image is mlrun/mlrun.
         """
 
         logger.info(

@@ -1979,24 +1979,34 @@ class MlrunProject(ModelObj):
         image: str = "mlrun/mlrun",
     ) -> dict:
         r"""
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              The time period in minutes in which the model monitoring controller job
-                                         runs. By default, the base period is 10 minutes. The schedule for the job
-                                         will be the following cron expression: "\*/{base_period} \* \* \* \*".
+
+        :param default_controller_image: Deprecated.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         is triggered. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
+        :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
         :returns: model monitoring controller job as a dictionary.
         """
-        #TODO : Depreaction to default_controller_image
+        if default_controller_image != "mlrun/mlrun":
+            # TODO: Remove this in 1.8.0
+            warnings.warn(
+                "'last' is deprecated and will be removed in 1.9.0.",
+                FutureWarning,
+            )
+            image = image or default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.enable_model_monitoring(
             project=self.name,
-            image=default_controller_image,
+            image=image,
             base_period=base_period,
             overwrite=overwrite,
         )

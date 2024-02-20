@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
-from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.endpoints.functions import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
@@ -35,25 +34,26 @@ async def enable_model_monitoring(
         deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(deps.get_db_session),
-    image: str = "mlrun/mlrun",
     base_period: int = 10,
+    image: str = "mlrun/mlrun",
     overwrite: bool = False,
 ):
     """
-    Submit model monitoring application controller job along with deploying the model monitoring writer function.
-    While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-    the goal of the model monitoring writer function is to write all the monitoring application results to the
-    databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+    Deploy model monitoring application controller, writer and stream functions.
+    While the main goal of the controller function is to handle the monitoring processing and triggering
+    applications, the goal of the model monitoring writer function is to write all the monitoring
+    application results to the databases.
 
     :param project:                  Project name.
     :param request:                  fastapi request for the HTTP connection.
     :param auth_info:                The auth info of the request.
     :param db_session:               A session that manages the current dialog with the database.
-    :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                     function, which is a real time nuclio functino, will be deployed with the same
-                                     image. By default, the image is mlrun/mlrun.
-    :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                     is running. By default, the base period is 5 minutes.
+    :param base_period:              The time period in minutes in which the model monitoring controller function
+                                     triggers. By default, the base period is 10 minutes.
+    :param image:                    The image of the model monitoring controller, writer & monitoring
+                                     stream functions, which are real time nuclio functions.
+                                     By default, the image is mlrun/mlrun.
+    :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -94,12 +94,11 @@ async def deploy_model_monitoring_controller(
     db_session: Session = fastapi.Depends(deps.get_db_session),
     default_controller_image: str = "mlrun/mlrun",
     base_period: int = 10,
+    overwrite: bool = False,
 ):
     """
-    Submit model monitoring application controller job along with deploying the model monitoring writer function.
-    While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-    the goal of the model monitoring writer function is to write all the monitoring application results to the
-    databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+    Deploy model monitoring application controller function.
+    The main goal of the controller function is to handle the monitoring processing and triggering applications.
 
     :param project:                  Project name.
     :param request:                  fastapi request for the HTTP connection.
@@ -108,8 +107,9 @@ async def deploy_model_monitoring_controller(
     :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                      function, which is a real time nuclio functino, will be deployed with the same
                                      image. By default, the image is mlrun/mlrun.
-    :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                     is running. By default, the base period is 5 minutes.
+    :param base_period:              The time period in minutes in which the model monitoring controller function
+                                     triggers. By default, the base period is 10 minutes.
+    :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -119,24 +119,6 @@ async def deploy_model_monitoring_controller(
         action=mlrun.common.schemas.AuthorizationAction.store,
         auth_info=auth_info,
     )
-
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        logger.info(
-            "Requesting to deploy model monitoring controller, re-routing to chief",
-            function_name="model-monitoring-controller",
-            project=project,
-        )
-        chief_client = server.api.utils.clients.chief.Client()
-        params = {
-            "default_controller_image": default_controller_image,
-            "base_period": base_period,
-        }
-        return await chief_client.create_model_monitoring_controller(
-            project=project, request=request, json=params
-        )
 
     model_monitoring_access_key = None
     if not mlrun.mlconf.is_ce_mode():
@@ -154,4 +136,5 @@ async def deploy_model_monitoring_controller(
         auth_info=auth_info,
         controller_image=default_controller_image,
         base_period=base_period,
+        overwrite=overwrite,
     )

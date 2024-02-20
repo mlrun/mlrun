@@ -3079,19 +3079,15 @@ class HTTPRunDB(RunDBInterface):
         overwrite: bool = False,
     ):
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Deploy model monitoring application controller function.
+        The main goal of the controller function is to handle the monitoring processing and triggering applications.
 
         :param project:                  Project name.
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
-                  runtime object by calling ~mlrun.new_function.
+        :param default_controller_image: The image of the model monitoring controller function.
+                                         By default, the image is mlrun/mlrun.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
         """
 
         params = {
@@ -3105,24 +3101,26 @@ class HTTPRunDB(RunDBInterface):
     def enable_model_monitoring(
         self,
         project: str = "",
-        image: str = "mlrun/mlrun",
         base_period: int = 10,
+        image: str = "mlrun/mlrun",
         overwrite: bool = False,
     ):
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
+
 
         :param project:                  Project name.
-        :param image:                    The default image of the model monitoring controller, writer & monitoring
-                                         stream functions, which are a real time nuclio functino, will be deployed with
-                                         the same image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
-                  runtime object by calling ~mlrun.new_function.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
+        :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
         """
 
         params = {

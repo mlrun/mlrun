@@ -1997,9 +1997,9 @@ class MlrunProject(ModelObj):
         :returns: model monitoring controller job as a dictionary.
         """
         if default_controller_image != "mlrun/mlrun":
-            # TODO: Remove this in 1.8.0
+            # TODO: Remove this in 1.9.0
             warnings.warn(
-                "'last' is deprecated and will be removed in 1.9.0.",
+                "'default_controller_image' is deprecated and will be removed in 1.9.0.",
                 FutureWarning,
             )
             image = image or default_controller_image

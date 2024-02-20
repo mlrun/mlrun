@@ -89,13 +89,13 @@ class MonitoringDeployment:
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
         """
-        self.deploy_model_monitoring_stream_processing(
-            project=project,
-            model_monitoring_access_key=model_monitoring_access_key,
-            db_session=db_session,
-            auth_info=auth_info,
-            tracking_policy=tracking_policy,
-        )
+        # self.deploy_model_monitoring_stream_processing(
+        #     project=project,
+        #     model_monitoring_access_key=model_monitoring_access_key,
+        #     db_session=db_session,
+        #     auth_info=auth_info,
+        #     stream_image=tracking_policy.stream_image,
+        # )
         self.deploy_model_monitoring_batch_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,

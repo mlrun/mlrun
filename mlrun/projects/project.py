@@ -1996,7 +1996,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.enable_model_monitoring(
             project=self.name,
-            default_controller_image=default_controller_image,
+            image=default_controller_image,
             base_period=base_period,
             overwrite=overwrite,
         )

@@ -48,9 +48,11 @@ If the data being ingested spans over more than 1024 partitions, the ingestion f
 Decrease the number of partitions by filtering the time (for example, using start_filter/end_filter of the 
 {py:meth}`~mlrun.datastore.ParquetSource`), and/or increasing the `time_partitioning_granularity`.
 
-storey processes the data row by row (as a streaming engine, it doesn't get all the data up front, so it needs to process row by row). 
+Storey processes the data row by row (as a streaming engine, it doesn't get all the data up front, so it needs to process row by row). 
 These rows are batched together according to the partitions defined, and they are 
-written to each partition separately. (Therefore, storey does not have the 1024 limitation.)
+written to each partition separately. (Therefore, storey does not have the 1024 partitions limitation.)
+
+Spark does not have the partitions limitation, either.
 
 Configure partitioning with:
 - `partitioned` &mdash; Optional. Whether to partition the file. False by default. If True without passing any other partition fields, the data is partitioned by /year/month/day/hour.

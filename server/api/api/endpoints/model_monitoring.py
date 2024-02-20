@@ -23,7 +23,7 @@ from server.api.api import deps
 from server.api.api.endpoints.functions import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
 
-router = fastapi.APIRouter(prefix="/projects/{project}/model_monitoring")
+router = fastapi.APIRouter(prefix="/projects/{project}/model-monitoring")
 
 
 @router.post("/enable-model-monitoring")

@@ -504,7 +504,7 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
         (MYSQL_MEDIUMBLOB_BYTES + 1, HTTPStatus.OK.value, False),  # Not inline artifact
     ],
 )
-def test_store_overflowing_artifact(
+def test_store_oversized_artifact(
     db: Session, client: TestClient, body_size, expected_status_code, is_inline
 ) -> None:
     _create_project(client)

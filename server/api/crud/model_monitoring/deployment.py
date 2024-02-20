@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import pathlib
 import typing
 
@@ -246,7 +246,7 @@ class MonitoringDeployment:
         }
         fn.set_env(
             mm_constants.EventFieldType.BATCH_INTERVALS_DICT,
-            batch_dict,
+            json.dumps(batch_dict),
         )
 
         fn.add_trigger(

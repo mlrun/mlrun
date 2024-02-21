@@ -29,14 +29,12 @@ router = fastapi.APIRouter(prefix="/projects/{project}/model-monitoring")
 @router.post("/enable-model-monitoring")
 async def enable_model_monitoring(
     project: str,
-    request: fastapi.Request,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(deps.get_db_session),
     base_period: int = 10,
     image: str = "mlrun/mlrun",
-    overwrite: bool = False,
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -48,7 +46,6 @@ async def enable_model_monitoring(
 
 
     :param project:                  Project name.
-    :param request:                  fastapi request for the HTTP connection.
     :param auth_info:                The auth info of the request.
     :param db_session:               A session that manages the current dialog with the database.
     :param base_period:              The time period in minutes in which the model monitoring controller function
@@ -56,7 +53,6 @@ async def enable_model_monitoring(
     :param image:                    The image of the model monitoring controller, writer & monitoring
                                      stream functions, which are real time nuclio functions.
                                      By default, the image is mlrun/mlrun.
-    :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -83,36 +79,31 @@ async def enable_model_monitoring(
         auth_info=auth_info,
         image=image,
         base_period=base_period,
-        overwrite=overwrite,
     )
 
 
 @router.post("/model-monitoring-controller")
-async def deploy_model_monitoring_controller(
+async def update_model_monitoring_controller(
     project: str,
-    request: fastapi.Request,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(deps.get_db_session),
-    default_controller_image: str = "mlrun/mlrun",
+    image: str = "mlrun/mlrun",
     base_period: int = 10,
-    overwrite: bool = False,
 ):
     """
     Deploy model monitoring application controller function.
     The main goal of the controller function is to handle the monitoring processing and triggering applications.
 
     :param project:                  Project name.
-    :param request:                  fastapi request for the HTTP connection.
     :param auth_info:                The auth info of the request.
     :param db_session:               A session that manages the current dialog with the database.
-    :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+    :param image:                    The default image of the model monitoring controller job. Note that the writer
                                      function, which is a real time nuclio functino, will be deployed with the same
                                      image. By default, the image is mlrun/mlrun.
     :param base_period:              The time period in minutes in which the model monitoring controller function
                                      triggers. By default, the base period is 10 minutes.
-    :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -131,13 +122,27 @@ async def deploy_model_monitoring_controller(
             project,
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
         )
+    try:
+        # validate that the model monitoring stream has not yet been deployed
+        mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+            name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            project=project,
+            tag="",
+            auth_info=auth_info,
+        )
+
+    except mlrun.errors.MLRunNotFoundError:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"{mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER} is not exists."
+            f"Run `project.enable_model_monitoring()` first."
+        )
 
     MonitoringDeployment().deploy_model_monitoring_controller(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         db_session=db_session,
         auth_info=auth_info,
-        controller_image=default_controller_image,
+        controller_image=image,
         base_period=base_period,
-        overwrite=overwrite,
+        overwrite=True,
     )

@@ -80,7 +80,6 @@ class MonitoringDeployment:
         auth_info: mlrun.common.schemas.AuthInfo,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-        overwrite: bool = False,
     ):
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -94,8 +93,6 @@ class MonitoringDeployment:
         :param image:                       The image of the model monitoring controller, writer & monitoring
                                             stream functions, which are real time nuclio functino.
                                             By default, the image is mlrun/mlrun.
-        :param overwrite:                   If true, overwrite the existing model monitoring controller.
-                                            By default, False.
         """
         self.deploy_model_monitoring_controller(
             project=project,
@@ -104,7 +101,6 @@ class MonitoringDeployment:
             auth_info=auth_info,
             controller_image=image,
             base_period=base_period,
-            overwrite=overwrite,
         )
 
         self.deploy_model_monitoring_writer_application(
@@ -144,28 +140,11 @@ class MonitoringDeployment:
                                             By default, the image is mlrun/mlrun.
         """
 
-        logger.info(
-            "Checking if model monitoring stream is already deployed",
+        MonitoringDeployment._check_if_already_deployed(
+            function_name="model-monitoring-stream",
             project=project,
+            auth_info=auth_info,
         )
-        try:
-            # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                name="model-monitoring-stream",
-                project=project,
-                tag="",
-                auth_info=auth_info,
-            )
-            logger.info(
-                "Detected model monitoring stream processing function already deployed",
-                project=project,
-            )
-            return
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Deploying model monitoring stream processing function", project=project
-            )
-
         # Get parquet target value for model monitoring stream function
         parquet_target = (
             server.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
@@ -218,30 +197,11 @@ class MonitoringDeployment:
 
         :return: Model monitoring controller job as a runtime function.
         """
-
-        if not overwrite:
-            logger.info(
-                "Checking if model monitoring controller is already deployed",
-                project=project,
-            )
-            try:
-                # validate that the model monitoring stream has not yet been deployed
-                mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                    name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                    project=project,
-                    tag="",
-                    auth_info=auth_info,
-                )
-                logger.info(
-                    "Detected model monitoring controller processing function already deployed",
-                    project=project,
-                )
-                return
-            except mlrun.errors.MLRunNotFoundError:
-                pass
-        logger.info(
-            "Deploying model monitoring controller processing function",
+        MonitoringDeployment._check_if_already_deployed(
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             project=project,
+            auth_info=auth_info,
+            overwrite=overwrite,
         )
 
         fn = self._get_model_monitoring_batch_function(
@@ -425,27 +385,11 @@ class MonitoringDeployment:
                                             By default, the image is mlrun/mlrun.
         """
 
-        logger.info(
-            "Checking if model monitoring writer is already deployed",
+        MonitoringDeployment._check_if_already_deployed(
+            function_name=mm_constants.MonitoringFunctionNames.WRITER,
             project=project,
+            auth_info=auth_info,
         )
-        try:
-            # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                name=mm_constants.MonitoringFunctionNames.WRITER,
-                project=project,
-                tag="",
-                auth_info=auth_info,
-            )
-            logger.info(
-                "Detected model monitoring writer processing function already deployed",
-                project=project,
-            )
-            return
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Deploying model monitoring writer processing function", project=project
-            )
 
         fn = self._initial_model_monitoring_writer_function(
             project=project,
@@ -477,7 +421,6 @@ class MonitoringDeployment:
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE
                                             deployments this parameter will be None.
-        :param tracking_policy:             Model monitoring configurations.
         :param auth_info:                   The auth info of the request.
         :param parquet_target:              Path to model monitoring parquet file that will be generated by the
                                             monitoring stream nuclio function.
@@ -812,7 +755,7 @@ class MonitoringDeployment:
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE
                                             deployments this parameter will be None.
-        :param tracking_policy:             Model monitoring configurations.
+        :param writer_image:                The image of the model monitoring writer function.
         :param auth_info:                   The auth info of the request.
 
         :return:                            A function object from a mlrun runtime class
@@ -861,6 +804,38 @@ class MonitoringDeployment:
         function.spec.parameters = run_config.parameters
 
         return function
+
+    @staticmethod
+    def _check_if_already_deployed(function_name, project, auth_info, overwrite=False):
+        """
+
+        :param function_name:
+        :param project:
+        :param auth_info:
+        :param overwrite
+        :return:
+        """
+        if not overwrite:
+            logger.info(
+                f"Checking if {function_name} is already deployed",
+                project=project,
+            )
+            try:
+                # validate that the model monitoring stream has not yet been deployed
+                mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                    name=mm_constants.MonitoringFunctionNames.WRITER,
+                    project=project,
+                    tag="",
+                    auth_info=auth_info,
+                )
+                logger.info(
+                    f"Detected {function_name} function already deployed",
+                    project=project,
+                )
+                return
+            except mlrun.errors.MLRunNotFoundError:
+                pass
+        logger.info(f"Deploying {function_name} function", project=project)
 
 
 def get_endpoint_features(

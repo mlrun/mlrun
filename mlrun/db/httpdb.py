@@ -3071,19 +3071,17 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
 
-    def create_model_monitoring_controller(
+    def update_model_monitoring_controller(
         self,
         project: str = "",
-        default_controller_image: str = "mlrun/mlrun",
+        image: str = "mlrun/mlrun",
         base_period: int = 10,
-        overwrite: bool = False,
     ):
         """
-        Deploy model monitoring application controller function.
-        The main goal of the controller function is to handle the monitoring processing and triggering applications.
+        Redeploy model monitoring application controller function.
 
         :param project:                  Project name.
-        :param default_controller_image: The image of the model monitoring controller function.
+        :param image: The image of the model monitoring controller function.
                                          By default, the image is mlrun/mlrun.
         :param base_period:              The time period in minutes in which the model monitoring controller function
                                          triggers. By default, the base period is 10 minutes.
@@ -3091,9 +3089,8 @@ class HTTPRunDB(RunDBInterface):
         """
 
         params = {
-            "default_controller_image": default_controller_image,
+            "image": image,
             "base_period": base_period,
-            "overwrite": overwrite,
         }
         path = f"projects/{project}/model-monitoring/model-monitoring-controller"
         self.api_call(method="POST", path=path, params=params)
@@ -3103,14 +3100,13 @@ class HTTPRunDB(RunDBInterface):
         project: str = "",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-        overwrite: bool = False,
     ):
         """
         Deploy model monitoring application controller, writer and stream functions.
         While the main goal of the controller function is to handle the monitoring processing and triggering
         applications, the goal of the model monitoring writer function is to write all the monitoring
         application results to the databases.
-        And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
 
@@ -3120,13 +3116,11 @@ class HTTPRunDB(RunDBInterface):
         :param image:                    The image of the model monitoring controller, writer & monitoring
                                          stream functions, which are real time nuclio functions.
                                          By default, the image is mlrun/mlrun.
-        :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
         """
 
         params = {
             "base_period": base_period,
             "image": image,
-            "overwrite": overwrite,
         }
         path = f"projects/{project}/model-monitoring/enable-model-monitoring"
         self.api_call(method="POST", path=path, params=params)

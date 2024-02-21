@@ -814,6 +814,7 @@ def _deploy_serving_monitoring(
         # Handle model monitoring
         logger.info("Tracking enabled, initializing model monitoring")
 
+        # TODO : delete when batch is deprecated.
         if fn.spec.tracking_policy:
             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
             fn.spec.tracking_policy = TrackingPolicy.from_dict(fn.spec.tracking_policy)

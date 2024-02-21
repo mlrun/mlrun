@@ -20,6 +20,7 @@ import re
 from collections.abc import Iterator
 from typing import Any, NamedTuple, Optional, Union, cast
 
+import nuclio
 from v3io.dataplane.response import HttpResponseError
 
 import mlrun
@@ -29,6 +30,7 @@ import mlrun.feature_store as fstore
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.errors import err_to_str
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
@@ -309,8 +311,6 @@ class MonitoringApplicationController:
             )
         )
 
-        # If provided, only model endpoints in that that list will be analyzed
-        self.model_endpoints = None
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             self.project_obj,
@@ -337,14 +337,16 @@ class MonitoringApplicationController:
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
-    def run(self):
+    def run(self, event: nuclio.Event):
         """
         Main method for run all the relevant monitoring applications on each endpoint
+
+        :param event:   trigger event
         """
         logger.info("Start running monitoring controller")
         try:
             applications_names = []
-            endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
+            endpoints = self.db.list_model_endpoints()
             if not endpoints:
                 self.context.logger.info(
                     "No model endpoints found", project=self.project
@@ -368,7 +370,8 @@ class MonitoringApplicationController:
 
         except Exception as e:
             self.context.logger.error(
-                "Failed to list endpoints and monitoring applications", exc=e
+                "Failed to list endpoints and monitoring applications",
+                exc=err_to_str(e),
             )
             return
         # Initialize a process pool that will be used to run each endpoint applications on a dedicated process

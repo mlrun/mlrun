@@ -21,10 +21,10 @@ def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     """
     Run model monitoring application processor
 
-    :param context: the MLRun context
+    :param context: the Nuclio context
     :param event:   trigger event
     """
-    context.user_data.monitor_app_controller.run()
+    context.user_data.monitor_app_controller.run(event)
 
 
 def init_context(context):

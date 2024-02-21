@@ -78,7 +78,7 @@ def deploy_nuclio_function(
             project=project_name,
             tag=function.metadata.tag,
             verbose=function.verbose,
-            create_new=True,
+            create_new=False,
             watch=False,
             return_address_mode=nuclio.deploy.ReturnAddressModes.all,
             auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,

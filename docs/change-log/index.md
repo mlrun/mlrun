@@ -99,7 +99,7 @@
 |ML-5146|Resolved OOM issues by reducing the memory footprint when monitoring runs. |
 |ML-5481|You can now use `build_image` using the project source. See the example in [build_image](../projects/run-build-deploy.html#build-image).|
 |ML-5576|FeatureSet can now ingest data that contains single quotes.|
-
+|ML-5746|Labels no longer create partial projects that cannot be deleted.|
 
 
 
@@ -878,7 +878,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|  |  | v1.6.0 |
-|ML-5746|  |  | v1.6.0|
 |ML-5776|Concurrent request to project deletion may fail thought first call would gracefully finish the flow, without experiencing any error. Other concurrent requests would not impact the project deletion flow.|NA| v1.6.0|
 
 

@@ -46,11 +46,6 @@ class TestDataDriftClassifier:
             DataDriftClassifier(potential=potential, detected=detected)
 
     @staticmethod
-    @pytest.fixture
-    def classifier() -> DataDriftClassifier:
-        return DataDriftClassifier(potential=0.5, detected=0.7)
-
-    @staticmethod
     @given(
         st.one_of(
             st.floats(max_value=0, exclude_max=True),
@@ -60,6 +55,11 @@ class TestDataDriftClassifier:
     def test_invalid_metric(value: float) -> None:
         with pytest.raises(InvalidMetricValueError):
             DataDriftClassifier().value_to_status(value)
+
+    @staticmethod
+    @pytest.fixture
+    def classifier() -> DataDriftClassifier:
+        return DataDriftClassifier(potential=0.5, detected=0.7)
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -73,10 +73,11 @@ class TestDataDriftClassifier:
             (1, ResultStatusApp.detected),
         ],
     )
-    def test_status(value: float, expected_status: ResultStatusApp) -> None:
+    def test_status(
+        classifier: DataDriftClassifier, value: float, expected_status: ResultStatusApp
+    ) -> None:
         assert (
-            DataDriftClassifier(potential=0.5, detected=0.7).value_to_status(value)
-            == expected_status
+            classifier.value_to_status(value) == expected_status
         ), "The status is different than expected"
 
 

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -106,11 +105,11 @@ def test_plot_produce(tmp_path: Path) -> None:
     assert len(train_run.status.artifacts) == 1
 
     # Check the plot was saved properly (only the drift table plot should appear):
-    artifact_directory_content = os.listdir(
-        os.path.dirname(train_run.status.artifacts[0]["spec"]["target_path"])
+    artifact_directory_content = list(
+        Path(train_run.status.artifacts[0]["spec"]["target_path"]).parent.glob("*")
     )
     assert len(artifact_directory_content) == 1
-    assert artifact_directory_content[0] == "drift_table_plot.html"
+    assert artifact_directory_content[0].name == "drift_table_plot.html"
 
 
 class TestCalculateInputsStatistics:

@@ -29,6 +29,7 @@ API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 IGUAZIO_USERNAME_LABEL = "iguazio.com/username"
+MLRUN_CREATED_LABEL = "mlrun-created"
 
 
 class Client:
@@ -109,6 +110,7 @@ class Client:
     def set_iguazio_labels(self, nuclio_object, project_name):
         nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
         nuclio_object.metadata.labels[IGUAZIO_USERNAME_LABEL] = self._username
+        nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
 
     async def _ensure_async_session(self):
         if not self._session:

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 import tempfile
 
@@ -105,9 +104,6 @@ def test_plot_produce():
         artifact_path=output_path.name,
         handler=plot_produce,
     )
-
-    # Print the outputs for manual validation:
-    print(json.dumps(train_run.outputs, indent=4))
 
     # Validate the artifact was logged:
     assert len(train_run.status.artifacts) == 1

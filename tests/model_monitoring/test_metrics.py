@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from typing import Union
 
 import numpy as np
 import pytest
@@ -128,6 +129,14 @@ def distribution_strategy(
     )
 
 
+@st.composite
+def two_distributions_strategy(draw: st.DrawFn) -> tuple[np.ndarray, np.ndarray]:
+    """Two distributions of the same shape"""
+    length = draw(_length_strategy)
+    arr_st = distribution_strategy(length)
+    return draw(arr_st), draw(arr_st)
+
+
 @pytest.mark.parametrize(
     "metric_class",
     HistogramDistanceMetric.__subclasses__(),
@@ -147,3 +156,15 @@ class TestMetricProperties:
             atol=1e-7,
         )
 
+    @staticmethod
+    @given(two_distributions=two_distributions_strategy())
+    def test_symmetric(
+        metric_class: type[HistogramDistanceMetric],
+        two_distributions: tuple[np.ndarray, np.ndarray],
+    ) -> None:
+        distrib_t, distrib_u = two_distributions
+        assert np.isclose(
+            metric_class(distrib_t=distrib_t, distrib_u=distrib_u).compute(),
+            metric_class(distrib_t=distrib_u, distrib_u=distrib_t).compute(),
+            atol=1e-8,
+        )

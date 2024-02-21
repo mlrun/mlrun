@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import typing
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pydantic
 
@@ -53,7 +53,7 @@ class APIGatewayBasicAuth(pydantic.BaseModel):
 
 class APIGatewayUpstream(pydantic.BaseModel):
     kind: Optional[str] = "nucliofunction"
-    nucliofunction: Dict[str, str]
+    nucliofunction: dict[str, str]
     percentage: Optional[int] = 0
 
 
@@ -64,8 +64,8 @@ class APIGatewaySpec(pydantic.BaseModel):
     authenticationMode: Optional[
         APIGatewayAuthenticationMode
     ] = APIGatewayAuthenticationMode.none
-    upstreams: List[APIGatewayUpstream]
-    authentication: Optional[Dict[str, Optional[APIGatewayBasicAuth]]]
+    upstreams: list[APIGatewayUpstream]
+    authentication: Optional[dict[str, Optional[APIGatewayBasicAuth]]]
     host: Optional[str]
 
     class Config:
@@ -90,4 +90,4 @@ class APIGateway(pydantic.BaseModel):
 
 
 class APIGateways(pydantic.BaseModel):
-    api_gateways: typing.Optional[Dict[str, APIGateway]] = {}
+    api_gateways: typing.Optional[dict[str, APIGateway]] = {}

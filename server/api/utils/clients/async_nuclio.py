@@ -14,7 +14,6 @@
 #
 import copy
 import urllib.parse
-from typing import Dict
 
 import aiohttp
 
@@ -43,7 +42,7 @@ class Client:
 
     async def list_api_gateways(
         self, project_name=None
-    ) -> Dict[str, mlrun.common.schemas.APIGateway]:
+    ) -> dict[str, mlrun.common.schemas.APIGateway]:
         headers = {}
 
         if project_name:

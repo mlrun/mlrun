@@ -56,7 +56,7 @@ The next step is to define the [feature vector](feature-vectors.html). Call the 
 
 ### Ingestion engines
 
-MLRun supports a few ingestion engines:
+MLRun supports several ingestion engines:
 
 - `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
 - `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments

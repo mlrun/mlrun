@@ -4,22 +4,8 @@
 - [Sources](#sources)
 - [Targets](#targets)
 
-
 # Sources
 
-| Class name                                                                                                        | Description                                                                     | storey | spark | pandas |
-| --------------------------------------------------                                                                | ---------------------------------                                               | ---    | ---   | ---    |
-| [mlrun.datastore.BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource)                      | Reads Google BigQuery query results as input source for a flow ("batch" source).                 | N      | Y     | Y      |
-| mlrun.datastore.SnowFlakeSource                                                                                 | Reads Snowflake query results as input source for a flow ("batch" source).                         | N      | Y     | N      |
-| mlrun.datastore.SQLSource                                                                                       | Reads SQL query results as input source for a flow ("batch" source).                               | Y      | N     | Y      |
-| [mlrun.datastore.CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource)            | Reads a CSV file as input source for a flow ("batch" source).                                    | Y      | Y     | Y      |
-| [storey.sources.DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow ("batch" source).                                    | Y      | N     | N      |
-| [mlrun.datastore.HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource)                              | Sets the HTTP-endpoint source for the flow (event-based source).                                 | Y      | N     | N      |
-| [mlrun.datastore.KafkaSource](../api/mlrun.datastore.html#mlrun.datastore.KafkaSource)                            | Sets the kafka source for the flow (event-based source).                                         | Y      | N     | N      |
-| [mlrun.datastore.ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource)    | Reads the Parquet file/dir as the input source for a flow ("batch" source).                      | Y      | Y     | Y      |
-| [mlrun.datastore.StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource)                          | Sets the stream source for the flow. If the stream doesn’t exist it creates it (event-based source). | Y      | N     | N      |
-
- 
 For batch ingestion the feature store supports dataframes and files (i.e. csv & parquet). <br>
 The files can reside on S3, NFS, SQL (for example, MYSQL), Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
 
@@ -28,14 +14,25 @@ When defining a source, it maps to nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
-## S3/Azure data source
+## Batch sources
+
+| Class name                                                                                                        | Description                                                   | storey | spark | pandas |
+| --------------------------------------------------                                                                | ---------------------------------                              | ---    | ---   | ---    |
+| [BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource)                      | Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
+| SnowFlakeSource                                                                                 | Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
+| [SQLSource](#sql-data-source)                                                                                      | Reads SQL query results as input source for a flow               | Y      | N     | Y      |
+| [CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource)            | Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
+| [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow.                   | Y      | N     | N      |
+| [ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource)    | Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
+
+### S3/Azure source
 
 When working with S3/Azure, there are additional requirements. Use: pip install mlrun[s3]; pip install mlrun[azure-blob-storage]; 
 or pip install mlrun[google-cloud-storage] to install them. 
 - Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`
 - S3: define `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_BUCKET`
 
-## SQL data source
+### SQL source
 
 ```{admonition} Note
 Tech Preview 
@@ -57,8 +54,15 @@ source = SQLSource(table_name='my_table',
  feature_set.set_targets([])
  df = fs.ingest(feature_set, source=source)
 ```
+## Event-based sources
 
-## Apache Kafka data source
+| Class name                                        | Description                                                                     | storey | spark | pandas |
+| --------------------------------------------------| ---------------------------------                                               | ---    | ---   | ---    |
+| [HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource)|Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
+| [Apache Kafka source](#apache-kafka-source) and [Confluent Kafka source](#confluent-kafka-source)|Sets the kafka source for the flow.          | Y      | N     | N      |
+| [StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource)|Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+
+### Apache Kafka source
 
 Example:
 
@@ -80,15 +84,13 @@ kafka_source = KafkaSource(
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
 stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
-```        
-       
+```
 
-## Confluent Kafka data source
+### Confluent Kafka source
 
 ```{admonition} Note
 Tech Preview 
 ```
-
 Example:
 
 ```
@@ -127,22 +129,7 @@ run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```
 
-
-
-
-
-
-
 # Targets
-| Class name                                                                                                    | Description                                                                                        | storey | spark | pandas |
-| --------------------------------------------------                                                            | -------------------------------------------------------                                            | ---    | ---   | ---    |
-| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)        | Writes events to a CSV file (offline target).                                                                       | Y      | Y     | Y      |
-| [mlrun.datastore.KafkaTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.KafkaTarget)    | Writes all incoming events into a Kafka stream (online target).                                                    | Y | N | N |
-| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)    | The default online target. Persists the data in V3IO table to its associated storage by key (online target).       | Y      | Y     | Y      |
-| mlrun.datastore.RedisNoSqlTarget                                                                              | Persists the data in Redis table to its associated storage by key (online target).                                 | Y      | Y     | N      |
-| mlrun.datastore.SqlTarget                                                                                     | The default offline target. Persists the data in SQL table to its associated storage by key (offline target).      | Y      | N     | Y      |
-| [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget)| The Parquet target storage driver, used to materialize feature set/vector data into parquet files (online target). | Y      | Y     | Y      |
-| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  | Writes all incoming events into a V3IO stream (offline target).                                                    | Y      | N     | N      |
 
 By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
 The Parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application 
@@ -153,19 +140,22 @@ When working with the Iguazio MLOps platform the default feature set storage loc
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in 
 NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
-## NoSql target
 
-The {py:meth}`~mlrun.datastore.NoSqlTarget` is a V3IO key-value based target. It is the default target for real-time data. 
-It supports low latency data retrieval based on key access, making it ideal for online applications.
+## Offline Targets
 
-The combination of a NoSQL target with the storey engine does not support features of type string with a value containing both quote (') and double-quote (").
+| Class name                                                                                                    | Description                                            | storey | spark | pandas |
+| --------------------------------------------------                                                            | -------------------------------------------------------| ---    | ---   | ---    |
+| [CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)        | Writes events to a CSV file).                          | Y      | Y     | Y      |
+| [KafkaTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.KafkaTarget)    | Writes all incoming events into a Kafka stream.        | Y      | N     | N |
+| [ParquetTarget](#parquettarget)| The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
+| [StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  | Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
 
-## ParquetTarget
+### ParquetTarget
 
 {py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
 The Parquet file is ideal for fetching large set of data for training.
 
-### Partitioning
+#### Partitioning
 
 When writing data to a ParquetTarget, you can use partitioning. Partitioning organizes data 
 in Parquet files by dividing large data sets into smaller and more manageable pieces. The data is divided
@@ -200,7 +190,22 @@ For example:
 Disable partitioning with:
 - `ParquetTarget(partitioned=False)`
 
-## Redis target store
+## Online Targets
+
+| Class name                             | Description                                                                                        | storey | spark | pandas |
+| --------------------------------------------------| -------------------------------------------------------           | ---    | ---   | ---    |
+| [NoSqlTarget](#nosql-target)     | The default online target. Persists the data in V3IO table to its associated storage by key (online target).       | Y      | Y     | Y      |
+| [RedisNoSqlTarget](#redis-target) | Persists the data in Redis table to its associated storage by key (online target).                                 | Y      | Y     | N      |
+| [SqlTarget](#sql-target)          | The default offline target. Persists the data in SQL table to its associated storage by key (offline target).      | Y      | N     | Y      |
+
+### NoSql target
+
+The {py:meth}`~mlrun.datastore.NoSqlTarget` is a V3IO key-value based target. It is the default target for real-time data. 
+It supports low latency data retrieval based on key access, making it ideal for online applications.
+
+The combination of a NoSQL target with the storey engine does not support features of type string with a value containing both quote (') and double-quote (").
+
+### Redis target 
 
 ```{admonition} Note
 Tech Preview
@@ -224,7 +229,7 @@ To use the Redis online target store, you can either change the default to be pa
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
 
-## SQL target store
+### SQL target 
 
 ```{admonition} Note
 Tech Preview 
@@ -249,8 +254,3 @@ You can pass the schema and the name of the table you want to create or the name
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
 fs.ingest(feature_set, source=df, targets=[target])
 ```
-
-
-
-
-

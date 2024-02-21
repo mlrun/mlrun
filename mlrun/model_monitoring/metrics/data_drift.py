@@ -100,12 +100,14 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
         mask = actual_dist != 0
         actual_dist = actual_dist[mask]
         expected_dist = expected_dist[mask]
-        return np.sum(
-            actual_dist
-            * np.log(
-                actual_dist / np.where(expected_dist != 0, expected_dist, kld_scaling)
-            ),
-        )
+        with np.errstate(over="ignore"):
+            # Ignore overflow warnings when dividing by small numbers,
+            # resulting in inf:
+            # RuntimeWarning: overflow encountered in true_divide
+            relative_prob = actual_dist / np.where(
+                expected_dist != 0, expected_dist, zero_scaling
+            )
+        return np.sum(actual_dist * np.log(relative_prob))
 
     def compute(
         self, capping: Optional[float] = None, zero_scaling: float = 1e-4

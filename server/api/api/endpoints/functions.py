@@ -56,6 +56,7 @@ from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
+from server.api.crud.model_monitoring.helpers import Seconds
 from server.api.crud.secrets import Secrets, SecretsClientType
 from server.api.utils.builder import build_runtime
 from server.api.utils.singletons.scheduler import get_scheduler
@@ -832,16 +833,17 @@ def _deploy_serving_monitoring(
                 ),
             )
 
+        # TODO : delete when batch is deprecated.
         # deploy model monitoring stream, model monitoring batch job,
         monitoring_deploy = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment()
         )
-        # TODO : delete when batch is deprecated.
         monitoring_deploy.deploy_model_monitoring_batch_processing(
             project=fn.metadata.project,
             db_session=db_session,
             auth_info=auth_info,
             tracking_policy=fn.spec.tracking_policy,
+            tracking_offset=Seconds(monitoring_deploy._max_parquet_save_interval),
             model_monitoring_access_key=model_monitoring_access_key,
         )
 

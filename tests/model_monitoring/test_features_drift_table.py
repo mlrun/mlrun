@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-import tempfile
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -95,13 +95,10 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
 
-def test_plot_produce():
-    # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory()
-
+def test_plot_produce(tmp_path: Path) -> None:
     # Run the plot production and logging:
     train_run = mlrun.new_function().run(
-        artifact_path=output_path.name,
+        artifact_path=str(tmp_path),
         handler=plot_produce,
     )
 
@@ -114,9 +111,6 @@ def test_plot_produce():
     )
     assert len(artifact_directory_content) == 1
     assert artifact_directory_content[0] == "drift_table_plot.html"
-
-    # Clean up the temporary directory:
-    output_path.cleanup()
 
 
 class TestCalculateInputsStatistics:

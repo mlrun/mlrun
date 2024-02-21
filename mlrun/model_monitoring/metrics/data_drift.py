@@ -93,7 +93,7 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
 
     @staticmethod
     def _calc_kl_div(
-        actual_dist: np.ndarray, expected_dist: np.ndarray, kld_scaling: float
+        actual_dist: np.ndarray, expected_dist: np.ndarray, zero_scaling: float
     ) -> float:
         """Return the asymmetric KL divergence"""
         # We take 0*log(0) == 0 for this calculation
@@ -108,17 +108,17 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
         )
 
     def compute(
-        self, capping: Optional[float] = None, kld_scaling: float = 1e-4
+        self, capping: Optional[float] = None, zero_scaling: float = 1e-4
     ) -> float:
         """
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.
-        :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
+        :param zero_scaling: Will be used to replace 0 values for executing the logarithmic operation.
 
         :returns: symmetric KL Divergence
         """
-        t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, kld_scaling)
-        u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, kld_scaling)
+        t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, zero_scaling)
+        u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, zero_scaling)
         result = t_u + u_t
         if capping and result == float("inf"):
             return capping

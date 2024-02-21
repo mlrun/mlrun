@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import os
 import tempfile
@@ -30,7 +30,7 @@ from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
 def generate_data(
     n_samples: int,
     n_features: int,
-    loc_range: tuple[int, int] = (0.1, 1.1),
+    loc_range: tuple[float, float] = (0.1, 1.1),
     scale_range: tuple[int, int] = (1, 2),
     inputs_diff_range: tuple[int, int] = (0, 1),
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -96,7 +96,7 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
 
-def test_plot_produce(rundb_mock):
+def test_plot_produce():
     # Create a temp directory:
     output_path = tempfile.TemporaryDirectory()
 

@@ -80,7 +80,7 @@ def test_list_api_gateways(
     assert response.json() == expected_response_body
 
 
-@patch.object(server.api.utils.clients.async_nuclio.Client, "create_api_gateway")
+@patch.object(server.api.utils.clients.async_nuclio.Client, "store_api_gateway")
 def test_create_api_gateway(
     create_api_gateway_mocked, client: fastapi.testclient.TestClient
 ):

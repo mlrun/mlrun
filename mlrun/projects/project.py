@@ -59,7 +59,6 @@ from ..model_monitoring.application import (
 )
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.function import RemoteRuntime
-from ..runtimes.serving import ServingRuntime
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -3504,62 +3503,35 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_custom_packager(packager=packager)
 
-    def create_api_gateway(
-        self,
-        name: str,
-        functions: Union[
-            list[
-                Union[
-                    RemoteRuntime,
-                    ServingRuntime,
-                ]
-            ],
-            Union[RemoteRuntime, ServingRuntime],
-        ],
-        path: Optional[str] = "/",
-        description: Optional[str] = "",
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        canary: Optional[list[int]] = None,
-    ) -> Union[mlrun.runtimes.api_gateway.APIGateway, None]:
+    def create_or_update_api_gateway(
+        self, api_gateway: mlrun.runtimes.api_gateway.APIGateway
+    ) -> mlrun.runtimes.api_gateway.APIGateway:
         """
-        Creates a Nuclio API Gateway. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+        Creates or updates a Nuclio API Gateway using the provided APIGateway object.
 
-        :param name (str): API Gateway name.
-        :param functions (Union[list[Union[RemoteRuntime, ServingRuntime]], Union[RemoteRuntime, ServingRuntime]]):
-              List of Nuclio functions or a single Nuclio function.
-        :param path (str): API Gateway path (optional).
-        :param description (str): description for the API Gateway (optional).
-        :param username (str): Username for authentication (optional).
-        :param password (str): Password for authentication (optional).
-        :param canary (List[int]): List containing canary configuration for each function in the function
-            list respectively (optional).
-            For example, if the function list is [f1, f2], the canary list should have two elements,
-            such as [20, 80]. In this case, 20 represents the percentage of traffic going to f1, and 80 represents
-            the percentage of traffic going to f2.
+        This method interacts with the MLRun service to create/update a Nuclio API Gateway based on the provided
+        APIGateway object. Once done, it returns the updated APIGateway object containing all fields propagated
+        on MLRun and Nuclio sides, such as the 'host' attribute.
+        Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        @return: API Gateway object if successful, else None.
+        :param api_gateway: An instance of mlrun.runtimes.api_gateway.APIGateway representing the configuration
+        of the API Gateway to be created
+
+        @return: An instance of mlrun.runtimes.api_gateway.APIGateway with all fields populated based on the
+        information retrieved from the Nuclio API
         """
-        api_gateway = mlrun.runtimes.api_gateway.APIGateway(
+
+        api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
+            api_gateway=api_gateway,
             project=self.name,
-            name=name,
-            path=path,
-            description=description,
-            functions=functions,
-            canary=canary,
-            username=username,
-            password=password,
         )
 
-        ok = mlrun.db.get_run_db().create_api_gateway(api_gateway=api_gateway)
-
-        if ok:
-            # TODO: rework to request specific api gateway by name
-            api_gateways_list = self.list_api_gateways()
-            for gw in api_gateways_list:
-                if gw.project == self.name and gw.name == name:
-                    return gw
-        return None
+        if api_gateway_json:
+            # fill in all the fields in the user's api_gateway object
+            api_gateway = mlrun.runtimes.api_gateway.APIGateway.from_scheme(
+                api_gateway_json
+            )
+        return api_gateway
 
     def list_api_gateways(self) -> list[mlrun.runtimes.api_gateway.APIGateway]:
         """
@@ -3569,9 +3541,37 @@ class MlrunProject(ModelObj):
         """
         gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
         return [
-            mlrun.runtimes.api_gateway.APIGateway.from_dict(gateway_dict)
-            for gateway_dict in gateways_list
+            mlrun.runtimes.api_gateway.APIGateway.from_scheme(gateway_dict)
+            for gateway_dict in gateways_list.api_gateways.values()
         ]
+
+    def get_api_gateway(
+        self,
+        name: Optional[str],
+        api_gateway: Optional[mlrun.runtimes.api_gateway.APIGateway],
+    ) -> mlrun.runtimes.api_gateway.APIGateway:
+        """
+        Retrieves an API gateway by name or object instance.
+
+        :param name: The name of the API gateway to retrieve.
+        :param api_gateway: An instance of mlrun.runtimes.api_gateway.APIGateway to retrieve if `name` is not provided.
+
+        Returns:
+            mlrun.runtimes.api_gateway.APIGateway: An instance of APIGateway.
+        """
+        if name:
+            api_gateway = mlrun.db.get_run_db().get_api_gateway(
+                name=name, project=self.name
+            )
+        elif api_gateway:
+            if api_gateway.project != self.name:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Passed API gateway doesn't belong to this project"
+                )
+            api_gateway = mlrun.db.get_run_db().get_api_gateway(
+                name=api_gateway.name, project=self.name
+            )
+        return api_gateway
 
     def _run_authenticated_git_action(
         self,

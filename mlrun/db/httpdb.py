@@ -3291,45 +3291,62 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def list_api_gateways(self, project=None):
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGateways:
         """
         Returns a list of Nuclio api gateways
         :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
 
-        :return: json with the list of Nuclio Api Gateways
-            (json example is here
-            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        :return: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
         project = project or config.default_project
         error = "list api gateways"
         endpoint_path = f"projects/{project}/nuclio/api-gateways"
-        resp = self.api_call("GET", endpoint_path, error)
-        return resp.json()
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGateways(**response.json())
 
-    def create_api_gateway(
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        """
+        Returns an API gateway
+        :param name: API gateway name
+        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+        project = project or config.default_project
+        error = "get api gateway"
+        endpoint_path = f"projects/{project}/nuclio/api-gateways/{name}"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGateway(**response.json())
+
+    def store_api_gateway(
         self,
         api_gateway: Union[
             mlrun.common.schemas.APIGateway, mlrun.runtimes.api_gateway.APIGateway
         ],
         project: Optional[str] = None,
-        name: Optional[str] = None,
-    ) -> bool:
+    ) -> mlrun.common.schemas.APIGateway:
         """
-        Creates an API Gateway.
+        Stores an API Gateway.
         :param api_gateway :py:class:`~mlrun.runtimes.api_gateway.APIGateway`
             or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
         :param name: api gateway name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
-        @return: True if the API Gateway was created successfully, False otherwise
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
 
         if isinstance(api_gateway, mlrun.runtimes.api_gateway.APIGateway):
             api_gateway = api_gateway.to_scheme()
-
-        endpoint_path = f"projects/{project}/nuclio/api-gateways/{name}"
+        endpoint_path = (
+            f"projects/{project}/nuclio/api-gateways/{api_gateway.metadata.name}"
+        )
         error = "create api gateways"
-        response = self.api_call("POST", endpoint_path, error, json=api_gateway.dict())
-        return response.ok if response else False
+        response = self.api_call(
+            "PUT",
+            endpoint_path,
+            error,
+            json=api_gateway.dict(exclude_unset=True, exclude_none=True),
+        )
+        return mlrun.common.schemas.APIGateway(**response.json())
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually

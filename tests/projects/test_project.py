@@ -27,8 +27,10 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.runtimes.api_gateway
 import mlrun.runtimes.base
 import mlrun.utils.helpers
 import tests.conftest
@@ -1535,45 +1537,54 @@ def test_load_project_from_yaml_with_function(context):
 
 
 @pytest.mark.parametrize(
-    "kind_1 ,kind_2, canary",
+    "kind_1 ,kind_2, canary, upstreams",
     [
-        ("nuclio", "nuclio", [20, 80]),
-        ("nuclio", None, None),
+        (
+            "nuclio",
+            "nuclio",
+            [20, 80],
+            [
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func1"}, percentage=80
+                ),
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func2"}, percentage=20
+                ),
+            ],
+        ),
+        (
+            "nuclio",
+            None,
+            None,
+            [
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func1"}, percentage=0
+                ),
+            ],
+        ),
     ],
 )
-@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
-@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
 def test_create_api_gateway_valid(
-    patched_list_api_gateways,
     patched_create_api_gateway,
     context,
     kind_1,
     kind_2,
     canary,
+    upstreams,
 ):
-    patched_create_api_gateway.return_value = True
-    patched_list_api_gateways.return_value = patched_list_api_gateways.return_value = [
-        {
-            "metadata": {
-                "name": "gateway-f1-f2",
-                "namespace": "default-tenant",
-                "labels": {
-                    "nuclio.io/project-name": "project-name",
-                },
-                "creationTimestamp": "2023-12-13T13:00:09Z",
-            },
-            "spec": {
-                "host": "gateway-f1-f2-project-name.some-domain.com",
-                "name": "gateway-f1-f2",
-                "path": "/",
-                "authenticationMode": "none",
-                "upstreams": [
-                    {"kind": "nucliofunction", "nucliofunction": {"name": "fff"}}
-                ],
-            },
-            "status": {"name": "gateway-f1-f2", "state": "ready"},
-        }
-    ]
+    patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(
+            name="new-gw",
+            labels={"nuclio.io/project-name": "project-name"},
+        ),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="new-gw",
+            path="/",
+            host="http://gateway-f1-f2-project-name.some-domain.com",
+            upstreams=upstreams,
+        ),
+    )
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
     f1 = mlrun.code_to_function(
@@ -1595,12 +1606,18 @@ def test_create_api_gateway_valid(
         f2.save()
         project.set_function(f2)
         functions = [f1, f2]
-
-    gateway = project.create_api_gateway(
-        name="gateway-f1-f2", functions=functions, canary=canary
+    api_gateway = mlrun.runtimes.api_gateway.APIGateway(
+        name="gateway-f1-f2",
+        functions=functions,
+        canary=canary,
+        project=project_name,
     )
 
-    assert gateway._invoke_url == "gateway-f1-f2-project-name.some-domain.com/"
+    gateway = project.create_or_update_api_gateway(api_gateway)
+
+    assert (
+        gateway.get_invoke_url() == "http://gateway-f1-f2-project-name.some-domain.com/"
+    )
 
     assert gateway.authentication_mode == "none"
 
@@ -1614,11 +1631,7 @@ def test_create_api_gateway_valid(
         ("job", None, None),
     ],
 )
-@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
-def test_create_api_gateway_invalid(
-    patched_create_api_gateway, context, kind_1, kind_2, canary
-):
-    patched_create_api_gateway.return_value = True
+def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
     f1 = mlrun.code_to_function(
@@ -1640,75 +1653,63 @@ def test_create_api_gateway_invalid(
         f2.save()
         project.set_function(f2)
         functions = [f1, f2]
-
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        project.create_api_gateway(
-            name="gateway-f1-f2", functions=functions, canary=canary
+        mlrun.runtimes.api_gateway.APIGateway(
+            name="gateway-f1-f2",
+            functions=functions,
+            canary=canary,
+            project=project_name,
         )
 
 
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
 def test_list_api_gateways(patched_list_api_gateways, context):
-    patched_list_api_gateways.return_value = [
-        {
-            "metadata": {
-                "name": "test",
-                "namespace": "default-tenant",
-                "labels": {
-                    "nuclio.io/project-name": "default",
-                },
-                "creationTimestamp": "2023-12-13T13:00:09Z",
-            },
-            "spec": {
-                "host": "test-default.domain.com",
-                "name": "test",
-                "path": "/",
-                "authenticationMode": "none",
-                "upstreams": [
-                    {"kind": "nucliofunction", "nucliofunction": {"name": "fff"}}
-                ],
-            },
-            "status": {"name": "test", "state": "ready"},
-        },
-        {
-            "metadata": {
-                "name": "test-basic",
-                "namespace": "default-tenant",
-                "labels": {
-                    "nuclio.io/project-name": "default",
-                },
-                "creationTimestamp": "2023-11-16T12:42:48Z",
-            },
-            "spec": {
-                "host": "test-basic-default.domain.com",
-                "name": "test-basic",
-                "path": "/",
-                "authenticationMode": "basicAuth",
-                "authentication": {
-                    "basicAuth": {"username": "test", "password": "test"}
-                },
-                "upstreams": [
-                    {"kind": "nucliofunction", "nucliofunction": {"name": "test"}},
-                    {
-                        "kind": "nucliofunction",
-                        "nucliofunction": {"name": "hello-test"},
-                        "percentage": 37,
-                    },
-                ],
-            },
-            "status": {"name": "test-basic", "state": "ready"},
-        },
-    ]
+    patched_list_api_gateways.return_value = mlrun.common.schemas.APIGateways(
+        api_gateways={
+            "test": mlrun.common.schemas.APIGateway(
+                metadata=mlrun.common.schemas.APIGatewayMetadata(
+                    name="test",
+                    labels={"nuclio.io/project-name": "project-name"},
+                ),
+                spec=mlrun.common.schemas.APIGatewaySpec(
+                    name="test",
+                    path="/",
+                    host="http://gateway-f1-f2-project-name.some-domain.com",
+                    upstreams=[
+                        mlrun.common.schemas.APIGatewayUpstream(
+                            nucliofunction={"name": "my-func1"}, percentage=0
+                        ),
+                    ],
+                ),
+            ),
+            "test2": mlrun.common.schemas.APIGateway(
+                metadata=mlrun.common.schemas.APIGatewayMetadata(
+                    name="test2",
+                    labels={"nuclio.io/project-name": "project-name"},
+                ),
+                spec=mlrun.common.schemas.APIGatewaySpec(
+                    name="test2",
+                    path="/",
+                    host="http://test-basic-default.domain.com",
+                    upstreams=[
+                        mlrun.common.schemas.APIGatewayUpstream(
+                            nucliofunction={"name": "my-func1"}, percentage=0
+                        )
+                    ],
+                ),
+            ),
+        }
+    )
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
     gateways = project.list_api_gateways()
 
     assert gateways[0].name == "test"
-    assert gateways[0].host == "test-default.domain.com"
-    assert gateways[0].functions == ["fff"]
+    assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
+    assert gateways[0].functions == ["my-func1"]
 
-    assert gateways[1].generate_invoke_url() == "test-basic-default.domain.com/"
-    assert gateways[1]._generate_auth("test", "test") == "Basic dGVzdDp0ZXN0"
+    assert gateways[1].get_invoke_url() == "http://test-basic-default.domain.com/"
+    assert gateways[1]._generate_basic_auth("test", "test") == "Basic dGVzdDp0ZXN0"
 
 
 def test_project_create_remote():

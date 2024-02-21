@@ -14,6 +14,7 @@
 #
 import copy
 import urllib.parse
+from typing import Dict
 
 import aiohttp
 
@@ -24,56 +25,91 @@ import mlrun.utils
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
-NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/"
+NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/{api_gateway}"
 API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
+NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
+IGUAZIO_USERNAME_LABEL = "iguazio.com/username"
 
 
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._session = None
+        self._username = auth_info.username
         self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
         self._nuclio_domain = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
 
-    async def list_api_gateways(self, project_name=None):
+    async def list_api_gateways(
+        self, project_name=None
+    ) -> Dict[str, mlrun.common.schemas.APIGateway]:
         headers = {}
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
 
-        return await self._send_request_to_api(
+        api_gateways = await self._send_request_to_api(
             method="GET",
-            url=self._nuclio_dashboard_url,
             path=NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=""),
             headers=headers,
         )
+        parsed_api_gateways = {}
+        for name, gw in api_gateways.items():
+            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(gw)
+        return parsed_api_gateways
 
-    async def create_api_gateway(
+    async def api_gateway_exists(self, name: str, project_name: str = None):
+        return name in await self.list_api_gateways(project_name=project_name)
+
+    async def get_api_gateway(self, name: str, project_name: str = None):
+        headers = {}
+
+        if project_name:
+            headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
+
+        api_gateway = await self._send_request_to_api(
+            method="GET",
+            path=NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=name),
+            headers=headers,
+        )
+        return mlrun.common.schemas.APIGateway.parse_obj(api_gateway)
+
+    async def store_api_gateway(
         self,
         project_name: str,
         api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
+        create: bool = False,
     ):
         headers = {}
+        self._resolve_nuclio_api_gateway(
+            project_name=project_name,
+            api_gateway=api_gateway,
+            api_gateway_name=api_gateway_name,
+        )
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
 
-        body = self._generate_nuclio_api_gateway_body(
-            project_name=project_name,
-            api_gateway_name=api_gateway_name,
-            api_gateway=api_gateway,
+        body = api_gateway.dict(exclude_unset=True, exclude_none=True)
+        method = "POST" if create else "PUT"
+        path = (
+            NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=api_gateway_name)
+            if method == "PUT"
+            else NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway="")
         )
 
         return await self._send_request_to_api(
-            method="POST",
-            url=self._nuclio_dashboard_url,
-            path=NUCLIO_API_GATEWAYS_ENDPOINT,
+            method=method,
+            path=path,
             headers=headers,
             json=body,
         )
+
+    def set_iguazio_labels(self, nuclio_object, project_name):
+        nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
+        nuclio_object.metadata.labels[IGUAZIO_USERNAME_LABEL] = self._username
 
     async def _ensure_async_session(self):
         if not self._session:
@@ -83,13 +119,18 @@ class Client:
                 logger=logger,
             )
 
+    async def close_session(self):
+        if self._session:
+            await self._session.close()
+            self._session = None
+
     async def _send_request_to_api(
-        self, method, url, path="/", error_message: str = "", **kwargs
+        self, method, path="/", error_message: str = "", **kwargs
     ):
         await self._ensure_async_session()
         response = await self._session.request(
             method=method,
-            url=urllib.parse.urljoin(url, path),
+            url=urllib.parse.urljoin(self._nuclio_dashboard_url, path),
             auth=self._auth,
             verify_ssl=False,
             **kwargs,
@@ -102,7 +143,13 @@ class Client:
             except Exception:
                 response_body = {}
             self._handle_error_response(
-                method, url, path, response, response_body, error_message, kwargs
+                method,
+                self._nuclio_dashboard_url,
+                path,
+                response,
+                response_body,
+                error_message,
+                kwargs,
             )
         else:
             return await response.json()
@@ -131,80 +178,17 @@ class Client:
 
         mlrun.errors.raise_for_status(response, error_message)
 
-    def _generate_nuclio_api_gateway_body(
+    def _resolve_nuclio_api_gateway(
         self,
         project_name: str,
         api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
-    ) -> dict:
-        if not api_gateway.functions:
-            raise ValueError("functions should contain at least one object")
+    ) -> mlrun.common.schemas.APIGateway:
+        self.set_iguazio_labels(api_gateway, project_name)
+        if not api_gateway.spec.host:
+            api_gateway.spec.host = (
+                f"{api_gateway_name}-{project_name}."
+                f"{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
+            )
 
-        host = f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
-
-        authentication_mode = (
-            mlrun.runtimes.api_gateway.NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
-            if not api_gateway.username and not api_gateway.password
-            else mlrun.runtimes.api_gateway.BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
-        )
-        body = {
-            "spec": {
-                "name": api_gateway_name,
-                "description": api_gateway.description,
-                "path": api_gateway.path,
-                "authenticationMode": authentication_mode,
-                "upstreams": [
-                    {
-                        "kind": "nucliofunction",
-                        "nucliofunction": {
-                            "name": api_gateway.functions[0],
-                        },
-                        "percentage": 0,
-                    }
-                ],
-                "host": host,
-            },
-            "metadata": {
-                "labels": {
-                    mlrun.runtimes.api_gateway.PROJECT_NAME_LABEL: project_name,
-                },
-                "name": api_gateway_name,
-            },
-        }
-
-        # Handle authentication info
-        if (
-            authentication_mode
-            == mlrun.runtimes.api_gateway.BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
-        ):
-            if api_gateway.username and api_gateway.password:
-                body["spec"]["authentication"] = {
-                    "basicAuth": {
-                        "username": api_gateway.username,
-                        "password": api_gateway.password,
-                    }
-                }
-            else:
-                raise mlrun.errors.MLRunPreconditionFailedError(
-                    "basicAuth authentication requires username and password"
-                )
-
-        # Handle canary function info
-        if api_gateway.canary:
-            if len(api_gateway.canary) != len(api_gateway.functions):
-                raise ValueError(
-                    "Functions list should be the same length as canary list"
-                )
-            upstream = [
-                {
-                    "kind": "nucliofunction",
-                    "nucliofunction": {"name": function_name},
-                    "percentage": percentage,
-                }
-                for function_name, percentage in zip(
-                    api_gateway.functions, api_gateway.canary
-                )
-            ]
-            body["spec"]["upstreams"] = upstream
-
-        return body
+        return api_gateway

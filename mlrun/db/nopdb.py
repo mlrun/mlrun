@@ -494,16 +494,17 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def create_api_gateway(
+    def store_api_gateway(
         self,
-        name: str,
         project: str,
         api_gateway: mlrun.runtimes.api_gateway.APIGateway,
-        auth: tuple,
-    ) -> bool:
+    ) -> mlrun.common.schemas.APIGateway:
         pass
 
     def list_api_gateways(self, project=None):
+        pass
+
+    def get_api_gateway(self, name, project=None):
         pass
 
     def verify_authorization(

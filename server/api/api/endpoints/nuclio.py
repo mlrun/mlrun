@@ -22,50 +22,122 @@ from server.api.api import deps
 router = APIRouter()
 
 
-@router.get("/projects/{project}/nuclio/api-gateways")
+@router.get(
+    "/projects/{project}/api-gateways",
+    response_model=mlrun.common.schemas.APIGateways,
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+)
 async def list_api_gateways(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
+    """
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
+    """
+    client = server.api.utils.clients.async_nuclio.Client(auth_info)
+    api_gateways = await client.list_api_gateways(project)
+    await client.close_session()
 
-    api_gateways = await server.api.utils.clients.async_nuclio.Client(
-        auth_info
-    ).list_api_gateways(project)
-
-    return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_api_gateways = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        list(api_gateways.values()) if api_gateways else [],
+        list(api_gateways.keys()) if api_gateways else [],
         lambda _api_gateway: (
-            _api_gateway.get("metadata", {})
-            .get("labels", {})
-            .get("iguazio.com/username"),
-            _api_gateway.get("metadata", {}).get("name"),
+            project,
+            _api_gateway,
         ),
         auth_info,
     )
+    allowed_api_gateways = {
+        api_gateway: api_gateways[api_gateway] for api_gateway in allowed_api_gateways
+    }
+    return mlrun.common.schemas.APIGateways(api_gateways=allowed_api_gateways)
 
 
-@router.post("/projects/{project}/nuclio/api-gateways/{gateway}")
-async def create_api_gateway(
+@router.get(
+    "/projects/{project}/api-gateways/{gateway}",
+    response_model=mlrun.common.schemas.APIGateway,
+    response_model_exclude_none=True,
+)
+async def get_api_gateway(
+    project: str,
+    gateway: str,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+):
+    """
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    """
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+        project,
+        gateway,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    client = server.api.utils.clients.async_nuclio.Client(auth_info)
+    api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
+    await client.close_session()
+    return api_gateway
+
+
+@router.put(
+    "/projects/{project}/api-gateways/{gateway}",
+    response_model=mlrun.common.schemas.APIGateway,
+    response_model_exclude_none=True,
+)
+async def store_api_gateway(
     project: str,
     gateway: str,
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
+    """
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,
         gateway,
-        mlrun.common.schemas.AuthorizationAction.create,
+        mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    await server.api.utils.clients.async_nuclio.Client(auth_info).create_api_gateway(
-        project_name=project,
-        api_gateway_name=gateway,
-        api_gateway=api_gateway,
+    """
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+        project,
+        gateway,
+        mlrun.common.schemas.AuthorizationAction.store,
+        auth_info,
     )
+    client = server.api.utils.clients.async_nuclio.Client(auth_info)
+
+    if not await client.api_gateway_exists(
+        name=gateway,
+        project_name=project,
+    ):
+        await client.store_api_gateway(
+            project_name=project,
+            api_gateway_name=gateway,
+            api_gateway=api_gateway,
+            create=True,
+        )
+    else:
+        await client.store_api_gateway(
+            project_name=project,
+            api_gateway_name=gateway,
+            api_gateway=api_gateway,
+        )
+
+    api_gateway = await client.get_api_gateway(
+        name=gateway,
+        project_name=project,
+    )
+    await client.close_session()
+    return api_gateway

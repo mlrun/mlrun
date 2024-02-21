@@ -20,7 +20,7 @@ from aioresponses import aioresponses as aioresponses_
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import mlrun.runtimes.api_gateway
+import mlrun.runtimes.nuclio.api_gateway
 import server.api.utils.clients.async_nuclio
 
 
@@ -53,7 +53,7 @@ async def test_nuclio_get_api_gateway(
     nuclio_client,
     mock_aioresponse,
 ):
-    api_gateway = mlrun.runtimes.api_gateway.APIGateway(
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         functions=["test"], name="test-basic", project="default-project"
     )
 
@@ -64,7 +64,7 @@ async def test_nuclio_get_api_gateway(
         status=http.HTTPStatus.ACCEPTED,
     )
     r = await nuclio_client.get_api_gateway("test-basic", "default")
-    received_api_gateway = mlrun.runtimes.api_gateway.APIGateway.from_scheme(r)
+    received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
     assert received_api_gateway.name == api_gateway.name
     assert received_api_gateway.description == api_gateway.description
     assert received_api_gateway.authentication_mode == api_gateway.authentication_mode
@@ -79,7 +79,7 @@ async def test_nuclio_store_api_gateway(
     mock_aioresponse,
 ):
     request_url = f"{api_url}/api/api_gateways/new-gw"
-    api_gateway = mlrun.runtimes.api_gateway.APIGateway(
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         project="default",
         name="new-gw",
         functions=["test-func"],

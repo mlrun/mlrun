@@ -19,7 +19,7 @@ import aiohttp
 
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.runtimes.api_gateway
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
 from mlrun.utils import logger
 

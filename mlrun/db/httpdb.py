@@ -33,7 +33,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
-import mlrun.runtimes.api_gateway
+import mlrun.runtimes.nuclio.api_gateway
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -3371,20 +3371,21 @@ class HTTPRunDB(RunDBInterface):
     def store_api_gateway(
         self,
         api_gateway: Union[
-            mlrun.common.schemas.APIGateway, mlrun.runtimes.api_gateway.APIGateway
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
         ],
         project: Optional[str] = None,
     ) -> mlrun.common.schemas.APIGateway:
         """
         Stores an API Gateway.
-        :param api_gateway :py:class:`~mlrun.runtimes.api_gateway.APIGateway`
+        :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
             or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
         :param name: api gateway name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
 
-        if isinstance(api_gateway, mlrun.runtimes.api_gateway.APIGateway):
+        if isinstance(api_gateway, mlrun.runtimes.nuclio.api_gateway.APIGateway):
             api_gateway = api_gateway.to_scheme()
         endpoint_path = (
             f"projects/{project}/nuclio/api-gateways/{api_gateway.metadata.name}"

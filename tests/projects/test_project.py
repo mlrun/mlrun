@@ -30,8 +30,8 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
-import mlrun.runtimes.api_gateway
 import mlrun.runtimes.base
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -1597,7 +1597,7 @@ def test_create_api_gateway_valid(
         f2.save()
         project.set_function(f2)
         functions = [f1, f2]
-    api_gateway = mlrun.runtimes.api_gateway.APIGateway(
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         name="gateway-f1-f2",
         functions=functions,
         canary=canary,
@@ -1645,7 +1645,7 @@ def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
         project.set_function(f2)
         functions = [f1, f2]
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.runtimes.api_gateway.APIGateway(
+        mlrun.runtimes.nuclio.api_gateway.APIGateway(
             name="gateway-f1-f2",
             functions=functions,
             canary=canary,

@@ -509,7 +509,7 @@ class NopDB(RunDBInterface):
     def store_api_gateway(
         self,
         project: str,
-        api_gateway: mlrun.runtimes.api_gateway.APIGateway,
+        api_gateway: mlrun.runtimes.nuclio.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         pass
 

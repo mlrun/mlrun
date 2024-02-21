@@ -23,10 +23,17 @@ All images are published to
 
 The images are:
 
-- `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs. When using the mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. You can build your own images with newer CUDA for later releases of PyTorch.
-- `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. When using the mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher. You can build your own images with newer CUDA for later releases of PyTorch.
-- `mlrun/ml-base`: Similar to `mlrun/mlrun` with the addition of Dask and other Python packages.
+- `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs. 
+- `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
+- `mlrun/ml-base`: Image for file acquisition, compression, dask jobs, simple training jobs and other utilities.
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
+
+```{admonition} Note
+When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. 
+You can build your own images with newer CUDA for later releases of PyTorch.
+```
+
+
 
 ## Building MLRun images
 

@@ -75,7 +75,15 @@ async def get_files_with_project_secrets(
         secrets = await _verify_and_get_project_secrets(project, auth_info)
 
     return await run_in_threadpool(
-        _get_files, schema, objpath, user, size, offset, auth_info, secrets=secrets
+        _get_files,
+        schema,
+        objpath,
+        user,
+        size,
+        offset,
+        auth_info,
+        secrets=secrets,
+        project=project,
     )
 
 
@@ -136,6 +144,7 @@ def _get_files(
     offset: int,
     auth_info: mlrun.common.schemas.AuthInfo,
     secrets: dict = None,
+    project: str = "",
 ):
     _, filename = objpath.split(objpath)
 
@@ -154,7 +163,7 @@ def _get_files(
 
     body = None
     try:
-        obj = store_manager.object(url=objpath, secrets=secrets)
+        obj = store_manager.object(url=objpath, secrets=secrets, project=project)
         if objpath.endswith("/"):
             listdir = obj.listdir()
             return {

@@ -148,7 +148,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         fset = fstore.FeatureSet(
             name="gcs_system_test", entities=[fstore.Entity("name")]
         )
-        fstore.ingest(fset, source, targets=targets)
+        fset.ingest(source, targets=targets)
         target_path = fset.get_target_path()
 
         result = source_class(path=target_path).to_dataframe()

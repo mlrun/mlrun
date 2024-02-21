@@ -44,6 +44,48 @@ class Constants:
     log_format = "> %(asctime)s [%(levelname)s] %(message)s"
 
 
+class ExcecutionParams:
+    def __init__(
+        self,
+        registry_url: str,
+        registry_secret_name: str = None,
+        chart_version: str = None,
+        mlrun_version: str = None,
+        override_mlrun_api_image: str = None,
+        override_mlrun_log_collector_image: str = None,
+        override_mlrun_ui_image: str = None,
+        override_jupyter_image: str = None,
+        disable_pipelines: bool = False,
+        force_enable_pipelines: bool = False,
+        disable_prometheus_stack: bool = False,
+        disable_spark_operator: bool = False,
+        disable_log_collector: bool = False,
+        devel: bool = False,
+        minikube: bool = False,
+        sqlite: str = None,
+        upgrade: bool = False,
+        custom_values: list[str] = None,
+    ):
+        self.registry_url = registry_url
+        self.registry_secret_name = registry_secret_name
+        self.chart_version = chart_version
+        self.mlrun_version = mlrun_version
+        self.override_mlrun_api_image = override_mlrun_api_image
+        self.override_mlrun_log_collector_image = override_mlrun_log_collector_image
+        self.override_mlrun_ui_image = override_mlrun_ui_image
+        self.override_jupyter_image = override_jupyter_image
+        self.disable_pipelines = disable_pipelines
+        self.force_enable_pipelines = force_enable_pipelines
+        self.disable_prometheus_stack = disable_prometheus_stack
+        self.disable_spark_operator = disable_spark_operator
+        self.disable_log_collector = disable_log_collector
+        self.devel = devel
+        self.minikube = minikube
+        self.sqlite = sqlite
+        self.upgrade = upgrade
+        self.custom_values = custom_values
+
+
 class CommunityEditionDeployer:
     """
     Deployer for MLRun Community Edition (CE) stack.
@@ -107,6 +149,7 @@ class CommunityEditionDeployer:
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
+        force_enable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
         disable_log_collector: bool = False,
@@ -115,30 +158,31 @@ class CommunityEditionDeployer:
         minikube: bool = False,
         sqlite: str = None,
         upgrade: bool = False,
-        custom_values: typing.List[str] = None,
+        custom_values: list[str] = None,
     ) -> None:
         """
         Deploy MLRun CE stack.
-        :param registry_url: URL of the container registry to use for storing images
-        :param registry_username: Username for the container registry (not required if registry_secret_name is provided)
-        :param registry_password: Password for the container registry (not required if registry_secret_name is provided)
-        :param registry_secret_name: Name of the secret containing the credentials for the container registry
-        :param chart_version: Version of the helm chart to deploy (defaults to the latest stable version)
-        :param mlrun_version: Version of MLRun to deploy (defaults to the latest stable version)
-        :param override_mlrun_api_image: Override the default MLRun API image
-        :param override_mlrun_log_collector_image: Override the default MLRun Log Collector image
-        :param override_mlrun_ui_image: Override the default MLRun UI image
-        :param override_jupyter_image: Override the default Jupyter image
-        :param disable_pipelines: Disable the deployment of the pipelines component
-        :param disable_prometheus_stack: Disable the deployment of the Prometheus stack component
-        :param disable_spark_operator: Disable the deployment of the Spark operator component
-        :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
-        :param skip_registry_validation: Skip the validation of the registry URL
-        :param devel: Deploy the development version of the helm chart
-        :param minikube: Deploy the helm chart with minikube configuration
-        :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
-        :param upgrade: Upgrade an existing MLRun CE deployment
-        :param custom_values: List of custom values to pass to the helm chart
+        :param registry_url:        URL of the container registry to use for storing images
+        :param registry_username:   Username for the container registry (required unless providing registry_secret_name)
+        :param registry_password:   Password for the container registry (required unless providing registry_secret_name)
+        :param registry_secret_name:    Name of the secret containing the credentials for the container registry
+        :param chart_version:       Version of the helm chart to deploy (defaults to the latest stable version)
+        :param mlrun_version:       Version of MLRun to deploy (defaults to the latest stable version)
+        :param override_mlrun_api_image:            Override the default MLRun API image
+        :param override_mlrun_log_collector_image:  Override the default MLRun Log Collector image
+        :param override_mlrun_ui_image:             Override the default MLRun UI image
+        :param override_jupyter_image:              Override the default Jupyter image
+        :param disable_pipelines:           Disable the deployment of the pipelines component
+        :param force_enable_pipelines:      Force the pipelines component to be installed
+        :param disable_prometheus_stack:    Disable the deployment of the Prometheus stack component
+        :param disable_spark_operator:      Disable the deployment of the Spark operator component
+        :param disable_log_collector:       Disable the mlrun API log collector sidecar and use legacy mode instead
+        :param skip_registry_validation:    Skip the validation of the registry URL
+        :param devel:       Deploy the development version of the helm chart
+        :param minikube:    Deploy the helm chart with minikube configuration
+        :param sqlite:      Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
+        :param upgrade:         Upgrade an existing MLRun CE deployment
+        :param custom_values:   List of custom values to pass to the helm chart
         """
         self._prepare_prerequisites(
             registry_url,
@@ -148,7 +192,8 @@ class CommunityEditionDeployer:
             skip_registry_validation,
             minikube,
         )
-        helm_arguments = self._generate_helm_install_arguments(
+
+        ep = ExcecutionParams(
             registry_url,
             registry_secret_name,
             chart_version,
@@ -158,6 +203,7 @@ class CommunityEditionDeployer:
             override_mlrun_ui_image,
             override_jupyter_image,
             disable_pipelines,
+            force_enable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
             disable_log_collector,
@@ -167,6 +213,8 @@ class CommunityEditionDeployer:
             upgrade,
             custom_values,
         )
+
+        helm_arguments = self._generate_helm_install_arguments(ep)
 
         self._log(
             "info",
@@ -196,12 +244,12 @@ class CommunityEditionDeployer:
     ) -> None:
         """
         Delete MLRun CE stack.
-        :param skip_uninstall: Skip the uninstallation of the helm chart
-        :param sqlite: Path to sqlite file to delete (if needed).
+        :param skip_uninstall:  Skip the uninstallation of the helm chart
+        :param sqlite:      Path to sqlite file to delete (if needed).
         :param cleanup_registry_secret: Delete the registry secret
-        :param cleanup_volumes: Delete the MLRun volumes
-        :param cleanup_namespace: Delete the entire namespace
-        :param registry_secret_name: Name of the registry secret to delete
+        :param cleanup_volumes:         Delete the MLRun volumes
+        :param cleanup_namespace:       Delete the entire namespace
+        :param registry_secret_name:    Name of the registry secret to delete
         """
         if cleanup_namespace:
             self._log(
@@ -269,8 +317,8 @@ class CommunityEditionDeployer:
         """
         Patch the MLRun CE stack images in minikube.
         :param mlrun_api_image: MLRun API image to use
-        :param mlrun_ui_image: MLRun UI image to use
-        :param jupyter_image: Jupyter image to use
+        :param mlrun_ui_image:  MLRun UI image to use
+        :param jupyter_image:   Jupyter image to use
         """
         for image in [mlrun_api_image, mlrun_ui_image, jupyter_image]:
             if image:
@@ -298,12 +346,12 @@ class CommunityEditionDeployer:
         """
         Prepare the prerequisites for the MLRun CE stack deployment.
         Creates namespace, adds helm repository, creates registry secret if needed.
-        :param registry_url: URL of the registry to use
-        :param registry_username: Username of the registry to use (not required if registry_secret_name is provided)
-        :param registry_password: Password of the registry to use (not required if registry_secret_name is provided)
+        :param registry_url:         URL of the registry to use
+        :param registry_username:    Username of the registry to use (not required if registry_secret_name is provided)
+        :param registry_password:    Password of the registry to use (not required if registry_secret_name is provided)
         :param registry_secret_name: Name of the registry secret to use
         :param skip_registry_validation: Skip the validation of the registry URL
-        :param minikube: Whether to deploy on minikube
+        :param minikube:    Whether to deploy on minikube
         """
         self._log("info", "Preparing prerequisites")
         skip_registry_validation = skip_registry_validation or (
@@ -340,44 +388,12 @@ class CommunityEditionDeployer:
 
     def _generate_helm_install_arguments(
         self,
-        registry_url: str = None,
-        registry_secret_name: str = None,
-        chart_version: str = None,
-        mlrun_version: str = None,
-        override_mlrun_api_image: str = None,
-        override_mlrun_log_collector_image: str = None,
-        override_mlrun_ui_image: str = None,
-        override_jupyter_image: str = None,
-        disable_pipelines: bool = False,
-        disable_prometheus_stack: bool = False,
-        disable_spark_operator: bool = False,
-        disable_log_collector: bool = False,
-        devel: bool = False,
-        minikube: bool = False,
-        sqlite: str = None,
-        upgrade: bool = False,
-        custom_values: typing.List[str] = None,
-    ) -> typing.List[str]:
+        ep: ExcecutionParams,
+    ) -> list[str]:
         """
         Generate the helm install arguments.
-        :param registry_url: URL of the registry to use
-        :param registry_secret_name: Name of the registry secret to use
-        :param chart_version: Version of the chart to use
-        :param mlrun_version: Version of MLRun to use
-        :param override_mlrun_api_image: Override MLRun API image to use
-        :param override_mlrun_log_collector_image: Override MLRun Log Collector image to use
-        :param override_mlrun_ui_image: Override MLRun UI image to use
-        :param override_jupyter_image: Override Jupyter image to use
-        :param disable_pipelines: Disable pipelines
-        :param disable_prometheus_stack: Disable Prometheus stack
-        :param disable_spark_operator: Disable Spark operator
-        :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
-        :param devel: Use development chart
-        :param minikube: Use minikube
-        :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
-        :param upgrade: Upgrade an existing MLRun CE deployment
-        :param custom_values: List of custom values to use
-        :return: List of helm install arguments
+        :param ep:  Execution parameters
+        :return:    List of helm install arguments
         """
         helm_arguments = [
             "--namespace",
@@ -394,24 +410,10 @@ class CommunityEditionDeployer:
         if self._debug:
             helm_arguments.append("--debug")
 
-        if upgrade:
+        if ep.upgrade:
             helm_arguments.append("--reuse-values")
 
-        for helm_key, helm_value in self._generate_helm_values(
-            registry_url,
-            registry_secret_name,
-            mlrun_version,
-            override_mlrun_api_image,
-            override_mlrun_log_collector_image,
-            override_mlrun_ui_image,
-            override_jupyter_image,
-            disable_pipelines,
-            disable_prometheus_stack,
-            disable_spark_operator,
-            disable_log_collector,
-            sqlite,
-            minikube,
-        ).items():
+        for helm_key, helm_value in self._generate_helm_values(ep).items():
             helm_arguments.extend(
                 [
                     "--set",
@@ -419,7 +421,7 @@ class CommunityEditionDeployer:
                 ]
             )
 
-        for value in custom_values:
+        for value in ep.custom_values:
             helm_arguments.extend(
                 [
                     "--set",
@@ -427,20 +429,20 @@ class CommunityEditionDeployer:
                 ]
             )
 
-        if chart_version:
+        if ep.chart_version:
             self._log(
                 "warning",
                 "Installing specific chart version",
-                chart_version=chart_version,
+                chart_version=ep.chart_version,
             )
             helm_arguments.extend(
                 [
                     "--version",
-                    chart_version,
+                    ep.chart_version,
                 ]
             )
 
-        if devel:
+        if ep.devel:
             self._log("warning", "Installing development chart version")
             helm_arguments.append("--devel")
 
@@ -448,60 +450,35 @@ class CommunityEditionDeployer:
 
     def _generate_helm_values(
         self,
-        registry_url: str,
-        registry_secret_name: str = None,
-        mlrun_version: str = None,
-        override_mlrun_api_image: str = None,
-        override_mlrun_log_collector_image: str = None,
-        override_mlrun_ui_image: str = None,
-        override_jupyter_image: str = None,
-        disable_pipelines: bool = False,
-        disable_prometheus_stack: bool = False,
-        disable_spark_operator: bool = False,
-        disable_log_collector: bool = False,
-        sqlite: str = None,
-        minikube: bool = False,
-    ) -> typing.Dict[str, str]:
+        ep: ExcecutionParams,
+    ) -> dict[str, str]:
         """
         Generate the helm values.
-        :param registry_url: URL of the registry to use
-        :param registry_secret_name: Name of the registry secret to use
-        :param mlrun_version: Version of MLRun to use
-        :param override_mlrun_api_image: Override MLRun API image to use
-        :param override_mlrun_log_collector_image: Override MLRun Log Collector image to use
-        :param override_mlrun_ui_image: Override MLRun UI image to use
-        :param override_jupyter_image: Override Jupyter image to use
-        :param disable_pipelines: Disable pipelines
-        :param disable_prometheus_stack: Disable Prometheus stack
-        :param disable_spark_operator: Disable Spark operator
-        :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
-        :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
-        :param minikube: Use minikube
         :return: Dictionary of helm values
         """
-        host_ip = self._get_minikube_ip() if minikube else self._get_host_ip()
-        if not registry_url and minikube:
-            registry_url = f"{host_ip}:{Constants.minikube_registry_port}"
+        host_ip = self._get_minikube_ip() if ep.minikube else self._get_host_ip()
+        if not ep.registry_url and ep.minikube:
+            ep.registry_url = f"{host_ip}:{Constants.minikube_registry_port}"
 
         helm_values = {
-            "global.registry.url": registry_url,
-            "global.registry.secretName": f'"{registry_secret_name}"'  # adding quotes in case of empty string
-            if registry_secret_name is not None
+            "global.registry.url": ep.registry_url,
+            "global.registry.secretName": f'"{ep.registry_secret_name}"'  # adding quotes in case of empty string
+            if ep.registry_secret_name is not None
             else Constants.default_registry_secret_name,
             "global.externalHostAddress": host_ip,
             "nuclio.dashboard.externalIPAddresses[0]": host_ip,
         }
 
-        if mlrun_version:
-            self._set_mlrun_version_in_helm_values(helm_values, mlrun_version)
+        if ep.mlrun_version:
+            self._set_mlrun_version_in_helm_values(helm_values, ep.mlrun_version)
 
         for value, overriden_image in zip(
             Constants.mlrun_image_values,
             [
-                override_mlrun_api_image,
-                override_mlrun_ui_image,
-                override_jupyter_image,
-                override_mlrun_log_collector_image,
+                ep.override_mlrun_api_image,
+                ep.override_mlrun_ui_image,
+                ep.override_jupyter_image,
+                ep.override_mlrun_log_collector_image,
             ],
         ):
             if overriden_image:
@@ -510,32 +487,51 @@ class CommunityEditionDeployer:
         for component, disabled in zip(
             Constants.disableable_components,
             [
-                disable_pipelines,
-                disable_prometheus_stack,
-                disable_spark_operator,
-                disable_log_collector,
+                ep.disable_pipelines,
+                ep.disable_prometheus_stack,
+                ep.disable_spark_operator,
+                ep.disable_log_collector,
             ],
         ):
             self._toggle_component_in_helm_values(helm_values, component, disabled)
 
-        if sqlite:
-            dir_path = os.path.dirname(sqlite)
+        if ep.sqlite:
+            dir_path = os.path.dirname(ep.sqlite)
             helm_values.update(
                 {
                     "mlrun.httpDB.dbType": "sqlite",
                     "mlrun.httpDB.dirPath": dir_path,
-                    "mlrun.httpDB.dsn": f"sqlite:///{sqlite}?check_same_thread=false",
+                    "mlrun.httpDB.dsn": f"sqlite:///{ep.sqlite}?check_same_thread=false",
                     "mlrun.httpDB.oldDsn": '""',
                 }
             )
+
+        if ep.force_enable_pipelines and ep.disable_pipelines:
+            error_message = "--force-enable-pipelines and --disable-pipelines may not be used together. Aborting"
+            self._log(
+                "error",
+                error_message,
+            )
+            raise ValueError(error_message)
 
         # TODO: We need to fix the pipelines metadata grpc server to work on arm
         if self._check_platform_architecture() == "arm":
             self._log(
                 "warning",
-                "Kubeflow Pipelines is not supported on ARM architecture. Disabling KFP installation.",
+                "Kubeflow Pipelines is not supported on ARM architectures",
             )
-            self._toggle_component_in_helm_values(helm_values, "pipelines", True)
+            if not ep.force_enable_pipelines:
+                self._log(
+                    "warning",
+                    "Kubeflow Pipelines won't be installed",
+                )
+                self._toggle_component_in_helm_values(helm_values, "pipelines", True)
+            else:
+                self._log(
+                    "warning",
+                    "Kubeflow Pipelines will be installed, but it may not work. Proceed at your own risk",
+                )
+                self._toggle_component_in_helm_values(helm_values, "pipelines", False)
 
         self._log(
             "debug",
@@ -554,9 +550,9 @@ class CommunityEditionDeployer:
     ) -> None:
         """
         Create a registry credentials secret.
-        :param registry_url: URL of the registry to use
-        :param registry_username: Username of the registry to use
-        :param registry_password: Password of the registry to use
+        :param registry_url:         URL of the registry to use
+        :param registry_username:    Username of the registry to use
+        :param registry_password:    Password of the registry to use
         :param registry_secret_name: Name of the registry secret to use
         """
         registry_secret_name = (
@@ -657,7 +653,7 @@ class CommunityEditionDeployer:
             raise exc
 
     def _set_mlrun_version_in_helm_values(
-        self, helm_values: typing.Dict[str, str], mlrun_version: str
+        self, helm_values: dict[str, str], mlrun_version: str
     ) -> None:
         """
         Set the mlrun version in all the image tags in the helm values.
@@ -672,7 +668,7 @@ class CommunityEditionDeployer:
 
     def _override_image_in_helm_values(
         self,
-        helm_values: typing.Dict[str, str],
+        helm_values: dict[str, str],
         image_helm_value: str,
         overriden_image: str,
     ) -> None:
@@ -696,7 +692,7 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
     def _toggle_component_in_helm_values(
-        self, helm_values: typing.Dict[str, str], component: str, disable: bool
+        self, helm_values: dict[str, str], component: str, disable: bool
     ) -> None:
         """
         Disable a deployment in the helm values.

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import itertools
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -63,7 +63,7 @@ class MLRunLogger(Logger):
         :param context:              MLRun context to log to. The context parameters can be logged as static
                                      hyperparameters.
         """
-        super(MLRunLogger, self).__init__(context=context)
+        super().__init__(context=context)
 
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]
@@ -144,9 +144,9 @@ class MLRunLogger(Logger):
         self,
         model_handler: DLModelHandler,
         tag: str = "",
-        labels: Dict[str, DLTypes.TrackableType] = None,
-        parameters: Dict[str, DLTypes.TrackableType] = None,
-        extra_data: Dict[str, Union[DLTypes.TrackableType, Artifact]] = None,
+        labels: dict[str, DLTypes.TrackableType] = None,
+        parameters: dict[str, DLTypes.TrackableType] = None,
+        extra_data: dict[str, Union[DLTypes.TrackableType, Artifact]] = None,
     ):
         """
         Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is
@@ -227,7 +227,7 @@ class MLRunLogger(Logger):
         # Commit to update the changes, so they will be available in the MLRun UI:
         self._context.commit(completed=False)
 
-    def _generate_metrics_summary(self) -> Dict[str, float]:
+    def _generate_metrics_summary(self) -> dict[str, float]:
         """
         Generate a metrics summary to log along the model.
 
@@ -254,7 +254,7 @@ class MLRunLogger(Logger):
 
     @staticmethod
     def _generate_metric_results_artifact(
-        loop: str, name: str, epochs_results: List[List[float]]
+        loop: str, name: str, epochs_results: list[list[float]]
     ) -> PlotlyArtifact:
         """
         Generate a plotly artifact for the results of the metric provided.
@@ -300,7 +300,7 @@ class MLRunLogger(Logger):
 
     @staticmethod
     def _generate_summary_results_artifact(
-        name: str, training_results: List[float], validation_results: List[float]
+        name: str, training_results: list[float], validation_results: list[float]
     ) -> PlotlyArtifact:
         """
         Generate a plotly artifact for the results summary across all the epochs of training.
@@ -351,7 +351,7 @@ class MLRunLogger(Logger):
 
     @staticmethod
     def _generate_dynamic_hyperparameter_values_artifact(
-        name: str, values: List[float]
+        name: str, values: list[float]
     ) -> PlotlyArtifact:
         """
         Generate a plotly artifact for the values of the hyperparameter provided.

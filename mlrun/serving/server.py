@@ -40,8 +40,6 @@ from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import (
     event_id_key,
     event_path_key,
-    legacy_event_id_key,
-    legacy_event_path_key,
 )
 
 
@@ -257,18 +255,10 @@ class GraphServer(ModelObj):
         context = context or server_context
         event.content_type = event.content_type or self.default_content_type or ""
         if event.headers:
-            # TODO: remove old event id and path keys in 1.6.0
-            if event_id_key in event.headers or legacy_event_id_key in event.headers:
-                event.id = event.headers.get(event_id_key) or event.headers.get(
-                    legacy_event_id_key
-                )
-            if (
-                event_path_key in event.headers
-                or legacy_event_path_key in event.headers
-            ):
-                event.path = event.headers.get(event_path_key) or event.headers.get(
-                    legacy_event_path_key
-                )
+            if event_id_key in event.headers:
+                event.id = event.headers.get(event_id_key)
+            if event_path_key in event.headers:
+                event.path = event.headers.get(event_path_key)
 
         if isinstance(event.body, (str, bytes)) and (
             not event.content_type or event.content_type in ["json", "application/json"]
@@ -425,7 +415,7 @@ def create_graph_server(
     return server
 
 
-class MockTrigger(object):
+class MockTrigger:
     """mock nuclio event trigger"""
 
     def __init__(self, kind="", name=""):
@@ -433,7 +423,7 @@ class MockTrigger(object):
         self.name = name
 
 
-class MockEvent(object):
+class MockEvent:
     """mock basic nuclio event object"""
 
     def __init__(
@@ -466,7 +456,7 @@ class MockEvent(object):
         return f"Event(id={self.id}, body={self.body}, method={self.method}, path={self.path}{error})"
 
 
-class Response(object):
+class Response:
     def __init__(self, headers=None, body=None, content_type=None, status_code=200):
         self.headers = headers or {}
         self.body = body
@@ -573,7 +563,7 @@ class GraphContext:
             _,
             _,
             function_status,
-        ) = mlrun.runtimes.function.get_nuclio_deploy_status(name, project, tag)
+        ) = mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(name, project, tag)
 
         if state in ["error", "unhealthy"]:
             raise ValueError(

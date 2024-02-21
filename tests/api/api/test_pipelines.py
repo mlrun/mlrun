@@ -22,6 +22,7 @@ import deepdiff
 import fastapi.testclient
 import kfp
 import kfp_server_api.models
+import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -201,6 +202,56 @@ def test_list_pipelines_time_fields_default(
     )
 
 
+@pytest.mark.parametrize(
+    "project_name, run_name_filter, expected_runs_ids",
+    [
+        ("test-project", "workflow", ["id3", "id4"]),
+        ("test-project", "project", ["id1", "id2"]),
+        ("test-project", "test", ["id1", "id2", "id3", "id4"]),
+        ("test-project", "another", ["id4"]),
+        ("test-project", "test-project-", []),
+        ("*", "project", ["id1", "id2"]),
+        ("*", "workflow", ["id3", "id4"]),
+    ],
+)
+def test_list_pipelines_name_contains(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+    project_name: str,
+    run_name_filter: str,
+    expected_runs_ids: list,
+) -> None:
+    server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
+        return_value="test-project"
+    )
+    runs = _generate_list_runs_project_name_mocks()
+    expected_page_size = (
+        mlrun.common.schemas.PipelinesPagination.default_page_size
+        if project_name == "*"
+        else mlrun.common.schemas.PipelinesPagination.max_page_size
+    )
+    _mock_list_runs(
+        kfp_client_mock,
+        runs,
+        expected_page_size=expected_page_size,
+    )
+    response = client.get(
+        f"projects/{project_name}/pipelines",
+        params={
+            "name-contains": run_name_filter,
+        },
+    )
+
+    expected_runs = server.api.crud.Pipelines()._format_runs(
+        db, [run.to_dict() for run in runs if run.id in expected_runs_ids]
+    )
+    expected_response = mlrun.common.schemas.PipelinesOutput(
+        runs=expected_runs, total_size=len(expected_runs), next_page_token=None
+    )
+    _assert_list_pipelines_response(expected_response, response)
+
+
 def test_list_pipelines_specific_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
@@ -239,7 +290,7 @@ def test_create_pipeline(
         / "assets"
         / "pipelines.yaml"
     )
-    with open(str(pipeline_file_path), "r") as file:
+    with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(
@@ -319,6 +370,51 @@ def _generate_list_runs_mocks():
         kfp_server_api.models.api_run.ApiRun(
             id="id4",
             name="run4",
+            description="desc4",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id4",
+                workflow_manifest=workflow_manifest,
+            ),
+        ),
+    ]
+
+
+def _generate_list_runs_project_name_mocks():
+    """
+    Generate mock runs for KFP taking into account the naming patterns used by MLRun in a real world scenario
+    """
+    workflow_manifest = _generate_workflow_manifest()
+    return [
+        kfp_server_api.models.api_run.ApiRun(
+            id="id1",
+            name="test-project 0000-00-00 00-00-01",
+            description="desc1",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id1",
+                workflow_manifest=workflow_manifest,
+            ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id2",
+            name="test-project 0000-00-00 00-00-02",
+            description="desc2",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id2",
+                workflow_manifest=workflow_manifest,
+            ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id3",
+            name="test-project-test-workflow 0000-00-00 00-00-03",
+            description="desc3",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id3",
+                workflow_manifest=workflow_manifest,
+            ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id4",
+            name="test-project-test-another-workflow 0000-00-00 00-00-04",
             description="desc4",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
                 pipeline_id="pipe_id4",

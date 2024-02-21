@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 import unittest.mock
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Optional
 
 import deepdiff
 import fastapi.testclient
@@ -264,7 +263,7 @@ class TestRuntimeHandlerBase:
     ):
         def _extract_project_and_kind_from_runtime_resources_labels(
             labels: dict,
-        ) -> typing.Tuple[str, str]:
+        ) -> tuple[str, str]:
             project = labels.get("mlrun/project", "")
             class_ = labels["mlrun/class"]
             kind = runtime_handler._resolve_kind_from_class(class_)
@@ -381,7 +380,7 @@ class TestRuntimeHandlerBase:
                 )
 
     @staticmethod
-    def _mock_list_namespaced_pods(list_pods_call_responses: List[List[client.V1Pod]]):
+    def _mock_list_namespaced_pods(list_pods_call_responses: list[list[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
             pods = client.V1PodList(items=list_pods_call_response)
@@ -393,7 +392,7 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_delete_namespaced_pods(
-        expected_pod_names: List[str], expected_pod_namespace: str = None
+        expected_pod_names: list[str], expected_pod_namespace: str = None
     ):
         calls = [
             unittest.mock.call(
@@ -411,7 +410,7 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_delete_namespaced_services(
-        expected_service_names: List[str], expected_service_namespace: str = None
+        expected_service_names: list[str], expected_service_namespace: str = None
     ):
         calls = [
             unittest.mock.call(expected_service_name, expected_service_namespace)
@@ -425,7 +424,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _assert_delete_namespaced_custom_objects(
         runtime_handler,
-        expected_custom_object_names: List[str],
+        expected_custom_object_names: list[str],
         expected_custom_object_namespace: str = None,
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
@@ -436,6 +435,7 @@ class TestRuntimeHandlerBase:
                 expected_custom_object_namespace,
                 crd_plural,
                 expected_custom_object_name,
+                grace_period_seconds=None,
             )
             for expected_custom_object_name in expected_custom_object_names
         ]
@@ -469,7 +469,7 @@ class TestRuntimeHandlerBase:
         return log
 
     @staticmethod
-    def _mock_list_namespaced_crds(crd_dicts_call_responses: List[List[Dict]]):
+    def _mock_list_namespaced_crds(crd_dicts_call_responses: list[list[dict]]):
         calls = []
         for crd_dicts_call_response in crd_dicts_call_responses:
             calls.append({"items": crd_dicts_call_response})

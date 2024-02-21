@@ -16,7 +16,6 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import List
 
 import dask.dataframe as dd
 import pandas as pd
@@ -70,7 +69,7 @@ class TestDBFSStore:
         self.workspace = WorkspaceClient()
         self.profile_name = "dbfs_ds_profile"
 
-        with open(self.test_file_path, "r") as f:
+        with open(self.test_file_path) as f:
             self.test_string = f.read()
 
         self.profile = DatastoreProfileDBFS(
@@ -213,15 +212,11 @@ class TestDBFSStore:
         assert source.equals(response)
 
     @pytest.mark.parametrize(
-        "file_extension, local_file_path, reader",
+        "file_extension, local_file_path, reader, reader_args",
         [
-            (
-                "parquet",
-                parquet_path,
-                dd.read_parquet,
-            ),
-            ("csv", csv_path, dd.read_csv),
-            ("json", json_path, dd.read_json),
+            ("parquet", parquet_path, dd.read_parquet, {}),
+            ("csv", csv_path, dd.read_csv, {}),
+            ("json", json_path, dd.read_json, {"orient": "values"}),
         ],
     )
     def test_as_df_dd(
@@ -230,12 +225,13 @@ class TestDBFSStore:
         file_extension: str,
         local_file_path: str,
         reader: callable,
+        reader_args: dict,
     ):
         if use_datastore_profile:
             pytest.skip(
                 "dask dataframe is not supported by datastore profile."
             )  # TODO add support
-        source = reader(local_file_path)
+        source = reader(local_file_path, **reader_args)
         upload_file_path = (
             f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
         )
@@ -246,7 +242,7 @@ class TestDBFSStore:
         )
         upload_data_item = mlrun.run.get_dataitem(dataitem_url)
         upload_data_item.upload(local_file_path)
-        response = upload_data_item.as_df(df_module=dd)
+        response = upload_data_item.as_df(df_module=dd, **reader_args)
         assert dd.assert_eq(source, response)
 
     def _setup_df_dir(
@@ -300,7 +296,7 @@ class TestDBFSStore:
         directory: str,
         file_format: str,
         file_extension: str,
-        files_paths: List[Path],
+        files_paths: list[Path],
         reader: callable,
     ):
         first_file_path = files_paths[0]
@@ -347,7 +343,7 @@ class TestDBFSStore:
         directory: str,
         file_format: str,
         file_extension: str,
-        files_paths: List[Path],
+        files_paths: list[Path],
         reader: callable,
     ):
         if use_datastore_profile:

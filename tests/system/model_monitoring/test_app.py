@@ -49,7 +49,7 @@ from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 @dataclass
 class _AppData:
-    class_: typing.Type[ModelMonitoringApplicationBase]
+    class_: type[ModelMonitoringApplicationBase]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
@@ -126,7 +126,7 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-app-flow"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
@@ -204,7 +204,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     @classmethod
-    def _deploy_model_serving(cls) -> mlrun.runtimes.serving.ServingRuntime:
+    def _deploy_model_serving(cls) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
         )
@@ -212,11 +212,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
-        serving_fn.set_tracking(
-            tracking_policy=TrackingPolicy(
-                default_batch_intervals=f"*/{cls.app_interval} * * * *",
-            ),
-        )
+        serving_fn.set_tracking(tracking_policy=TrackingPolicy())
         if cls.image is not None:
             for attr in (
                 "stream_image",
@@ -227,7 +223,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     @classmethod
     def _get_model_enpoint_id(cls) -> str:
@@ -255,7 +251,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)
         # mark the first window as "done" with another request
-        time.sleep(self.app_interval_seconds + 2)
+        time.sleep(
+            self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + 2
+        )
         self.serving_fn.invoke(self.infer_path, self.next_window_input)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
@@ -276,6 +276,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         # model
         cls.classif = SVC()
         cls.model_name = "svc"
+        # data
         cls.columns = ["a1", "a2", "b"]
         cls.y_name = "t"
         cls.num_rows = 15
@@ -285,9 +286,10 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         cls.training_set = cls.x_train.join(cls.y_train)
         cls.test_set = cls.x_test.join(cls.y_test)
         cls.infer_results_df = cls.test_set
-        # cls.infer_results_df[EventFieldType.TIMESTAMP] = datetime.utcnow()  # TODO - add timestamp
+        # endpoint
         cls.endpoint_id = "58d42fdd76ad999c377fad1adcafd2790b5a89b9"
         cls.function_name = f"{cls.name_prefix}-function"
+        # training
         cls._train()
 
         # model monitoring app
@@ -363,8 +365,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         with ThreadPoolExecutor() as executor:
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
-            executor.submit(self._record_results)
 
-        time.sleep(1.4 * self.app_interval_seconds)
+        self._record_results()
+
+        time.sleep(2.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)

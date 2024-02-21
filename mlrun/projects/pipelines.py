@@ -113,7 +113,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 # we need to make sure we don't add it twice
                 and not workflow_path.startswith(context)
             ):
-                workflow_path = os.path.join(context, workflow_path)
+                workflow_path = os.path.join(context, workflow_path.lstrip("./"))
         return workflow_path
 
     def merge_args(self, extra_args):
@@ -312,9 +312,9 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
 def _create_enriched_mlrun_workflow(
     self,
     pipeline_func: typing.Callable,
-    pipeline_name: typing.Optional[typing.Text] = None,
-    pipeline_description: typing.Optional[typing.Text] = None,
-    params_list: typing.Optional[typing.List[dsl.PipelineParam]] = None,
+    pipeline_name: typing.Optional[str] = None,
+    pipeline_description: typing.Optional[str] = None,
+    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
@@ -425,7 +425,7 @@ class _PipelineRunStatus:
     def __init__(
         self,
         run_id: str,
-        engine: typing.Type["_PipelineRunner"],
+        engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: str = "",
@@ -496,7 +496,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -574,7 +574,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -717,7 +717,7 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -806,7 +806,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str = None,
         namespace: str = None,
         source: str = None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -976,7 +976,7 @@ def load_and_run(
     save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
-    workflow_arguments: typing.Dict[str, typing.Any] = None,
+    workflow_arguments: dict[str, typing.Any] = None,
     artifact_path: str = None,
     workflow_handler: typing.Union[str, typing.Callable] = None,
     namespace: str = None,

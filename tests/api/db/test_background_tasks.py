@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import time
+import unittest.mock
 
 import pytest
 from sqlalchemy.orm import Session
@@ -183,3 +185,103 @@ def test_get_project_background_task_with_disabled_timeout(
     )
     assert background_task_new.metadata.updated > background_task.metadata.updated
     assert background_task_new.metadata.created == background_task.metadata.created
+
+
+def test_list_project_background_task_filters(db: DBInterface, db_session: Session):
+    project = "test-project"
+    running = "running"
+    failed = "failed"
+    succeeded = "succeeded"
+    old_task = "old_task"
+
+    db.store_background_task(db_session, running, timeout=600, project=project)
+    db.store_background_task(
+        db_session,
+        failed,
+        timeout=600,
+        project=project,
+        state=mlrun.common.schemas.BackgroundTaskState.failed,
+    )
+    db.store_background_task(
+        db_session,
+        succeeded,
+        timeout=600,
+        project=project,
+        state=mlrun.common.schemas.BackgroundTaskState.succeeded,
+    )
+
+    with unittest.mock.patch(
+        "mlrun.utils.now_date",
+        return_value=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=10),
+    ):
+        db.store_background_task(db_session, old_task, timeout=600, project=project)
+
+    background_tasks = db.list_background_tasks(
+        db_session,
+        project=project,
+        background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+    )
+
+    assert len(background_tasks) == 4
+    background_task_names = [task.metadata.name for task in background_tasks]
+    for name in [running, failed, succeeded, old_task]:
+        assert name in background_task_names
+
+    # test created_from filter
+    background_tasks = db.list_background_tasks(
+        db_session,
+        project=project,
+        background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+        created_from=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=5),
+    )
+
+    assert len(background_tasks) == 3
+    background_task_names = [task.metadata.name for task in background_tasks]
+    for name in [running, failed, succeeded]:
+        assert name in background_task_names
+
+    # test last_update_time_from filters
+    background_tasks = db.list_background_tasks(
+        db_session,
+        project=project,
+        background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+        last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=5),
+    )
+
+    assert len(background_tasks) == 3
+    background_task_names = [task.metadata.name for task in background_tasks]
+    for name in [running, failed, succeeded]:
+        assert name in background_task_names
+
+    # test last_update_time_to filters
+    background_tasks = db.list_background_tasks(
+        db_session,
+        project=project,
+        background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+        last_update_time_to=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=5),
+    )
+
+    assert len(background_tasks) == 1
+    background_task_names = [task.metadata.name for task in background_tasks]
+    for name in [old_task]:
+        assert name in background_task_names
+
+    # test state filter
+    background_tasks = db.list_background_tasks(
+        db_session,
+        project=project,
+        background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+        states=[
+            mlrun.common.schemas.BackgroundTaskState.failed,
+            mlrun.common.schemas.BackgroundTaskState.succeeded,
+        ],
+    )
+
+    assert len(background_tasks) == 2
+    background_task_names = [task.metadata.name for task in background_tasks]
+    for name in [failed, succeeded]:
+        assert name in background_task_names

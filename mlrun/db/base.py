@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import datetime
-import typing
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
@@ -60,9 +59,9 @@ class RunDBInterface(ABC):
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,
@@ -253,7 +252,7 @@ class RunDBInterface(ABC):
         self,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
-        labels: List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
@@ -291,8 +290,8 @@ class RunDBInterface(ABC):
         project: str,
         name: str = None,
         tag: str = None,
-        entities: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
@@ -302,7 +301,7 @@ class RunDBInterface(ABC):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
@@ -313,9 +312,9 @@ class RunDBInterface(ABC):
         name: str = None,
         tag: str = None,
         state: str = None,
-        entities: List[str] = None,
-        features: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        features: list[str] = None,
+        labels: list[str] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -324,7 +323,7 @@ class RunDBInterface(ABC):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-    ) -> List[dict]:
+    ) -> list[dict]:
         pass
 
     @abstractmethod
@@ -379,7 +378,7 @@ class RunDBInterface(ABC):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -388,7 +387,7 @@ class RunDBInterface(ABC):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-    ) -> List[dict]:
+    ) -> list[dict]:
         pass
 
     @abstractmethod
@@ -419,6 +418,19 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def delete_feature_vector(self, name, project="", tag=None, uid=None):
+        pass
+
+    @abstractmethod
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
         pass
 
     @abstractmethod
@@ -455,7 +467,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ) -> mlrun.common.schemas.SecretsData:
         pass
 
@@ -477,7 +489,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ):
         pass
 
@@ -517,10 +529,10 @@ class RunDBInterface(ABC):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
     ):
         pass
 
@@ -531,7 +543,7 @@ class RunDBInterface(ABC):
         endpoint_id: str,
         start: Optional[str] = None,
         end: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         features: bool = False,
     ):
         pass
@@ -617,14 +629,14 @@ class RunDBInterface(ABC):
     def set_run_notifications(
         self,
         project: str,
-        runs: typing.List[mlrun.model.RunObject],
-        notifications: typing.List[mlrun.model.Notification],
+        runs: list[mlrun.model.RunObject],
+        notifications: list[mlrun.model.Notification],
     ):
         pass
 
     def store_run_notifications(
         self,
-        notification_objects: typing.List[mlrun.model.Notification],
+        notification_objects: list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,
@@ -649,7 +661,7 @@ class RunDBInterface(ABC):
 
     def list_datastore_profiles(
         self, project: str
-    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+    ) -> list[mlrun.common.schemas.DatastoreProfile]:
         pass
 
     def store_datastore_profile(

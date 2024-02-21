@@ -8,6 +8,8 @@ MLRun has two main components, the service and the client (SDK and UI):
 - MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
 - MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
+This release of MLRun supports only Python 3.9 for both the server and the client. 
+
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
 
 **In this section**
@@ -32,7 +34,7 @@ There are several deployment options:
 You can work with your favorite IDE (e.g. Pycharm, VScode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
 MLRun server in {ref}`install-remote`.
 
-Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
+Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
 
 
 <a id="MLRun-client-backward-compatibility"></a>

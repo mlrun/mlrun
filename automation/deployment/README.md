@@ -34,6 +34,8 @@ To disable the components that are installed by default, you can use the followi
 - `--disable-prometheus-stack`: Disable the installation of the Prometheus stack.
 - `--disable-spark-operator`: Disable the installation of the Spark operator.
 
+This CLI tool automatically detects if the current CPU architecture supports Kubeflow Pipelines and disables its installation if not. Use `--force-enable-pipelines` if you'd like to bypass this behavior and install it regardless.
+
 To override the images used by the CE, you can use the following flags:
 - `--override-jupyter-image`: Override the jupyter image. Format: `<repo>:<tag>`
 - `--override-mlrun-api-image`: Override the mlrun-api image. Format: `<repo>:<tag>`

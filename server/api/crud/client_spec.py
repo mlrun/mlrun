@@ -24,7 +24,7 @@ class ClientSpec(
 ):
     def get_client_spec(
         self, client_version: str = None, client_python_version: str = None
-    ):
+    ) -> mlrun.common.schemas.ClientSpec:
         mpijob_crd_version = (
             server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
         )
@@ -96,8 +96,6 @@ class ClientSpec(
             ),
             force_run_local=self._get_config_value_if_not_default("force_run_local"),
             function=self._get_config_value_if_not_default("function"),
-            # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
-            ce_mode=config.ce.mode,
             ce=config.ce.to_dict(),
             logs=self._get_config_value_if_not_default("httpdb.logs"),
             feature_store_data_prefixes=self._get_config_value_if_not_default(

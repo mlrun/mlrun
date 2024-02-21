@@ -77,6 +77,17 @@ def test_dataset_upload_with_src_path_filling_hash():
     assert artifact.hash is not None
 
 
+def test_dataset_upload_without_df_or_body():
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        target_path=str(pathlib.Path(tests.conftest.results) / "target-dataset"),
+        format="csv",
+    )
+    # make sure uploading doesn't fail
+    artifact.upload()
+    assert artifact.hash is None
+    assert artifact.size is None
+
+
 def test_resolve_dataset_hash_path():
     for test_case in [
         {
@@ -226,13 +237,26 @@ def test_log_dataset_with_column_overflow(monkeypatch):
 
     monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 10)
     artifact = context.log_dataset("iris", df=df, upload=False)
-    assert len(artifact.spec.header) == 5
-    assert artifact.status.header_original_length == 5
+    assert len(artifact.spec.header) == 6
+    assert artifact.status.header_original_length == 6
 
     monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 2)
     artifact = context.log_dataset("iris", df=df, upload=False)
     assert len(artifact.spec.header) == 2
-    assert artifact.status.header_original_length == 5
+    assert artifact.status.header_original_length == 6
+
+
+def test_create_dataset_non_existing_label():
+    project = mlrun.new_project("artifact-experiment", save=False)
+    df = pandas.DataFrame(
+        {
+            "column_1": [0, 1, 2, 3, 4],
+            "column_2": [5, 6, 7, 8, 9],
+        }
+    )
+
+    with pytest.raises(mlrun.errors.MLRunValueError):
+        project.log_dataset("my_dataset", df=df, label_column="column_3")
 
 
 def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
@@ -337,4 +361,5 @@ def _assert_data_artifacts(df, number_of_columns):
     artifact = mlrun.artifacts.dataset.DatasetArtifact(
         df=df, ignore_preview_limits=True
     )
-    assert len(artifact.preview[0]) == number_of_columns
+    # Dataset previews have an extra column called "index"
+    assert len(artifact.preview[0]) - 1 == number_of_columns

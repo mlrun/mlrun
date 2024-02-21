@@ -17,13 +17,13 @@ import os
 import socket
 
 import mlrun.db
+from mlrun.errors import err_to_str
+from mlrun.execution import MLClientCtx
+from mlrun.model import RunTemplate
+from mlrun.runtimes.local import get_func_arg
+from mlrun.serving.server import v2_serving_init
+from mlrun.serving.v1_serving import nuclio_serving_init
 
-from ..errors import err_to_str
-from ..execution import MLClientCtx
-from ..model import RunTemplate
-from ..serving.server import v2_serving_init
-from ..serving.v1_serving import nuclio_serving_init
-from .local import get_func_arg
 from .serving import serving_subkind
 
 

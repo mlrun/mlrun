@@ -25,6 +25,7 @@ import pyarrow
 import pytz
 import requests
 import urllib3
+from deprecated import deprecated
 
 import mlrun.errors
 from mlrun.errors import err_to_str
@@ -72,6 +73,13 @@ class DataStore:
         return True
 
     @staticmethod
+    def _sanitize_storage_options(options):
+        if not options:
+            return {}
+        options = {k: v for k, v in options.items() if v is not None and v != ""}
+        return options
+
+    @staticmethod
     def _sanitize_url(url):
         """
         Extract only the schema, netloc, and path from an input URL if they exist,
@@ -91,7 +99,18 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
-    def get_filesystem(self, silent=True) -> Optional[fsspec.AbstractFileSystem]:
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'get_filesystem()' will be removed in 1.8.0, use "
+        "'filesystem' property instead",
+        category=FutureWarning,
+    )
+    def get_filesystem(self):
+        return self.filesystem
+
+    @property
+    def filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
         """return fsspec file system object, if supported"""
         return None
 
@@ -107,10 +126,10 @@ class DataStore:
 
     def get_storage_options(self):
         """get fsspec storage options"""
-        return None
+        return self._sanitize_storage_options(None)
 
     def open(self, filepath, mode):
-        file_system = self.get_filesystem(False)
+        file_system = self.filesystem
         return file_system.open(filepath, mode)
 
     def _join(self, key):
@@ -231,7 +250,7 @@ class DataStore:
         df_module = df_module or pd
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
-        file_system = self.get_filesystem()
+        file_system = self.filesystem
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -356,7 +375,7 @@ class DataStore:
         }
 
     def rm(self, path, recursive=False, maxdepth=None):
-        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     @staticmethod
     def _is_dd(df_module):
@@ -635,33 +654,6 @@ def http_get(url, headers=None, auth=None):
     return response.content
 
 
-def http_head(url, headers=None, auth=None):
-    try:
-        response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
-
-    mlrun.errors.raise_for_status(response)
-
-    return response.headers
-
-
-def http_put(url, data, headers=None, auth=None):
-    try:
-        response = requests.put(
-            url, data=data, headers=headers, auth=auth, verify=verify_ssl
-        )
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}") from exc
-
-    mlrun.errors.raise_for_status(response)
-
-
-def http_upload(url, file_path, headers=None, auth=None):
-    with open(file_path, "rb") as data:
-        http_put(url, data, headers, auth)
-
-
 class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
@@ -672,7 +664,8 @@ class HttpStore(DataStore):
         self._enrich_https_token()
         self._validate_https_token()
 
-    def get_filesystem(self, silent=True):
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")

@@ -18,6 +18,7 @@ import http
 import typing
 
 import requests.adapters
+import requests.auth
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -94,6 +95,7 @@ class Client(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug(
             "Deleting project in Nuclio", name=name, deletion_strategy=deletion_strategy
@@ -107,7 +109,13 @@ class Client(
             "x-nuclio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
         }
         try:
-            self._send_request_to_api("DELETE", "projects", json=body, headers=headers)
+            self._send_request_to_api(
+                "DELETE",
+                "projects",
+                auth_info=auth_info,
+                json=body,
+                headers=headers,
+            )
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
@@ -118,9 +126,12 @@ class Client(
             )
 
     def get_project(
-        self, session: sqlalchemy.orm.Session, name: str
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.Project:
-        response = self._get_project_from_nuclio(name)
+        response = self._get_project_from_nuclio(name, auth_info)
         response_body = response.json()
         return self._transform_nuclio_project_to_schema(response_body)
 
@@ -129,9 +140,10 @@ class Client(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -149,7 +161,7 @@ class Client(
             raise NotImplementedError(
                 "Filtering nuclio projects by names is currently not supported"
             )
-        response = self._send_request_to_api("GET", "projects")
+        response = self._send_request_to_api("GET", "projects", auth_info=auth_info)
         response_body = response.json()
         projects = []
         for nuclio_project in response_body.values():
@@ -169,9 +181,9 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
@@ -185,16 +197,30 @@ class Client(
         response_body = response.json()
         return response_body["dashboard"]["label"]
 
-    def _get_project_from_nuclio(self, name):
-        return self._send_request_to_api("GET", f"projects/{name}")
+    def _get_project_from_nuclio(
+        self, name, auth_info: mlrun.common.schemas.AuthInfo = None
+    ):
+        return self._send_request_to_api("GET", f"projects/{name}", auth_info=auth_info)
 
-    def _post_project_to_nuclio(self, body):
-        return self._send_request_to_api("POST", "projects", json=body)
+    def _post_project_to_nuclio(
+        self, body, auth_info: mlrun.common.schemas.AuthInfo = None
+    ):
+        return self._send_request_to_api(
+            "POST", "projects", auth_info=auth_info, json=body
+        )
 
-    def _put_project_to_nuclio(self, body):
-        self._send_request_to_api("PUT", "projects", json=body)
+    def _put_project_to_nuclio(
+        self, body, auth_info: mlrun.common.schemas.AuthInfo = None
+    ):
+        self._send_request_to_api("PUT", "projects", auth_info=auth_info, json=body)
 
-    def _send_request_to_api(self, method, path, **kwargs):
+    def _send_request_to_api(
+        self,
+        method,
+        path,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
+        **kwargs,
+    ):
         url = f"{self._api_url}/api/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
@@ -206,7 +232,12 @@ class Client(
             for key in dict_.keys():
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
-        response = self._session.request(method, url, verify=False, **kwargs)
+
+        auth = None
+        if auth_info:
+            auth = auth_info.to_nuclio_auth_info().to_requests_auth()
+
+        response = self._session.request(method, url, verify=False, auth=auth, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)
             log_kwargs.update({"method": method, "path": path})

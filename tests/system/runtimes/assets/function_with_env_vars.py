@@ -17,7 +17,7 @@ import datetime
 
 def handler(context, file_path="/tmp/args.txt"):
     print("started", str(datetime.datetime.now()))
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         lines = file.read().split("\n")
     lines = [line for line in lines if line]
     context.log_result("results", lines)

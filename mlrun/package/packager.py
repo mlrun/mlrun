@@ -14,7 +14,7 @@
 #
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -93,7 +93,7 @@ class Packager(ABC):
     """
 
     #: The type of object this packager can pack and unpack.
-    PACKABLE_OBJECT_TYPE: Type = ...
+    PACKABLE_OBJECT_TYPE: type = ...
 
     #: The priority of this packager in the packagers collection of the manager (lower is better).
     PRIORITY: int = ...
@@ -104,7 +104,7 @@ class Packager(ABC):
         self._priority = Packager.PRIORITY
 
         # List of all paths to be deleted by the manager of this packager after logging the packages:
-        self._future_clearing_path_list: List[str] = []
+        self._future_clearing_path_list: list[str] = []
 
     @abstractmethod
     def get_default_packing_artifact_type(self, obj: Any) -> str:
@@ -132,7 +132,7 @@ class Packager(ABC):
         pass
 
     @abstractmethod
-    def get_supported_artifact_types(self) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager.
 
@@ -147,7 +147,7 @@ class Packager(ABC):
         key: str = None,
         artifact_type: str = None,
         configurations: dict = None,
-    ) -> Union[Tuple[Artifact, dict], dict]:
+    ) -> Union[tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -212,7 +212,7 @@ class Packager(ABC):
         return True
 
     def is_unpackable(
-        self, data_item: DataItem, type_hint: Type, artifact_type: str = None
+        self, data_item: DataItem, type_hint: type, artifact_type: str = None
     ) -> bool:
         """
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
@@ -269,7 +269,7 @@ class Packager(ABC):
         self._priority = priority
 
     @property
-    def future_clearing_path_list(self) -> List[str]:
+    def future_clearing_path_list(self) -> list[str]:
         """
         Get the packager's future clearing path list.
 

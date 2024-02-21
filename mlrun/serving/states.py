@@ -556,6 +556,34 @@ class ErrorStep(TaskStep):
     _dict_fields = _task_step_fields + ["before", "base_step"]
     _default_class = ""
 
+    def __init__(
+        self,
+        class_name: Union[str, type] = None,
+        class_args: dict = None,
+        handler: str = None,
+        name: str = None,
+        after: list = None,
+        full_event: bool = None,
+        function: str = None,
+        responder: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+    ):
+        super().__init__(
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            after=after,
+            full_event=full_event,
+            function=function,
+            responder=responder,
+            input_path=input_path,
+            result_path=result_path,
+        )
+        self.before = None
+        self.base_step = None
+
 
 class RouterStep(TaskStep):
     """router step, implement routing logic for running child routes"""
@@ -1514,6 +1542,7 @@ def _init_async_objects(context, steps):
                     result_path=step.result_path,
                     name=step.name,
                     context=context,
+                    pass_context=step._inject_context,
                 )
             if (
                 respond_supported

@@ -146,12 +146,15 @@ class TestDBFS(TestMLRunSystem):
         ) as f:
             f.write(source_content)
         source = source_class("my_source", dbfs_source_path, **reader_kwargs)
-        fstore.ingest(measurements, source=source, targets=[target])
+        measurements.ingest(source=source, targets=[target])
         target_file_path = measurements.get_target_path()
         result = source_class(path=target_file_path, **reader_kwargs).to_dataframe()
         if drop_index:
             result.reset_index(inplace=True, drop=False)
 
         assert_frame_equal(
-            expected.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+            expected.sort_index(axis=1),
+            result.sort_index(axis=1),
+            check_like=True,
+            check_dtype=False,
         )

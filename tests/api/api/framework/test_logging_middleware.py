@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import typing
 from http import HTTPStatus
 
@@ -23,6 +24,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from mlrun.utils import logger
+from mlrun.utils.logger import Logger, create_logger
 from server.api.main import app
 
 
@@ -122,19 +124,58 @@ def client(request) -> typing.Generator:
             app.middleware_stack = app.build_middleware_stack()
 
 
-def test_logging_middleware(db: Session, client: TestClient) -> None:
+@pytest.fixture
+def stream_logger(request) -> (io.StringIO, Logger):
+    stream = io.StringIO()
+    stream_logger = create_logger("debug", name="test-logger", stream=stream)
+    yield stream, stream_logger
+
+
+def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> None:
+    stream, logger_instance = stream_logger
+    stream: io.StringIO
+    has_logger_middleware = False
+    for middleware in client.app.user_middleware:
+        if "logger" in middleware.options:
+            middleware.options["logger"] = logger_instance
+            has_logger_middleware = True
+    client.app.middleware_stack = client.app.build_middleware_stack()
+
     resp = client.get("/test/success")
     assert resp.status_code == HTTPStatus.ACCEPTED.value
+    if has_logger_middleware:
+        _ensure_request_logged(stream)
+        stream.seek(0)
 
     resp = client.get("/test/handled_exception_1")
     assert resp.status_code == HTTPStatus.NO_CONTENT.value
+    if has_logger_middleware:
+        _ensure_request_logged(stream)
+        stream.seek(0)
 
     resp = client.get("/test/handled_exception_2")
     assert resp.status_code == HTTPStatus.UNAUTHORIZED.value
+    if has_logger_middleware:
+        _ensure_request_logged(stream)
+        stream.seek(0)
 
     resp = client.post("/test/fastapi_handled_exception")
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    if has_logger_middleware:
+        _ensure_request_logged(stream)
+        stream.seek(0)
 
     with pytest.raises(UnhandledException):
         # In a real fastapi (and not test) unhandled exception returns 500
         client.get("/test/unhandled_exception")
+    if has_logger_middleware:
+        _ensure_request_logged(stream, verify_unhandled_exception=True)
+        stream.seek(0)
+
+
+def _ensure_request_logged(log_stream, verify_unhandled_exception: bool = False):
+    lines = log_stream.getvalue().splitlines()
+    assert "Received request" in lines[0]
+    assert "Sending response" in lines[1]
+    if verify_unhandled_exception:
+        assert "Request handling failed" in lines[1]

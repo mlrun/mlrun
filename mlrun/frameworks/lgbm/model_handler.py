@@ -14,7 +14,7 @@
 #
 import os
 import pickle
-from typing import Dict, List, Union
+from typing import Union
 
 import cloudpickle
 import lightgbm as lgb
@@ -56,8 +56,8 @@ class LGBMModelHandler(MLModelHandler):
         model_name: str = None,
         model_path: str = None,
         model: LGBMTypes.ModelType = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         context: mlrun.MLClientCtx = None,
         model_format: str = ModelFormats.PKL,
@@ -139,7 +139,7 @@ class LGBMModelHandler(MLModelHandler):
         self._model_format = model_format
 
         # Set up the base handler class:
-        super(LGBMModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -152,8 +152,8 @@ class LGBMModelHandler(MLModelHandler):
 
     def set_labels(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -162,7 +162,7 @@ class LGBMModelHandler(MLModelHandler):
         :param to_remove: A list of labels keys to remove.
         """
         # Update the user's labels:
-        super(LGBMModelHandler, self).set_labels(to_add=to_add, to_remove=to_remove)
+        super().set_labels(to_add=to_add, to_remove=to_remove)
 
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_FORMAT] = self._model_format
@@ -193,7 +193,7 @@ class LGBMModelHandler(MLModelHandler):
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
-        super(LGBMModelHandler, self).save(output_path=output_path)
+        super().save(output_path=output_path)
 
         if isinstance(self._model, lgb.LGBMModel):
             return self._save_lgbmmodel()
@@ -204,7 +204,7 @@ class LGBMModelHandler(MLModelHandler):
         Load the specified model in this handler. Additional parameters for the class initializer can be passed via the
         kwargs dictionary.
         """
-        super(LGBMModelHandler, self).load()
+        super().load()
 
         # ModelFormats.PKL - Load from a pkl file:
         if self._model_format == LGBMModelHandler.ModelFormats.PKL:

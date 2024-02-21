@@ -20,7 +20,7 @@ import mlrun.config
 import mlrun.errors
 
 
-class BaseGRPCClient(object):
+class BaseGRPCClient:
     name = None
     stub_class = None
 

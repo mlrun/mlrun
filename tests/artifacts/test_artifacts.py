@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os.path
 import pathlib
+import tempfile
 import typing
 import unittest.mock
 import uuid
 from contextlib import nullcontext as does_not_raise
 
+import pandas as pd
 import pytest
 
 import mlrun
@@ -342,6 +345,58 @@ def test_log_artifact_with_target_path_and_upload_options():
                 # if target path is given, we don't upload and therefore don't calculate hash
                 assert logged_artifact.target_path == target_path
                 assert logged_artifact.metadata.hash is None
+
+
+@pytest.mark.parametrize(
+    "local_path, fail",
+    [
+        ("s3://path/file.txt", False),
+        ("", False),
+        ("file://", False),
+        ("file:///not_exists/file.txt", True),
+        ("/not_exists/file.txt", True),
+    ],
+)
+def test_ensure_artifact_source_file_exists(local_path, fail):
+    artifact = mlrun.artifacts.Artifact(
+        "artifact-name",
+    )
+    context = mlrun.get_or_create_ctx("test")
+    if fail:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
+            context.log_artifact(item=artifact, local_path=local_path)
+        assert "Failed to log an artifact, file does not exists" in str(error.value)
+    else:
+        if not local_path or local_path == "file://":
+            df = pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]})
+            with tempfile.NamedTemporaryFile(suffix=".pq", delete=True) as temp_file:
+                path = temp_file.name
+                df.to_parquet(path)
+                if local_path == "file://":
+                    path = local_path + path
+                context.log_artifact(item=artifact, local_path=path)
+        else:
+            context.log_artifact(item=artifact, local_path=local_path)
+
+
+@pytest.mark.parametrize(
+    "df, fail",
+    [
+        (pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]}), False),
+        (None, True),
+    ],
+)
+def test_ensure_artifact_source_file_exists_by_df(df, fail):
+    context = mlrun.get_or_create_ctx("test")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        full_path = os.path.join(temp_dir, "df.parquet")
+        if fail:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
+                context.log_dataset(key=str(uuid.uuid4()), df=df, local_path=full_path)
+            assert "Failed to log an artifact, file does not exists" in str(error.value)
+        else:
+            context.log_dataset(key=str(uuid.uuid4()), df=df, local_path=full_path)
 
 
 @pytest.mark.parametrize(

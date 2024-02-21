@@ -17,7 +17,7 @@ import copy
 import traceback
 import typing
 from http import HTTPStatus
-from typing import Dict, Optional
+from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -260,7 +260,7 @@ def _is_requested_schedule(
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.Project, name: str
-) -> typing.Optional[Dict]:
+) -> typing.Optional[dict]:
     """
     Getting workflow from project by name.
 
@@ -279,22 +279,25 @@ def _fill_workflow_missing_fields_from_project(
     project: mlrun.common.schemas.Project,
     workflow_name: str,
     spec: mlrun.common.schemas.WorkflowSpec,
-    arguments: typing.Dict,
+    arguments: dict,
 ) -> mlrun.common.schemas.WorkflowSpec:
     """
     Fill the workflow spec details from the project object, with favour to spec
 
     :param project:         MLRun project that contains the workflow.
-    :param workflow_name:   workflow name
-    :param spec:            workflow spec input
-    :param arguments:       arguments to workflow
+    :param workflow_name:   Workflow name
+    :param spec:            Workflow spec input
+    :param arguments:       Arguments to workflow
 
-    :return: completed workflow spec
+    :return: Completed workflow spec
     """
 
-    # while we expect workflow to be exists on project spec, we might get a case where the workflow is not exists.
-    # this is possible when workflow is not set prior to its execution.
+    # While we expect workflow to exist on project spec, we might get a case where the workflow does not exist.
+    # This is possible when workflow is not set prior to its execution.
     workflow = _get_workflow_by_name(project, workflow_name)
+    if spec and spec.schedule is None:
+        # Do not enrich with schedule from project's workflow when spec was provided
+        workflow.pop("schedule", None)
 
     if spec:
         # Merge between the workflow spec provided in the request with existing

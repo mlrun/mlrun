@@ -22,7 +22,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from os import environ
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import pydantic.error_wrappers
 
@@ -44,6 +44,15 @@ RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 class ModelObj:
     _dict_fields = []
+    # Bellow attributes are used in to_dict method
+    # Fields to strip from the object by default if strip=True
+    _default_fields_to_strip = []
+    # Fields that will be serialized by the object's _serialize_field method
+    _fields_to_serialize = []
+    # Fields that will be enriched by the object's _enrich_field method
+    _fields_to_enrich = []
+    # Fields that will be ignored by the object's _is_valid_field_value_for_serialization method
+    _fields_to_skip_validation = []
 
     @staticmethod
     def _verify_list(param, name):
@@ -62,26 +71,145 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields=None, exclude=None):
-        """convert the object to a python dictionary
+    def to_dict(
+        self, fields: list = None, exclude: list = None, strip: bool = False
+    ) -> dict:
+        """
+        Convert the object to a dict
 
-        :param fields:  list of fields to include in the dict
-        :param exclude: list of fields to exclude from the dict
+        :param fields:  A list of fields to include in the dictionary. If not provided, the default value is taken
+            from `self._dict_fields` or from the object __init__ params.
+        :param exclude: A list of fields to exclude from the dictionary.
+        :param strip:  If True, the object's `_default_fields_to_strip` attribute is appended to the exclude list.
+            Strip purpose is to remove fields that are context / environment specific and not required for actually
+            define the object.
+
+        :return: A dictionary representation of the object.
         """
         struct = {}
-        fields = fields or self._dict_fields
-        if not fields:
-            fields = list(inspect.signature(self.__init__).parameters.keys())
-        for t in fields:
-            if not exclude or t not in exclude:
-                val = getattr(self, t, None)
-                if val is not None and not (isinstance(val, dict) and not val):
-                    if hasattr(val, "to_dict"):
-                        val = val.to_dict()
-                        if val:
-                            struct[t] = val
-                    else:
-                        struct[t] = val
+
+        fields = self._resolve_initial_to_dict_fields(fields)
+        fields_to_exclude = exclude or []
+        if strip:
+            fields_to_exclude += self._default_fields_to_strip
+
+        # fields_to_save is built from the fields list minus the fields to exclude minus the fields that requires
+        # serialization and enrichment (because they will be added later to the struct)
+        fields_to_save = (
+            set(fields)
+            - set(fields_to_exclude)
+            - set(self._fields_to_serialize)
+            - set(self._fields_to_enrich)
+        )
+
+        # Iterating over the fields to save and adding them to the struct
+        for field_name in fields_to_save:
+            field_value = getattr(self, field_name, None)
+            if self._is_valid_field_value_for_serialization(
+                field_name, field_value, strip
+            ):
+                # If the field value has attribute to_dict, we call it.
+                # If one of the attributes is a third party object that has to_dict method (such as k8s objects), then
+                # add it to the object's _fields_to_serialize attribute and handle it in the _serialize_field method.
+                if hasattr(field_value, "to_dict"):
+                    field_value = field_value.to_dict(strip=strip)
+                    if self._is_valid_field_value_for_serialization(
+                        field_name, field_value, strip
+                    ):
+                        struct[field_name] = field_value
+                else:
+                    struct[field_name] = field_value
+
+        # Subtracting the fields_to_exclude from the fields_to_serialize because if we want to exclude a field there
+        # is no need to serialize it.
+        fields_to_serialize = list(
+            set(self._fields_to_serialize) - set(fields_to_exclude)
+        )
+        self._resolve_field_value_by_method(
+            struct, self._serialize_field, fields_to_serialize, strip
+        )
+
+        # Subtracting the fields_to_exclude from the fields_to_enrich because if we want to exclude a field there
+        # is no need to enrich it.
+        fields_to_enrich = list(set(self._fields_to_enrich) - set(fields_to_exclude))
+        self._resolve_field_value_by_method(
+            struct, self._enrich_field, fields_to_enrich, strip
+        )
+
+        self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
+        return struct
+
+    def _resolve_initial_to_dict_fields(self, fields: list = None) -> list:
+        """
+        Resolve fields to be used in to_dict method.
+        If fields is None, use `_dict_fields` attribute of the object.
+        If fields is None and `_dict_fields` is empty, use the object's __init__ parameters.
+        :param fields: List of fields to iterate over.
+
+        :return: List of fields to iterate over.
+        """
+        return (
+            fields
+            or self._dict_fields
+            or list(inspect.signature(self.__init__).parameters.keys())
+        )
+
+    def _is_valid_field_value_for_serialization(
+        self, field_name: str, field_value: str, strip: bool = False
+    ) -> bool:
+        """
+        Check if the field value is valid for serialization.
+        If field name is in `_fields_to_skip_validation` attribute, skip validation and return True.
+        If strip is False skip validation and return True.
+        If field value is None or empty dict/list, then no need to store it.
+        :param field_name:  Field name.
+        :param field_value: Field value.
+
+        :return: True if the field value is valid for serialization, False otherwise.
+        """
+        if field_name in self._fields_to_skip_validation:
+            return True
+        # TODO: remove when Runtime initialization will be refactored and enrichment will be moved to BE
+        # if not strip:
+        #     return True
+
+        return field_value is not None and not (
+            (isinstance(field_value, dict) or isinstance(field_value, list))
+            and not field_value
+        )
+
+    def _resolve_field_value_by_method(
+        self,
+        struct: dict,
+        method: typing.Callable,
+        fields: typing.Union[list, set] = None,
+        strip: bool = False,
+    ) -> dict:
+        for field_name in fields:
+            field_value = method(struct=struct, field_name=field_name, strip=strip)
+            if self._is_valid_field_value_for_serialization(
+                field_name, field_value, strip
+            ):
+                struct[field_name] = field_value
+        return struct
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        # We pull the field from self and not from struct because it was excluded from the struct when looping over
+        # the fields to save.
+        return getattr(self, field_name, None)
+
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        # We first try to pull from struct because the field might have been already serialized and if not,
+        # we pull from self
+        return struct.get(field_name, None) or getattr(self, field_name, None)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ) -> dict:
         return struct
 
     @classmethod
@@ -110,19 +238,21 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self, exclude=None) -> str:
+    def to_yaml(self, exclude=None, strip: bool = False) -> str:
         """convert the object to yaml
 
         :param exclude: list of fields to exclude from the yaml
+        :param strip:   if True, strip fields that are not required for actually define the object
         """
-        return dict_to_yaml(self.to_dict(exclude=exclude))
+        return dict_to_yaml(self.to_dict(exclude=exclude, strip=strip))
 
-    def to_json(self, exclude=None):
+    def to_json(self, exclude=None, strip: bool = False):
         """convert the object to json
 
         :param exclude: list of fields to exclude from the json
+        :param strip:   if True, strip fields that are not required for actually define the object
         """
-        return dict_to_json(self.to_dict(exclude=exclude))
+        return dict_to_json(self.to_dict(exclude=exclude, strip=strip))
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
@@ -174,8 +304,8 @@ class ObjectDict:
         self._children[key] = child
         return child
 
-    def to_dict(self):
-        return {k: v.to_dict() for k, v in self._children.items()}
+    def to_dict(self, strip: bool = False):
+        return {k: v.to_dict(strip=strip) for k, v in self._children.items()}
 
     @classmethod
     def from_dict(cls, classes_map: dict, children=None, default_kind=""):
@@ -257,9 +387,9 @@ class ObjectList:
     def __delitem__(self, key):
         del self._children[key]
 
-    def to_dict(self):
+    def to_dict(self, strip: bool = False):
         # method used by ModelObj class to serialize the object to nested dict
-        return [t.to_dict() for t in self._children.values()]
+        return [t.to_dict(strip=strip) for t in self._children.values()]
 
     @classmethod
     def from_list(cls, child_class, children=None):
@@ -304,6 +434,18 @@ class Credentials(ModelObj):
 
 
 class BaseMetadata(ModelObj):
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + [
+        "hash",
+        # Below are environment specific fields, no need to keep when stripping
+        "namespace",
+        "project",
+        "labels",
+        "annotations",
+        "credentials",
+        # Below are state fields, no need to keep when stripping
+        "updated",
+    ]
+
     def __init__(
         self,
         name=None,
@@ -443,7 +585,7 @@ class ImageBuilder(ModelObj):
 
     def with_commands(
         self,
-        commands: List[str],
+        commands: list[str],
         overwrite: bool = False,
     ):
         """add commands to build spec.
@@ -470,7 +612,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[List[str]] = None,
+        requirements: Optional[list[str]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -503,7 +645,7 @@ class ImageBuilder(ModelObj):
 
         # handle the requirements_file argument
         if requirements_file:
-            with open(requirements_file, "r") as fp:
+            with open(requirements_file) as fp:
                 requirements_to_resolve.extend(fp.read().splitlines())
 
         # handle the requirements argument
@@ -582,7 +724,7 @@ class Notification(ModelObj):
             )
 
     @staticmethod
-    def validate_notification_uniqueness(notifications: List["Notification"]):
+    def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""
         names = [notification.name for notification in notifications]
         if len(names) != len(set(names)):
@@ -686,6 +828,10 @@ class HyperParamOptions(ModelObj):
 class RunSpec(ModelObj):
     """Run specification"""
 
+    _fields_to_serialize = ModelObj._fields_to_serialize + [
+        "handler",
+    ]
+
     def __init__(
         self,
         parameters=None,
@@ -746,18 +892,22 @@ class RunSpec(ModelObj):
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
 
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["handler"])
-        if self.handler and isinstance(self.handler, str):
-            struct["handler"] = self.handler
-        return struct
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> Optional[str]:
+        # We pull the field from self and not from struct because it was excluded from the struct
+        if field_name == "handler":
+            if self.handler and isinstance(self.handler, str):
+                return self.handler
+            return None
+        return super()._serialize_field(struct, field_name, strip)
 
     def is_hyper_job(self):
         param_file = self.param_file or self.hyper_param_options.param_file
         return param_file or self.hyperparams
 
     @property
-    def inputs(self) -> Dict[str, str]:
+    def inputs(self) -> dict[str, str]:
         """
         Get the inputs dictionary. A dictionary of parameter names as keys and paths as values.
 
@@ -766,7 +916,7 @@ class RunSpec(ModelObj):
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: Dict[str, str]):
+    def inputs(self, inputs: dict[str, str]):
         """
         Set the given inputs in the spec. Inputs can include a type hint string in their keys following a colon, meaning
         following this structure: "<input key : type hint>".
@@ -789,7 +939,7 @@ class RunSpec(ModelObj):
         self._inputs = self._verify_dict(inputs, "inputs")
 
     @property
-    def inputs_type_hints(self) -> Dict[str, str]:
+    def inputs_type_hints(self) -> dict[str, str]:
         """
         Get the input type hints. A dictionary of parameter names as keys and their type hints as values.
 
@@ -798,7 +948,7 @@ class RunSpec(ModelObj):
         return self._inputs_type_hints
 
     @inputs_type_hints.setter
-    def inputs_type_hints(self, inputs_type_hints: Dict[str, str]):
+    def inputs_type_hints(self, inputs_type_hints: dict[str, str]):
         """
         Set the inputs type hints to parse during a run.
 
@@ -819,7 +969,7 @@ class RunSpec(ModelObj):
         return self._returns
 
     @returns.setter
-    def returns(self, returns: List[Union[str, Dict[str, str]]]):
+    def returns(self, returns: list[Union[str, dict[str, str]]]):
         """
         Set the returns list to log the returning values at the end of a run.
 
@@ -853,7 +1003,7 @@ class RunSpec(ModelObj):
         )
 
     @property
-    def outputs(self) -> List[str]:
+    def outputs(self) -> list[str]:
         """
         Get the expected outputs. The list is constructed from keys of both the `outputs` and `returns` properties.
 
@@ -918,7 +1068,7 @@ class RunSpec(ModelObj):
         return self._state_thresholds
 
     @state_thresholds.setter
-    def state_thresholds(self, state_thresholds: Dict[str, str]):
+    def state_thresholds(self, state_thresholds: dict[str, str]):
         """
         Set the dictionary of k8s resource states to thresholds time strings.
         The state will be matched against the pod's status. The threshold should be a time string that conforms
@@ -970,8 +1120,8 @@ class RunSpec(ModelObj):
 
     @staticmethod
     def join_outputs_and_returns(
-        outputs: List[str], returns: List[Union[str, Dict[str, str]]]
-    ) -> List[str]:
+        outputs: list[str], returns: list[Union[str, dict[str, str]]]
+    ) -> list[str]:
         """
         Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
         that were set by the user.
@@ -1002,7 +1152,7 @@ class RunSpec(ModelObj):
         return outputs
 
     @staticmethod
-    def _separate_type_hint_from_input_key(input_key: str) -> Tuple[str, str]:
+    def _separate_type_hint_from_input_key(input_key: str) -> tuple[str, str]:
         """
         An input key in the `inputs` dictionary parameter of a task (or `Runtime.run` method) or the docs setting of a
         `Runtime` handler can be provided with a colon to specify its type hint in the following structure:
@@ -1046,7 +1196,7 @@ class RunStatus(ModelObj):
         iterations=None,
         ui_url=None,
         reason: str = None,
-        notifications: Dict[str, Notification] = None,
+        notifications: dict[str, Notification] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1259,8 +1409,15 @@ class RunObject(RunTemplate):
         """error string if failed"""
         if self.status:
             unknown_error = ""
-            if self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            if (
+                self.status.state
+                in mlrun.runtimes.constants.RunStates.abortion_states()
+            ):
+                unknown_error = "Run was aborted"
+
+            elif self.status.state in mlrun.runtimes.constants.RunStates.error_states():
                 unknown_error = "Unknown error"
+
             return (
                 self.status.error
                 or self.status.reason
@@ -1284,7 +1441,7 @@ class RunObject(RunTemplate):
         """UI URL (for relevant runtimes)"""
         self.refresh()
         if not self._status.ui_url:
-            print("UI currently not available (status={})".format(self._status.state))
+            print(f"UI currently not available (status={self._status.state})")
         return self._status.ui_url
 
     @property
@@ -1447,7 +1604,7 @@ class RunObject(RunTemplate):
         return f"{project}@{uid}#{iteration}{tag}"
 
     @staticmethod
-    def parse_uri(uri: str) -> Tuple[str, str, str, str]:
+    def parse_uri(uri: str) -> tuple[str, str, str, str]:
         uri_pattern = (
             r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
         )
@@ -1668,7 +1825,7 @@ class DataSource(ModelObj):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -1715,10 +1872,14 @@ class DataTargetBase(ModelObj):
     ]
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):
+        # polymorphism won't work here, because from_dict always returns an instance of the base type (DataTargetBase)
+        if self.kind in ["stream", "kafka"]:
+            return TargetPathObject(self.path or "")
+
         if self.path:
             is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
             return TargetPathObject(self.path, self.run_id, is_single_file)
@@ -1730,16 +1891,16 @@ class DataTargetBase(ModelObj):
         kind: str = None,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: Dict[str, str] = None,
-        schema: Dict[str, Any] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
         credentials_prefix=None,
     ):
         self.name = name
@@ -1826,8 +1987,8 @@ class VersionedObjMetadata(ModelObj):
         tag: str = None,
         uid: str = None,
         project: str = None,
-        labels: Dict[str, str] = None,
-        annotations: Dict[str, str] = None,
+        labels: dict[str, str] = None,
+        annotations: dict[str, str] = None,
         updated=None,
     ):
         self.name = name

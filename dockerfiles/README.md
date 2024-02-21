@@ -4,12 +4,9 @@ Every release of MLRun includes several images for different usages.
 All images are published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
 The images are:
-* `mlrun/mlrun` - The most basic (and smallest) image, can be used for simple jobs. Basically just MLRun installed on 
-  top of a python image
+* `mlrun/mlrun` - An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs.
 * `mlrun/mlrun-gpu` - Same as `mlrun/mlrun` but for GPUs, including `OPMI` (Available for MLRun >= 1.5.0)
-* `mlrun/ml-base` - Image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like 
-  `mlrun/mlrun` with the addition of [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and other [python 
-  packages](./base/requirements.txt)
+* `mlrun/ml-base` - Image for file acquisition, compression, dask jobs, simple training jobs and other utilities.
 * `mlrun/jupyter` - An image with [Jupyter](https://jupyter.org/) giving a playground to use MLRun in the open source.
   Built on top of [`jupyter/scipy-notebook`](
   https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook), with the addition

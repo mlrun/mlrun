@@ -20,7 +20,7 @@ import sys
 import zipfile
 from abc import ABC, abstractmethod
 from types import MethodType
-from typing import Any, Dict, Generic, List, Type, Union
+from typing import Any, Generic, Union
 
 import numpy as np
 
@@ -57,10 +57,10 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         model_path: CommonTypes.PathType = None,
         model_name: str = None,
         modules_map: Union[
-            Dict[str, Union[None, str, List[str]]], CommonTypes.PathType
+            dict[str, Union[None, str, list[str]]], CommonTypes.PathType
         ] = None,
         custom_objects_map: Union[
-            Dict[str, Union[str, List[str]]], CommonTypes.PathType
+            dict[str, Union[str, list[str]]], CommonTypes.PathType
         ] = None,
         custom_objects_directory: CommonTypes.PathType = None,
         context: MLClientCtx = None,
@@ -224,7 +224,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return self._tag
 
     @property
-    def inputs(self) -> Union[List[Feature], None]:
+    def inputs(self) -> Union[list[Feature], None]:
         """
         Get the input ports features list of this model's artifact. If the inputs are not set, None will be returned.
 
@@ -233,7 +233,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return self._inputs
 
     @property
-    def outputs(self) -> Union[List[Feature], None]:
+    def outputs(self) -> Union[list[Feature], None]:
         """
         Get the output ports features list of this model's artifact. If the outputs are not set, None will be returned.
 
@@ -242,7 +242,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return self._outputs
 
     @property
-    def labels(self) -> Dict[str, str]:
+    def labels(self) -> dict[str, str]:
         """
         Get the labels dictionary of this model's artifact. These will be the labels that will be logged with the model.
 
@@ -251,7 +251,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return self._labels
 
     @property
-    def parameters(self) -> Dict[str, str]:
+    def parameters(self) -> dict[str, str]:
         """
         Get the parameters dictionary of this model's artifact. These will be the parameters that will be logged with
         the model.
@@ -262,7 +262,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def get_artifacts(
         self, committed_only: bool = False
-    ) -> Dict[str, CommonTypes.ExtraDataType]:
+    ) -> dict[str, CommonTypes.ExtraDataType]:
         """
         Get the registered artifacts of this model's artifact. By default all the artifacts (logged and to be logged -
         committed only) will be returned. To get only the artifacts registered in the current run whom are committed and
@@ -306,7 +306,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def set_inputs(
         self,
         from_sample: CommonTypes.IOSampleType = None,
-        features: List[Feature] = None,
+        features: list[Feature] = None,
         **kwargs,
     ):
         """
@@ -335,7 +335,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def set_outputs(
         self,
         from_sample: CommonTypes.IOSampleType = None,
-        features: List[Feature] = None,
+        features: list[Feature] = None,
         **kwargs,
     ):
         """
@@ -363,8 +363,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_labels(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact.
@@ -383,8 +383,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_parameters(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the parameters dictionary of this model artifact.
@@ -403,8 +403,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_metrics(
         self,
-        to_add: Dict[str, CommonTypes.ExtraDataType] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, CommonTypes.ExtraDataType] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the metrics dictionary of this model artifact.
@@ -423,8 +423,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def set_extra_data(
         self,
-        to_add: Dict[str, CommonTypes.ExtraDataType] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, CommonTypes.ExtraDataType] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the extra data dictionary of this model artifact.
@@ -442,7 +442,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
                 self._extra_data.pop(label)
 
     def register_artifacts(
-        self, artifacts: Union[Artifact, List[Artifact], Dict[str, Artifact]]
+        self, artifacts: Union[Artifact, list[Artifact], dict[str, Artifact]]
     ):
         """
         Register the given artifacts, so they will be logged as extra data with the model of this handler. Notice: The
@@ -466,7 +466,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     @abstractmethod
     def save(
         self, output_path: CommonTypes.PathType = None, **kwargs
-    ) -> Union[Dict[str, Artifact], None]:
+    ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
 
@@ -525,13 +525,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
     def log(
         self,
         tag: str = "",
-        labels: Dict[str, Union[str, int, float]] = None,
-        parameters: Dict[str, Union[str, int, float]] = None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
-        metrics: Dict[str, Union[int, float]] = None,
-        artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, CommonTypes.ExtraDataType] = None,
+        labels: dict[str, Union[str, int, float]] = None,
+        parameters: dict[str, Union[str, int, float]] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
+        metrics: dict[str, Union[int, float]] = None,
+        artifacts: dict[str, Artifact] = None,
+        extra_data: dict[str, CommonTypes.ExtraDataType] = None,
         **kwargs,
     ):
         """
@@ -630,13 +630,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def update(
         self,
-        labels: Dict[str, Union[str, int, float]] = None,
-        parameters: Dict[str, Union[str, int, float]] = None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
-        metrics: Dict[str, Union[int, float]] = None,
-        artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, CommonTypes.ExtraDataType] = None,
+        labels: dict[str, Union[str, int, float]] = None,
+        parameters: dict[str, Union[str, int, float]] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
+        metrics: dict[str, Union[int, float]] = None,
+        artifacts: dict[str, Artifact] = None,
+        extra_data: dict[str, CommonTypes.ExtraDataType] = None,
         **kwargs,
     ):
         """
@@ -857,7 +857,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         # Read the modules map if given as a json:
         if isinstance(self._modules_map, str):
-            with open(self._modules_map, "r") as map_json_file:
+            with open(self._modules_map) as map_json_file:
                 self._modules_map = json.loads(map_json_file.read())
 
         # Start importing the modules according to the map:
@@ -887,7 +887,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         # Read the custom objects map if given as a json:
         if isinstance(self._custom_objects_map, str):
-            with open(self._custom_objects_map, "r") as map_json_file:
+            with open(self._custom_objects_map) as map_json_file:
                 self._custom_objects_map = json.loads(map_json_file.read())
 
         # Unzip the custom objects files if the directory was given as a zip:
@@ -917,7 +917,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
                 ),
             }
 
-    def _log_modules(self) -> Dict[str, Artifact]:
+    def _log_modules(self) -> dict[str, Artifact]:
         """
         Log the modules, returning the modules map json file logged as an artifact.
 
@@ -946,7 +946,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         return artifacts
 
-    def _log_custom_objects(self) -> Dict[str, Artifact]:
+    def _log_custom_objects(self) -> dict[str, Artifact]:
         """
         Log the custom objects, returning their artifacts:
 
@@ -1002,8 +1002,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     def _read_io_samples(
         self,
-        samples: Union[CommonTypes.IOSampleType, List[CommonTypes.IOSampleType]],
-    ) -> List[Feature]:
+        samples: Union[CommonTypes.IOSampleType, list[CommonTypes.IOSampleType]],
+    ) -> list[Feature]:
         """
         Read the given inputs / output sample to / from the model into a list of MLRun Features (ports) to log in
         the model's artifact.
@@ -1062,7 +1062,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _validate_modules_parameter(
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str],
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str],
     ):
         """
         Validate the given modules parameter.
@@ -1090,7 +1090,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _validate_custom_objects_parameters(
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str],
         custom_objects_directory: str,
     ):
         """
@@ -1154,8 +1154,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _import_module(
-        module_path: str, objects_names: Union[List[str], None]
-    ) -> Dict[str, Any]:
+        module_path: str, objects_names: Union[list[str], None]
+    ) -> dict[str, Any]:
         """
         Import the given objects by their names from the given module path by the following rules:
 
@@ -1199,8 +1199,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _import_custom_object(
-        py_file_path: str, objects_names: List[str]
-    ) -> Dict[str, Any]:
+        py_file_path: str, objects_names: list[str]
+    ) -> dict[str, Any]:
         """
         Import the given objects by their names from the given python file as: from 'py_file_path' import 'object_name'.
         If an object specified is already imported, a reference would simply be returned.
@@ -1232,7 +1232,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return objects_imports
 
 
-def with_mlrun_interface(interface: Type[MLRunInterface]):
+def with_mlrun_interface(interface: type[MLRunInterface]):
     """
     Decorator configure for decorating a ModelHandler method (expecting 'self' to be the first argument) to add the
     given MLRun interface into the model before executing the method and remove it afterwards.
@@ -1261,7 +1261,7 @@ def with_mlrun_interface(interface: Type[MLRunInterface]):
     return decorator
 
 
-def without_mlrun_interface(interface: Type[MLRunInterface]):
+def without_mlrun_interface(interface: type[MLRunInterface]):
     """
     Decorator configure for decorating a ModelHandler method (expecting 'self' to be the first argument) to remove the
     given MLRun interface from the model before executing the method and restore it afterwards.

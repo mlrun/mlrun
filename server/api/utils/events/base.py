@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import abc
-import typing
 
 import mlrun.common.schemas
 
@@ -43,7 +42,7 @@ class BaseEventClient:
         self,
         project: str,
         secret_name: str,
-        secret_keys: typing.List[str] = None,
+        secret_keys: list[str] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ):
         """

@@ -16,7 +16,9 @@
 
 import collections
 import os
+import time
 
+import humanfriendly
 import pytest
 import requests
 from _pytest.config import ExitCode
@@ -24,6 +26,7 @@ from _pytest.main import Session
 from _pytest.python import Function
 from _pytest.reports import TestReport
 from _pytest.runner import CallInfo
+from _pytest.terminal import TerminalReporter
 
 
 def pytest_sessionstart(session):
@@ -62,9 +65,17 @@ def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
 def post_report_session_finish_to_slack(
     session: Session, exitstatus: ExitCode, slack_webhook_url
 ):
+    reporter: TerminalReporter = session.config.pluginmanager.get_plugin(
+        "terminalreporter"
+    )
+    test_duration = time.time() - reporter._sessionstarttime
     mlrun_version = os.getenv("MLRUN_VERSION", "")
     mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
+    run_url = os.getenv(
+        "MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL",
+        "https://github.com/mlrun/mlrun/actions/workflows/system-tests-enterprise.yml",
+    )
     total_executed_tests = session.testscollected
     total_failed_tests = session.testsfailed
     text = ""
@@ -92,6 +103,8 @@ def post_report_session_finish_to_slack(
         except Exception:
             test_session_info += "\nVersion: unknown"
 
+    test_session_info += f"\nDuration: {humanfriendly.format_timespan(test_duration)}"
+    test_session_info += f"\nRun URL: {run_url}"
     test_session_info += f"\nPath: {','.join(session.config.option.file_or_dir)}"
     text = f"*{text}*\n{test_session_info}"
 
@@ -116,6 +129,9 @@ def post_report_session_finish_to_slack(
                 ],
             }
         )
+
+    # attach up to 10 items
+    data["attachments"] = data["attachments"][:10]
     res = requests.post(slack_webhook_url, json=data)
     res.raise_for_status()
 

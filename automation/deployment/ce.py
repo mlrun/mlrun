@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import sys
-import typing
 
 import click
 from deployer import CommunityEditionDeployer
@@ -131,6 +130,11 @@ def cli():
     help="Disable the installation of Kubeflow Pipelines",
 )
 @click.option(
+    "--force-enable-pipelines",
+    is_flag=True,
+    help="Install Kubeflow Pipelines even when the available CPU architecture doesn't support it",
+)
+@click.option(
     "--disable-prometheus-stack",
     is_flag=True,
     help="Disable the installation of the Prometheus stack",
@@ -192,6 +196,7 @@ def deploy(
     override_mlrun_ui_image: str = None,
     override_jupyter_image: str = None,
     disable_pipelines: bool = False,
+    force_enable_pipelines: bool = False,
     disable_prometheus_stack: bool = False,
     disable_spark_operator: bool = False,
     disable_log_collector: bool = False,
@@ -200,7 +205,7 @@ def deploy(
     devel: bool = False,
     minikube: bool = False,
     upgrade: bool = False,
-    set_: typing.List[str] = None,
+    set_: list[str] = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,
@@ -222,6 +227,7 @@ def deploy(
         override_mlrun_ui_image=override_mlrun_ui_image,
         override_jupyter_image=override_jupyter_image,
         disable_pipelines=disable_pipelines,
+        force_enable_pipelines=force_enable_pipelines,
         disable_prometheus_stack=disable_prometheus_stack,
         disable_spark_operator=disable_spark_operator,
         disable_log_collector=disable_log_collector,

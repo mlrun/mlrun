@@ -46,9 +46,10 @@ class Pipelines(
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
+        name_contains: str = "",
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
-    ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
+    ) -> tuple[int, typing.Optional[int], list[dict]]:
         if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination"
@@ -81,8 +82,8 @@ class Pipelines(
                 run_project = self.resolve_project_from_pipeline(run_dict)
                 if run_project == project:
                     project_runs.append(run_dict)
-            runs = project_runs
-            total_size = len(project_runs)
+            runs = self._filter_runs_by_name(project_runs, name_contains)
+            total_size = len(runs)
             next_page_token = None
         else:
             response = kfp_client._run_api.list_runs(
@@ -93,8 +94,14 @@ class Pipelines(
                 filter=filter_,
             )
             runs = [run.to_dict() for run in response.runs or []]
-            total_size = response.total_size
+            runs = self._filter_runs_by_name(runs, name_contains)
             next_page_token = response.next_page_token
+            # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
+            # so don't pass it to the client in such case
+            if next_page_token:
+                total_size = -1
+            else:
+                total_size = len(runs)
         runs = self._format_runs(db_session, runs, format_)
 
         return total_size, next_page_token, runs
@@ -278,9 +285,9 @@ class Pipelines(
     def _format_runs(
         self,
         db_session: sqlalchemy.orm.Session,
-        runs: typing.List[dict],
+        runs: list[dict],
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
-    ) -> typing.List[dict]:
+    ) -> list[dict]:
         formatted_runs = []
         logger.debug("Formatting pipeline runs", runs_len=len(runs), format=format_)
         for run in runs:
@@ -318,7 +325,7 @@ class Pipelines(
 
     def _resolve_project_from_command(
         self,
-        command: typing.List[str],
+        command: list[str],
         hyphen_p_is_also_project: bool,
         has_func_url_flags: bool,
         has_runtime_flags: bool,
@@ -433,3 +440,23 @@ class Pipelines(
             ):
                 return data.get("id", "")
         return ""
+
+    def _filter_runs_by_name(self, runs: list, target_name: str) -> list:
+        """Filter runs by their name while ignoring the project string on them
+
+        :param runs: list of runs to be filtered
+        :param target_name: string that should be part of a valid run name
+        :return: filtered list of runs
+        """
+        if not target_name:
+            return runs
+
+        def filter_by(run):
+            run_name = run.get("name", "").removeprefix(
+                self.resolve_project_from_pipeline(run) + "-"
+            )
+            if target_name in run_name:
+                return True
+            return False
+
+        return list(filter(filter_by, runs))

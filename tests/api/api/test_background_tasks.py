@@ -20,6 +20,7 @@ import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
 
 import fastapi
+import fastapi.concurrency
 import fastapi.testclient
 import httpx
 import pytest
@@ -43,19 +44,33 @@ test_router = fastapi.APIRouter()
     "/projects/{project}/background-tasks",
     response_model=mlrun.common.schemas.BackgroundTask,
 )
-def create_project_background_task(
+async def create_project_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
+    timeout: int = None,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         server.api.api.deps.get_db_session
     ),
 ):
     function = bump_counter
+    args = []
     if failed_task:
         function = failing_function
-    return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
-        db_session, project, background_tasks, function
+    # add timeout to test failing the background task due to timeout
+    elif timeout:
+        function = long_function
+        # adds some time to make sure that it sleeps longer than the timeout
+        args = [timeout + 3]
+    return await fastapi.concurrency.run_in_threadpool(
+        server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
+        project,
+        background_tasks,
+        function,
+        timeout,
+        None,
+        *args,
     )
 
 
@@ -70,11 +85,17 @@ def create_internal_background_task(
     function = bump_counter
     if failed_task:
         function = failing_function
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "bump_counter",
         None,
         function,
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
 
 
@@ -86,15 +107,15 @@ def create_long_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     timeout: int = 5,
 ):
-    async def _long_function():
-        await asyncio.sleep(timeout)
-        await bump_counter()
-
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
-        "long_bump_counter",
-        None,
-        _long_function,
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        "long_bump_counter", None, long_function, sleep_time=timeout
+    )
+    background_tasks.add_task(task)
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
 
 
@@ -108,6 +129,11 @@ async def bump_counter():
 
 def failing_function():
     raise RuntimeError("I am a failure")
+
+
+async def long_function(sleep_time):
+    await asyncio.sleep(sleep_time)
+    await bump_counter()
 
 
 # must add it here since we're adding routes
@@ -135,7 +161,7 @@ class ThreadedAsyncClient(httpx.AsyncClient):
 async def async_client() -> typing.Generator:
     """
     Async client that runs in a separate thread.
-    When posting with the client, the request is sent on a different thread, and the the method returns a future.
+    When posting with the client, the request is sent on a different thread, and the method returns a future.
     To get the response, call result() on the future.
     Example:
         result = await async_client.post(...)
@@ -352,7 +378,7 @@ def test_get_internal_background_task_in_chief_exists(
 async def test_internal_background_task_already_running(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):
-    timeout = 1
+    timeout = 3
     curr_call_counter = call_counter
 
     # if we await the first future before sending the second request, the second request will be sent after the whole
@@ -427,6 +453,76 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
         )
         assert response.status_code == expected_response.status_code
         assert response.content == expected_response.body
+
+
+def test_list_project_background_tasks(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    project = "project"
+    curr_call_counter = call_counter
+
+    # list no background tasks
+    response = client.get(
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
+    assert len(background_tasks.background_tasks) == 0
+
+    # create 3 background tasks
+    for i in range(3):
+        response = client.post(f"/test/projects/{project}/background-tasks")
+        _assert_background_task_creation(project, response)
+
+    response = client.get(
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
+    )
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
+    assert len(background_tasks.background_tasks) == 3
+
+    for background_task in background_tasks.background_tasks:
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+        assert background_task.metadata.updated is not None
+
+    assert call_counter == curr_call_counter + 3
+
+
+@pytest.mark.asyncio
+async def test_list_timed_out_project_background_task(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    project = "my-project"
+    # create a background task that will not time out
+    await async_client.post(f"/test/projects/{project}/background-tasks?timeout=5")
+
+    # create a background task that will time out
+    await async_client.post(f"/test/projects/{project}/background-tasks?timeout=1")
+
+    # sleep pass the short timeout
+    await asyncio.sleep(1)
+    response = await async_client.get(
+        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
+    )
+
+    assert response.status_code == http.HTTPStatus.OK.value
+    background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
+    assert len(background_tasks.background_tasks) == 2
+
+    for background_task in background_tasks.background_tasks:
+        if background_task.metadata.timeout == 1:
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+        else:
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.running
+            )
 
 
 def _generate_background_task(

@@ -14,16 +14,21 @@
 #
 import collections
 import copy
+import functools
 import json
 import re
+import time
 import traceback
 import typing
+import uuid
 from hashlib import sha1, sha224
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
 
 import kubernetes.client
+import semver
+import sqlalchemy.orm
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -36,8 +41,11 @@ import mlrun.utils.notifications.notification_pusher
 import server.api.constants
 import server.api.crud
 import server.api.db.base
+import server.api.db.session
 import server.api.utils.auth.verifier
+import server.api.utils.background_tasks
 import server.api.utils.clients.iguazio
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
@@ -49,12 +57,47 @@ from server.api.db.sqldb.db import SQLDB
 from server.api.rundb.sqldb import SQLRunDB
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.logs_dir import get_logs_dir
+from server.api.utils.singletons.project_member import get_project_member
 from server.api.utils.singletons.scheduler import get_scheduler
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
+
+
+def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
+    """
+    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
+    https://stackoverflow.com/a/71634221/5257501
+    """
+
+    class Result:
+        __slots__ = ("value", "death")
+
+        def __init__(self, value, death):
+            self.value = value
+            self.death = death
+
+    def decorator(func):
+        @functools.lru_cache(maxsize=maxsize, typed=typed)
+        def cached_func(*args, **kwargs):
+            value = func(*args, **kwargs)
+            death = time.monotonic() + ttl_seconds
+            return Result(value, death)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = cached_func(*args, **kwargs)
+            if result.death < time.monotonic():
+                result.value = func(*args, **kwargs)
+                result.death = time.monotonic() + ttl_seconds
+            return result.value
+
+        wrapper.cache_clear = cached_func.cache_clear
+        return wrapper
+
+    return decorator
 
 
 def log_path(project, uid) -> Path:
@@ -109,7 +152,7 @@ def get_obj_path(schema, path, user=""):
     return path
 
 
-def get_allowed_path_prefixes_list() -> typing.List[str]:
+def get_allowed_path_prefixes_list() -> list[str]:
     """
     Get list of allowed paths - v3io:// is always allowed, and also the real_path parameter if specified.
     We never allow local files in the allowed paths list. Allowed paths must contain a schema (://).
@@ -179,7 +222,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,
-                    reason=f"runtime error: function {function_url} not found",
+                    reason=f"Runtime error: function {function_url} not found",
                 )
             function = new_function(runtime=function_record)
 
@@ -228,7 +271,7 @@ def mask_notification_params_on_task(
             masked_notifications.append(
                 mask_op(project, run_uid, notification_object).to_dict()
             )
-    task.setdefault("spec", {})["notifications"] = masked_notifications
+        task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
 def _notification_params_mask_op(
@@ -385,12 +428,12 @@ def delete_notification_params_secret(
 
 
 def validate_and_mask_notification_list(
-    notifications: typing.List[
+    notifications: list[
         typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
     ],
     parent: str,
     project: str,
-) -> typing.List[mlrun.model.Notification]:
+) -> list[mlrun.model.Notification]:
     """
     Validates notification schema, uniqueness and masks notification params with secret if needed.
     If at least one of the validation steps fails, the function will raise an exception and cause the API to return
@@ -933,7 +976,7 @@ def ensure_function_security_context(
 
 def submit_run_sync(
     db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
-) -> typing.Tuple[str, str, str, typing.Dict]:
+) -> tuple[str, str, str, dict]:
     """
     :return: Tuple with:
         1. str of the project of the run
@@ -964,14 +1007,14 @@ def submit_run_sync(
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
 
-            # if the task is pointing to a remote function (hub://), we need to save it to the db
+            # save the generated function enriched with the specific configuration to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
-            # access the db version of the function, and not the remote one (which can be changed between runs)
-            if "://" in task["spec"]["function"]:
-                function_uri = fn.save(versioned=True)
-                data.pop("function", None)
-                data.pop("function_url", None)
-                task["spec"]["function"] = function_uri.replace("db://", "")
+            # access the db version of the function, and not the original function with the default spec
+            # (which can be changed between runs)
+            function_uri = fn.save(versioned=True)
+            data.pop("function", None)
+            data.pop("function_url", None)
+            task["spec"]["function"] = function_uri.replace("db://", "")
 
             is_update = get_scheduler().store_schedule(
                 db_session,
@@ -1029,7 +1072,7 @@ def submit_run_sync(
         logger.error(traceback.format_exc())
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
 
     logger.info("Run submission succeeded", run_uid=run_uid, function=fn.metadata.name)
@@ -1057,4 +1100,170 @@ def artifact_project_and_resource_name_extractor(artifact):
     return (
         artifact.get("metadata").get("project", mlrun.mlconf.default_project),
         artifact.get("spec")["db_key"],
+    )
+
+
+def get_or_create_project_deletion_background_task(
+    project_name: str, deletion_strategy: str, db_session, auth_info
+) -> tuple[typing.Optional[typing.Callable], str]:
+    """
+    This method is responsible for creating a background task for deleting a project.
+    The project deletion flow is as follows:
+        When MLRun is leader:
+        1. Create a background task for deleting the project
+        2. The background task will delete the project resources and then project itself
+        When MLRun is a follower:
+        Due to the nature of the project deletion flow, we need to wrap the task as:
+            MLRunDeletionWrapperTask(LeaderDeletionJob(MLRunDeletionTask))
+        1. Create MLRunDeletionWrapperTask
+        2. MLRunDeletionWrapperTask will send a request to the projects leader to delete the project
+        3. MLRunDeletionWrapperTask will wait for the project to be deleted using LeaderDeletionJob job id
+           During (In leader):
+           1. Create LeaderDeletionJob
+           2. LeaderDeletionJob will send a second delete project request to the follower
+           3. LeaderDeletionJob will wait for the project to be deleted using the MLRunDeletionTask task id
+              During (Back here in follower):
+              1. Create MLRunDeletionTask
+              2. MLRunDeletionTask will delete the project resources and then project itself.
+              3. Finish MLRunDeletionTask
+           4. Finish LeaderDeletionJob
+        4. Finish MLRunDeletionWrapperTask
+    """
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
+    wait_for_project_deletion = False
+
+    # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
+    # project. Otherwise, we create a wrapper background task for deletion of the project.
+    background_task_kind_format = (
+        server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper
+    )
+    if (
+        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
+        or mlrun.mlconf.httpdb.projects.leader == "mlrun"
+    ):
+        background_task_kind_format = (
+            server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
+        )
+    elif igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
+        # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
+        # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
+        # therefore doesn't wait for the project deletion to complete.
+        wait_for_project_deletion = True
+
+    background_task_kind = background_task_kind_format.format(project_name)
+    try:
+        task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+            background_task_kind,
+            raise_on_not_found=True,
+        )
+        return None, task.metadata.name
+    except mlrun.errors.MLRunNotFoundError:
+        logger.debug(
+            "Existing background task not found, creating new one",
+            background_task_kind=background_task_kind,
+        )
+
+    background_task_name = str(uuid.uuid4())
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_task_kind,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+        _delete_project,
+        background_task_name,
+        db_session=db_session,
+        project_name=project_name,
+        deletion_strategy=deletion_strategy,
+        auth_info=auth_info,
+        wait_for_project_deletion=wait_for_project_deletion,
+        background_task_name=background_task_name,
+    )
+
+
+async def _delete_project(
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    wait_for_project_deletion: bool,
+    background_task_name: str,
+):
+    force_deleted = False
+    try:
+        await run_in_threadpool(
+            get_project_member().delete_project,
+            db_session,
+            project_name,
+            deletion_strategy,
+            auth_info.projects_role,
+            auth_info,
+            wait_for_completion=True,
+            background_task_name=background_task_name,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
+        if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+            logger.warning(
+                "Project not found in leader, ensuring project is deleted in mlrun",
+                project_name=project_name,
+                exc=err_to_str(exc),
+            )
+            force_deleted = True
+
+    if force_deleted:
+        # In this case the wrapper delete project job is the one deleting the project because it
+        # doesn't exist in the leader.
+        await run_in_threadpool(
+            server.api.crud.Projects().delete_project,
+            db_session,
+            project_name,
+            deletion_strategy,
+            auth_info,
+        )
+
+    elif wait_for_project_deletion:
+        await run_in_threadpool(
+            verify_project_is_deleted,
+            project_name,
+            auth_info,
+        )
+
+    await get_project_member().post_delete_project(project_name)
+
+
+def verify_project_is_deleted(project_name, auth_info):
+    def _verify_project_is_deleted():
+        try:
+            project = server.api.db.session.run_function_with_new_db_session(
+                get_project_member().get_project, project_name, auth_info.session
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return
+        else:
+            project_status = project.status.dict()
+            if background_task_name := project_status.get(
+                "deletion_background_task_name"
+            ):
+                bg_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                    name=background_task_name, raise_on_not_found=False
+                )
+                if (
+                    bg_task
+                    and bg_task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.failed
+                ):
+                    # Background task failed, stop retrying
+                    raise mlrun.errors.MLRunFatalFailureError(
+                        original_exception=mlrun.errors.MLRunInternalServerError(
+                            f"Failed to delete project {project_name}: {bg_task.status.error}"
+                        )
+                    )
+
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Project {project_name} was not deleted"
+            )
+
+    mlrun.utils.helpers.retry_until_successful(
+        5,
+        60 * 30,  # 30 minutes, to allow for long project deletion
+        logger,
+        True,
+        _verify_project_is_deleted,
     )

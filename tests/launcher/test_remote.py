@@ -68,7 +68,7 @@ def test_validate_inputs():
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
         launcher._validate_runtime(runtime, run)
-    assert "'Inputs' should be of type Dict[str,str]" in str(exc.value)
+    assert "'Inputs' should be of type Dict[str, str]" in str(exc.value)
 
 
 def test_validate_runtime_success():

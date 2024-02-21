@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 
 def parse_versioned_object_uri(
     uri: str, default_project: str = ""
-) -> typing.Tuple[str, str, str, str]:
+) -> tuple[str, str, str, str]:
     project = default_project
     tag = ""
     hash_key = ""

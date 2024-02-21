@@ -105,8 +105,7 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
-        data_set_pandas,
+    df_pandas = data_set_pandas.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -178,8 +177,7 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
-        data_set,
+    df = data_set.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -222,8 +220,7 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
-        data_set_pandas,
+    df_pandas = data_set_pandas.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -254,8 +251,7 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
-        data_set,
+    df = data_set.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -306,8 +302,7 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our  dataset through our defined pipeline
-    df_pandas = fstore.ingest(
-        data_set_pandas,
+    df_pandas = data_set_pandas.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -365,8 +360,7 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
-        data_set,
+    df = data_set.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -416,8 +410,7 @@ def test_pandas_step_data_extractor(
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
-        data_set_pandas,
+    df_pandas = data_set_pandas.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -455,8 +448,7 @@ def test_pandas_step_data_extractor(
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
-        data_set,
+    df = data_set.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -508,8 +500,7 @@ def test_mapvalues_mixed_types_validator(rundb_mock, mapping):
         match=f"^MapValues - mapping values of the same column must be in the same type, which was not the case for"
         f" Column '{list(mapping.keys())[0]}'$",
     ):
-        fstore.ingest(
-            data_set_pandas,
+        data_set_pandas.ingest(
             data_to_ingest,
             targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
         )
@@ -547,8 +538,7 @@ def test_mapvalues_combined_mapping_validator(rundb_mock):
         match="^MapValues - mapping values of the same column can not combine ranges and single "
         "replacement, which is the case for column 'age'$",
     ):
-        fstore.ingest(
-            data_set_pandas,
+        data_set_pandas.ingest(
             data_to_ingest,
             targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
         )
@@ -585,8 +575,7 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
-        data_set_pandas,
+    df_pandas = data_set_pandas.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -621,8 +610,7 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
-        data_set,
+    df = data_set.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -664,8 +652,7 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
-        data_set_pandas,
+    df_pandas = data_set_pandas.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -697,8 +684,7 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
-        data_set,
+    df = data_set.ingest(
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
@@ -738,8 +724,7 @@ def test_imputer_default_value(rundb_mock, engine):
     feature_set.save = unittest.mock.Mock()
     feature_set.purge_targets = unittest.mock.Mock()
 
-    imputed_df = fstore.ingest(
-        featureset=feature_set,
+    imputed_df = feature_set.ingest(
         source=data_with_nones,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )

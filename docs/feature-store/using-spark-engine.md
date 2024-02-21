@@ -60,7 +60,7 @@ source = CSVSource("mycsv", path="v3io:///projects/stocks.csv")
 
 # Execution using a local Spark session
 spark = SparkSession.builder.appName("Spark function").getOrCreate()
-fstore.ingest(feature_set, source, spark_context=spark)
+feature_set.ingest(source, spark_context=spark)
 ```
 
 ## Remote Spark ingestion example
@@ -107,7 +107,7 @@ spark_service_name = "iguazio-spark-service" # As configured & shown in the Igua
 feature_set.graph.to(name="s1", handler="my_spark_func")
 my_func = code_to_function("func", kind="remote-spark")
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
-fstore.ingest(feature_set, source, run_config=config, spark_context=spark_service_name)
+feature_set.ingest(source, run_config=config, spark_context=spark_service_name)
 ```
 
 ## Spark operator ingestion example
@@ -163,7 +163,7 @@ my_func.spec.replicas = 2
 # my_func.spec.spark_conf['spark.specific.config.key'] = 'value'
 
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
-fstore.ingest(feature_set, source, run_config=config)
+feature_set.ingest(source, run_config=config)
 ```
 
 
@@ -185,7 +185,7 @@ df = spark.createDataFrame(data).toDF(*columns)
 
 fset = fstore.FeatureSet("myset", entities=[fstore.Entity("id")], engine="spark")
 
-fstore.ingest(fset, df, spark_context=spark)
+fset.ingest(df, spark_context=spark)
 
 spark.stop()
 ```
@@ -268,7 +268,7 @@ target = ParquetTarget(
     partitioned = False,
 )
 
-fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spark_context=spark_service_name)
+feature_set.ingest(source, targets=[target], run_config=run_config, spark_context=spark_service_name)
 ```
 
 ## Spark ingestion from Snowflake example
@@ -309,7 +309,7 @@ source = SnowflakeSource(
     warehouse="compute_wh",
 )
 
-fstore.ingest(feature_set, source, spark_context=spark)
+feature_set.ingest(source, spark_context=spark)
 ```
 
 ## Spark ingestion from Azure example
@@ -345,5 +345,5 @@ target = ParquetTarget(partitioned = True, time_partitioning_granularity="month"
 
 feature_set.set_targets(targets=[target],with_defaults=False)
 
-fstore.ingest(feature_set, source, run_config=run_config, spark_context=spark_service_name)
+feature_set.ingest(source, run_config=run_config, spark_context=spark_service_name)
 ```

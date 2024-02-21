@@ -15,7 +15,7 @@
 import os
 import uuid
 from copy import deepcopy
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 import yaml
@@ -45,7 +45,7 @@ from .utils import (
 )
 
 
-class MLClientCtx(object):
+class MLClientCtx:
     """ML Execution Client Context
 
     The context is generated and injected to the function using the ``function.run()``
@@ -411,7 +411,7 @@ class MLClientCtx(object):
                 self._artifacts_manager.artifacts[key] = artifact_obj
             self._state = status.get("state", self._state)
 
-        # Do not store run if not logging worker to avoid conflicts like host label
+        # No need to store the run for every worker
         if store_run and self.is_logging_worker():
             self.store_run()
         return self
@@ -434,6 +434,12 @@ class MLClientCtx(object):
             context.set_label("framework", "sklearn")
 
         """
+        if not self.is_logging_worker():
+            logger.warning(
+                "Setting labels is only supported in the logging worker, ignoring"
+            )
+            return
+
         if replace or not self._labels.get(key):
             self._labels[key] = str(value)
 
@@ -658,6 +664,8 @@ class MLClientCtx(object):
     ):
         """Log a dataset artifact and optionally upload it to datastore
 
+        If the dataset exists with the same key and tag, it will be overwritten.
+
         Example::
 
             raw_data = {
@@ -730,8 +738,8 @@ class MLClientCtx(object):
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
         feature_vector: str = None,
         feature_weights: list = None,
         training_set=None,
@@ -974,10 +982,11 @@ class MLClientCtx(object):
         """
         # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
         # configuration:
-        if self.labels.get("kind", "job") == "mpijob":
+        labels = self.labels
+        if "host" in labels and labels.get("kind", "job") == "mpijob":
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(self.labels["host"].rsplit("-", 1)[1])
+            rank = int(labels["host"].rsplit("-", 1)[1])
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:
@@ -1004,7 +1013,6 @@ class MLClientCtx(object):
                 _struct[key] = val
 
         struct = {
-            "metadata.labels": self._labels,
             "metadata.annotations": self._annotations,
             "spec.parameters": self._parameters,
             "spec.outputs": self._outputs,
@@ -1018,6 +1026,9 @@ class MLClientCtx(object):
         # multiple executions for a single run (e.g. mpi)
         if self._state != "completed":
             struct["status.state"] = self._state
+
+        if self.is_logging_worker():
+            struct["metadata.labels"] = self._labels
 
         set_if_not_none(struct, "status.error", self._error)
         set_if_not_none(struct, "status.commit", self._commit)

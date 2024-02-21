@@ -347,7 +347,7 @@ def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
         store, _ = mlrun.store_manager.get_or_create_store(tmpdir)
-        file_system = store.get_filesystem(False)
+        file_system = store.filesystem
         with store.open(tmpdir + "/1x.txt", "w") as fp:
             fp.write("123")
         with mlrun.get_dataitem(tmpdir + "/2x.txt").open("w") as fp:

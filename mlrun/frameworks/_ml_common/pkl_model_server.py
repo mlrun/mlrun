@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -59,7 +59,7 @@ class PickleModelServer(V2ModelServer):
 
         return y_pred.tolist()
 
-    def explain(self, request: Dict[str, Any]) -> str:
+    def explain(self, request: dict[str, Any]) -> str:
         """
         Returns a string listing the model that is being served in this serving function and the function name.
 

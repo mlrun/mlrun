@@ -24,7 +24,7 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
-import mlrun.runtimes.function
+import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 import mlrun.utils
 import server.api.crud.runtimes.nuclio.helpers
@@ -35,7 +35,7 @@ from mlrun.utils import logger
 
 
 def deploy_nuclio_function(
-    function: mlrun.runtimes.function.RemoteRuntime,
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     auth_info: mlrun.common.schemas.AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
@@ -78,7 +78,7 @@ def deploy_nuclio_function(
             project=project_name,
             tag=function.metadata.tag,
             verbose=function.verbose,
-            create_new=True,
+            create_new=mlrun.mlconf.httpdb.projects.leader == "mlrun",
             watch=False,
             return_address_mode=nuclio.deploy.ReturnAddressModes.all,
             auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
@@ -134,7 +134,7 @@ def get_nuclio_deploy_status(
     :param auth_info:           authentication information
     """
     api_address = nuclio.deploy.find_dashboard_url(mlrun.mlconf.nuclio_dashboard_url)
-    name = mlrun.runtimes.function.get_fullname(name, project, tag)
+    name = mlrun.runtimes.nuclio.function.get_fullname(name, project, tag)
     get_err_message = f"Failed to get function {name} deploy status"
 
     try:
@@ -172,7 +172,7 @@ def get_nuclio_deploy_status(
 
 
 def _compile_function_config(
-    function: mlrun.runtimes.function.RemoteRuntime,
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     client_version: str = None,
     client_python_version: str = None,
     builder_env=None,
@@ -371,7 +371,7 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
 def _set_function_scheduling_params(function, nuclio_spec):
     # don't send node selections if nuclio is not compatible
-    if mlrun.runtimes.function.validate_nuclio_version_compatibility(
+    if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
         if function.spec.node_selector:
@@ -385,7 +385,7 @@ def _set_function_scheduling_params(function, nuclio_spec):
             )
 
     # don't send tolerations if nuclio is not compatible
-    if mlrun.runtimes.function.validate_nuclio_version_compatibility("1.7.5"):
+    if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("1.7.5"):
         if function.spec.tolerations:
             nuclio_spec.set_config(
                 "spec.tolerations",
@@ -394,7 +394,7 @@ def _set_function_scheduling_params(function, nuclio_spec):
                 ),
             )
     # don't send preemption_mode if nuclio is not compatible
-    if mlrun.runtimes.function.validate_nuclio_version_compatibility("1.8.6"):
+    if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("1.8.6"):
         if function.spec.preemption_mode:
             nuclio_spec.set_config(
                 "spec.PreemptionMode",
@@ -444,7 +444,9 @@ def _set_misc_specs(function, nuclio_spec):
     # don't send default or any priority class name if nuclio is not compatible
     if (
         function.spec.priority_class_name
-        and mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.18")
+        and mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.18"
+        )
         and len(mlrun.mlconf.get_valid_function_priority_class_names())
     ):
         nuclio_spec.set_config(
@@ -470,7 +472,9 @@ def _set_misc_specs(function, nuclio_spec):
 def _set_source_code_and_handler(function, config):
     if not function.spec.build.source:
         # set the source to the mlrun serving wrapper
-        body = nuclio.build.mlrun_footer.format(mlrun.runtimes.serving.serving_subkind)
+        body = nuclio.build.mlrun_footer.format(
+            mlrun.runtimes.nuclio.serving.serving_subkind
+        )
         mlrun.utils.update_in(
             config,
             "spec.build.functionSourceCode",
@@ -505,14 +509,16 @@ def _resolve_and_set_base_image(
 
 
 def _set_function_name(function, config, project, tag):
-    name = mlrun.runtimes.function.get_fullname(function.metadata.name, project, tag)
+    name = mlrun.runtimes.nuclio.function.get_fullname(
+        function.metadata.name, project, tag
+    )
     function.status.nuclio_name = name
     mlrun.utils.update_in(config, "metadata.name", name)
     return name
 
 
 def _add_secrets_config_to_function_spec(
-    function: mlrun.runtimes.function.RemoteRuntime,
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
 ):
     handler = server.api.runtime_handlers.BaseRuntimeHandler
     if function.kind in [
@@ -530,7 +536,7 @@ def _add_secrets_config_to_function_spec(
         )
 
     elif function.kind == mlrun.runtimes.RuntimeKinds.serving:
-        function: mlrun.runtimes.serving.ServingRuntime
+        function: mlrun.runtimes.nuclio.serving.ServingRuntime
         if function.spec.secret_sources:
             function._secrets = mlrun.secrets.SecretsStore.from_list(
                 function.spec.secret_sources

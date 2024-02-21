@@ -135,7 +135,7 @@ def update_default_configuration_data():
 def _resolve_needed_operations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
     force_from_scratch: bool = False,
-) -> typing.Tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool]:
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
     )
@@ -773,9 +773,7 @@ def _get_migration_state():
     If the state file does not exist, return 0.
     """
     try:
-        with open(
-            config.artifacts.artifact_migration_state_file_path, "r"
-        ) as state_file:
+        with open(config.artifacts.artifact_migration_state_file_path) as state_file:
             state = json.load(state_file)
             return state.get("last_migrated_id", 0), set(
                 state.get("link_artifact_ids", [])

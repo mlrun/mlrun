@@ -105,7 +105,7 @@ def link_html(text, link=""):
 
 
 def artifacts_html(
-    artifacts: typing.List[dict],
+    artifacts: list[dict],
     attribute_name: str = "path",
 ):
     """
@@ -121,7 +121,7 @@ def artifacts_html(
     html = ""
 
     for artifact in artifacts:
-        # TODO: remove this in 1.6.0 once we no longer support legacy format
+        # TODO: remove this in 1.7.0 once we no longer support legacy format
         if mlrun.utils.is_legacy_artifact(artifact):
             attribute_value = artifact.get(attribute_name)
         else:

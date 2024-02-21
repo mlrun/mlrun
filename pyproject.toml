@@ -1,15 +1,17 @@
 [tool.ruff]
 select = [
-    "F", # pyflakes
-    "W", # pycodestyle
-    "E", # pycodestyle
-    "I", # isort
+    "F",  # pyflakes
+    "W",  # pycodestyle
+    "E",  # pycodestyle
+    "I",  # isort
+    "UP", # pyupgrade
 ]
 extend-exclude = [
     "server/api/proto",
     "playground",
 ]
 extend-include = ["*.ipynb"]
+target-version = "py39"
 
 [tool.ruff.lint]
 exclude = ["*.ipynb"]
@@ -26,6 +28,9 @@ python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",
 ]
+timeout = 1800  # 30 minutes per test
+log_cli = true
+log_level = "DEBUG"
 
 [tool.importlinter]
 root_packages = [

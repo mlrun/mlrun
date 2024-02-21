@@ -113,7 +113,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp.status_code == 200
 
         response = self._run_db.api_call(
-            "GET", "funcs", params={"project": self.project_name}
+            "GET",
+            f"projects/{self.project_name}/functions",
         )
 
         assert response.ok
@@ -127,6 +128,24 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert "external_invocation_urls" in status
         assert "address" in status
         assert "container_image" in status
+
+    # ML-3804
+    def test_nuclio_function_handler_with_context(self):
+        code_path = str(self.assets_path / "nuclio_function_with_context.py")
+
+        serving_func_handler = self.project.set_function(
+            name="serving-handler-func",
+            func=code_path,
+            image="mlrun/mlrun",
+            kind="serving",
+        )
+        serving_func_handler.spec.parameters = {"Test": "test"}
+        graph = serving_func_handler.set_topology("flow")
+        graph.to(name="test", handler="test").respond()
+
+        serving_func_deploy = self.project.deploy_function("serving-handler-func")
+
+        serving_func_deploy.function.invoke("/")
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -354,8 +373,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         stocks_set.graph.to("MyMap", full_event=True)
 
         target = ParquetTarget(flush_after_seconds=10)
-        fstore.ingest(
-            featureset=stocks_set,
+        stocks_set.ingest(
             source=stocks_df[0:row_divide],
             targets=[target],
             infer_options=fstore.InferOptions.default(),
@@ -383,8 +401,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()
         )
-        stocks_set_endpoint, _ = fstore.deploy_ingestion_service_v2(
-            featureset=stocks_set,
+        stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,
             targets=[target],
             run_config=run_config,

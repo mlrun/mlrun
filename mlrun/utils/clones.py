@@ -18,7 +18,6 @@ import tarfile
 import tempfile
 import zipfile
 from os import path, remove
-from typing import Tuple
 from urllib.parse import urlparse
 
 from git import Repo
@@ -91,7 +90,7 @@ def get_repo_url(repo):
     return url
 
 
-def add_credentials_git_remote_url(url: str, secrets=None) -> Tuple[str, bool]:
+def add_credentials_git_remote_url(url: str, secrets=None) -> tuple[str, bool]:
     """Enrich a Git remote URL with credential related secrets, if any are available
     If no secrets are supplied, or if the secrets are insufficient, the original URL is returned
     Besides the URL, this function also returns a bool indicating if any enrichment was done

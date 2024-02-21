@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 import asyncio
+import datetime
 import traceback
+import typing
 import uuid
 
 import fastapi
@@ -78,6 +80,27 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             name,
             project,
             server.api.utils.background_tasks.common.background_task_exceeded_timeout,
+        )
+
+    def list_background_tasks(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        states: typing.Optional[list[str]] = None,
+        created_from: datetime.datetime = None,
+        created_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        return server.api.utils.singletons.db.get_db().list_background_tasks(
+            db_session,
+            project,
+            server.api.utils.background_tasks.common.background_task_exceeded_timeout,
+            states=states,
+            created_from=created_from,
+            created_to=created_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
         )
 
     async def background_task_wrapper(

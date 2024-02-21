@@ -585,7 +585,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         if volume.secret
     ]
     aws_mount = {
-        "mount_path": "/tmp",
+        "mount_path": "/tmp/aws",
         "mount_propagation": None,
         "name": "aws-secret",
         "read_only": None,
@@ -598,7 +598,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
 
     aws_creds_location_env = {
         "name": "AWS_SHARED_CREDENTIALS_FILE",
-        "value": "/tmp/credentials",
+        "value": "/tmp/aws/credentials",
         "value_from": None,
     }
     assert aws_creds_location_env in [

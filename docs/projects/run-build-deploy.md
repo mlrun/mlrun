@@ -200,6 +200,7 @@ For example:
  # function will now run using the v2 version of the image 
  run2 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
 ```
+Read more about {ref}`images-usage`.
 
 <a id="build_config"></a>
 ## Image build configuration
@@ -259,10 +260,30 @@ This project can then be imported and the default image can be built:
 The {py:meth}`~mlrun.projects.MlrunProject.build_image` function builds an image using the existing build configuration. 
 This method can also be used to set the build configuration and build the image based on it - in a single step. 
 
-When using `set_as_default=False` any build config provided is still kept in the project object but the generated 
-image name is not set as the default image for this project. 
+If you set a source for the project (for example, git source) and set `pull_at_runtime = False`, then 
+the generated image contains the project source in it. For example, this code builds `.some-project-image` 
+image with the source in it.
+```python
+project = mlrun.get_or_create_project(
+    name="project-name", context="./"
+)
 
-For example:
+project.set_source(
+    "git://some/repo",
+    pull_at_runtime=False
+)
+
+project.build_image(image=".some-project-image")
+```
+And now you can run a function based on the project code without having to specify an image:
+```python
+func = project.set_function(handler="package.function", name="func", kind="job")
+func.save()
+project.run_function("func", params={...})
+```
+
+When using `set_as_default=False` any build config provided is still kept in the project object but the generated 
+image name is not set as the default image for this project. For example:
 
 ```python
 image_name = ".temporary-image"

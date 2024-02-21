@@ -313,8 +313,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         self.set_targets(measurements)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             return_df=True,
             spark_context=self.spark_service,
@@ -352,8 +351,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             local=self.run_local, function=func, handler="ingest_handler"
         )
         self.set_targets(measurements)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             return_df=True,
             spark_context=self.spark_service,
@@ -382,8 +380,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fstore.ingest(
-                measurements,
+            measurements.ingest(
                 df,
                 return_df=True,
                 spark_context=self.spark_service,
@@ -404,8 +401,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
@@ -420,8 +416,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
         )
@@ -462,8 +457,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [RedisNoSqlTarget()]
         measurements.set_targets(targets, with_defaults=False)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -520,8 +514,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets = [NoSqlTarget()]
         measurements.set_targets(targets, with_defaults=False)
 
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -574,8 +567,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [RedisNoSqlTarget()]
         measurements.set_targets(targets, with_defaults=False)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -660,8 +652,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 NoSqlTarget(),
             ]
 
-        fstore.ingest(
-            feature_set,
+        feature_set.ingest(
             source,
             run_config=fstore.RunConfig(local=self.run_local),
             targets=targets,
@@ -690,8 +681,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
             to_parquet(df, path=path)
 
-            fstore.ingest(
-                feature_set,
+            feature_set.ingest(
                 source,
                 run_config=fstore.RunConfig(local=self.run_local),
                 targets=targets,
@@ -760,7 +750,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             period="10m",
         )
 
-        df = fstore.ingest(data_set, source, targets=[])
+        df = data_set.ingest(source, targets=[])
 
         assert df.fillna("NaN-was-here").to_dict("records") == [
             {
@@ -835,8 +825,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             period="10m",
         )
         self.set_targets(data_set)
-        fstore.ingest(
-            data_set,
+        data_set.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -1034,8 +1023,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             emit_policy=EmitEveryEvent(),
         )
         self.set_targets(data_set)
-        fstore.ingest(
-            data_set,
+        data_set.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -1082,7 +1070,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             windows=["2h"],
             period="10m",
         )
-        fstore.ingest(storey_data_set, source)
+        storey_data_set.ingest(source)
 
         storey_df = (
             storey_data_set.to_dataframe()
@@ -1140,8 +1128,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             ),
         ]
 
-        fstore.ingest(
-            feature_set,
+        feature_set.ingest(
             source,
             run_config=fstore.RunConfig(local=self.run_local),
             targets=targets,
@@ -1197,8 +1184,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             partitioned=False,
         )
 
-        fstore.ingest(
-            feature_set,
+        feature_set.ingest(
             source,
             run_config=fstore.RunConfig(local=self.run_local),
             targets=[
@@ -1250,8 +1236,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             partitioned=False,
         )
 
-        fstore.ingest(
-            feature_set,
+        feature_set.ingest(
             source,
             run_config=fstore.RunConfig(local=self.run_local),
             targets=[
@@ -1305,8 +1290,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         if should_succeed:
-            fstore.ingest(
-                fset,
+            fset.ingest(
                 run_config=fstore.RunConfig(local=self.run_local),
                 spark_context=self.spark_service,
                 source=source,
@@ -1317,11 +1301,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
-                v3io = store.get_filesystem(False)
+                v3io = store.filesystem
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                fstore.ingest(fset, source=source, targets=[target])
+                fset.ingest(source=source, targets=[target])
 
     def test_error_is_properly_propagated(self):
         if self.run_local:
@@ -1340,8 +1324,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path="wrong-path.pq")
         with pytest.raises(expected_error):
-            fstore.ingest(
-                measurements,
+            measurements.ingest(
                 source,
                 return_df=True,
                 spark_context=self.spark_service,
@@ -1360,8 +1343,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         self.set_targets(measurements)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -1415,8 +1397,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         self.set_targets(measurements)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -1472,8 +1453,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         if not passthrough:
             self.set_targets(measurements)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
@@ -1533,8 +1513,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(DropFeatures(features=["bad"]))
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
@@ -1550,8 +1529,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(DropFeatures(features=["bad"]))
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
         )
@@ -1571,8 +1549,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             mlrun.errors.MLRunInvalidArgumentError,
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
         ):
-            fstore.ingest(
-                measurements,
+            measurements.ingest(
                 source,
                 spark_context=self.spark_service,
                 run_config=fstore.RunConfig(local=self.run_local),
@@ -1593,8 +1570,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
@@ -1610,8 +1586,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
         )
@@ -1642,8 +1617,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
@@ -1667,8 +1641,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
         )
@@ -1696,8 +1669,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
@@ -1743,8 +1715,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             match="^MapValues - mapping that changes column type must change all values accordingly,"
             " which is not the case for column 'hr_is_error'$",
         ):
-            fstore.ingest(
-                measurements,
+            measurements.ingest(
                 source,
                 targets,
                 spark_context=self.spark_service,
@@ -1772,8 +1743,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [ParquetTarget(path=out_path_spark)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
@@ -1794,8 +1764,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [ParquetTarget(path=out_path_storey)]
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             targets,
         )
@@ -1945,7 +1914,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             entities=[managers_set_entity],
         )
         self.set_targets(managers_set, also_in_remote=True)
-        fstore.ingest(managers_set, managers)
+        managers_set.ingest(managers)
 
         classes_set_entity = fstore.Entity("c_id")
         classes_set = fstore.FeatureSet(
@@ -1953,7 +1922,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             entities=[classes_set_entity],
         )
         self.set_targets(classes_set, also_in_remote=True)
-        fstore.ingest(classes_set, classes)
+        classes_set.ingest(classes)
 
         departments_set_entity = fstore.Entity("d_id")
         departments_set = fstore.FeatureSet(
@@ -1962,7 +1931,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             relations={"manager_id": managers_set_entity},
         )
         self.set_targets(departments_set, also_in_remote=True)
-        fstore.ingest(departments_set, departments)
+        departments_set.ingest(departments)
 
         employees_set_entity = fstore.Entity("id")
         employees_set = fstore.FeatureSet(
@@ -1971,14 +1940,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             relations={"department_id": departments_set_entity},
         )
         self.set_targets(employees_set, also_in_remote=True)
-        fstore.ingest(employees_set, employees_with_department)
+        employees_set.ingest(employees_with_department)
 
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
         )
         self.set_targets(mini_employees_set, also_in_remote=True)
-        fstore.ingest(mini_employees_set, employees_with_class)
+        mini_employees_set.ingest(employees_with_class)
 
         extra_relations = {
             "mini-employees": {
@@ -2182,7 +2151,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "departments", entities=[departments_set_entity], timestamp_key="time"
         )
         self.set_targets(departments_set, also_in_remote=True)
-        fstore.ingest(departments_set, departments)
+        departments_set.ingest(departments)
 
         employees_set_entity = fstore.Entity("id")
         employees_set = fstore.FeatureSet(
@@ -2192,7 +2161,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="time",
         )
         self.set_targets(employees_set, also_in_remote=True)
-        fstore.ingest(employees_set, employees_with_department)
+        employees_set.ingest(employees_with_department)
 
         features = ["employees.name as n", "departments.name as n2"]
         join_graph = (
@@ -2282,8 +2251,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_left = ParquetSource("pq1", path=left_url)
         source_right = ParquetSource("pq2", path=right_url)
 
-        fstore.ingest(fset1, source_left)
-        fstore.ingest(fset2, source_right)
+        fset1.ingest(source_left)
+        fset2.ingest(source_right)
 
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
@@ -2344,7 +2313,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         self.set_targets(fset1, also_in_remote=True)
 
-        fstore.ingest(fset1, source)
+        fset1.ingest(source)
 
         vec = fstore.FeatureVector("vec1", ["fs1.val"])
 

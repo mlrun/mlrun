@@ -32,11 +32,11 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
-import server.api.apiuvicorn as uvicorn
 import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.initial_data
+import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
@@ -46,7 +46,6 @@ from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
 from server.api.api.api import api_router, api_v2_router
 from server.api.db.session import close_session, create_session
-from server.api.middlewares import init_middlewares
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.periodic import (
     cancel_all_periodic_functions,
@@ -97,9 +96,9 @@ app = fastapi.FastAPI(
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
-    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
-    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
+    openapi_url=f"{API_PREFIX}/openapi.json",
+    docs_url=f"{API_PREFIX}/docs",
+    redoc_url=f"{API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
     lifespan=lifespan,
 )
@@ -111,7 +110,15 @@ app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
-init_middlewares(app)
+# middlewares, order matter
+app.add_middleware(
+    server.api.middlewares.EnsureBackendVersionMiddleware,
+    backend_version=config.version,
+)
+app.add_middleware(
+    server.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
+)
+app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
 @app.exception_handler(Exception)
@@ -166,12 +173,21 @@ async def setup_api():
     initialize_logs_dir()
     initialize_db()
 
+    # chief do stuff
     if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        server.api.initial_data.init_data()
+
+    # worker
+    elif (
         config.httpdb.clusterization.worker.sync_with_chief.mode
         == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
         and config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.worker
     ):
+        # in the background, wait for chief to reach online state
         _start_chief_clusterization_spec_sync_loop()
 
     if config.httpdb.state == mlrun.common.schemas.APIStates.online:
@@ -536,6 +552,10 @@ async def _verify_log_collection_stopped_on_startup():
 
 
 def _start_chief_clusterization_spec_sync_loop():
+    # put it here first, because we need to set it before the periodic function starts
+    # so the worker will be aligned with the chief state
+    config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
+
     interval = int(config.httpdb.clusterization.worker.sync_with_chief.interval)
     if interval > 0:
         logger.info("Starting chief clusterization spec sync loop", interval=interval)
@@ -596,6 +616,7 @@ async def _align_worker_state_with_chief_state(
             "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
             state=config.httpdb.state,
         )
+
     config.httpdb.state = chief_state
     # if reached terminal state we cancel the periodic function
     # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
@@ -695,7 +716,7 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     _last_notification_push_time = now
 
 
-async def _abort_stale_runs(stale_runs: typing.List[dict]):
+async def _abort_stale_runs(stale_runs: list[dict]):
     semaphore = asyncio.Semaphore(
         int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
     )
@@ -784,23 +805,11 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
                 )
 
 
-def main():
-    if (
-        config.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        server.api.initial_data.init_data()
-    elif (
-        config.httpdb.clusterization.worker.sync_with_chief.mode
-        == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-        and config.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.worker
-    ):
-        # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
-        config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
+if __name__ == "__main__":
+    # this is for running the api server as part of
+    # __main__.py on mlrun client and mlrun integration tests.
+    # mlrun container image will run the server using uvicorn directly.
+    # see /dockerfiles/mlrun-api/Dockerfile for more details.
+    import server.api.apiuvicorn as uvicorn
 
     uvicorn.run(logger, httpdb_config=config.httpdb)
-
-
-if __name__ == "__main__":
-    main()

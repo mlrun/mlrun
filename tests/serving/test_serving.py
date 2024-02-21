@@ -25,7 +25,7 @@ from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.runtimes import nuclio_init_hook
-from mlrun.runtimes.serving import serving_subkind
+from mlrun.runtimes.nuclio.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import (
     GraphContext,
@@ -126,6 +126,15 @@ spec = generate_spec(router_object.to_dict())
 ensemble_spec = generate_spec(ensemble_object.to_dict())
 ensemble_spec_classification = generate_spec(ensemble_object_classification.to_dict())
 testdata = '{"inputs": [5]}'
+testdata_iris = '{"inputs": [5.1, 3.5, 1.4, 0.2]}'
+testdata_iris_dict = (
+    '{"inputs": {"sepal width (cm)": 3.5, "sepal length (cm)": 5.1, '
+    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+)
+testdata_iris_dict_error = (
+    '{"inputs": {"sepal width (cm)": 3.5, '
+    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+)
 testdata_2 = '{"inputs": [5, 5]}'
 
 
@@ -269,7 +278,7 @@ def test_ensemble_get_metadata_of_models():
     expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
 
-    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    mlrun.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/m1")
     expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
@@ -529,6 +538,30 @@ def test_v2_get_modelmeta(rundb_mock):
         server.test("/v2/models/m4", method="GET")
 
 
+def test_v2_infer_dict(rundb_mock):
+    project = mlrun.new_project("tstsrv", save=False)
+    fn = mlrun.new_function("tst", kind="serving")
+    model_uri = _log_model(project)
+    print(model_uri)
+    fn.add_model("m1", model_uri, "ModelTestingClass", multiplier=100)
+
+    server = fn.to_mock_server()
+    resp_list_1 = server.test("/v2/models/m1/infer", testdata_iris)
+    resp_list_2 = server.test("/v2/models/m1/predict", testdata_iris)
+    resp_dict = server.test("/v2/models/m1/infer_dict", testdata_iris_dict)
+    assert (
+        resp_dict.get("outputs")
+        == resp_list_1.get("outputs")
+        == resp_list_2.get("outputs")
+    )
+
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m1/infer_dict", testdata_iris)
+
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m1/infer_dict", testdata_iris_dict_error)
+
+
 def test_v2_custom_handler():
     context = init_ctx()
     event = MockEvent('{"test": "ok"}', path="/v2/models/m1/myop")
@@ -653,18 +686,18 @@ def test_mock_deploy():
     mlrun.mlconf.mock_nuclio_deployment = ""
 
     # test mock deployment is working
-    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    mlrun.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     # test mock deployment is working via project object
-    project.deploy_function(fn, dashboard="bad-address", mock=True)
+    project.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     # test that it tries real deployment when turned off
     with pytest.raises(Exception):
-        mlrun.deploy_function(fn, dashboard="bad-address")
+        mlrun.deploy_function(fn)
         fn.invoke("/v2/models/my/infer", testdata)
 
     # set the mock through the config
@@ -737,7 +770,7 @@ def test_deploy_with_dashboard_argument():
         return_value=(None, None),
     )
 
-    mlrun.deploy_function(fn, dashboard="bad-address")
+    mlrun.deploy_function(fn)
 
     # test that the remote builder was called even with dashboard argument
     assert db_instance.remote_builder.call_count == 1

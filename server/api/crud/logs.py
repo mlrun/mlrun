@@ -136,7 +136,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-    ) -> typing.Tuple[str, typing.AsyncIterable[bytes]]:
+    ) -> tuple[str, typing.AsyncIterable[bytes]]:
         """
         Get logs
         :param db_session: db session
@@ -353,7 +353,7 @@ class Logs(
 
         return False, None
 
-    def _list_project_logs_uids(self, project: str) -> typing.List[str]:
+    def _list_project_logs_uids(self, project: str) -> list[str]:
         logs_path = server.api.api.utils.project_logs_path(project)
         return [
             file
@@ -364,7 +364,7 @@ class Logs(
     @staticmethod
     async def _stop_logs(
         project_name: str,
-        run_uids: typing.List[str] = None,
+        run_uids: list[str] = None,
     ) -> None:
         resource = "project" if not run_uids else "run"
         try:
@@ -389,7 +389,7 @@ class Logs(
                 run_uids=run_uids,
             )
 
-    async def _delete_logs(self, project: str, run_uids: typing.List[str] = None):
+    async def _delete_logs(self, project: str, run_uids: list[str] = None):
         resource = "project" if not run_uids else "run"
         try:
             log_collector_client = (

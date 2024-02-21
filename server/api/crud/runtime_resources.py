@@ -66,7 +66,7 @@ class RuntimeResources(
     def filter_and_format_grouped_by_project_runtime_resources_output(
         self,
         grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
-        allowed_projects: typing.List[str],
+        allowed_projects: list[str],
         group_by: typing.Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,

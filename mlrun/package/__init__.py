@@ -18,7 +18,7 @@
 import functools
 import inspect
 from collections import OrderedDict
-from typing import Callable, Dict, List, Type, Union
+from typing import Callable, Union
 
 from ..config import config
 from .context_handler import ContextHandler
@@ -40,9 +40,9 @@ from .utils import (
 
 
 def handler(
-    labels: Dict[str, str] = None,
-    outputs: List[Union[str, Dict[str, str]]] = None,
-    inputs: Union[bool, Dict[str, Union[str, Type]]] = True,
+    labels: dict[str, str] = None,
+    outputs: list[Union[str, dict[str, str]]] = None,
+    inputs: Union[bool, dict[str, Union[str, type]]] = True,
 ):
     """
     MLRun's handler is a decorator to wrap a function and enable setting labels, parsing inputs (`mlrun.DataItem`) using
@@ -58,7 +58,7 @@ def handler(
                     * `str` - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it
                       will indicate the key, and the artifact type will be according to the returned value type's
                       default artifact type. The artifact types supported are listed in the relevant type packager.
-                    * `Dict[str, str]` - A dictionary of logging configuration. the key 'key' is mandatory for the
+                    * `dict[str, str]` - A dictionary of logging configuration. the key 'key' is mandatory for the
                       logged artifact key.
                     * None - Do not log the output.
 
@@ -73,7 +73,7 @@ def handler(
                    * True - Parse all found inputs to the assigned type hint in the function's signature. If there is no
                      type hint assigned, the value will remain an `mlrun.DataItem`.
                    * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`.
-                   * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
+                   * dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
 
                    Default: True - meaning inputs will be parsed from DataItem's as long as they are type hinted.

@@ -15,7 +15,7 @@
 import inspect
 import os
 from collections import OrderedDict
-from typing import Dict, List, Union
+from typing import Union
 
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
@@ -181,7 +181,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: List[Union[Dict[str, str], str, None]],
+        log_hints: list[Union[dict[str, str], str, None]],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -229,7 +229,7 @@ class ContextHandler:
         # Clear packagers outputs:
         self._packagers_manager.clear_packagers_outputs()
 
-    def set_labels(self, labels: Dict[str, str]):
+    def set_labels(self, labels: dict[str, str]):
         """
         Set the given labels with the stored context.
 
@@ -239,7 +239,7 @@ class ContextHandler:
             self._context.set_label(key=key, value=value)
 
     def _collect_packagers(
-        self, packagers: List[str], is_mandatory: bool, is_custom_packagers: bool
+        self, packagers: list[str], is_mandatory: bool, is_custom_packagers: bool
     ):
         """
         Collect packagers with the stored manager. The collection can ignore errors raised by setting the mandatory flag
@@ -310,7 +310,7 @@ class ContextHandler:
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: List[Union[Dict[str, str], str, None]],
+        log_hints: list[Union[dict[str, str], str, None]],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

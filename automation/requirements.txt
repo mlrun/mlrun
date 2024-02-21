@@ -1,5 +1,5 @@
 click~=8.1
-paramiko~=2.12
+paramiko~=3.4
 semver~=3.0
 requests~=2.31
 boto3>=1.28.0,<1.29.0

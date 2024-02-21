@@ -30,7 +30,8 @@ class GoogleCloudStorageStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
-    def get_filesystem(self):
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
@@ -59,12 +60,12 @@ class GoogleCloudStorageStore(DataStore):
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials
-            return dict(token=token)
+            return self._sanitize_storage_options(dict(token=token))
         else:
             logger.info(
                 "No GCS credentials available - auth will rely on auto-discovery of credentials"
             )
-            return None
+            return self._sanitize_storage_options(None)
 
     def _make_path(self, key):
         key = key.strip("/")
@@ -75,7 +76,7 @@ class GoogleCloudStorageStore(DataStore):
         path = self._make_path(key)
 
         end = offset + size if size else None
-        blob = self.get_filesystem().cat_file(path, start=offset, end=end)
+        blob = self.filesystem.cat_file(path, start=offset, end=end)
         return blob
 
     def put(self, key, data, append=False):
@@ -94,17 +95,17 @@ class GoogleCloudStorageStore(DataStore):
             raise TypeError(
                 "Data type unknown.  Unable to put in Google cloud storage!"
             )
-        with self.get_filesystem().open(path, mode) as f:
+        with self.filesystem.open(path, mode) as f:
             f.write(data)
 
     def upload(self, key, src_path):
         path = self._make_path(key)
-        self.get_filesystem().put_file(src_path, path, overwrite=True)
+        self.filesystem.put_file(src_path, path, overwrite=True)
 
     def stat(self, key):
         path = self._make_path(key)
 
-        files = self.get_filesystem().ls(path, detail=True)
+        files = self.filesystem.ls(path, detail=True)
         if len(files) == 1 and files[0]["type"] == "file":
             size = files[0]["size"]
             modified = files[0]["updated"]
@@ -116,10 +117,10 @@ class GoogleCloudStorageStore(DataStore):
 
     def listdir(self, key):
         path = self._make_path(key)
-        if self.get_filesystem().isfile(path):
+        if self.filesystem.isfile(path):
             return key
         remote_path = f"{path}/**"
-        files = self.get_filesystem().glob(remote_path)
+        files = self.filesystem.glob(remote_path)
         key_length = len(key)
         files = [
             f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
@@ -128,7 +129,7 @@ class GoogleCloudStorageStore(DataStore):
 
     def rm(self, path, recursive=False, maxdepth=None):
         path = self._make_path(path)
-        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     def get_spark_options(self):
         res = None
@@ -137,7 +138,7 @@ class GoogleCloudStorageStore(DataStore):
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
             if isinstance(st["token"], str):
                 # Token is a filename, read json from it
-                with open(st["token"], "r") as file:
+                with open(st["token"]) as file:
                     credentials = json.load(file)
             else:
                 # Token is a dictionary, use it directly

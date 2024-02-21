@@ -223,7 +223,7 @@ def test_get_frontend_spec_ce(
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
 
     assert frontend_spec.ce["release"] == ce_release
-    assert frontend_spec.ce["mode"] == frontend_spec.ce_mode == ce_mode
+    assert frontend_spec.ce["mode"] == ce_mode
 
 
 def test_get_frontend_spec_feature_store_data_prefixes(

@@ -1,7 +1,7 @@
 # >=1.28.0,<1.29.0 botocore inside boto3 1.28.17 inside nuclio-jupyter 0.9.13
 urllib3>=1.26.9, <1.27
-GitPython~=3.1, >= 3.1.30
-aiohttp~=3.8
+GitPython~=3.1, >=3.1.41
+aiohttp~=3.9
 aiohttp-retry~=2.8
 click~=8.1
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
@@ -9,9 +9,10 @@ click~=8.1
 kfp~=1.8
 nest-asyncio~=1.0
 ipython~=8.10
-nuclio-jupyter~=0.9.14
+nuclio-jupyter~=0.9.16
 numpy>=1.16.5, <1.27.0
-pandas>=1.2, <3
+# pandas 2.2 requires sqlalchemy 2
+pandas>=1.2, <2.2
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
 # <15 to prevent bugs due to major upgrading
@@ -20,24 +21,24 @@ pyyaml~=5.1
 requests~=2.31
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
-v3io~=0.5.21
+v3io~=0.6.2
 # pydantic 1.10.8 fixes a bug with literal and typing-extension 4.6.0
 # https://docs.pydantic.dev/latest/changelog/#v1108-2023-05-23
 pydantic~=1.10, >=1.10.8
 mergedeep~=1.3
-v3io-frames~=0.10.7
+v3io-frames~=0.10.12
 semver~=3.0
 dependency-injector~=4.41
 # should be identical to gcs and s3fs.
 fsspec==2023.9.2
 v3iofs~=0.1.17
-storey~=1.6.16
+storey~=1.7.3
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above
 setuptools~=68.2
 deprecated~=1.2
-jinja2~=3.1
+jinja2~=3.1, >=3.1.3
 anyio~=3.7
 orjson~=3.9
 python-multipart~=0.0.6

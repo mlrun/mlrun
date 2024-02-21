@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import prometheus_client
 
@@ -134,9 +133,7 @@ def write_predictions_and_latency_metrics(
 
 
 @_write_registry
-def write_income_features(
-    project: str, endpoint_id: str, features: typing.Dict[str, float]
-):
+def write_income_features(project: str, endpoint_id: str, features: dict[str, float]):
     """Update a sample of features.
 
     :param project:     Project name.

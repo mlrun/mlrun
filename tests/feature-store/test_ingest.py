@@ -42,7 +42,7 @@ def test_columns_with_illegal_characters(rundb_mock):
     fset.save = unittest.mock.Mock()
     fset.purge_targets = unittest.mock.Mock()
 
-    result_df = fstore.ingest(fset, df, targets=[DFTarget()])
+    result_df = fset.ingest(df, targets=[DFTarget()])
     assert list(result_df.columns) == ["bid_accepted", "ask", "with_space"]
 
 
@@ -62,7 +62,7 @@ def test_columns_with_illegal_characters_error():
     )
 
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        fstore.ingest(fset, df)
+        fset.ingest(df)
 
 
 def test_set_targets_with_string():
@@ -114,10 +114,10 @@ def test_return_df(rundb_mock):
     fset.save = unittest.mock.Mock()
     fset.purge_targets = unittest.mock.Mock()
 
-    result_df = fstore.ingest(fset, df, targets=[DFTarget()], return_df=False)
+    result_df = fset.ingest(df, targets=[DFTarget()], return_df=False)
 
     assert result_df is None
 
-    result_df = fstore.ingest(fset, df, targets=[DFTarget()])
+    result_df = fset.ingest(df, targets=[DFTarget()])
 
     assert isinstance(result_df, pd.DataFrame)

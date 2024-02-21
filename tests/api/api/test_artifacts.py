@@ -136,7 +136,7 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
 
     # test overwriting tags object with an invalid tag
     resp = client.post(
-        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
+        f"projects/{PROJECT}/tags/{tag}",
         json={
             "kind": "artifact",
             "identifiers": [(mlrun.common.schemas.ArtifactIdentifier(key=KEY).dict())],
@@ -147,7 +147,7 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
 
     # test append invalid tag to artifact's tags
     resp = client.put(
-        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
+        f"projects/{PROJECT}/tags/{tag}",
         json={
             "kind": "artifact",
             "identifiers": [(mlrun.common.schemas.ArtifactIdentifier(key=KEY).dict())],
@@ -169,8 +169,8 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.OK.value
 
 
-def test_create_artifact(db: Session, unprefixed_client: TestClient):
-    _create_project(unprefixed_client, prefix="v1")
+def test_create_artifact(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client, prefix="v1")
     data = {
         "kind": "artifact",
         "metadata": {
@@ -187,8 +187,8 @@ def test_create_artifact(db: Session, unprefixed_client: TestClient):
         },
         "status": {},
     }
-    url = "v2/projects/{project}/artifacts".format(project=PROJECT)
-    resp = unprefixed_client.post(
+    url = f"v2/projects/{PROJECT}/artifacts"
+    resp = unversioned_client.post(
         url,
         json=data,
     )
@@ -374,7 +374,7 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
 
     # tag the artifact with a new tag
     client.put(
-        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=new_tag),
+        f"projects/{PROJECT}/tags/{new_tag}",
         json={
             "kind": "artifact",
             "identifiers": [(mlrun.common.schemas.ArtifactIdentifier(key=KEY).dict())],

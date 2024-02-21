@@ -32,11 +32,11 @@ class Provider(abc.ABC):
     @abc.abstractmethod
     async def filter_by_permissions(
         self,
-        resources: typing.List,
+        resources: list,
         opa_resource_extractor: typing.Callable,
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> typing.List:
+    ) -> list:
         pass
 
     @abc.abstractmethod

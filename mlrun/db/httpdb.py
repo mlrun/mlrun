@@ -21,7 +21,7 @@ import typing
 import warnings
 from datetime import datetime, timedelta
 from os import path, remove
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 import kfp
@@ -326,11 +326,6 @@ class HTTPRunDB(RunDBInterface):
                 logger.warning(
                     f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace})"
                     " namespace don't match"
-                )
-            if config.ce.mode and config.ce.mode != server_cfg.get("ce_mode", ""):
-                logger.warning(
-                    f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
-                    " CE mode don't match"
                 )
             config.ce = server_cfg.get("ce") or config.ce
 
@@ -666,9 +661,9 @@ class HTTPRunDB(RunDBInterface):
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,
@@ -708,7 +703,7 @@ class HTTPRunDB(RunDBInterface):
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used.
+        :param last: Deprecated - currently not used (will be removed in 1.8.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -732,6 +727,13 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(
                 "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
                 "using the `with_notifications` flag."
+            )
+
+        if last:
+            # TODO: Remove this in 1.8.0
+            warnings.warn(
+                "'last' is deprecated and will be removed in 1.8.0.",
+                FutureWarning,
             )
 
         if (
@@ -919,7 +921,7 @@ class HTTPRunDB(RunDBInterface):
         name=None,
         project=None,
         tag=None,
-        labels: Optional[Union[Dict[str, str], List[str]]] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -1010,7 +1012,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project=None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
@@ -1481,6 +1483,54 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
+    def list_project_background_tasks(
+        self,
+        project: Optional[str] = None,
+        state: Optional[str] = None,
+        created_from: Optional[datetime] = None,
+        created_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        """
+        Retrieve updated information on project background tasks being executed.
+        If no filter is provided, will return background tasks from the last week.
+
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
+        :param state:   List only background tasks whose state is specified.
+        :param created_from: Filter by background task created time in ``[created_from, created_to]``.
+        :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
+        :param last_update_time_from: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        :param last_update_time_to: Filter by background task last update time in
+            ``(last_update_time_from, last_update_time_to)``.
+        """
+        project = project or config.default_project
+        if (
+            not state
+            and not created_from
+            and not created_to
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
+            # default to last week on no filter
+            created_from = datetime.now() - timedelta(days=7)
+
+        params = {
+            "state": state,
+            "created_from": datetime_to_iso(created_from),
+            "created_to": datetime_to_iso(created_to),
+            "last_update_time_from": datetime_to_iso(last_update_time_from),
+            "last_update_time_to": datetime_to_iso(last_update_time_to),
+        }
+
+        path = f"projects/{project}/background-tasks"
+        error_message = f"Failed listing project background task. project={project}"
+        response = self.api_call("GET", path, error_message, params=params)
+        return mlrun.common.schemas.BackgroundTaskList(
+            **response.json()
+        ).background_tasks
+
     def get_background_task(self, name: str) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a background task being executed."""
 
@@ -1779,9 +1829,9 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        entities: List[str] = None,
-        labels: List[str] = None,
-    ) -> List[dict]:
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> list[dict]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
         refer to the feature-set object containing the features, not to the features themselves.
@@ -1816,8 +1866,8 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: List[str] = None,
-    ) -> List[dict]:
+        labels: list[str] = None,
+    ) -> list[dict]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
         against the name rather than the features.
@@ -1861,9 +1911,9 @@ class HTTPRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        entities: List[str] = None,
-        features: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        features: list[str] = None,
+        labels: list[str] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -1872,7 +1922,7 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-    ) -> List[FeatureSet]:
+    ) -> list[FeatureSet]:
         """Retrieve a list of feature-sets matching the criteria provided.
 
         :param project: Project name.
@@ -2082,7 +2132,7 @@ class HTTPRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2091,7 +2141,7 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-    ) -> List[FeatureVector]:
+    ) -> list[FeatureVector]:
         """Retrieve a list of feature-vectors matching the criteria provided.
 
         :param project: Project name.
@@ -2293,7 +2343,7 @@ class HTTPRunDB(RunDBInterface):
 
     def tag_artifacts(
         self,
-        artifacts: Union[List[Artifact], List[dict], Artifact, dict],
+        artifacts: Union[list[Artifact], list[dict], Artifact, dict],
         project: str,
         tag_name: str,
         replace: bool = False,
@@ -2331,9 +2381,9 @@ class HTTPRunDB(RunDBInterface):
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
         ] = mlrun.common.schemas.ProjectsFormat.name_only,
-        labels: List[str] = None,
+        labels: list[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
-    ) -> List[Union[mlrun.projects.MlrunProject, str]]:
+    ) -> list[Union[mlrun.projects.MlrunProject, str]]:
         """Return a list of the existing projects, potentially filtered by specific criteria.
 
         :param owner: List only projects belonging to this specific owner.
@@ -2588,7 +2638,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ) -> mlrun.common.schemas.SecretsData:
         """Retrieve project-context secrets from Vault.
 
@@ -2677,7 +2727,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ):
         """Delete project-context secrets from Kubernetes.
 
@@ -2834,13 +2884,13 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         top_level: bool = False,
-        uids: Optional[List[str]] = None,
-    ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
+        uids: Optional[list[str]] = None,
+    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
         model endpoint. This functions supports filtering by the following parameters:
@@ -2908,7 +2958,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_id: str,
         start: Optional[str] = None,
         end: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
         """
@@ -3141,7 +3191,7 @@ class HTTPRunDB(RunDBInterface):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
-    ) -> List[mlrun.common.schemas.hub.IndexedHubSource]:
+    ) -> list[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
 
@@ -3369,7 +3419,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         run_uid: str,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ):
         """
         Set notifications on a run. This will override any existing notifications on the run.
@@ -3394,7 +3444,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         schedule_name: str,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ):
         """
         Set notifications on a schedule. This will override any existing notifications on the schedule.
@@ -3417,7 +3467,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_run_notifications(
         self,
-        notification_objects: typing.List[mlrun.model.Notification],
+        notification_objects: list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,
@@ -3438,12 +3488,12 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.schemas.WorkflowSpec,
             dict,
         ],
-        arguments: Optional[Dict] = None,
+        arguments: Optional[dict] = None,
         artifact_path: Optional[str] = None,
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3531,7 +3581,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         url: str,
-        secrets: Optional[Dict] = None,
+        secrets: Optional[dict] = None,
         save_secrets: bool = True,
     ) -> str:
         """
@@ -3594,7 +3644,7 @@ class HTTPRunDB(RunDBInterface):
 
     def list_datastore_profiles(
         self, project: str
-    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+    ) -> list[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
         _path = self._path_of("datastore-profiles", project)
 

@@ -17,7 +17,7 @@ Configuration system.
 Configuration can be in either a configuration file specified by
 MLRUN_CONFIG_FILE environment variable or by environment variables.
 
-Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
+Environment variables are in the format "MLRUN_HTTPDB__PORT=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
@@ -109,7 +109,10 @@ default_config = {
         "runs": {
             # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
             "batch_delete_runs_chunk_size": 10,
-        }
+        },
+        "resources": {
+            "delete_crd_resources_timeout": "5 minutes",
+        },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
@@ -303,7 +306,11 @@ default_config = {
                 # default is 16MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
                 "max_allowed_packet": 64000000,  # 64MB
             },
-            # None will set this to be equal to the httpdb.max_workers
+            # tests connections for liveness upon each checkout
+            "connections_pool_pre_ping": True,
+            # this setting causes the pool to recycle connections after the given number of seconds has passed
+            "connections_pool_recycle": 60 * 60,
+            # None defaults to httpdb.max_workers
             "connections_pool_size": None,
             "connections_pool_max_overflow": None,
             # below is a db-specific configuration
@@ -341,7 +348,7 @@ default_config = {
             #  ---------------------------------------------------------------------
             # Note: adding a mode requires special handling on
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
-            # - mlrun.runtimes.function.enrich_function_with_ingress
+            # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
         },
@@ -403,10 +410,13 @@ default_config = {
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
             "counters_cache_ttl": "2 minutes",
+            "project_owners_cache_ttl": "30 seconds",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
-            "project_owners_cache_ttl": "30 seconds",
+            "iguazio_client_job_cache_ttl": "20 minutes",
+            "nuclio_project_deletion_verification_timeout": "300 seconds",
+            "nuclio_project_deletion_verification_interval": "5 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -1116,7 +1126,7 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
-    def get_s3_storage_options(self) -> typing.Dict[str, typing.Any]:
+    def get_s3_storage_options(self) -> dict[str, typing.Any]:
         """
         Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
         graph uses this method for generating the storage options for S3 parquet target path.
@@ -1145,11 +1155,12 @@ class Config:
 
         return storage_options
 
-    def is_explicit_ack(self) -> bool:
+    def is_explicit_ack(self, version=None) -> bool:
+        if not version:
+            version = self.nuclio_version
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version
-            or semver.VersionInfo.parse(self.nuclio_version)
-            >= semver.VersionInfo.parse("1.12.10")
+            not version
+            or semver.VersionInfo.parse(version) >= semver.VersionInfo.parse("1.12.10")
         )
 
 

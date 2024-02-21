@@ -14,7 +14,6 @@
 #
 import os
 import tempfile
-from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -60,7 +59,7 @@ def unpack_array(obj: np.ndarray, i: int):
     assert (obj == _ARRAY_SAMPLES[i]).all()
 
 
-def prepare_array_file(file_format: str, i: int) -> Tuple[str, str]:
+def prepare_array_file(file_format: str, i: int) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_array.{file_format}")
     formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
@@ -203,11 +202,11 @@ _ARRAY_DICT_SAMPLES = [
 ]
 
 
-def pack_array_dict(i: int) -> Dict[str, np.ndarray]:
+def pack_array_dict(i: int) -> dict[str, np.ndarray]:
     return _ARRAY_DICT_SAMPLES[i]
 
 
-def unpack_array_dict(obj: Dict[str, np.ndarray], i: int):
+def unpack_array_dict(obj: dict[str, np.ndarray], i: int):
     assert isinstance(obj, dict) and all(
         isinstance(key, str) and isinstance(value, np.ndarray)
         for key, value in obj.items()
@@ -217,7 +216,7 @@ def unpack_array_dict(obj: Dict[str, np.ndarray], i: int):
         assert (obj_array == sample_array).all()
 
 
-def validate_array_dict(result: Dict[str, list], i: int) -> bool:
+def validate_array_dict(result: dict[str, list], i: int) -> bool:
     # Numppy arrays are serialized as lists:
     for key in _ARRAY_DICT_SAMPLES[i]:
         array = result.pop(key)
@@ -226,7 +225,7 @@ def validate_array_dict(result: Dict[str, list], i: int) -> bool:
     return len(result) == 0
 
 
-def prepare_array_dict_file(file_format: str, i: int, **save_kwargs) -> Tuple[str, str]:
+def prepare_array_dict_file(file_format: str, i: int, **save_kwargs) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
@@ -319,17 +318,17 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
 _ARRAY_LIST_SAMPLES = [list(array_dict.values()) for array_dict in _ARRAY_DICT_SAMPLES]
 
 
-def pack_array_list(i: int) -> List[np.ndarray]:
+def pack_array_list(i: int) -> list[np.ndarray]:
     return _ARRAY_LIST_SAMPLES[i]
 
 
-def unpack_array_list(obj: List[np.ndarray], i: int):
+def unpack_array_list(obj: list[np.ndarray], i: int):
     assert isinstance(obj, list) and all(isinstance(value, np.ndarray) for value in obj)
     for obj_array, sample_array in zip(obj, _ARRAY_LIST_SAMPLES[i]):
         assert (obj_array == sample_array).all()
 
 
-def validate_array_list(result: List[list], i: int) -> bool:
+def validate_array_list(result: list[list], i: int) -> bool:
     # Numppy arrays are serialized as lists:
     for result_array, sample_array in zip(result, _ARRAY_LIST_SAMPLES[i]):
         if not (np.array(result_array) == sample_array).all():
@@ -337,7 +336,7 @@ def validate_array_list(result: List[list], i: int) -> bool:
     return True
 
 
-def prepare_array_list_file(file_format: str, i: int, **save_kwargs) -> Tuple[str, str]:
+def prepare_array_list_file(file_format: str, i: int, **save_kwargs) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)

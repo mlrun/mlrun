@@ -57,7 +57,7 @@ class MLPlan(Plan, ABC):
                                    False.
         """
         self._need_probabilities = need_probabilities
-        super(MLPlan, self).__init__()
+        super().__init__()
 
     @property
     def need_probabilities(self) -> bool:

@@ -73,7 +73,7 @@ class MLRunHTTPStatusError(MLRunHTTPError):
     error_status_code = None
 
     def __init__(self, *args, response: requests.Response = None, **kwargs):
-        super(MLRunHTTPStatusError, self).__init__(
+        super().__init__(
             *args, response=response, status_code=self.error_status_code, **kwargs
         )
 
@@ -204,6 +204,10 @@ class MLRunRetryExhaustedError(Exception):
 
 
 class MLRunTaskCancelledError(Exception):
+    pass
+
+
+class MLRunValueError(ValueError):
     pass
 
 

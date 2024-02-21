@@ -94,9 +94,7 @@ def toPandas(spark_df):
                 )
 
                 # Rename columns to avoid duplicated column names.
-                tmp_column_names = [
-                    "col_{}".format(i) for i in range(len(spark_df.columns))
-                ]
+                tmp_column_names = [f"col_{i}" for i in range(len(spark_df.columns))]
                 self_destruct = spark_df.sql_ctx._conf.arrowPySparkSelfDestructEnabled()
                 batches = spark_df.toDF(*tmp_column_names)._collect_as_arrow(
                     split_batches=self_destruct
@@ -178,7 +176,7 @@ def toPandas(spark_df):
         if isinstance(field.dataType, IntegralType) and pandas_col.isnull().any():
             dtype[fieldIdx] = np.float64
         if isinstance(field.dataType, BooleanType) and pandas_col.isnull().any():
-            dtype[fieldIdx] = np.object
+            dtype[fieldIdx] = object
 
     df = pd.DataFrame()
     for index, t in enumerate(dtype):

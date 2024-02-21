@@ -15,7 +15,7 @@
 
 import mimetypes
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -66,7 +66,7 @@ async def create_source(
 
 @router.get(
     path="",
-    response_model=List[mlrun.common.schemas.hub.IndexedHubSource],
+    response_model=list[mlrun.common.schemas.hub.IndexedHubSource],
 )
 async def list_sources(
     item_name: Optional[str] = Query(None, alias="item-name"),

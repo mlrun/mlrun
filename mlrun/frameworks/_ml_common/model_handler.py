@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import Dict, List, Union
+from typing import Union
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -35,10 +35,10 @@ class MLModelHandler(ModelHandler, ABC):
         model_path: MLTypes.PathType = None,
         model_name: str = None,
         modules_map: Union[
-            Dict[str, Union[None, str, List[str]]], MLTypes.PathType
+            dict[str, Union[None, str, list[str]]], MLTypes.PathType
         ] = None,
         custom_objects_map: Union[
-            Dict[str, Union[str, List[str]]], MLTypes.PathType
+            dict[str, Union[str, list[str]]], MLTypes.PathType
         ] = None,
         custom_objects_directory: MLTypes.PathType = None,
         context: mlrun.MLClientCtx = None,
@@ -105,7 +105,7 @@ class MLModelHandler(ModelHandler, ABC):
         self._feature_weights = None  # type: List[float]
 
         # Continue the initialization:
-        super(MLModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -153,7 +153,7 @@ class MLModelHandler(ModelHandler, ABC):
         return self._feature_vector
 
     @property
-    def feature_weights(self) -> List[float]:
+    def feature_weights(self) -> list[float]:
         """
         Get the feature weights set in this handler.
 
@@ -213,7 +213,7 @@ class MLModelHandler(ModelHandler, ABC):
         """
         self._feature_vector = feature_vector
 
-    def set_feature_weights(self, feature_weights: List[float]):
+    def set_feature_weights(self, feature_weights: list[float]):
         """
         Set the feature weights this model will be logged with.
 
@@ -224,18 +224,18 @@ class MLModelHandler(ModelHandler, ABC):
     def log(
         self,
         tag: str = "",
-        labels: Dict[str, Union[str, int, float]] = None,
-        parameters: Dict[str, Union[str, int, float]] = None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
-        metrics: Dict[str, Union[int, float]] = None,
-        artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, MLTypes.ExtraDataType] = None,
+        labels: dict[str, Union[str, int, float]] = None,
+        parameters: dict[str, Union[str, int, float]] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
+        metrics: dict[str, Union[int, float]] = None,
+        artifacts: dict[str, Artifact] = None,
+        extra_data: dict[str, MLTypes.ExtraDataType] = None,
         algorithm: str = None,
         sample_set: MLTypes.DatasetType = None,
         target_columns: MLTypes.TargetColumnsNamesType = None,
         feature_vector: str = None,
-        feature_weights: List[float] = None,
+        feature_weights: list[float] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -281,7 +281,7 @@ class MLModelHandler(ModelHandler, ABC):
             self.set_feature_weights(feature_weights=feature_weights)
 
         # Continue with the handler logging:
-        super(MLModelHandler, self).log(
+        super().log(
             tag=tag,
             labels=labels,
             parameters=parameters,
@@ -299,15 +299,15 @@ class MLModelHandler(ModelHandler, ABC):
 
     def update(
         self,
-        labels: Dict[str, Union[str, int, float]] = None,
-        parameters: Dict[str, Union[str, int, float]] = None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
-        metrics: Dict[str, Union[int, float]] = None,
-        artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, MLTypes.ExtraDataType] = None,
+        labels: dict[str, Union[str, int, float]] = None,
+        parameters: dict[str, Union[str, int, float]] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
+        metrics: dict[str, Union[int, float]] = None,
+        artifacts: dict[str, Artifact] = None,
+        extra_data: dict[str, MLTypes.ExtraDataType] = None,
         feature_vector: str = None,
-        feature_weights: List[float] = None,
+        feature_weights: list[float] = None,
     ):
         """
         Update the model held by this handler into the MLRun context provided, updating the model's artifact properties
@@ -336,7 +336,7 @@ class MLModelHandler(ModelHandler, ABC):
             self._feature_weights = feature_weights
 
         # Continue with the handler update:
-        super(MLModelHandler, self).update(
+        super().update(
             labels=labels,
             parameters=parameters,
             inputs=inputs,

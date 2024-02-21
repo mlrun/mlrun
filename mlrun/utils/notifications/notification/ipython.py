@@ -29,7 +29,7 @@ class IPythonNotification(NotificationBase):
     def __init__(
         self,
         name: str = None,
-        params: typing.Dict[str, str] = None,
+        params: dict[str, str] = None,
     ):
         super().__init__(name, params)
         self._ipython = None

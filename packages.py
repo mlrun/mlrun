@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import os
-import typing
 
 
-def packages(exclude_packages: typing.List[str] = None) -> typing.List[str]:
+def packages(exclude_packages: list[str] = None) -> list[str]:
     """Get list of project packages"""
     _exclude_packages = set(exclude_packages or [])
     all_packages = _flatten_packages(
@@ -25,7 +24,7 @@ def packages(exclude_packages: typing.List[str] = None) -> typing.List[str]:
     return list(sorted(all_packages.difference(_exclude_packages)))
 
 
-def _get_package_dict(starting_path, exclude: typing.List[str] = None) -> typing.Dict:
+def _get_package_dict(starting_path, exclude: list[str] = None) -> dict:
     """Get hierarchical dict of packages from starting path"""
     package_dict = {}
     exclude = exclude or ["__pycache__"]
@@ -45,8 +44,8 @@ def _get_package_dict(starting_path, exclude: typing.List[str] = None) -> typing
 
 
 def _flatten_packages(
-    package_dict: typing.Dict, parent_key: str = "", sep: str = "."
-) -> typing.Set[str]:
+    package_dict: dict, parent_key: str = "", sep: str = "."
+) -> set[str]:
     """Flatten hierarchical dict of packages to set of packages"""
     items = [parent_key] if parent_key else []
     for key, value in package_dict.items():

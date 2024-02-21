@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import typing
 
 
-def base_requirements() -> typing.List[str]:
+def base_requirements() -> list[str]:
     return list(_load_dependencies_from_file("requirements.txt"))
 
 
-def dev_requirements() -> typing.List[str]:
+def dev_requirements() -> list[str]:
     return list(_load_dependencies_from_file("dev-requirements.txt"))
 
 
-def extra_requirements() -> typing.Dict[str, typing.List[str]]:
+def extra_requirements() -> dict[str, list[str]]:
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
     #       corresponding line there.
@@ -114,7 +113,7 @@ def _extract_package_from_egg(line: str) -> str:
     return line
 
 
-def _load_dependencies_from_file(path: str, parent_dir: str = None) -> typing.List[str]:
+def _load_dependencies_from_file(path: str, parent_dir: str = None) -> list[str]:
     """Load dependencies from requirements file"""
     parent_dir = parent_dir or os.path.dirname(__file__)
     with open(f"{parent_dir}/{path}") as fp:
@@ -126,11 +125,11 @@ def _load_dependencies_from_file(path: str, parent_dir: str = None) -> typing.Li
 
 
 def _get_extra_dependencies(
-    include: typing.List[str] = None,
-    exclude: typing.List[str] = None,
-    base_deps: typing.List[str] = None,
-    extras_require: typing.Dict[str, typing.List[str]] = None,
-) -> typing.List[str]:
+    include: list[str] = None,
+    exclude: list[str] = None,
+    base_deps: list[str] = None,
+    extras_require: dict[str, list[str]] = None,
+) -> list[str]:
     """Get list of dependencies for given extras categories
 
     :param include: list of extras categories to include

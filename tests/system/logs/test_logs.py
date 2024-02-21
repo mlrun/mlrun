@@ -19,9 +19,12 @@ import tests.system.base
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestLogCollector(tests.system.base.TestMLRunSystem):
-    custom_project_names_to_delete = []
+    def custom_setup(self):
+        super().custom_setup()
+        self.custom_project_names_to_delete = []
 
     def custom_teardown(self):
+        super().custom_teardown()
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 

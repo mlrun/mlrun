@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GO_VERSION=1.19
+ARG GO_VERSION=1.21
 
 FROM gcr.io/iguazio/golang:${GO_VERSION} as build-binary
 
@@ -45,10 +45,15 @@ RUN wget -qO/app/grpc_health_probe \
     chmod +x /app/grpc_health_probe
 
 FROM gcr.io/iguazio/alpine:3.18
+
+# Upgrade OS packages
+RUN apk -U upgrade
+
 COPY --from=build-binary /app/main /main
 COPY --from=install-health-probe /app/grpc_health_probe /grpc_health_probe
 
 EXPOSE 8080
+
 VOLUME /var/mlrun
 
-CMD ["/main"]
+CMD [ "/main" ]

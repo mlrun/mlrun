@@ -50,9 +50,9 @@ need_private_git = pytest.mark.skipif(
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestArchiveSources(tests.system.base.TestMLRunSystem):
     project_name = "git-tests"
-    custom_project_names_to_delete = []
 
     def custom_setup(self):
+        super().custom_setup()
         self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
         self.uploaded_code = False
         # upload test files to cluster
@@ -62,8 +62,10 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
                     "GIT_TOKEN": os.environ["MLRUN_SYSTEM_TESTS_PRIVATE_GIT_TOKEN"],
                 }
             )
+        self.custom_project_names_to_delete = []
 
     def custom_teardown(self):
+        super().custom_teardown()
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 

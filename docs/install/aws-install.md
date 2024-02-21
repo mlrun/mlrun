@@ -121,7 +121,7 @@ It could take up to 2 hours for your stack to be created.
 ## Getting started
 When the stack is complete, go to the **output** tab for the stack you created. There are links for the MLRun UI, Jupyter, and the Kubeconfig command.
 
-It's recommended to go through the quick-start and the other tutorials in the [documentation](../tutorial/index.html). These tutorials and demos come built-in with Jupyter under the root folder of Jupyter.
+It's recommended to go through the quick-start and the other tutorials in the [documentation](../tutorials/index.html). These tutorials and demos come built-in with Jupyter under the root folder of Jupyter.
 
 ## Storage resources
 

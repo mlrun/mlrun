@@ -20,9 +20,11 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
+from mlrun.runtimes.function_reference import FunctionReference
 
 
 def exec_run(args):
@@ -408,6 +410,31 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         _, ret_code = exec_run(args)
         assert ret_code is None
 
+    @pytest.mark.parametrize("local", [True, False])
+    def test_df_as_params(self, local):
+        df = pd.read_parquet(str(self.assets_path / "test_data.parquet"))
+        code = """
+def print_df(df):
+    print(df)
+"""
+        function_ref = FunctionReference(
+            kind="job",
+            code=code,
+            image="mlrun/mlrun",
+            name="test_df_as_param",
+        )
+
+        function = function_ref.to_function()
+        if local:
+            function.run(handler="print_df", params={"df": df}, local=True)
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as error:
+                function.run(handler="print_df", params={"df": df}, local=False)
+            assert (
+                "Parameter 'df' has an unsupported value of type 'pandas.DataFrame'"
+                in str(error.value)
+            )
+
     def test_function_handler_set_labels_and_annotations(self):
         code_path = str(self.assets_path / "handler.py")
         mlrun.get_or_create_project(self.project_name, self.results_path)
@@ -480,3 +507,31 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = project.run_function(name)
         results = run.status.results["results"]
         assert results == expected_results
+
+    def test_abort_run(self):
+        sleep_func = mlrun.code_to_function(
+            "sleep-function",
+            filename=str(self.assets_path / "sleep.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        run = sleep_func.run(
+            params={"time_to_sleep": 30},
+            watch=False,
+        )
+        db = mlrun.get_run_db()
+        background_task = db.abort_run(run.metadata.uid)
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+
+        run = db.read_run(run.metadata.uid)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+
+        # list background tasks
+        background_tasks = db.list_project_background_tasks()
+        assert background_task.metadata.name in [
+            task.metadata.name for task in background_tasks
+        ]

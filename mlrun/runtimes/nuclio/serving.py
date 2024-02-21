@@ -15,20 +15,20 @@
 import json
 import os
 from copy import deepcopy
-from typing import List, Union
+from typing import Union
 
 import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.datastore import parse_kafka_url
+from mlrun.model import ObjectList
 from mlrun.model_monitoring.tracking_policy import TrackingPolicy
-
-from ..datastore import parse_kafka_url
-from ..model import ObjectList
-from ..secrets import SecretsStore
-from ..serving.server import GraphServer, create_graph_server
-from ..serving.states import (
+from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.secrets import SecretsStore
+from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
     StepKinds,
@@ -37,9 +37,9 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger, set_paths
+from mlrun.utils import get_caller_globals, logger, set_paths
+
 from .function import NuclioSpec, RemoteRuntime
-from .function_reference import FunctionReference
 
 serving_subkind = "serving_v2"
 
@@ -216,12 +216,12 @@ class ServingSpec(NuclioSpec):
         graph_root_setter(self, graph)
 
     @property
-    def function_refs(self) -> List[FunctionReference]:
+    def function_refs(self) -> list[FunctionReference]:
         """function references, list of optional child function refs"""
         return self._function_refs
 
     @function_refs.setter
-    def function_refs(self, function_refs: List[FunctionReference]):
+    def function_refs(self, function_refs: list[FunctionReference]):
         self._function_refs = ObjectList.from_list(FunctionReference, function_refs)
 
 
@@ -309,7 +309,8 @@ class ServingRuntime(RemoteRuntime):
         stream_args: dict = None,
         tracking_policy: Union[TrackingPolicy, dict] = None,
     ):
-        """set tracking parameters:
+        """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
+           and analyze performance.
 
         :param stream_path:     Path/url of the tracking stream e.g. v3io:///users/mike/mystream
                                 you can use the "dummy://" path for test/simulation.
@@ -482,11 +483,10 @@ class ServingRuntime(RemoteRuntime):
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )
-                    trigger_args["max_workers"] = trigger_args.get("max_workers", 4)
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
-                    extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                        "workerAllocationMode", "static"
+                    extra_attributes["worker_allocation_mode"] = extra_attributes.get(
+                        "worker_allocation_mode", "static"
                     )
 
                 if (
@@ -581,7 +581,6 @@ class ServingRuntime(RemoteRuntime):
 
     def deploy(
         self,
-        dashboard="",
         project="",
         tag="",
         verbose=False,
@@ -591,7 +590,6 @@ class ServingRuntime(RemoteRuntime):
     ):
         """deploy model serving function to a local/remote cluster
 
-        :param dashboard: DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
@@ -638,7 +636,6 @@ class ServingRuntime(RemoteRuntime):
             logger.info(f"deploy root function {self.metadata.name} ...")
 
         return super().deploy(
-            dashboard,
             project,
             tag,
             verbose,

@@ -137,8 +137,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
         )
         measurements.set_targets([ParquetTarget(path=target_path)], with_defaults=False)
         source = ParquetSource("myparquet", path=src_path)
-        fstore.ingest(
-            measurements,
+        measurements.ingest(
             source,
             return_df=True,
             spark_context=spark_service,

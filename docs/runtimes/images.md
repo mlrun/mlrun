@@ -3,6 +3,8 @@
 
 Every release of MLRun includes several images for different usages. The build and the infrastructure images are described, and located, in the [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md). They are also published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
+This release of MLRun supports only Python 3.9.
+
 **In this section**
 - [Using images](#using-images)
 - [MLRun images](#mlrun-images)
@@ -23,7 +25,7 @@ The images are:
 
 - `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs.
 - `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
-- `mlrun/ml-base`: Similar to `mlrun/mlrun` with the addition of Dask and other Python packages.
+- `mlrun/ml-base`: Image for file acquisition, compression, dask jobs, simple training jobs and other utilities.
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
 
 ## Building MLRun images

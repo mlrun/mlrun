@@ -17,7 +17,6 @@ import os
 import pathlib
 import re
 import time
-import typing
 import uuid
 from http import HTTPStatus
 
@@ -431,7 +430,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
     def _get_audit_events(
         self, event_kind: str, since_time: datetime.datetime
-    ) -> typing.List[igz_mgmt.AuditEvent]:
+    ) -> list[igz_mgmt.AuditEvent]:
         def _get_audit_events():
             self._logger.info(
                 "Trying to get audit events",

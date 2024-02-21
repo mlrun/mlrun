@@ -13,10 +13,11 @@
 # limitations under the License.
 import pathlib
 import typing
-from os.path import isdir
+from os.path import exists, isdir
+from urllib.parse import urlparse
 
 import mlrun.config
-from mlrun.utils.helpers import template_artifact_path
+from mlrun.utils.helpers import get_local_file_schema, template_artifact_path
 
 from ..utils import (
     is_legacy_artifact,
@@ -66,7 +67,7 @@ artifact_types = {
     "bokeh": BokehArtifact,
 }
 
-# TODO - Remove this when legacy types are deleted in 1.6.0
+# TODO - Remove this when legacy types are deleted in 1.7.0
 legacy_artifact_types = {
     "": LegacyArtifact,
     "dir": LegacyDirArtifact,
@@ -120,6 +121,34 @@ class ArtifactManager:
         self.artifact_db = db
         self.input_artifacts = {}
         self.artifacts = {}
+
+    @staticmethod
+    def ensure_artifact_source_file_exists(item, path, body):
+        # If the body exists, the source path does not have to exists.
+        if body is not None or item.get_body() is not None:
+            return
+        if not path:
+            return
+        #  ModelArtifact is a directory.
+        if isinstance(item, ModelArtifact):
+            return
+        # Could happen in the import artifact scenario - that path is None.
+        if item.target_path:
+            return
+        #  in DatasetArtifact
+        if hasattr(item, "df") and item.df is not None:
+            return
+        parsed_url = urlparse(path)
+        schema = parsed_url.scheme
+        #  we are not checking remote paths yet.
+        if schema and schema not in get_local_file_schema():
+            return
+        if schema.lower() == "file":
+            path = parsed_url.path
+        if not exists(path):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to log an artifact, file does not exists at path {path}"
+            )
 
     def artifact_list(self, full=False):
         artifacts = []
@@ -184,6 +213,7 @@ class ArtifactManager:
 
         validate_artifact_key_name(key, "artifact.key")
         src_path = local_path or item.src_path  # TODO: remove src_path
+        self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
         item.format = format or item.format
@@ -200,8 +230,11 @@ class ArtifactManager:
                 # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
-                db_key = key
-        item.db_key = db_key if db_key else ""
+                # if the db_key is not explicitly set on the item, we want to use the key as the db_key
+                # otherwise, we do not want to override it.
+                # this is mainly relevant for imported artifacts that have an explicit db_key value already set
+                db_key = item.db_key or key
+        item.db_key = db_key or ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
         item.tag = tag or item.tag

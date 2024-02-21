@@ -46,6 +46,7 @@ import tests.conftest
 
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
+FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 
 def test_build_status_pod_not_found(
@@ -62,7 +63,9 @@ def test_build_status_pod_not_found(
         "status": {"build_pod": "some-pod-name"},
     }
     response = client.post(
-        f"func/{function['metadata']['project']}/{function['metadata']['name']}",
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
         json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
@@ -242,13 +245,19 @@ async def test_multiple_store_function_race_condition(
 
     request1_task = asyncio.create_task(
         async_client.post(
-            f"func/{function['metadata']['project']}/{function['metadata']['name']}",
+            FUNCTIONS_API.format(
+                project=function["metadata"]["project"],
+                name=function["metadata"]["name"],
+            ),
             json=function,
         )
     )
     request2_task = asyncio.create_task(
         async_client.post(
-            f"func/{function['metadata']['project']}/{function['metadata']['name']}",
+            FUNCTIONS_API.format(
+                project=function["metadata"]["project"],
+                name=function["metadata"]["name"],
+            ),
             json=function,
         )
     )
@@ -631,12 +640,12 @@ def test_build_function_masks_access_key(
         (
             "nuclio",
             HTTPStatus.BAD_REQUEST.value,
-            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+            "Runtime error: Function access key must be set (function.metadata.credentials.access_key)",
         ),
         (
             "serving",
             HTTPStatus.BAD_REQUEST.value,
-            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+            "Runtime error: Function access key must be set (function.metadata.credentials.access_key)",
         ),
     ],
 )

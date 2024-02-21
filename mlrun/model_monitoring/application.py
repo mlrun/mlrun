@@ -14,8 +14,9 @@
 
 import dataclasses
 import json
+import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -37,7 +38,8 @@ class ModelMonitoringApplicationResult:
     Class representing the result of a custom model monitoring application.
 
     :param name:           (str) Name of the application result. This name must be
-                            unique for each metric in a single application.
+                            unique for each metric in a single application
+                            (name must be of the format [a-zA-Z_][a-zA-Z0-9_]*).
     :param value:          (float) Value of the application result.
     :param kind:           (ResultKindApp) Kind of application result.
     :param status:         (ResultStatusApp) Status of the application result.
@@ -49,6 +51,13 @@ class ModelMonitoringApplicationResult:
     kind: mm_constant.ResultKindApp
     status: mm_constant.ResultStatusApp
     extra_data: dict = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
+        if not re.fullmatch(pat, self.name):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
+            )
 
     def to_dict(self):
         """
@@ -99,7 +108,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
 
     def do(
         self, event: dict[str, Any]
-    ) -> Tuple[list[ModelMonitoringApplicationResult], dict]:
+    ) -> tuple[list[ModelMonitoringApplicationResult], dict]:
         """
         Process the monitoring event and return application results.
 
@@ -156,7 +165,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     def _resolve_event(
         cls,
         event: dict[str, Any],
-    ) -> Tuple[
+    ) -> tuple[
         str,
         pd.DataFrame,
         pd.DataFrame,
@@ -263,7 +272,7 @@ class PushToMonitoringWriter(StepToDict):
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"
 
-    def do(self, event: Tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
+    def do(self, event: tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
         """
         Push application results to the monitoring writer stream.
 

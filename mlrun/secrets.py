@@ -14,7 +14,7 @@
 
 from ast import literal_eval
 from os import environ, getenv
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Optional, Union
 
 from .utils import AzureVaultStore, list2dict
 
@@ -148,7 +148,7 @@ class SecretsStore:
 
 def get_secret_or_env(
     key: str,
-    secret_provider: Union[Dict, SecretsStore, Callable, None] = None,
+    secret_provider: Union[dict, SecretsStore, Callable, None] = None,
     default: Optional[str] = None,
     prefix: Optional[str] = None,
 ) -> str:
@@ -185,7 +185,7 @@ def get_secret_or_env(
 
     value = None
     if secret_provider:
-        if isinstance(secret_provider, (Dict, SecretsStore)):
+        if isinstance(secret_provider, (dict, SecretsStore)):
             value = secret_provider.get(key)
         else:
             value = secret_provider(key)

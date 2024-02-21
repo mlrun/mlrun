@@ -106,14 +106,17 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 # export the artifact to a file
                 model.export(f"{results_dir}/a.{suffix}")
 
+                new_key = f"mod-{suffix}"
+
                 # import and log the artifact to the new project
                 artifact = target_project.import_artifact(
                     f"{results_dir}/a.{suffix}",
-                    f"mod-{suffix}",
+                    new_key=new_key,
                     artifact_path=results_dir,
                 )
                 assert artifact.kind == "model"
-                assert artifact.metadata.key == f"mod-{suffix}"
+                assert artifact.metadata.key == new_key
+                assert artifact.spec.db_key == new_key
                 assert artifact.metadata.project == "log-mod2"
                 temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
                     artifact.uri

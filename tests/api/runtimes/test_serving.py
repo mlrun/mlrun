@@ -28,7 +28,7 @@ import server.api.api.utils
 import server.api.crud
 import server.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
-from mlrun.runtimes.function import NuclioStatus
+from mlrun.runtimes.nuclio.function import NuclioStatus
 from server.api.rundb.sqldb import SQLRunDB
 from server.api.utils.singletons.k8s import get_k8s_helper
 

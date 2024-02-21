@@ -14,7 +14,6 @@
 #
 
 import http
-import typing
 
 import fastapi
 import sqlalchemy.orm
@@ -22,6 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import server.api.api.deps
+import server.api.api.utils
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
@@ -58,10 +58,21 @@ async def delete_project(
 ):
     # check if project exists
     try:
-        get_project_member().get_project(db_session, name, auth_info.session)
+        await run_in_threadpool(
+            get_project_member().get_project, db_session, name, auth_info.session
+        )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+    # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
+    # task, we need to check permissions here. skip permission check if the request is from the leader.
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
@@ -79,103 +90,30 @@ async def delete_project(
             name=name, request=request, api_version="v2"
         )
 
-    # as opposed to v1, we need to implement the `check` deletion strategy here, since we don't want
+    # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response
-    if (
-        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
-        and deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
-    ):
-        response.status_code = http.HTTPStatus.NO_CONTENT.value
-        return server.api.crud.Projects().verify_project_is_empty(db_session, name)
+    if deletion_strategy.strategy_to_check():
+        await run_in_threadpool(
+            server.api.crud.Projects().verify_project_is_empty,
+            db_session,
+            name,
+            auth_info,
+        )
+        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+            # if the strategy is checked, we don't want to delete the project, only to check if it is empty
+            return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
-    background_task = await run_in_threadpool(
-        _get_or_create_project_deletion_background_task,
+    task, task_name = await run_in_threadpool(
+        server.api.api.utils.get_or_create_project_deletion_background_task,
         name,
         deletion_strategy,
-        background_tasks,
         db_session,
         auth_info,
     )
+    if task:
+        background_tasks.add_task(task)
+
     response.status_code = http.HTTPStatus.ACCEPTED.value
-    return background_task
-
-
-def _get_or_create_project_deletion_background_task(
-    project_name: str, deletion_strategy: str, background_tasks, db_session, auth_info
-) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
-    """
-    This method is responsible for creating a background task for deleting a project.
-    The project deletion flow is as follows:
-        When MLRun is leader:
-        1. Create a background task for deleting the project
-        2. The background task will delete the project resources and then project itself
-        When MLRun is a follower:
-        Due to the nature of the project deletion flow, we need to wrap the task as:
-            MLRunDeletionWrapperTask(LeaderDeletionJob(MLRunDeletionTask))
-        1. Create MLRunDeletionWrapperTask
-        2. MLRunDeletionWrapperTask will send a request to the projects leader to delete the project
-        3. MLRunDeletionWrapperTask will wait for the project to be deleted using LeaderDeletionJob job id
-           During (In leader):
-           1. Create LeaderDeletionJob
-           2. LeaderDeletionJob will send a second delete project request to the follower
-           3. LeaderDeletionJob will wait for the project to be deleted using the MLRunDeletionTask task id
-              During (Back here in follower):
-              1. Create MLRunDeletionTask
-              2. MLRunDeletionTask will delete the project resources and then project itself.
-              3. Finish MLRunDeletionTask
-           4. Finish LeaderDeletionJob
-        4. Finish MLRunDeletionWrapperTask
-    """
-    # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
-    # project. Otherwise, we create a wrapper background task for deletion of the project.
-    background_task_kind_format = (
-        server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
     )
-    if (
-        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
-        or mlrun.mlconf.httpdb.projects.leader == "mlrun"
-    ):
-        background_task_kind_format = (
-            server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
-        )
-
-    background_task_kind = background_task_kind_format.format(project_name)
-    try:
-        return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
-            background_task_kind,
-            raise_on_not_found=True,
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        logger.debug(
-            "Existing background task not found, creating new one",
-            background_task_kind=background_task_kind,
-        )
-
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
-        background_task_kind,
-        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
-        _delete_project,
-        db_session=db_session,
-        project_name=project_name,
-        deletion_strategy=deletion_strategy,
-        auth_info=auth_info,
-    )
-
-
-async def _delete_project(
-    db_session: sqlalchemy.orm.Session,
-    project_name: str,
-    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
-    auth_info: mlrun.common.schemas.AuthInfo,
-):
-    await run_in_threadpool(
-        get_project_member().delete_project,
-        db_session,
-        project_name,
-        deletion_strategy,
-        auth_info.projects_role,
-        auth_info,
-        wait_for_completion=True,
-    )
-    await get_project_member().post_delete_project(project_name)

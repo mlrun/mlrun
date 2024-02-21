@@ -28,7 +28,7 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
         self._objgraph = objgraph
 
-    def create_most_common_objects_report(self) -> typing.List[typing.Tuple[str, int]]:
+    def create_most_common_objects_report(self) -> list[tuple[str, int]]:
         gc.collect()
         return self._objgraph.most_common_types()
 
@@ -39,7 +39,7 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
         start_index: int = None,
         create_graph: bool = False,
         max_depth: int = 3,
-    ) -> typing.List[typing.Dict[str, typing.Any]]:
+    ) -> list[dict[str, typing.Any]]:
         gc.collect()
         report = []
         requested_objects = self._objgraph.by_type(object_type)
@@ -75,12 +75,12 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
     def _create_object_report(
         self,
-        requested_objects: typing.List[dict],
+        requested_objects: list[dict],
         object_index: int,
         object_type: str,
         max_depth: int = 3,
         create_graph: bool = False,
-    ) -> typing.Dict[str, typing.Any]:
+    ) -> dict[str, typing.Any]:
         object_report = {
             "object": str(requested_objects[object_index])[:10000],
             "total_objects": len(requested_objects),

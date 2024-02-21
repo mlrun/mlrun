@@ -35,7 +35,7 @@ Therefore, before executing jobs that require access to storage credentials, the
 by assigning environment variables to the MLRun runtime itself, assigning secrets to it, or placing 
 the variables in project-secrets.
 
-You can also use [data store profiles](#using-data-store-profiles) to provide credentials for Redis.
+You can also use [data store profiles](#using-data-store-profiles) to provide credentials.
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
@@ -53,7 +53,7 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = "<access key>"
 
 # Execute a function that reads from the object pointed at by source_url.
 # When running locally, the function can use the local environment variables.
-local_run = func.run(name='aws_test', inputs={'source_url': source_url}, local=True)
+local_run = func.run(name='aws_func', inputs={'source_url': source_url}, local=True)
 ```
 
 Running the same function remotely:
@@ -61,14 +61,14 @@ Running the same function remotely:
 ```python
 # Executing the function remotely using env variables (not recommended!)
 func.set_env("AWS_ACCESS_KEY_ID", "<access key ID>").set_env("AWS_SECRET_ACCESS_KEY", "<access key>")
-remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
+remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
 
 # Using project-secrets (recommended) - project secrets are automatically mounted to project functions
 secrets = {"AWS_ACCESS_KEY_ID": "<access key ID>", "AWS_SECRET_ACCESS_KEY": "<access key>"}
 db = mlrun.get_run_db()
 db.create_project_secrets(project=project_name, provider="kubernetes", secrets=secrets)
 
-remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
+remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
 ```
 
 The following sections list the credentials and configuration parameters applicable to each storage type.
@@ -146,15 +146,15 @@ After you create a profile object, you make it available on remote pods by calli
 
 Create a data store profile in the context of a project. Example of creating a Redis datastore profile:
 1. Create the profile, for example:<br>
-   `profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
+   `profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
     The username and password parameters are optional. 
 2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
-   `RedisNoSqlTarget(path="ds://test_profile/a/b")`<br>
+   `RedisNoSqlTarget(path="ds://profile-name/a/b")`<br>
     If you want to use a profile from a different project, you can specify it 
 	explicitly in the URI using the format:<br>
-    `RedisNoSqlTarget(path="ds://another_project@test_profile")`
+    `RedisNoSqlTarget(path="ds://another_project@profile-name")`
 
 
 To access a profile from the client/sdk, register the profile locally by calling
@@ -167,66 +167,148 @@ redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
+```{admonition} Note
+Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+```
+
+
+### Azure data store profile
+```
+profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)
+ParquetTarget(path="ds://profile-name/az_blob/path/to/parquet.pq")
+```
+
+`DatastoreProfileAzureBlob` init parameters:
+- `name` &mdash; Name of the profile.
+- `connection_string` &mdash; The Azure connection string that points at a storage account.
+For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CONNECTION_STRING".
+for example:<br>
+`DefaultEndpointsProtocol=https;AccountName=myAcct;AccountKey=XXXX;EndpointSuffix=core.windows.net`
+
+The following variables allow alternative methods of authentication. All of these variables require 
+`account_name`.
+- `account_name` &mdash; This parameter represents the name of the Azure Storage account.
+Each Azure Storage account has a unique name, and it serves as a globally-unique identifier for the storage account within the Azure cloud.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_ACCOUNT_NAME".
+- `account_key` &mdash; The storage account key is a security credential associated with an Azure Storage account.
+It is a primary access key used for authentication and authorization purposes.
+This key is sensitive information and is kept confidential.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_ACCOUNT_KEY".
+- `sas_token` &mdash; Shared Access Signature (SAS) token for time-bound access.
+This token is ensitive information. Equivalent to "AZURE_STORAGE_SAS_TOKEN" in environment authentication.
+
+Authentication against Azure services using a Service Principal:
+- `client_id` &mdash; This variable holds the client ID associated with an Azure Active Directory (AAD) application,
+which represents the Service Principal. In Azure, a Service Principal is used for non-interactive authentication, allowing applications to access Azure resources.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CLIENT_ID".
+- `client_secret` &mdash; This variable stores the client secret associated with the Azure AD application (Service Principal).
+The client secret is a credential that proves the identity of the application when it requests access to Azure resources.
+This key is sensitive information and is kept confidential.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CLIENT_SECRET".
+- `tenant_id` &mdash; This variable holds the Azure AD tenant ID, which uniquely identifies the organization or directory in Azure Active Directory.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_TENANT_ID".
+credential authentication:
+- `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
+This variable is sensitive information and is kept confidential.
+
+### DBFS data store profile
+
+```
+profile = DatastoreProfileDBFS(name="profile-name", endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com", token=token)
+ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
+```
+
+`DatastoreProfileDBFS` init parameters:
+- `name` &mdash; Name of the profile.
+- `endpoint_url` &mdash; A string representing the endpoint URL of the DBFS service.
+The equivalent to this parameter in environment authentication is "DATABRICKS_HOST".
+- `token` &mdash; A string representing the secret key used for authentication to the DBFS service. 
+For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
+The equivalent to this parameter in environment authentication is "DATABRICKS_TOKEN".
+
+### GCS data store profile
+```
+profile = DatastoreProfileGCS(name="profile-name",credentials_path="/local_path/to/gcs_credentials.json")
+ParquetTarget(path="ds://profile-name/gcs_bucket/path/to/parquet.pq")
+```
+
+`DatastoreProfileGCS` init parameters:
+- `name` &mdash; Name of the profile.
+- `credentials_path` &mdash; A string representing the local JSON file path that contains the authentication parameters required by the GCS API.
+The equivalent to this parameter in environment authentication is "GOOGLE_APPLICATION_CREDENTIALS."
+- `gcp_credentials` &mdash; A JSON in a string format representing the authentication parameters required by GCS API. 
+For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
+The equivalent to this parameter in environment authentication is "GCP_CREDENTIALS".
+
+The code prioritizes `gcp_credentials` over `credentials_path`.
+
 
 ### Kafka data store profile
 
 ```
-profile = DatastoreProfileKafkaTarget(name="test_profile",bootstrap_servers="localhost", topic="test_topic")
-target = KafkaTarget(path="ds://test_profile")
+profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+target = KafkaTarget(path="ds://profile-name")
 ```
 
-`DatastoreProfileKafkaTarget` Class Parameters:
-- *name*: Name of the profile
-- *bootstrap_servers*: A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
-- *topic*: A string that denotes the Kafka topic to which data will be sent or from which data will be received.
-- *kwargs_public* (Optional): This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
-- *kwargs_private* (Optional): This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
-profile = DatastoreProfileKafkaSource(name="test_profile",bootstrap_servers="localhost", topic="test_topic")
-register_temporary_client_datastore_profile(profile) or project.register_datastore_profile(profile)
-...
-target = KafkaSource(path="ds://test_profile")
+`DatastoreProfileKafkaTarget` class parameters:
+- `name` &mdash; Name of the profile
+- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
+- `topic` &mdash; A string that denotes the Kafka topic to which data will be sent or from which data will be received.
+- `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
+- `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
 
-`DatastoreProfileKafkaSource` Class Parameters:
-- *name*: name of the profile
-- *brokers*: This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
-- *topics*: A string or list of strings that denote the Kafka topics from which data will be sourced or read.
-- *group* (Optional): A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
-- *initial_offset* (Optional): A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
-- *partitions* (Optional): This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
-- *sasl_user* (Optional): A string representing the username for SASL authentication, if required by the Kafka cluster. It's tagged as private for security reasons.
-- *sasl_pass* (Optional): A string representing the password for SASL authentication, correlating with the `sasl_user`. It's tagged as private for security considerations.
-- *kwargs_public* (Optional): This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
-- *kwargs_private* (Optional): This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
+
+```
+profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+target = KafkaSource(path="ds://profile-name")
+```
+
+`DatastoreProfileKafkaSource` class parameters:
+- `name` &mdash; Name of the profile
+- `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
+- `topics` &mdash; A string or list of strings that denote the Kafka topics from which data will be sourced or read.
+- `group` &mdash; A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
+- `initial_offset` &mdash; A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
+- `partitions` &mdash; This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
+- `sasl_user` &mdash; A string representing the username for SASL authentication, if required by the Kafka cluster. It's tagged as private for security reasons.
+- `sasl_pass` &mdash; A string representing the password for SASL authentication, correlating with the `sasl_user`. It's tagged as private for security considerations.
+- `kwargs_public` &mdash; This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
+- `kwargs_private` &mdash; This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
 
 ### Redis data store profile
 
-`profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
-`RedisNoSqlTarget(path="ds://test_profile/a/b")
-
+```python
+profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
+RedisNoSqlTarget(path="ds://profile-name/a/b")
+```
 
 ### S3 data store profile
 
-`profile = DatastoreProfileS3(name="test_profile")`
-`ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")`
+
+```
+profile = DatastoreProfileS3(name="profile-name")
+ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
+```
 
 `DatastoreProfileS3` init parameters:
-- *name*: name of the profile
-- *endpoint_url* (optional): A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`.
-- *force_non_anonymous* (optional): A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set.
-- *profile_name* (optional): A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`.
-- *assume_role_arn* (optional): A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`.
-- *access_key* (optional): A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
-- *secret_key* (optional): A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`.
+- `name` &mdash; Name of the profile
+- `endpoint_url` &mdash; A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`. The equivalent to this parameter in environment authentication is env["S3_ENDPOINT_URL"].
+- `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set. The equivalent to this parameter in environment authentication is - `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set. The equivalent to this parameter in environment authentication is env["S3_NON_ANONYMOUS"].
+- `profile_name` &mdash; A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_PROFILE"].
+- `assume_role_arn` &mdash; A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`. The equivalent to this parameter in environment authentication is env["MLRUN_AWS_ROLE_ARN"]
+- `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
+- `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
 
 
 
 
 
-See also:
+### See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
-- {py:class}`~mlrun.projects.MlrunProject.register_temporary_client_datastore_profile`
+- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
 - {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
 
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 

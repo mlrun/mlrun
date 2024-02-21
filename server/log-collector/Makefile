@@ -133,33 +133,16 @@ test-integration-dockerized: schemas-compiler
 # Misc
 #
 .PHONY: fmt
-fmt:
+fmt: ensure-golangci
+	@echo Formatting...
 	gofmt -s -w .
-	golangci-lint run --fix
+	$(CI_BIN_DIR)/golangci-lint run --fix
+	@echo Done.
 
 .PHONY: lint
-lint: compile-schemas-go ensure-test-files-annotated
-	@echo Installing linters...
-	@test -e $(CI_BIN_DIR)/impi || \
-		(mkdir -p $(CI_BIN_DIR) && \
-		curl -s https://api.github.com/repos/pavius/impi/releases/latest \
-		| grep -i "browser_download_url.*impi.*$(OS_NAME)" \
-		| cut -d : -f 2,3 \
-		| tr -d \" \
-		| wget -O $(CI_BIN_DIR)/impi -qi - \
-		&& chmod +x $(CI_BIN_DIR)/impi)
-
-	@test -e $(CI_BIN_DIR)/golangci-lint || \
-	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.54.2)
-
-	@echo Verifying imports...
-	$(CI_BIN_DIR)/impi \
-		--local github.com/mlrun/mlrun/ \
-		--scheme stdLocalThirdParty \
-		./cmd/... ./pkg/...
-
+lint: ensure-golangci compile-schemas-go ensure-test-files-annotated
 	@echo Linting...
-	$(CI_BIN_DIR)/golangci-lint run -v
+	$(CI_BIN_DIR)/golangci-lint run --verbose
 	@echo Done.
 
 .PHONY: ensure-test-files-annotated
@@ -173,3 +156,8 @@ ensure-test-files-annotated:
 	fi
 	@echo "All go test files have //go:build test_X annotation"
 	@exit $(.SHELLSTATUS)
+
+.PHONY: ensure-golangci
+ensure-golangci:
+	@test -e $(CI_BIN_DIR)/golangci-lint || \
+		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.55.2)

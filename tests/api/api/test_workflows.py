@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import random
+import unittest.mock
 from http import HTTPStatus
 
 from fastapi.testclient import TestClient
@@ -97,14 +98,36 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
     )
 
 
-def _create_proj_with_workflow(client: TestClient):
+def test_schedule_not_enriched(db: Session, client: TestClient, k8s_secrets_mock):
+    _create_proj_with_workflow(client, schedule="* * * * 1")
+
+    # Spec with bad schedule:
+    workflow_body = {"spec": {"name": WORKFLOW_NAME}}
+
+    class UIDMock:
+        def uid(self):
+            return "some uid"
+
+    with unittest.mock.patch.object(
+        server.api.crud.WorkflowRunners, "run", return_value=UIDMock()
+    ):
+        resp = client.post(
+            f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit",
+            json=workflow_body,
+        )
+        assert resp.status_code == HTTPStatus.ACCEPTED
+        response_data = resp.json()
+        assert response_data["schedule"] is None
+
+
+def _create_proj_with_workflow(client: TestClient, **extra_workflow_spec):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT_NAME),
         spec=mlrun.common.schemas.ProjectSpec(
             description="banana",
             source="git://github.com/mlrun/project-demo",
             goals="some goals",
-            workflows=[{"name": WORKFLOW_NAME}],
+            workflows=[{"name": WORKFLOW_NAME, **extra_workflow_spec}],
         ),
     )
     client.post("projects", json=project.dict())

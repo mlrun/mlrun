@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from ast import FunctionDef, parse, unparse
 from base64 import b64decode, b64encode
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import mlrun
 import mlrun.runtimes.kubejob as kubejob
@@ -197,14 +196,13 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
             if value:
                 task_parameters[key] = value  # in order to handle reruns.
         runspec.spec.parameters["task_parameters"] = task_parameters
-        current_file = os.path.abspath(__file__)
-        current_dir = os.path.dirname(current_file)
-        databricks_runtime_wrap_path = os.path.join(
-            current_dir, "databricks_wrapper.py"
-        )
-        with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
-            wrap_code = databricks_runtime_wrap_file.read()
-            wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
+        wrap_code = b"""
+from mlrun.runtimes.databricks_job import databricks_wrapper
+
+def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
+        databricks_wrapper.run_mlrun_databricks_job(context, task_parameters, **kwargs)
+"""
+        wrap_code = b64encode(wrap_code).decode("utf-8")
         self.spec.build.functionSourceCode = wrap_code
         runspec.spec.handler = "run_mlrun_databricks_job"
 
@@ -217,23 +215,23 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[Dict[str, list]] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if local:

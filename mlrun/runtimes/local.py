@@ -307,7 +307,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
-            except (RunError, mlrun.errors.MLRunTaskCancelledError) as err:
+            except RunError as err:
                 raise err
             # this exception handling is for the case where we fail on pre-loading or post-running the function
             # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
@@ -436,7 +436,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out, err
 
 
-class _DupStdout(object):
+class _DupStdout:
     def __init__(self):
         self.terminal = sys.stdout
         self.buf = StringIO()
@@ -451,58 +451,69 @@ class _DupStdout(object):
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
     old_level = logger.level
-    if runobj.spec.verbose:
-        logger.set_logger_level("DEBUG")
+    try:
+        if runobj.spec.verbose:
+            logger.set_logger_level("DEBUG")
 
-    # Prepare the inputs type hints (user may pass type hints as part of the input keys):
-    runobj.spec.extract_type_hints_from_inputs()
-    # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
-    kwargs = get_func_arg(handler, runobj, context)
+        # Prepare the inputs type hints (user may pass type hints as part of the input keys):
+        runobj.spec.extract_type_hints_from_inputs()
+        # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
+        kwargs = get_func_arg(handler, runobj, context)
 
-    stdout = _DupStdout()
-    err = ""
-    val = None
-    old_dir = os.getcwd()
-    with redirect_stdout(stdout):
-        context.set_logger_stream(stdout)
-        try:
-            if cwd:
-                os.chdir(cwd)
-            # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
-            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user. Outputs
-            # are logged only if log hints are provided by the user):
-            if mlrun.mlconf.packagers.enabled:
-                val = mlrun.handler(
-                    inputs=(
-                        runobj.spec.inputs_type_hints
-                        if runobj.spec.inputs_type_hints
-                        else True  # True will use type hints if provided in user's code.
-                    ),
-                    outputs=(
-                        runobj.spec.returns
-                        if runobj.spec.returns
-                        else None  # None will turn off outputs logging.
-                    ),
-                )(handler)(**kwargs)
-            else:
-                val = handler(**kwargs)
-            context.set_state("completed", commit=False)
-        except Exception as exc:
-            err = err_to_str(exc)
-            logger.error(f"Execution error, {traceback.format_exc()}")
-            context.set_state(error=err, commit=False)
-            logger.set_logger_level(old_level)
+        stdout = _DupStdout()
+        err = ""
+        val = None
+        old_dir = os.getcwd()
+        commit = True
+        with redirect_stdout(stdout):
+            context.set_logger_stream(stdout)
+            try:
+                if cwd:
+                    os.chdir(cwd)
+                # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using
+                # log hints (Expected behavior: inputs are being parsed when they have type hints in code or given
+                # by user. Outputs are logged only if log hints are provided by the user):
+                if mlrun.mlconf.packagers.enabled:
+                    val = mlrun.handler(
+                        inputs=(
+                            runobj.spec.inputs_type_hints
+                            if runobj.spec.inputs_type_hints
+                            else True  # True will use type hints if provided in user's code.
+                        ),
+                        outputs=(
+                            runobj.spec.returns
+                            if runobj.spec.returns
+                            else None  # None will turn off outputs logging.
+                        ),
+                    )(handler)(**kwargs)
+                else:
+                    val = handler(**kwargs)
+                context.set_state("completed", commit=False)
+            except mlrun.errors.MLRunTaskCancelledError as exc:
+                logger.warning("Run was aborted", err=err_to_str(exc))
+                # Run was aborted, the state run state is updated by the abort job, no need to commit again
+                context.set_state(
+                    mlrun.runtimes.constants.RunStates.aborted, commit=False
+                )
+                commit = False
+            except Exception as exc:
+                err = err_to_str(exc)
+                logger.error(f"Execution error, {traceback.format_exc()}")
+                context.set_state(error=err, commit=False)
 
-    stdout.flush()
-    if cwd:
-        os.chdir(old_dir)
-    context.set_logger_stream(sys.stdout)
-    if val:
-        context.log_result("return", val)
+        stdout.flush()
+        if cwd:
+            os.chdir(old_dir)
+        context.set_logger_stream(sys.stdout)
+        if val:
+            context.log_result("return", val)
 
-    # completion will be ignored if error is set
-    context.commit(completed=True)
-    logger.set_logger_level(old_level)
+        if commit:
+            # completion will be ignored if error is set
+            context.commit(completed=True)
+
+    finally:
+        logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err
 
 

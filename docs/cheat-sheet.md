@@ -714,7 +714,7 @@ Docs: [Feature store overview](./feature-store/feature-store-overview.html)
 Docs: {ref}`feature-store-overview`, [Ingest features with Spark](./feature-store/using-spark-engine.html)
 
 - `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes.
-- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes.Pandas is used for testing, and is not recommended for production deployments
+- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments
 - `spark` engine is designed for batch data.
 
 ### Feature sets

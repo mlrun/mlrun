@@ -100,9 +100,15 @@ def test_histogram_metric_calculation(
 
 
 def _norm_arr(arr: np.ndarray) -> np.ndarray:
+    """
+    Normalize a nonnegative array to sum 1.
+    If a zeros array, put 1 at the first index.
+    """
     arr_sum = arr.sum()
     if not arr_sum:
-        return np.array([1])
+        new_arr = np.zeros_like(arr)
+        new_arr[0] = 1
+        return new_arr
     return arr / arr_sum.sum()
 
 

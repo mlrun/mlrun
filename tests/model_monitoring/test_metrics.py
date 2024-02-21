@@ -112,28 +112,38 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
     return arr / arr_sum.sum()
 
 
-@pytest.mark.parametrize(
-    "metric_class",
-    HistogramDistanceMetric.__subclasses__(),
-)
-@given(
-    distrib=st.builds(
+_length_strategy = st.integers(min_value=1, max_value=500)
+
+
+def distribution_strategy(
+    length: Union[int, st.SearchStrategy[int]] = _length_strategy,
+) -> st.SearchStrategy[np.ndarray]:
+    return st.builds(
         _norm_arr,
         arrays(
             dtype=np.float64,
             elements=st.floats(min_value=0, max_value=1),
-            shape=st.integers(min_value=1, max_value=500),
+            shape=length,
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "metric_class",
+    HistogramDistanceMetric.__subclasses__(),
 )
 @pytest.mark.filterwarnings("error")
-def test_same_distrib_gives_zero_distance(
-    metric_class: type[HistogramDistanceMetric], distrib: np.ndarray
-) -> None:
-    return test_histogram_metric_calculation(
-        metric_class=metric_class,
-        distrib_t=distrib,
-        distrib_u=distrib,
-        expected_result=0,
-        atol=1e-7,
-    )
+class TestMetricProperties:
+    @staticmethod
+    @given(distrib=distribution_strategy())
+    def test_same_distrib_gives_zero_distance(
+        metric_class: type[HistogramDistanceMetric], distrib: np.ndarray
+    ) -> None:
+        return test_histogram_metric_calculation(
+            metric_class=metric_class,
+            distrib_t=distrib,
+            distrib_u=distrib,
+            expected_result=0,
+            atol=1e-7,
+        )
+

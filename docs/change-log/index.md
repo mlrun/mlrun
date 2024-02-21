@@ -879,6 +879,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|  |  | v1.6.0 |
 |ML-5746|  |  | v1.6.0|
+|ML-5776|Concurrent request to project deletion may fail thought first call would gracefully finish the flow, without experiencing any error. Other concurrent requests would not impact the project deletion flow.|NA| v1.6.0|
 
 
 ## Limitations

@@ -14,8 +14,6 @@ When defining a source, it maps to nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
-
-
 | Class name                                                                                       | Description                                                   | storey | spark | pandas |
 | --------------------------------------------------                                               | ---------------------------------                              | ---    | ---   | ---    |
 | [BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource)                      | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
@@ -137,7 +135,6 @@ The default location can be modified in mlrun config or specified per ingest ope
 NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
 
-## Offline Targets
 
 | Class name                                                                                                    | Description                                            | storey | spark | pandas |
 | --------------------------------------------------                                                            | -------------------------------------------------------| ---    | ---   | ---    |

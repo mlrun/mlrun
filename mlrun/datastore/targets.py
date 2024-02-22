@@ -57,7 +57,6 @@ class TargetTypes:
     kafka = "kafka"
     dataframe = "dataframe"
     custom = "custom"
-    sql = "sql"
 
     @staticmethod
     def all():
@@ -74,16 +73,23 @@ class TargetTypes:
             TargetTypes.sql,
         ]
 
+    sql = "sql"
+
+    snowflake = "snowflake"
+
 
 def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
 
-def write_spark_dataframe_with_options(spark_options, df, mode):
+def write_spark_dataframe_with_options(spark_options, df, mode, write_format=None):
     non_hadoop_spark_options = spark_session_update_hadoop_options(
         df.sql_ctx.sparkSession, spark_options
     )
-    df.write.mode(mode).save(**non_hadoop_spark_options)
+    if write_format:
+        df.format(write_format).write.mode(mode).save(**non_hadoop_spark_options)
+    else:
+        df.write.mode(mode).save(**non_hadoop_spark_options)
 
 
 def default_target_names():
@@ -501,7 +507,10 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
-            write_spark_dataframe_with_options(options, df, "overwrite")
+            write_format = options.pop("format", None)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
             store, target_path = self._get_store_and_path()
@@ -1128,6 +1137,85 @@ class CSVTarget(BaseStoreTarget):
         return True
 
 
+class SnowflakeTarget(BaseStoreTarget):
+    support_spark = True
+    support_append = True
+    kind = TargetTypes.snowflake
+
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: dict[str, str] = None,
+        after_step=None,
+        #  columns=None, # we will get it from schema...
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[list[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
+        #  credentials_prefix=None, # good for what?
+        db_url: str = None,
+        table_name: str = None,
+        primary_key_column: str = "",
+        if_exists: str = "append",
+        create_table: bool = False,
+        # create_according_to_data: bool = False,
+        varchar_len: int = 50,
+        parse_dates: list[str] = None,
+        db_schema: str = None,  # my addition # optional
+    ):
+        db_url = db_url or mlrun.mlconf.sql.url
+        self.db_url = db_url
+        self.table_name = table_name
+        self.primary_key_column = primary_key_column
+        self.if_exists = if_exists
+        self.parse_dates = parse_dates
+        self.db_schema = db_schema
+        #  TODO PATH or db_url logic
+        # if db_url is None or table_name is None:
+        #     attr = {}
+        # else:
+        #     pass
+        # TODO
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_step,
+            list(schema.keys()) if schema else None,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
+            schema=schema,
+        )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        #  TODO complete this
+        spark_options = {
+            #  "path": store_path_to_spark(self.get_target_path()),  #TODO check this out!
+            "format": "snowflake",
+        }
+        if isinstance(key_column, list) and len(key_column) >= 1:
+            spark_options["key"] = key_column[0]
+            if len(key_column) > 2:
+                spark_options["sorting-key"] = "_spark_object_name"
+            if len(key_column) == 2:
+                spark_options["sorting-key"] = key_column[1]
+        else:
+            spark_options["key"] = key_column
+        if not overwrite:
+            spark_options["columnUpdate"] = True
+        return spark_options
+
+
 class NoSqlBaseTarget(BaseStoreTarget):
     is_table = True
     is_online = True
@@ -1199,7 +1287,10 @@ class NoSqlBaseTarget(BaseStoreTarget):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
-            write_spark_dataframe_with_options(options, df, "overwrite")
+            write_format = options.pop("format", None)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
@@ -1951,6 +2042,7 @@ kind_to_driver = {
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
     TargetTypes.sql: SQLTarget,
+    TargetTypes.snowflake: SnowflakeTarget,
 }
 
 

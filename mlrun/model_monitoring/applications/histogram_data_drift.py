@@ -81,16 +81,16 @@ class DataDriftClassifier:
         return ResultStatusApp.no_detection
 
 
-class MLRunDataDriftApplication(ModelMonitoringApplicationBase):
+class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     """
-    MLRun's data drift application for model monitoring.
+    MLRun's default data drift application for model monitoring.
 
-    The application calculates the metrics over the model features.
+    The application calculates the metrics over the features' histograms.
     Each metric is calculated over all the features, the mean is taken,
     and the status is returned.
     """
 
-    NAME: Final[str] = "mlrun_data_drift"
+    NAME: Final[str] = "histogram_data_drift"
     METRIC_KIND: Final[ResultKindApp] = ResultKindApp.data_drift
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}

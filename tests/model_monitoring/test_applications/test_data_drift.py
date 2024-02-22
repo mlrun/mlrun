@@ -29,9 +29,9 @@ from mlrun.common.schemas.model_monitoring.constants import (
 )
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     DataDriftClassifier,
+    HistogramDataDriftApplication,
     InvalidMetricValueError,
     InvalidThresholdValueError,
-    MLRunDataDriftApplication,
 )
 from mlrun.utils import Logger
 
@@ -106,8 +106,8 @@ class TestApplication:
 
     @staticmethod
     @pytest.fixture
-    def application() -> MLRunDataDriftApplication:
-        app = MLRunDataDriftApplication()
+    def application() -> HistogramDataDriftApplication:
+        app = HistogramDataDriftApplication()
         app.context = MLClientCtx(
             log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
         )
@@ -118,7 +118,7 @@ class TestApplication:
     def application_kwargs(
         sample_df_stats: pd.DataFrame,
         feature_stats: pd.DataFrame,
-        application: MLRunDataDriftApplication,
+        application: HistogramDataDriftApplication,
     ) -> dict[str, Any]:
         kwargs = {}
         kwargs["application_name"] = application.NAME
@@ -138,7 +138,7 @@ class TestApplication:
 
     @staticmethod
     def test(
-        application: MLRunDataDriftApplication, application_kwargs: dict[str, Any]
+        application: HistogramDataDriftApplication, application_kwargs: dict[str, Any]
     ) -> None:
         results = application.do_tracking(**application_kwargs)
         assert len(results) == 4, "Expected four results"

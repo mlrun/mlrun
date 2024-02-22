@@ -33,7 +33,7 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring.metrics.data_drift import (
+from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
     HistogramDistanceMetric,
     KullbackLeiblerDivergence,

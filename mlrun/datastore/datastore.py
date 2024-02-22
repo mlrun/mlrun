@@ -94,6 +94,10 @@ def schema_to_store(schema):
         from .dbfs_store import DBFSStore
 
         return DBFSStore
+    elif schema == "hdfs":
+        from .hdfs import HdfsStore
+
+        return HdfsStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 
@@ -185,7 +189,14 @@ class StoreManager:
         store, subpath = self.get_or_create_store(
             url, secrets=secrets, project_name=project
         )
-        return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
+        return DataItem(
+            key,
+            store,
+            subpath,
+            store.url + subpath,
+            meta=meta,
+            artifact_url=artifact_url,
+        )
 
     def get_or_create_store(
         self, url, secrets: dict = None, project_name=""

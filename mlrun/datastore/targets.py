@@ -453,7 +453,7 @@ class BaseStoreTarget(DataTargetBase):
             credentials_prefix_secrets,
         )
         if self.get_target_path() and self.get_target_path().startswith("ds://"):
-            return store, store.url + resolved_store_path
+            return store, resolved_store_path
         else:
             return store, self.get_target_path()
 
@@ -930,7 +930,7 @@ class ParquetTarget(BaseStoreTarget):
                 self.get_target_path()
             )
             storage_spark_options = store.get_spark_options()
-            path = store.url + path
+            path = store.spark_url + path
             result = {
                 "path": store_path_to_spark(path, storage_spark_options),
                 "format": "parquet",
@@ -1072,7 +1072,7 @@ class CSVTarget(BaseStoreTarget):
                 self.get_target_path()
             )
             storage_spark_options = store.get_spark_options()
-            path = store.url + path
+            path = store.spark_url + path
             result = {
                 "path": store_path_to_spark(path, storage_spark_options),
                 "format": "csv",

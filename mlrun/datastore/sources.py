@@ -377,7 +377,7 @@ class ParquetSource(BaseSourceDriver):
         if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             storage_spark_options = store.get_spark_options()
-            path = store.url + path
+            path = store.spark_url + path
             result = {
                 "path": store_path_to_spark(path, storage_spark_options),
                 "format": "parquet",

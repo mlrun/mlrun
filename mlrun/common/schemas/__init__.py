@@ -19,7 +19,7 @@ from .api_gateway import (
     APIGatewayAuthenticationMode,
     APIGatewayBasicAuth,
     APIGatewayMetadata,
-    APIGateways,
+    APIGatewaysOutput,
     APIGatewaySpec,
     APIGatewayStatus,
     APIGatewayUpstream,

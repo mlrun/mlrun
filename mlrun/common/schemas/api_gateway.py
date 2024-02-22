@@ -88,5 +88,5 @@ class APIGateway(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
-class APIGateways(pydantic.BaseModel):
+class APIGatewaysOutput(pydantic.BaseModel):
     api_gateways: typing.Optional[dict[str, APIGateway]] = {}

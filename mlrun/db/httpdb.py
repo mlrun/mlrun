@@ -3341,7 +3341,7 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGateways:
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
         """
         Returns a list of Nuclio api gateways
         :param project: optional str parameter to filter by project, if not passed, default project value is taken
@@ -3352,7 +3352,7 @@ class HTTPRunDB(RunDBInterface):
         error = "list api gateways"
         endpoint_path = f"projects/{project}/api-gateways"
         response = self.api_call("GET", endpoint_path, error)
-        return mlrun.common.schemas.APIGateways(**response.json())
+        return mlrun.common.schemas.APIGatewaysOutput(**response.json())
 
     def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
         """

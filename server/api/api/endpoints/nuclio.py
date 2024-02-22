@@ -24,7 +24,7 @@ router = APIRouter()
 
 @router.get(
     "/projects/{project}/api-gateways",
-    response_model=mlrun.common.schemas.APIGateways,
+    response_model=mlrun.common.schemas.APIGatewaysOutput,
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
 )
@@ -53,7 +53,7 @@ async def list_api_gateways(
     allowed_api_gateways = {
         api_gateway: api_gateways[api_gateway] for api_gateway in allowed_api_gateways
     }
-    return mlrun.common.schemas.APIGateways(api_gateways=allowed_api_gateways)
+    return mlrun.common.schemas.APIGatewaysOutput(api_gateways=allowed_api_gateways)
 
 
 @router.get(

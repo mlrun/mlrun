@@ -25,7 +25,7 @@ from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/{api_gateway}"
-API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
+NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 IGUAZIO_USERNAME_LABEL = "iguazio.com/username"

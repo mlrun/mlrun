@@ -1655,7 +1655,7 @@ def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
 
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
 def test_list_api_gateways(patched_list_api_gateways, context):
-    patched_list_api_gateways.return_value = mlrun.common.schemas.APIGateways(
+    patched_list_api_gateways.return_value = mlrun.common.schemas.APIGatewaysOutput(
         api_gateways={
             "test": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(

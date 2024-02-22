@@ -24,7 +24,7 @@
 ### Feature store
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4622|Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets` and [Cheat sheet: Feature store](../cheat-sheet.html#feature-store).| 
+|ML-4622|Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets`.| 
 |ML-5109|You can set `min_replicas` and `max_replicas` for `KafkaSource`. See [Consumer function configuration](../serving/graph-ha-cfg.html#consumer-function-configuration).|
 
 ### Model monitoring 

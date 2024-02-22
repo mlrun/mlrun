@@ -129,6 +129,24 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert "address" in status
         assert "container_image" in status
 
+    # ML-3804
+    def test_nuclio_function_handler_with_context(self):
+        code_path = str(self.assets_path / "nuclio_function_with_context.py")
+
+        serving_func_handler = self.project.set_function(
+            name="serving-handler-func",
+            func=code_path,
+            image="mlrun/mlrun",
+            kind="serving",
+        )
+        serving_func_handler.spec.parameters = {"Test": "test"}
+        graph = serving_func_handler.set_topology("flow")
+        graph.to(name="test", handler="test").respond()
+
+        serving_func_deploy = self.project.deploy_function("serving-handler-func")
+
+        serving_func_deploy.function.invoke("/")
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise

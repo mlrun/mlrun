@@ -40,6 +40,7 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
@@ -579,24 +580,36 @@ def _run_project_setup(
 
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
-    fpath = path.join(context, subpath_str, "project.yaml")
+
+    # support both .yaml and .yml file extensions
+    project_file_path = path.join(context, subpath_str, "project.y*ml")
+    function_file_path = path.join(context, subpath_str, "function.y*ml")
     setup_file_path = path.join(context, subpath_str, "project_setup.py")
-    if path.isfile(fpath):
-        with open(fpath) as fp:
+
+    if project_files := glob.glob(project_file_path):
+        # if there are multiple project files, use the first one
+        project_file_path = project_files[0]
+        with open(project_file_path) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
             project = _project_instance_from_struct(struct, name)
             project.spec.context = context
-
-    elif path.isfile(path.join(context, subpath_str, "function.yaml")):
-        func = import_function(path.join(context, subpath_str, "function.yaml"))
+    elif function_files := glob.glob(function_file_path):
+        function_path = function_files[0]
+        func = import_function(function_path)
+        function_file_name = path.basename(path.normpath(function_path))
         project = MlrunProject.from_dict(
             {
                 "metadata": {
                     "name": func.metadata.project,
                 },
                 "spec": {
-                    "functions": [{"url": "function.yaml", "name": func.metadata.name}],
+                    "functions": [
+                        {
+                            "url": function_file_name,
+                            "name": func.metadata.name,
+                        },
+                    ],
                 },
             }
         )
@@ -687,6 +700,31 @@ class ProjectMetadata(ModelObj):
             mlrun.utils.helpers.verify_field_regex(
                 "project.metadata.name", name, mlrun.utils.regex.project_name
             )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
+
+    @staticmethod
+    def validate_project_labels(labels: dict, raise_on_failure: bool = True) -> bool:
+        """
+        This
+        https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+        """
+
+        # no labels is a valid case
+        if not labels:
+            return True
+        if not isinstance(labels, dict):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Labels must be a dictionary of key-value pairs"
+            )
+        try:
+            for key, value in labels.items():
+                mlrun.k8s_utils.verify_label_key(key)
+                mlrun.k8s_utils.verify_label_value(value, label_key=key)
+
         except mlrun.errors.MLRunInvalidArgumentError:
             if raise_on_failure:
                 raise

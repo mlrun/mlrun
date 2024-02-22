@@ -745,17 +745,11 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # in list of events. This list will be used as the body for the storey event.
         events = []
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
-            # Validate that inputs are based on numeric values
-            if not self.is_valid(
-                endpoint_id,
-                self.is_list_of_numerics,
-                feature,
-                ["request", "inputs", f"[{i}]"],
-            ):
-                return None
-
             if not isinstance(prediction, list):
                 prediction = [prediction]
+
+            if not isinstance(feature, list):
+                feature = [feature]
 
             events.append(
                 {
@@ -802,18 +796,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 f"current event request time {timestamp} is earlier than the last request time "
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
             )
-
-    @staticmethod
-    def is_list_of_numerics(
-        field: list[typing.Union[int, float, dict, list]],
-        dict_path: list[str],
-    ):
-        if all(isinstance(x, int) or isinstance(x, float) for x in field):
-            return True
-        logger.error(
-            f"List does not consist of only numeric values: {field} [Event -> {','.join(dict_path)}]"
-        )
-        return False
 
     def resume_state(self, endpoint_id):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we

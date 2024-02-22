@@ -85,11 +85,13 @@ You can define relations within a feature set in two ways:
 You can define a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`), which defines the join type. 
 You can use the graph to define complex joins and pass on the relations to the vector.  Currently, only one branch (DAG) is supported. 
 This means that operations involving brackets are not available.
+
+You can merge two feature sets when the left one has more entities, only if all the entities of the right feature set exist in the left feature set's entities.
     
 When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The left join type is the only one that 
 implements the "as_of" join.
 
-   Example, assuming three feature sets: [fs1, fs2. fs3]:
+An example, assuming three feature sets: [fs1, fs2, fs3]:
 ```
 join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
 vector = FeatureVector("myvector", features, 

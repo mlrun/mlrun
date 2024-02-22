@@ -727,7 +727,7 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
-    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+    """Parquet target storage driver, used to materialize feature set/vector data into parquet files.
 
     :param name:       optional, target name. By default will be called ParquetTarget
     :param path:       optional, Output path. Can be either a file or directory.
@@ -1911,12 +1911,16 @@ class SQLTarget(BaseStoreTarget):
                 # creat new table with the given name
                 columns = []
                 for col, col_type in self.schema.items():
-                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
-                    if col_type is None:
-                        raise TypeError(f"{col_type} unsupported type")
+                    col_type_sql = TYPE_TO_SQL_TYPE.get(col_type)
+                    if col_type_sql is None:
+                        raise TypeError(
+                            f"'{col_type}' unsupported type for column '{col}'"
+                        )
                     columns.append(
                         sqlalchemy.Column(
-                            col, col_type, primary_key=(col in primary_key_for_check)
+                            col,
+                            col_type_sql,
+                            primary_key=(col in primary_key_for_check),
                         )
                     )
 

@@ -318,8 +318,6 @@ def emit_policy_to_dict(policy: EmitPolicy):
 
 
 class FeatureSet(ModelObj):
-    """Feature set object, defines a set of features and their data pipeline"""
-
     kind = mlrun.common.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 

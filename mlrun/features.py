@@ -65,8 +65,6 @@ class Entity(ModelObj):
 
 
 class Feature(ModelObj):
-    """data feature"""
-
     _dict_fields = [
         "name",
         "description",

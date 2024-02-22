@@ -109,7 +109,10 @@ default_config = {
         "runs": {
             # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
             "batch_delete_runs_chunk_size": 10,
-        }
+        },
+        "resources": {
+            "delete_crd_resources_timeout": "5 minutes",
+        },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
@@ -302,7 +305,11 @@ default_config = {
                 # default is 16MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
                 "max_allowed_packet": 64000000,  # 64MB
             },
-            # None will set this to be equal to the httpdb.max_workers
+            # tests connections for liveness upon each checkout
+            "connections_pool_pre_ping": True,
+            # this setting causes the pool to recycle connections after the given number of seconds has passed
+            "connections_pool_recycle": 60 * 60,
+            # None defaults to httpdb.max_workers
             "connections_pool_size": None,
             "connections_pool_max_overflow": None,
             # below is a db-specific configuration
@@ -407,7 +414,7 @@ default_config = {
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
             "iguazio_client_job_cache_ttl": "20 minutes",
-            "nuclio_project_deletion_verification_timeout": "60 seconds",
+            "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates

@@ -1589,3 +1589,72 @@ def test_project_build_image(
     # If no base image was used, then mlrun/mlrun is expected
     assert build_config.base_image == base_image or "mlrun/mlrun"
     assert project.default_image == image_name
+
+
+@pytest.mark.parametrize(
+    "project_name, valid",
+    [
+        ("project", True),
+        ("project-name", True),
+        ("project-name-1", True),
+        ("1project", True),
+        ("project_name", False),
+        ("project@", False),
+        ("project/a", False),
+    ],
+)
+def test_project_name_validation(project_name, valid):
+    assert valid == mlrun.projects.ProjectMetadata.validate_project_name(
+        project_name, raise_on_failure=False
+    )
+
+
+@pytest.mark.parametrize(
+    "project_labels, valid",
+    [
+        ({}, True),
+        ({"key": "value"}, True),
+        ({"some.key": "value"}, True),
+        ({"key.some/a": "value"}, True),
+        # too many subcomponents
+        ({"key/a/b": "value"}, False),
+        # must start with alphanumeric
+        ({".key": "value"}, False),
+        ({"/key": "value"}, False),
+        # no key
+        ({"": "value"}, False),
+        # long value
+        ({"key": "a" * 64}, False),
+        # long key
+        ({"a" * 64: "a"}, False),
+    ],
+)
+def test_project_labels_validation(project_labels, valid):
+    assert valid == mlrun.projects.ProjectMetadata.validate_project_labels(
+        project_labels, raise_on_failure=False
+    )
+
+
+@pytest.mark.parametrize(
+    "project_file_name, expectation",
+    [
+        ("project.yaml", does_not_raise()),
+        ("project.yml", does_not_raise()),
+        ("non-valid-file.yamrt", pytest.raises(mlrun.errors.MLRunNotFoundError)),
+    ],
+)
+def test_load_project_dir(project_file_name, expectation):
+    project_dir = "project-dir"
+    os.makedirs(project_dir, exist_ok=True)
+    try:
+        # copy project.yaml from assets to project_dir
+        shutil.copy(
+            str(assets_path() / "project.yaml"),
+            str(pathlib.Path(project_dir) / project_file_name),
+        )
+        with expectation:
+            project = mlrun.load_project(project_dir, save=False)
+            # just to make sure the project was loaded correctly from the file
+            assert project.name == "pipe2"
+    finally:
+        shutil.rmtree(project_dir)

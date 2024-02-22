@@ -35,9 +35,12 @@
 
 ## ParquetTarget
 
+{py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
+The Parquet file is ideal for fetching large sets of data for training.
+
 ### Partitioning
 
-When writing data to a {py:meth}`~mlrun.datastore.ParquetTarget`, you can use partitioning. Partitioning organizes data 
+When writing data to a ParquetTarget, you can use partitioning. Partitioning organizes data 
 in Parquet files by dividing large data sets into smaller and more manageable pieces. The data is divided
 into separate files according to specific criteria, for example: date, time, or specific values in a column.
 Partitioning, when configured correctly, improves read performance by reducing the amount of data that needs to be 

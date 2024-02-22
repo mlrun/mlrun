@@ -147,7 +147,7 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 | [StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
 | [NoSqlTarget](#nosql-target)     |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
 | [RedisNoSqlTarget](#redis-target) |Online. Persists the data in Redis table to its associated storage by key.                                 | Y      | Y     | N      |
-| [SqlTarget](#sql-target)          |Online. The default offline target. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
+| [SqlTarget](#sql-target)          |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
 
 
 ## ParquetTarget

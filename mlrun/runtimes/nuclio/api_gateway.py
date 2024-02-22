@@ -106,30 +106,6 @@ class APIGateway:
         )
 
     @classmethod
-    def from_dict(
-        cls,
-        dict_values,
-    ):
-        project = (
-            dict_values.get("metadata", {}).get("labels", {}).get(PROJECT_NAME_LABEL)
-        )
-        spec = dict_values.get("spec", {})
-        upstreams = spec.get("upstreams", [])
-        functions, canary = cls._resolve_canary(upstreams)
-        if not functions:
-            return None
-        return cls(
-            project=project,
-            name=spec.get("name"),
-            host=spec.get("host"),
-            path=spec.get("path", ""),
-            authentication_mode=spec.get("authenticationMode"),
-            description=spec.get("description", ""),
-            functions=functions,
-            canary=canary,
-        )
-
-    @classmethod
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)

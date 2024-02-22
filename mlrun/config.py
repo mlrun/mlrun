@@ -149,7 +149,6 @@ default_config = {
         "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
-    "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster
@@ -306,7 +305,11 @@ default_config = {
                 # default is 16MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
                 "max_allowed_packet": 64000000,  # 64MB
             },
-            # None will set this to be equal to the httpdb.max_workers
+            # tests connections for liveness upon each checkout
+            "connections_pool_pre_ping": True,
+            # this setting causes the pool to recycle connections after the given number of seconds has passed
+            "connections_pool_recycle": 60 * 60,
+            # None defaults to httpdb.max_workers
             "connections_pool_size": None,
             "connections_pool_max_overflow": None,
             # below is a db-specific configuration

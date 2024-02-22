@@ -3592,31 +3592,20 @@ class MlrunProject(ModelObj):
 
     def get_api_gateway(
         self,
-        name: Optional[str],
-        api_gateway: Optional[mlrun.runtimes.nuclio.api_gateway.APIGateway],
+        name: str,
     ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
         """
-        Retrieves an API gateway by name or object instance.
+        Retrieves an API gateway by name instance.
 
         :param name: The name of the API gateway to retrieve.
-        :param api_gateway: An instance of mlrun.runtimes.nuclio.APIGateway to retrieve if `name` is not provided.
 
         Returns:
             mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
         """
-        if name:
-            api_gateway = mlrun.db.get_run_db().get_api_gateway(
-                name=name, project=self.name
-            )
-        elif api_gateway:
-            if api_gateway.project != self.name:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Passed API gateway doesn't belong to this project"
-                )
-            api_gateway = mlrun.db.get_run_db().get_api_gateway(
-                name=api_gateway.name, project=self.name
-            )
-        return api_gateway
+
+        return mlrun.db.get_run_db().get_api_gateway(
+            name=name, project=self.name
+        )
 
     def _run_authenticated_git_action(
         self,

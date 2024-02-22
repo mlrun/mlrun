@@ -64,16 +64,6 @@ SNOWFLAKE_PARAMETERS = [
 ]
 
 
-def is_snowflake_configured():
-    snowflake_missing_keys = [
-        key for key in SNOWFLAKE_PARAMETERS if key not in os.environ
-    ]
-    if snowflake_missing_keys:
-        print(f"The following snowflake keys are missing: {snowflake_missing_keys}")
-        return False
-    return True
-
-
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
 @pytest.mark.enterprise
@@ -100,7 +90,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = False
+    run_local = True
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -142,6 +132,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def get_remote_pq_source_path(cls, without_prefix=False):
         path = cls.get_remote_path_prefix(without_prefix) + "/bigdata/" + cls.pq_source
         return path
+
+    @staticmethod
+    def get_missing_snowflake_parameters():
+        snowflake_missing_keys = [
+            key for key in SNOWFLAKE_PARAMETERS if key not in os.environ
+        ]
+        return snowflake_missing_keys
 
     @classmethod
     def get_pq_source_path(cls):
@@ -570,11 +567,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ]
 
-    @pytest.mark.skipif(
-        not is_snowflake_configured(),
-        reason="snowflake parameters not configured",
-    )
     def test_snow_source(self):
+        snowflake_missing_keys = self.get_missing_snowflake_parameters()
+        if snowflake_missing_keys:
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
         self.project.set_secrets(
             {"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]}
         )

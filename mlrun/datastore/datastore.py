@@ -189,11 +189,13 @@ class StoreManager:
         store, subpath = self.get_or_create_store(
             url, secrets=secrets, project_name=project
         )
+        if url.startswith("ds://"):
+            url = store.url + subpath
         return DataItem(
             key,
             store,
             subpath,
-            store.url + subpath,
+            url,
             meta=meta,
             artifact_url=artifact_url,
         )

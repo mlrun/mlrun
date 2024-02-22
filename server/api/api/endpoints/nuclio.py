@@ -38,8 +38,10 @@ async def list_api_gateways(
         auth_info=auth_info,
     )
     client = server.api.utils.clients.async_nuclio.Client(auth_info)
-    api_gateways = await client.list_api_gateways(project)
-    await client.close_session()
+    try:
+        api_gateways = await client.list_api_gateways(project)
+    finally:
+        await client.close_session()
 
     allowed_api_gateways = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
@@ -79,8 +81,10 @@ async def get_api_gateway(
         auth_info,
     )
     client = server.api.utils.clients.async_nuclio.Client(auth_info)
-    api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
-    await client.close_session()
+    try:
+        api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
+    finally:
+        await client.close_session()
     return api_gateway
 
 
@@ -108,27 +112,28 @@ async def store_api_gateway(
         auth_info,
     )
     client = server.api.utils.clients.async_nuclio.Client(auth_info)
-
-    if not await client.api_gateway_exists(
-        name=gateway,
-        project_name=project,
-    ):
-        await client.store_api_gateway(
+    try:
+        if not await client.api_gateway_exists(
+            name=gateway,
             project_name=project,
-            api_gateway_name=gateway,
-            api_gateway=api_gateway,
-            create=True,
-        )
-    else:
-        await client.store_api_gateway(
-            project_name=project,
-            api_gateway_name=gateway,
-            api_gateway=api_gateway,
-        )
+        ):
+            await client.store_api_gateway(
+                project_name=project,
+                api_gateway_name=gateway,
+                api_gateway=api_gateway,
+                create=True,
+            )
+        else:
+            await client.store_api_gateway(
+                project_name=project,
+                api_gateway_name=gateway,
+                api_gateway=api_gateway,
+            )
 
-    api_gateway = await client.get_api_gateway(
-        name=gateway,
-        project_name=project,
-    )
-    await client.close_session()
+        api_gateway = await client.get_api_gateway(
+            name=gateway,
+            project_name=project,
+        )
+    finally:
+        await client.close_session()
     return api_gateway

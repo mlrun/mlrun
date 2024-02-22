@@ -21,7 +21,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 
-from mlrun.model_monitoring.batch import (
+from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
     HistogramDistanceMetric,
     KullbackLeiblerDivergence,

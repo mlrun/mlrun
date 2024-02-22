@@ -139,7 +139,6 @@ myst_enable_extensions = [
     "deflist",
     "html_image",
     "html_admonition",
-    "smartquotes",
     "replacements",
     "linkify",
     "substitution",
@@ -171,6 +170,7 @@ autodoc_mock_imports = [
 ]
 
 redirects = {"functions-architecture": "functions.html"}
+smartquotes = False
 
 # -- Autosummary -------------------------------------------------------------
 

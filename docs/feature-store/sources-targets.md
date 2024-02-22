@@ -153,7 +153,7 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ## ParquetTarget
 
 {py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
-The Parquet file is ideal for fetching large set of data for training.
+The Parquet file is ideal for fetching large sets of data for training.
 
 ### Partitioning
 

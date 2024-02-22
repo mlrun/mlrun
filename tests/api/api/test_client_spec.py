@@ -26,6 +26,8 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.version
+import server.api.api.endpoints.client_spec
+import server.api.crud.client_spec
 
 
 def test_client_spec(
@@ -71,6 +73,7 @@ def test_client_spec(
         json.dumps(serialized_tolerations).encode("utf-8")
     )
     mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = "enabled"
+    server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -93,6 +96,7 @@ def test_client_spec(
         "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
         "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
     }
+    server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -152,6 +156,8 @@ def test_client_spec_response_based_on_client_version(
     assert response_body["kfp_image"] == "mlrun/mlrun:unstable"
     assert response_body["dask_kfp_image"] == "mlrun/ml-base:unstable"
 
+    # clear cache for next scenario
+    server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     # test response when the server has a version
     with unittest.mock.patch.object(
         mlrun.utils.version.Version, "get", return_value={"version": "1.3.0-rc23"}
@@ -217,3 +223,53 @@ def test_client_spec_response_based_on_client_version(
         response_body = response.json()
         assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc23"
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc23"
+
+
+def test_get_client_spec_cached(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    client_spec = server.api.crud.client_spec.ClientSpec().get_client_spec()
+    with unittest.mock.patch.object(
+        server.api.crud.client_spec.ClientSpec,
+        "get_client_spec",
+        return_value=client_spec,
+    ) as mocked_get_client:
+        response = client.get("client-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        for i in range(10):
+            cached_response = client.get("client-spec")
+        assert response.json() == cached_response.json()
+        assert mocked_get_client.call_count == 1
+
+        # different client version -> cache miss
+        invalidated_cached_response = client.get(
+            "client-spec", headers={"x-mlrun-client-version": "1.2.3"}
+        )
+        assert invalidated_cached_response.status_code == http.HTTPStatus.OK.value
+        assert mocked_get_client.call_count == 2
+
+        import time
+
+        # first request is still cached
+        cached_response = client.get("client-spec")
+        assert response.json() == cached_response.json()
+        assert mocked_get_client.call_count == 2
+
+        # extract given "ttl_seconds" from our lru-cached function
+        ttl_seconds = next(
+            filter(
+                lambda argument: isinstance(argument, int),
+                map(
+                    lambda closure: closure.cell_contents,
+                    server.api.api.endpoints.client_spec.get_cached_client_spec.__closure__,
+                ),
+            )
+        )
+
+        # invalidate first request from cache (time-based expiration)
+        real_time_monotonic = time.monotonic()
+        with unittest.mock.patch.object(time, "monotonic") as monotonic_time:
+            monotonic_time.return_value = real_time_monotonic + ttl_seconds + 1
+            cached_response = client.get("client-spec")
+            assert cached_response.status_code == http.HTTPStatus.OK.value
+            assert mocked_get_client.call_count == 3

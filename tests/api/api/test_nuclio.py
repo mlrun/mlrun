@@ -45,44 +45,51 @@ def test_list_api_gateways(
         )
     )
     nuclio_api_response_body = {
-        "test-basic": {
-            "metadata": {
-                "name": "test-basic",
-                "namespace": "default-tenant",
-                "labels": {
-                    "nuclio.io/project-name": "default",
-                },
-                "creationTimestamp": "2023-11-16T12:42:48Z",
-            },
-            "spec": {
-                "host": "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com",
-                "name": "test-basic",
-                "path": "/",
-                "authenticationMode": "basicAuth",
-                "authentication": {
-                    "basicAuth": {"username": "test", "password": "test"}
-                },
-                "upstreams": [
-                    {"kind": "nucliofunction", "nucliofunction": {"name": "test"}}
+        "new-gw": mlrun.common.schemas.APIGateway(
+            metadata=mlrun.common.schemas.APIGatewayMetadata(
+                name="new-gw",
+            ),
+            spec=mlrun.common.schemas.APIGatewaySpec(
+                name="new-gw",
+                path="/",
+                host="http://my-api-gateway.com",
+                upstreams=[
+                    mlrun.common.schemas.APIGatewayUpstream(
+                        nucliofunction={"name": "test-func"}
+                    )
                 ],
-            },
-            "status": {"name": "test-basic", "state": "ready"},
-        }
+            ),
+        )
     }
-
-    expected_response_body = list(nuclio_api_response_body.values())
 
     list_api_gateway_mocked.return_value = nuclio_api_response_body
     response = client.get(
-        f"projects/{PROJECT}/nuclio/api-gateways",
+        f"projects/{PROJECT}/api-gateways",
     )
 
-    assert response.json() == expected_response_body
+    assert response.json() == {
+        "api_gateways": {
+            "new-gw": {
+                "metadata": {"name": "new-gw"},
+                "spec": {
+                    "name": "new-gw",
+                    "path": "/",
+                    "upstreams": [{"nucliofunction": {"name": "test-func"}}],
+                    "host": "http://my-api-gateway.com",
+                },
+            }
+        }
+    }
 
 
+@patch.object(server.api.utils.clients.async_nuclio.Client, "get_api_gateway")
+@patch.object(server.api.utils.clients.async_nuclio.Client, "api_gateway_exists")
 @patch.object(server.api.utils.clients.async_nuclio.Client, "store_api_gateway")
-def test_create_api_gateway(
-    create_api_gateway_mocked, client: fastapi.testclient.TestClient
+def test_store_api_gateway(
+    store_api_gateway_mocked,
+    api_gateway_exists_mocked,
+    get_api_gateway_mocked,
+    client: fastapi.testclient.TestClient,
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
@@ -99,10 +106,42 @@ def test_create_api_gateway(
             )
         )
     )
-    api_gateway = mlrun.common.schemas.APIGateway(functions=["ff"])
-    response = client.post(
-        f"projects/{PROJECT}/nuclio/api-gateways/test-create-gw/",
+
+    api_gateway_exists_mocked.return_value = False
+    store_api_gateway_mocked.return_value = True
+    get_api_gateway_mocked.return_value = mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(
+            name="new-gw",
+        ),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="new-gw",
+            path="/",
+            host="http://my-api-gateway.com",
+            upstreams=[
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "test-func"}
+                )
+            ],
+        ),
+    )
+
+    api_gateway = mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(
+            name="new-gw",
+        ),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="new-gw",
+            path="/",
+            upstreams=[
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "test-func"}
+                )
+            ],
+        ),
+    )
+
+    response = client.put(
+        f"projects/{PROJECT}/api-gateways/new-gw",
         json=api_gateway.dict(),
     )
-    create_api_gateway_mocked.return_value = None
     assert response.status_code == 200

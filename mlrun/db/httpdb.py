@@ -3350,7 +3350,7 @@ class HTTPRunDB(RunDBInterface):
         """
         project = project or config.default_project
         error = "list api gateways"
-        endpoint_path = f"projects/{project}/nuclio/api-gateways"
+        endpoint_path = f"projects/{project}/api-gateways"
         response = self.api_call("GET", endpoint_path, error)
         return mlrun.common.schemas.APIGateways(**response.json())
 
@@ -3364,7 +3364,7 @@ class HTTPRunDB(RunDBInterface):
         """
         project = project or config.default_project
         error = "get api gateway"
-        endpoint_path = f"projects/{project}/nuclio/api-gateways/{name}"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
         response = self.api_call("GET", endpoint_path, error)
         return mlrun.common.schemas.APIGateway(**response.json())
 
@@ -3387,9 +3387,7 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(api_gateway, mlrun.runtimes.nuclio.api_gateway.APIGateway):
             api_gateway = api_gateway.to_scheme()
-        endpoint_path = (
-            f"projects/{project}/nuclio/api-gateways/{api_gateway.metadata.name}"
-        )
+        endpoint_path = f"projects/{project}/api-gateways/{api_gateway.metadata.name}"
         error = "create api gateways"
         response = self.api_call(
             "PUT",

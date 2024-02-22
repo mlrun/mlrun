@@ -47,7 +47,9 @@ class APIGateway:
         ],
         description: str = "",
         path: str = "/",
-        authentication_mode: Optional[str] = NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE,
+        authentication_mode: Optional[
+            str
+        ] = NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE,
         host: Optional[str] = None,
         canary: Optional[list[int]] = None,
         username: Optional[str] = None,

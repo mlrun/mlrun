@@ -3603,9 +3603,7 @@ class MlrunProject(ModelObj):
             mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
         """
 
-        return mlrun.db.get_run_db().get_api_gateway(
-            name=name, project=self.name
-        )
+        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
 
     def _run_authenticated_git_action(
         self,

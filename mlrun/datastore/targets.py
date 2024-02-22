@@ -57,6 +57,8 @@ class TargetTypes:
     kafka = "kafka"
     dataframe = "dataframe"
     custom = "custom"
+    sql = "sql"
+    snowflake = "snowflake"
 
     @staticmethod
     def all():
@@ -72,10 +74,6 @@ class TargetTypes:
             TargetTypes.custom,
             TargetTypes.sql,
         ]
-
-    sql = "sql"
-
-    snowflake = "snowflake"
 
 
 def generate_target_run_id():

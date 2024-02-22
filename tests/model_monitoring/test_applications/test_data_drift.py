@@ -27,7 +27,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.model_monitoring.applications.data_drift import (
+from mlrun.model_monitoring.applications.histogram_data_drift import (
     DataDriftClassifier,
     InvalidMetricValueError,
     InvalidThresholdValueError,

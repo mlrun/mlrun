@@ -1339,8 +1339,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT"}.issubset(os.environ.keys()),
         reason="HDFS host and ports are not defined",
     )
-    @pytest.mark.parametrize("timestamp_key", ["timestamp"])
-    def test_ingest_and_get_offline_features_with_hdfs(self, timestamp_key):
+    def test_ingest_and_get_offline_features_with_hdfs(self):
         key = "patient_id"
 
         register_temporary_client_datastore_profile(
@@ -1355,7 +1354,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
-            timestamp_key=timestamp_key,
+            timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())

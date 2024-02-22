@@ -33,7 +33,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileS3,
     register_temporary_client_datastore_profile,
 )
-from mlrun.datastore.sources import CSVSource, ParquetSource
+from mlrun.datastore.sources import CSVSource, ParquetSource, SnowflakeSource
 from mlrun.datastore.targets import (
     CSVTarget,
     NoSqlTarget,
@@ -52,6 +52,26 @@ from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
+
+SNOWFLAKE_PARAMETERS = [
+    "SNOWFLAKE_URL",
+    "SNOWFLAKE_USER",
+    "SNOWFLAKE_PASSWORD",
+    "SNOWFLAKE_DATABASE",
+    "SNOWFLAKE_SCHEMA",
+    "SNOWFLAKE_WAREHOUSE",
+    "SNOWFLAKE_TABLE_NAME",
+]
+
+
+def is_snowflake_configured():
+    snowflake_missing_keys = [
+        key for key in SNOWFLAKE_PARAMETERS if key not in os.environ
+    ]
+    if snowflake_missing_keys:
+        print(f"The following snowflake keys are missing: {snowflake_missing_keys}")
+        return False
+    return True
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -549,6 +569,33 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "is_in_bed_is_error": False,
                 }
             ]
+
+    @pytest.mark.skipif(
+        not is_snowflake_configured(),
+        reason="snowflake parameters not configured",
+    )
+    def test_snow_source(self):
+        self.project.set_secrets(
+            {"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]}
+        )
+        table_name = os.environ.get("SNOWFLAKE_TABLE_NAME")
+        feature_set = fstore.FeatureSet(
+            name="customer", entities=[fstore.Entity("C_CUSTKEY")], engine="spark"
+        )
+        source = SnowflakeSource(
+            "customer_sf",
+            query=f"select * from {table_name} limit 10",
+            url=os.environ.get("SNOWFLAKE_URL"),
+            user=os.environ.get("SNOWFLAKE_USER"),
+            database=os.environ.get("SNOWFLAKE_DATABASE"),
+            schema=os.environ.get("SNOWFLAKE_SCHEMA"),
+            warehouse=os.environ.get("SNOWFLAKE_WAREHOUSE"),
+        )
+        feature_set.ingest(
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=self.run_local),
+        )
 
     @pytest.mark.skipif(
         not mlrun.mlconf.redis.url,

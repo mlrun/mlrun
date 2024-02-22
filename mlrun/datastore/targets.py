@@ -453,7 +453,7 @@ class BaseStoreTarget(DataTargetBase):
             credentials_prefix_secrets,
         )
         if self.get_target_path() and self.get_target_path().startswith("ds://"):
-            return store, resolved_store_path
+            return store, store.url + resolved_store_path
         else:
             return store, self.get_target_path()
 

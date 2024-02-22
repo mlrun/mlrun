@@ -16,17 +16,17 @@ You can also create a custom `source` to access various databases or data source
 
 
 
-| Class name                                                                                                        | Description                                                   | storey | spark | pandas |
-| --------------------------------------------------                                                                | ---------------------------------                              | ---    | ---   | ---    |
+| Class name                                                                                       | Description                                                   | storey | spark | pandas |
+| --------------------------------------------------                                               | ---------------------------------                              | ---    | ---   | ---    |
 | [BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource)                      | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
 | SnowFlakeSource                                                                                 | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
-| [SQLSource](#sql-data-source)                                                                                      | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
+| [SQLSource](#sql-data-source)                                                                    | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
 | [CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource)            | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
 | [ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource)    | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
-| [HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource)|Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
+| [HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource)                               |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
 | [Apache Kafka source](#apache-kafka-source) and [Confluent Kafka source](#confluent-kafka-source)|Event-based. Sets the kafka source for the flow.          | Y      | N     | N      |
-| [StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource)|Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+| [StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource)                         |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## S3/Azure source
 
@@ -141,13 +141,13 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 
 | Class name                                                                                                    | Description                                            | storey | spark | pandas |
 | --------------------------------------------------                                                            | -------------------------------------------------------| ---    | ---   | ---    |
-| [CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)        |Offline. Writes events to a CSV file).                          | Y      | Y     | Y      |
+| [CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)        |Offline. Writes events to a CSV file.                          | Y      | Y     | Y      |
 | [KafkaTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.KafkaTarget)    |Offline. Writes all incoming events into a Kafka stream.        | Y      | N     | N |
-| [ParquetTarget](#parquettarget)|Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
+| [ParquetTarget](#parquettarget)                                                                |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
 | [StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)  |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [NoSqlTarget](#nosql-target)     |Online. The default online target. Persists the data in V3IO table to its associated storage by key (online target).       | Y      | Y     | Y      |
-| [RedisNoSqlTarget](#redis-target) |Online. Persists the data in Redis table to its associated storage by key (online target).                                 | Y      | Y     | N      |
-| [SqlTarget](#sql-target)          |Online. The default offline target. Persists the data in SQL table to its associated storage by key (offline target).      | Y      | N     | Y      |
+| [NoSqlTarget](#nosql-target)     |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
+| [RedisNoSqlTarget](#redis-target) |Online. Persists the data in Redis table to its associated storage by key.                                 | Y      | Y     | N      |
+| [SqlTarget](#sql-target)          |Online. The default offline target. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
 
 
 ## ParquetTarget
@@ -192,7 +192,7 @@ Disable partitioning with:
 
 ## NoSql target
 
-The {py:meth}`~mlrun.datastore.NoSqlTarget` is a V3IO key-value based target. It is the default target for real-time data. 
+The {py:meth}`~mlrun.datastore.NoSqlTarget` is a V3IO key-value based target. It is the default target for online (real-time) data. 
 It supports low latency data retrieval based on key access, making it ideal for online applications.
 
 The combination of a NoSQL target with the storey engine does not support features of type string with a value containing both quote (') and double-quote (").

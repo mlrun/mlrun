@@ -21,6 +21,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
+from mlrun.common.constants import MLRUN_CREATED_LABEL
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
@@ -29,7 +30,6 @@ NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 IGUAZIO_USERNAME_LABEL = "iguazio.com/username"
-MLRUN_CREATED_LABEL = "mlrun-created"
 
 
 class Client:

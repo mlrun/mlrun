@@ -3579,9 +3579,10 @@ class MlrunProject(ModelObj):
 
     def list_api_gateways(self) -> list[mlrun.runtimes.nuclio.api_gateway.APIGateway]:
         """
-        Lists Nuclio API gateways. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+        Retrieves a list of Nuclio API gateways associated with the project.
 
-        :return List of APIGateway objects.
+        @return: List of mlrun.runtimes.nuclio.api_gateway.APIGateway objects representing the Nuclio API gateways
+        associated with the project.
         """
         gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
         return [

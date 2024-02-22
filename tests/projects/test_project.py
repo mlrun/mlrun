@@ -1604,7 +1604,7 @@ def test_create_api_gateway_valid(
         project=project_name,
     )
 
-    gateway = project.create_or_update_api_gateway(api_gateway)
+    gateway = project.store_api_gateway(api_gateway)
 
     assert (
         gateway.get_invoke_url() == "http://gateway-f1-f2-project-name.some-domain.com/"

@@ -32,13 +32,11 @@ async def list_api_gateways(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    """
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    """
     client = server.api.utils.clients.async_nuclio.Client(auth_info)
     api_gateways = await client.list_api_gateways(project)
     await client.close_session()
@@ -68,13 +66,11 @@ async def get_api_gateway(
     gateway: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    """
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    """
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,
@@ -99,16 +95,11 @@ async def store_api_gateway(
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    """
-
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        project,
-        gateway,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
     )
-    """
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,

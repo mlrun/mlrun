@@ -21,6 +21,9 @@ import mlrun.common.types
 
 
 class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
+    basic = "basicAuth"
+    none = "none"
+
     @classmethod
     def from_str(cls, authentication_mode: str):
         if authentication_mode == "none":
@@ -30,11 +33,7 @@ class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Authentication mode `{authentication_mode}` is not supported",
-                authentication_mode=authentication_mode,
             )
-
-    basic = "basicAuth"
-    none = "none"
 
 
 class APIGatewayMetadata(pydantic.BaseModel):

@@ -3344,7 +3344,7 @@ class HTTPRunDB(RunDBInterface):
     def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGateways:
         """
         Returns a list of Nuclio api gateways
-        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
         :return: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
@@ -3358,7 +3358,7 @@ class HTTPRunDB(RunDBInterface):
         """
         Returns an API gateway
         :param name: API gateway name
-        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
@@ -3388,7 +3388,7 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(api_gateway, mlrun.runtimes.nuclio.api_gateway.APIGateway):
             api_gateway = api_gateway.to_scheme()
         endpoint_path = f"projects/{project}/api-gateways/{api_gateway.metadata.name}"
-        error = "create api gateways"
+        error = "store api gateways"
         response = self.api_call(
             "PUT",
             endpoint_path,

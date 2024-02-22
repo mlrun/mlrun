@@ -24,7 +24,7 @@ from .function import RemoteRuntime
 from .serving import ServingRuntime
 
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
-NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "none"
+NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE = "none"
 PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
@@ -47,7 +47,7 @@ class APIGateway:
         ],
         description: str = "",
         path: str = "/",
-        authentication_mode: Optional[str] = NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE,
+        authentication_mode: Optional[str] = NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE,
         host: Optional[str] = None,
         canary: Optional[list[int]] = None,
         username: Optional[str] = None,
@@ -263,7 +263,7 @@ class APIGateway:
     @staticmethod
     def _enrich_authentication_mode(username, password):
         return (
-            NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+            NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE
             if username is not None and password is not None
             else NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
         )

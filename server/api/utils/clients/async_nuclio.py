@@ -83,7 +83,7 @@ class Client:
         create: bool = False,
     ):
         headers = {}
-        self._resolve_nuclio_api_gateway(
+        self._enrich_nuclio_api_gateway(
             project_name=project_name,
             api_gateway=api_gateway,
             api_gateway_name=api_gateway_name,
@@ -107,7 +107,7 @@ class Client:
             json=body,
         )
 
-    def set_iguazio_labels(self, nuclio_object, project_name):
+    def _set_iguazio_labels(self, nuclio_object, project_name):
         nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
         nuclio_object.metadata.labels[IGUAZIO_USERNAME_LABEL] = self._username
         nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
@@ -179,13 +179,13 @@ class Client:
 
         mlrun.errors.raise_for_status(response, error_message)
 
-    def _resolve_nuclio_api_gateway(
+    def _enrich_nuclio_api_gateway(
         self,
         project_name: str,
         api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
-        self.set_iguazio_labels(api_gateway, project_name)
+        self._set_iguazio_labels(api_gateway, project_name)
         if not api_gateway.spec.host:
             api_gateway.spec.host = (
                 f"{api_gateway_name}-{project_name}."

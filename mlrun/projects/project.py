@@ -3547,7 +3547,7 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_custom_packager(packager=packager)
 
-    def create_or_update_api_gateway(
+    def store_api_gateway(
         self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway
     ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
         """
@@ -3558,10 +3558,10 @@ class MlrunProject(ModelObj):
         on MLRun and Nuclio sides, such as the 'host' attribute.
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        :param api_gateway: An instance of mlrun.runtimes.nuclio.APIGateway representing the configuration
+        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
         of the API Gateway to be created
 
-        @return: An instance of mlrun.runtimes.nuclio.APIGateway with all fields populated based on the
+        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
         information retrieved from the Nuclio API
         """
 
@@ -3581,8 +3581,8 @@ class MlrunProject(ModelObj):
         """
         Retrieves a list of Nuclio API gateways associated with the project.
 
-        @return: List of mlrun.runtimes.nuclio.api_gateway.APIGateway objects representing the Nuclio API gateways
-        associated with the project.
+        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+        the Nuclio API gateways associated with the project.
         """
         gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
         return [

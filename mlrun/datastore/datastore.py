@@ -174,7 +174,7 @@ class StoreManager:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"resource {url} does not have a valid/persistent offline target"
             )
-        return resource, target
+        return resource, target or ""
 
     def object(
         self, url, key="", project="", allow_empty_resources=None, secrets: dict = None

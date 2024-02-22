@@ -855,9 +855,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
 |ML-4166|Project yaml file that is very large cannot be stored.    |Do not embed the artifact object in the project yaml. | v1.4.0 |
 |ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |  | v1.4.0|
-|ML-4235|**what is message?** |  | v1.5.0|
 |ML-4442|After a model is deployed without applying monitoring (`set_tracking()` was not set on the serving function), monitoring cannot be added.|Delete the existing model endpoint (`mlrun.get_run_db().delete_model_endpoint()`), then redeploy the model.| v1.5.0 |
-|ML-4539|**what is message?** |  | v1.5.0|
 |ML-4582|Custom packagers cannot be added to projects created previous to v1.4.0 | NA | v1.6.0|
 |ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
 |ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. |NA|v1.5.0|

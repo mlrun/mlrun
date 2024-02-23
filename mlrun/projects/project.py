@@ -40,6 +40,7 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
@@ -687,6 +688,31 @@ class ProjectMetadata(ModelObj):
             mlrun.utils.helpers.verify_field_regex(
                 "project.metadata.name", name, mlrun.utils.regex.project_name
             )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
+
+    @staticmethod
+    def validate_project_labels(labels: dict, raise_on_failure: bool = True) -> bool:
+        """
+        This
+        https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+        """
+
+        # no labels is a valid case
+        if not labels:
+            return True
+        if not isinstance(labels, dict):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Labels must be a dictionary of key-value pairs"
+            )
+        try:
+            for key, value in labels.items():
+                mlrun.k8s_utils.verify_label_key(key)
+                mlrun.k8s_utils.verify_label_value(value, label_key=key)
+
         except mlrun.errors.MLRunInvalidArgumentError:
             if raise_on_failure:
                 raise

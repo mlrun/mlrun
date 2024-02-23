@@ -254,73 +254,76 @@ def test_create_project(
     _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
+@pytest.mark.parametrize(
+    "project_name, valid",
+    [
+        ("asd3", True),
+        ("asd-asd", True),
+        ("333", True),
+        ("3-a-b", True),
+        ("5-a-a-5", True),
+        (
+            # Invalid because the first letter is -
+            "-as-123-2-8a",
+            False,
+        ),
+        (
+            # Invalid because there is .
+            "as-123-2.a",
+            False,
+        ),
+        (
+            # Invalid because A is not allowed
+            "As-123-2-8Aa",
+            False,
+        ),
+        (
+            # Invalid because _ is not allowed
+            "as-123_2-8aa",
+            False,
+        ),
+        (
+            # Invalid because it's more than 63 characters
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            False,
+        ),
+    ],
+)
 def test_create_and_store_project_failure_invalid_name(
     db: sqlalchemy.orm.Session,
     projects_leader: server.api.utils.projects.leader.Member,
     leader_follower: server.api.utils.projects.remotes.follower.Member,
+    project_name,
+    valid,
 ):
-    cases = [
-        {"name": "asd3", "valid": True},
-        {"name": "asd-asd", "valid": True},
-        {"name": "333", "valid": True},
-        {"name": "3-a-b", "valid": True},
-        {"name": "5-a-a-5", "valid": True},
-        {
-            # Invalid because the first letter is -
-            "name": "-as-123-2-8a",
-            "valid": False,
-        },
-        {
-            # Invalid because there is .
-            "name": "as-123-2.a",
-            "valid": False,
-        },
-        {
-            # Invalid because A is not allowed
-            "name": "As-123-2-8Aa",
-            "valid": False,
-        },
-        {
-            # Invalid because _ is not allowed
-            "name": "as-123_2-8aa",
-            "valid": False,
-        },
-        {
-            # Invalid because it's more than 63 characters
-            "name": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
-            "valid": False,
-        },
-    ]
-    for case in cases:
-        project_name = case["name"]
-        project = mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    )
+    if valid:
+        projects_leader.create_project(
+            None,
+            project,
         )
-        if case["valid"]:
+        _assert_project_in_followers([leader_follower], project)
+        projects_leader.store_project(
+            None,
+            project_name,
+            project,
+        )
+        _assert_project_in_followers([leader_follower], project)
+    else:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             projects_leader.create_project(
                 None,
                 project,
             )
-            _assert_project_in_followers([leader_follower], project)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             projects_leader.store_project(
                 None,
                 project_name,
                 project,
             )
-            _assert_project_in_followers([leader_follower], project)
-        else:
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                projects_leader.create_project(
-                    None,
-                    project,
-                )
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                projects_leader.store_project(
-                    None,
-                    project_name,
-                    project,
-                )
-            _assert_project_not_in_followers([leader_follower], project_name)
+        _assert_project_not_in_followers([leader_follower], project_name)
 
 
 def test_ensure_project(

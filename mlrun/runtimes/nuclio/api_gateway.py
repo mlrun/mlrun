@@ -76,11 +76,8 @@ class APIGateway:
             else self._enrich_authentication_mode(username=username, password=password)
         )
         self.canary = canary
-        self.invoke_url = None
         self.__username = username
         self.__password = password
-        if host:
-            self.invoke_url = self.get_invoke_url()
 
     def invoke(
         self,
@@ -160,7 +157,8 @@ class APIGateway:
             )
         return api_gateway
 
-    def get_invoke_url(
+    @property
+    def invoke_url(
         self,
     ):
         return urljoin(self.host, self.path)

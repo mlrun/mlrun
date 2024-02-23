@@ -36,27 +36,29 @@ class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
             )
 
 
-class APIGatewayMetadata(pydantic.BaseModel):
-    name: str
-    namespace: Optional[str]
-    labels: Optional[dict] = {}
-
+class _APIGatewayBaseModel(pydantic.BaseModel):
     class Config:
         extra = pydantic.Extra.allow
 
 
-class APIGatewayBasicAuth(pydantic.BaseModel):
+class APIGatewayMetadata(_APIGatewayBaseModel):
+    name: str
+    namespace: Optional[str]
+    labels: Optional[dict] = {}
+
+
+class APIGatewayBasicAuth(_APIGatewayBaseModel):
     username: str
     password: str
 
 
-class APIGatewayUpstream(pydantic.BaseModel):
+class APIGatewayUpstream(_APIGatewayBaseModel):
     kind: Optional[str] = "nucliofunction"
     nucliofunction: dict[str, str]
     percentage: Optional[int] = 0
 
 
-class APIGatewaySpec(pydantic.BaseModel):
+class APIGatewaySpec(_APIGatewayBaseModel):
     name: str
     description: Optional[str]
     path: Optional[str] = "/"
@@ -67,26 +69,17 @@ class APIGatewaySpec(pydantic.BaseModel):
     authentication: Optional[dict[str, Optional[APIGatewayBasicAuth]]]
     host: Optional[str]
 
-    class Config:
-        extra = pydantic.Extra.allow
 
-
-class APIGatewayStatus(pydantic.BaseModel):
+class APIGatewayStatus(_APIGatewayBaseModel):
     name: Optional[str]
     state: Optional[str]
 
-    class Config:
-        extra = pydantic.Extra.allow
 
-
-class APIGateway(pydantic.BaseModel):
+class APIGateway(_APIGatewayBaseModel):
     metadata: APIGatewayMetadata
     spec: APIGatewaySpec
     status: Optional[APIGatewayStatus]
 
-    class Config:
-        extra = pydantic.Extra.allow
 
-
-class APIGatewaysOutput(pydantic.BaseModel):
+class APIGatewaysOutput(_APIGatewayBaseModel):
     api_gateways: typing.Optional[dict[str, APIGateway]] = {}

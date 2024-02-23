@@ -113,23 +113,16 @@ async def store_api_gateway(
     )
     client = server.api.utils.clients.async_nuclio.Client(auth_info)
     try:
-        if not await client.api_gateway_exists(
+        create = not await client.api_gateway_exists(
             name=gateway,
             project_name=project,
-        ):
-            await client.store_api_gateway(
-                project_name=project,
-                api_gateway_name=gateway,
-                api_gateway=api_gateway,
-                create=True,
-            )
-        else:
-            await client.store_api_gateway(
-                project_name=project,
-                api_gateway_name=gateway,
-                api_gateway=api_gateway,
-            )
-
+        )
+        await client.store_api_gateway(
+            project_name=project,
+            api_gateway_name=gateway,
+            api_gateway=api_gateway,
+            create=create,
+        )
         api_gateway = await client.get_api_gateway(
             name=gateway,
             project_name=project,

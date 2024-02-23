@@ -1697,7 +1697,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
     assert gateways[0].functions == ["my-func1"]
 
-    assert gateways[1].invoke_url() == "http://test-basic-default.domain.com/"
+    assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
     assert gateways[1]._generate_basic_auth("test", "test") == "Basic dGVzdDp0ZXN0"
 
 

@@ -41,6 +41,13 @@ class Client:
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
         self._nuclio_domain = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
 
+    async def __aenter__(self):
+        await self._ensure_async_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._close_session()
+
     async def list_api_gateways(
         self, project_name=None
     ) -> dict[str, mlrun.common.schemas.APIGateway]:
@@ -120,7 +127,7 @@ class Client:
                 logger=logger,
             )
 
-    async def close_session(self):
+    async def _close_session(self):
         if self._session:
             await self._session.close()
             self._session = None

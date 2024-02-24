@@ -49,7 +49,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
-from mlrun.common.constants import MYSQL_MEDIUMBLOB_BYTES
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.config import config
 
 from .logger import create_logger
@@ -272,13 +272,13 @@ def validate_artifact_key_name(
 
 
 def validate_inline_artifact_body_size(body: typing.Union[str, bytes]) -> None:
-    if body and len(body) > MYSQL_MEDIUMBLOB_BYTES:
+    if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
         raise mlrun.errors.MLRunBadRequestError(
             "The body of the artifact exceeds the maximum allowed size. "
             "Avoid embedding the artifact body. "
-            "This increases the size of the project yaml file and could affect the project during loading and saving."
-            " More information is available at"
-            " https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
+            "This increases the size of the project yaml file and could affect the project during loading and saving. "
+            "More information is available at"
+            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
         )
 
 

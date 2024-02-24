@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
-from mlrun.common.constants import MYSQL_MEDIUMBLOB_BYTES
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
@@ -489,41 +489,45 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
 
 
 @pytest.mark.parametrize(
-    "body_size,expected_status_code,is_inline,body_char",
+    "body_size,is_inline,body_char,expected_status_code",
     [
+        # Body size exceeds limit, expect 400
         (
-            MYSQL_MEDIUMBLOB_BYTES + 1,
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            True,
+            "a",
             HTTPStatus.BAD_REQUEST.value,
-            True,
-            "a",
-        ),  # Body size exceeds limit, expect 400
+        ),
+        # Body size within limit, expect 200
         (
-            MYSQL_MEDIUMBLOB_BYTES - 1,
-            HTTPStatus.OK.value,
-            True,
-            "a",
-        ),  # Body size within limit, expect 200
+                MYSQL_MEDIUMBLOB_SIZE_BYTES - 1,
+                True,
+                "a",
+                HTTPStatus.OK.value,
+        ),
+        # Not inline artifact, expect 200
         (
-            MYSQL_MEDIUMBLOB_BYTES + 1,
-            HTTPStatus.OK.value,
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
             False,
             "a",
-        ),  # Not inline artifact, expect 200
+            HTTPStatus.OK.value,
+        ),
+        # Bytes artifact, expect 400
         (
-            MYSQL_MEDIUMBLOB_BYTES + 1,
-            HTTPStatus.BAD_REQUEST.value,
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
             True,
             b"\x86",
-        ),  # Bytes artifact, expect 400
+            HTTPStatus.BAD_REQUEST.value,
+        ),
     ],
 )
 def test_store_oversized_artifact(
     db: Session,
     client: TestClient,
     body_size,
-    expected_status_code,
     is_inline,
     body_char,
+    expected_status_code,
 ) -> None:
     _create_project(client)
     artifact = mlrun.artifacts.Artifact(

@@ -500,10 +500,10 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
         ),
         # Body size within limit, expect 200
         (
-                MYSQL_MEDIUMBLOB_SIZE_BYTES - 1,
-                True,
-                "a",
-                HTTPStatus.OK.value,
+            MYSQL_MEDIUMBLOB_SIZE_BYTES - 1,
+            True,
+            "a",
+            HTTPStatus.OK.value,
         ),
         # Not inline artifact, expect 200
         (

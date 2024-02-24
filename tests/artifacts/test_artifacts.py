@@ -384,8 +384,8 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
     "body,expectation",
     [
         (
-                MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
-                pytest.raises(mlrun.errors.MLRunBadRequestError),
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
         ),
         (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, does_not_raise()),
     ],

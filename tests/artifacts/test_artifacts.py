@@ -381,7 +381,7 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
 
 
 @pytest.mark.parametrize(
-    "body,expectation",
+    "body_size,expectation",
     [
         (
             MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,

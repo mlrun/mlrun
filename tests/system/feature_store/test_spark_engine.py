@@ -90,7 +90,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = True
+    run_local = True  # TODO change back to False before merge.
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -567,7 +567,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ]
 
-    def test_snow_source(self):
+    def test_snowflake_source(self):
+        number_of_rows = 10
         snowflake_missing_keys = self.get_missing_snowflake_parameters()
         if snowflake_missing_keys:
             pytest.skip(
@@ -582,18 +583,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = SnowflakeSource(
             "customer_sf",
-            query=f"select * from {table_name} limit 10",
+            query=f"select * from {table_name} limit {number_of_rows}",
             url=os.environ.get("SNOWFLAKE_URL"),
             user=os.environ.get("SNOWFLAKE_USER"),
             database=os.environ.get("SNOWFLAKE_DATABASE"),
             schema=os.environ.get("SNOWFLAKE_SCHEMA"),
             warehouse=os.environ.get("SNOWFLAKE_WAREHOUSE"),
         )
-        feature_set.ingest(
-            source,
-            spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=self.run_local),
-        )
+        if self.run_local:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                target = ParquetTarget("parquet_target", temp_dir)
+                feature_set.ingest(
+                    source,
+                    targets=[target],
+                    spark_context=self.spark_service,
+                    run_config=fstore.RunConfig(local=self.run_local),
+                )
+                target_path = feature_set.get_target_path()
+                result_df = pd.read_parquet(target_path)
+                assert number_of_rows == len(result_df)
+        else:
+            pytest.skip("need to do")  #  TODO
 
     @pytest.mark.skipif(
         not mlrun.mlconf.redis.url,

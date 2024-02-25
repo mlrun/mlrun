@@ -519,8 +519,10 @@ class FeaturesDriftTablePlot:
         main_figure.add_trace(sub_header_trace, row=2, col=1)
 
         # Start going over the features and plot each row, histogram and notification:
-        row = 3  # We are currently at row 3 counting the headers.
-        for feature in features:
+        for row, feature in enumerate(
+            features,
+            start=3,  # starting from row 3 after the headers
+        ):
             try:
                 # Add the feature values:
                 main_figure.add_trace(
@@ -559,7 +561,6 @@ class FeaturesDriftTablePlot:
                 row_height=row_height,
                 drift_result=drift_results[feature],
             )
-            row += 1
 
         # Configure the layout and axes for height and widths:
         main_figure.update_layout(

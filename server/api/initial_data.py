@@ -576,11 +576,7 @@ def _migrate_artifacts_batch(
         new_artifact.iteration = int(iteration) if iteration else 0
 
         # key - the artifact's key, without iteration if it is attached to it
-        key = (
-            artifact.key
-            or artifact_dict.get("spec", {}).get("db_key")
-            or artifact_metadata.get("key", "")
-        )
+        key = artifact.key
         if iteration and key.startswith(f"{iteration}-"):
             key = key[len(f"{iteration}-") :]
         new_artifact.key = key

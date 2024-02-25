@@ -19,7 +19,7 @@ def get_snowflake_password():
     return snowflake_password
 
 
-def get_spark_options(attributes):
+def get_snowflake_spark_options(attributes):
     return {
         "format": "net.snowflake.spark.snowflake",
         "sfURL": attributes.get("url"),

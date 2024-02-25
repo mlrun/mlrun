@@ -32,6 +32,7 @@ from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
+from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
 _MODEL_MONITORING_COMMON_PATH = (
     pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
@@ -130,7 +131,7 @@ class MonitoringDeployment:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name="model-monitoring-stream",
                 project=project,
                 tag="",
@@ -361,7 +362,7 @@ class MonitoringDeployment:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name=mm_constants.MonitoringFunctionNames.WRITER,
                 project=project,
                 tag="",
@@ -578,7 +579,7 @@ class MonitoringDeployment:
         function_name: str,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
         tracking_offset: Seconds,
-    ) -> typing.Tuple[str, typing.Dict[str, int]]:
+    ) -> tuple[str, dict[str, int]]:
         """Generate schedule cron string along with the batch interval dictionary according to the providing
         function name. As for the model monitoring controller function, the dictionary batch interval is
         corresponding to the scheduling policy.
@@ -672,9 +673,9 @@ class MonitoringDeployment:
                 kwargs = {}
                 if function_name != mm_constants.MonitoringFunctionNames.STREAM:
                     kwargs["access_key"] = model_monitoring_access_key
-                if mlrun.mlconf.is_explicit_ack():
+                if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                     kwargs["explicit_ack_mode"] = "explicitOnly"
-                    kwargs["workerAllocationMode"] = "static"
+                    kwargs["worker_allocation_mode"] = "static"
 
                 # Generate V3IO stream trigger
                 function.add_v3io_stream_trigger(
@@ -792,10 +793,10 @@ class MonitoringDeployment:
 
 
 def get_endpoint_features(
-    feature_names: typing.List[str],
+    feature_names: list[str],
     feature_stats: dict = None,
     current_stats: dict = None,
-) -> typing.List[mlrun.common.schemas.Features]:
+) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and
     actual (current_stats) stats. The expected stats were calculated during the creation of the model endpoint,

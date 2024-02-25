@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 import unittest.mock
 
 import pytest
@@ -194,7 +193,7 @@ def test_add_default_hub_source_if_needed():
 
 
 def _initialize_db_without_migrations() -> (
-    typing.Tuple[server.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+    tuple[server.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn

@@ -86,7 +86,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
-        states: typing.Optional[typing.List[str]] = None,
+        states: typing.Optional[list[str]] = None,
         created_from: datetime.datetime = None,
         created_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,

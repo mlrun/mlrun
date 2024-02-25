@@ -30,7 +30,7 @@ from ..secrets import get_secret_or_env
 class DatastoreProfile(pydantic.BaseModel):
     type: str
     name: str
-    _private_attributes: typing.List = ()
+    _private_attributes: list = ()
 
     class Config:
         extra = pydantic.Extra.forbid
@@ -81,8 +81,8 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     _private_attributes = "kwargs_private"
     bootstrap_servers: str
     topic: str
-    kwargs_public: typing.Optional[typing.Dict]
-    kwargs_private: typing.Optional[typing.Dict]
+    kwargs_public: typing.Optional[dict]
+    kwargs_private: typing.Optional[dict]
 
     def attributes(self):
         attributes = {"bootstrap_servers": self.bootstrap_servers}
@@ -96,15 +96,15 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
 class DatastoreProfileKafkaSource(DatastoreProfile):
     type: str = pydantic.Field("kafka_source")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
-    brokers: typing.Union[str, typing.List[str]]
-    topics: typing.Union[str, typing.List[str]]
+    brokers: typing.Union[str, list[str]]
+    topics: typing.Union[str, list[str]]
     group: typing.Optional[str] = "serving"
     initial_offset: typing.Optional[str] = "earliest"
-    partitions: typing.Optional[typing.Union[str, typing.List[str]]]
+    partitions: typing.Optional[typing.Union[str, list[str]]]
     sasl_user: typing.Optional[str]
     sasl_pass: typing.Optional[str]
-    kwargs_public: typing.Optional[typing.Dict]
-    kwargs_private: typing.Optional[typing.Dict]
+    kwargs_public: typing.Optional[dict]
+    kwargs_private: typing.Optional[dict]
 
     def attributes(self):
         attributes = {}
@@ -227,7 +227,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     type: str = pydantic.Field("gcs")
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
-    gcp_credentials: typing.Optional[typing.Union[str, typing.Dict]] = None
+    gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
     def convert_dict_to_json(cls, v):
@@ -367,7 +367,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             )
 
 
-def datastore_profile_read(url, project_name=""):
+def datastore_profile_read(url, project_name="", secrets: dict = None):
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -382,10 +382,22 @@ def datastore_profile_read(url, project_name=""):
     public_profile = mlrun.db.get_run_db().get_datastore_profile(
         profile_name, project_name
     )
+    # The mlrun.db.get_run_db().get_datastore_profile() function is capable of returning
+    # two distinct types of objects based on its execution context.
+    # If it operates from the client or within the pod (which is the common scenario),
+    # it yields an instance of `mlrun.datastore.DatastoreProfile`. Conversely,
+    # when executed on the server with a direct call to `sqldb`, it produces an instance of
+    # mlrun.common.schemas.DatastoreProfile.
+    # In the latter scenario, an extra conversion step is required to transform the object
+    # into mlrun.datastore.DatastoreProfile.
+    if isinstance(public_profile, mlrun.common.schemas.DatastoreProfile):
+        public_profile = DatastoreProfile2Json.create_from_json(
+            public_json=public_profile.object
+        )
     project_ds_name_private = DatastoreProfile.generate_secret_key(
         profile_name, project_name
     )
-    private_body = get_secret_or_env(project_ds_name_private)
+    private_body = get_secret_or_env(project_ds_name_private, secret_provider=secrets)
     if not public_profile or not private_body:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Unable to retrieve the datastore profile '{url}' from either the server or local environment. "

@@ -13,24 +13,14 @@
 # limitations under the License.
 
 import uvicorn
-import uvicorn.logging
-
-import mlrun.utils
-
-
-# This class is a mixin that combines the default uvicorn formatter with the MLRun once
-# This allows us to get a unified log format for all the logs in the system
-class UvicornMLRunLoggerMixin(
-    uvicorn.logging.DefaultFormatter, mlrun.utils.HumanReadableFormatter
-):
-    pass
 
 
 def _get_uvicorn_log_config():
     base_log_config = uvicorn.config.LOGGING_CONFIG
-    base_log_config["formatters"]["default"][
-        "()"
-    ] = "server.api.apiuvicorn.UvicornMLRunLoggerMixin"
+    base_log_config["handlers"]["default"]["stream"] = "ext://sys.stdout"
+    base_log_config["formatters"]["default"] = {
+        "()": "mlrun.utils.HumanReadableFormatter"
+    }
     return base_log_config
 
 

@@ -39,7 +39,7 @@ def db():
 def test_example(db, fname):
     path = examples_path / fname
     env = environ.copy()
-    env["MLRUN_httpdb__dsn"] = dsn
+    env["MLRUN_HTTPDB__DSN"] = dsn
     cmd = [
         executable,
         "-m",

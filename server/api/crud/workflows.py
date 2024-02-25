@@ -15,7 +15,6 @@
 import os
 import typing
 import uuid
-from typing import Dict
 
 from sqlalchemy.orm import Session
 
@@ -130,7 +129,7 @@ class WorkflowRunners(
         self,
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
-        labels: Dict[str, str],
+        labels: dict[str, str],
     ) -> mlrun.run.RunObject:
         """
         Preparing all the necessary metadata and specifications for scheduling workflow from server-side.
@@ -288,7 +287,7 @@ class WorkflowRunners(
     def _prepare_run_object_for_single_run(
         self,
         project: mlrun.common.schemas.Project,
-        labels: Dict[str, str],
+        labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
         load_only: bool = False,
@@ -409,7 +408,7 @@ class WorkflowRunners(
     @staticmethod
     def _label_run_object(
         run_object: mlrun.run.RunObject,
-        labels: Dict[str, str],
+        labels: dict[str, str],
     ) -> mlrun.run.RunObject:
         """
         Setting labels to the task

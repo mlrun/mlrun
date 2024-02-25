@@ -17,7 +17,7 @@ import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import (
     APIRouter,
@@ -199,7 +199,7 @@ async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),

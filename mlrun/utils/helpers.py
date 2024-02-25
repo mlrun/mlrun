@@ -22,14 +22,13 @@ import os
 import re
 import string
 import sys
-import time
 import typing
 import warnings
 from datetime import datetime, timezone
 from importlib import import_module
 from os import path
 from types import ModuleType
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional
 
 import anyio
 import git
@@ -51,9 +50,15 @@ import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
 from mlrun.config import config
-from mlrun.errors import err_to_str
 
 from .logger import create_logger
+from .retryer import (  # noqa: F401
+    AsyncRetryer,
+    Retryer,
+    create_exponential_backoff,
+    create_linear_backoff,
+    create_step_backoff,
+)
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -176,6 +181,8 @@ def verify_field_regex(
     log_message: str = "Field is malformed. Does not match required pattern",
     mode: mlrun.common.schemas.RegexMatchModes = mlrun.common.schemas.RegexMatchModes.all,
 ) -> bool:
+    # limit the error message
+    max_chars = 63
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
@@ -188,7 +195,8 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
+                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -198,7 +206,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
+                f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -273,12 +281,12 @@ def validate_v3io_stream_consumer_group(
     )
 
 
-def get_regex_list_as_string(regex_list: List) -> str:
+def get_regex_list_as_string(regex_list: list) -> str:
     """
     This function is used to combine a list of regex strings into a single regex,
     with and condition between them.
     """
-    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+    return "".join([f"(?={regex})" for regex in regex_list]) + ".*$"
 
 
 def tag_name_regex_as_string() -> str:
@@ -695,7 +703,7 @@ def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
 
@@ -784,7 +792,7 @@ def gen_html_table(header, rows=None):
 def new_pipe_metadata(
     artifact_path: str = None,
     cleanup_ttl: int = None,
-    op_transformers: typing.List[typing.Callable] = None,
+    op_transformers: list[typing.Callable] = None,
 ):
     from kfp.dsl import PipelineConf
 
@@ -890,7 +898,7 @@ def get_docker_repository_or_default(repository: str) -> str:
     return repository
 
 
-def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
+def get_parsed_docker_registry() -> tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
@@ -944,64 +952,6 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-def create_linear_backoff(base=2, coefficient=2, stop_value=120):
-    """
-    Create a generator of linear backoff. Check out usage example in test_helpers.py
-    """
-    x = 0
-    comparison = min if coefficient >= 0 else max
-
-    while True:
-        next_value = comparison(base + x * coefficient, stop_value)
-        yield next_value
-        x += 1
-
-
-def create_step_backoff(steps=None):
-    """
-    Create a generator of steps backoff.
-    Example: steps = [[2, 5], [20, 10], [120, None]] will produce a generator in which the first 5
-    values will be 2, the next 10 values will be 20 and the rest will be 120.
-    :param steps: a list of lists [step_value, number_of_iteration_in_this_step]
-    """
-    steps = steps if steps is not None else [[2, 10], [10, 10], [120, None]]
-    steps = iter(steps)
-
-    # Get first step
-    step = next(steps)
-    while True:
-        current_step_value, current_step_remain = step
-        if current_step_remain == 0:
-            # No more in this step, moving on
-            step = next(steps)
-        elif current_step_remain is None:
-            # We are in the last step, staying here forever
-            yield current_step_value
-        elif current_step_remain > 0:
-            # Still more remains in this step, just reduce the remaining number
-            step[1] -= 1
-            yield current_step_value
-
-
-def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
-    """
-    Create a generator of exponential backoff. Check out usage example in test_helpers.py
-    :param base: exponent base
-    :param max_value: max limit on the result
-    :param scale_factor: factor to be used as linear scaling coefficient
-    """
-    exponent = 1
-    while True:
-        # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
-        # risking going behind max_int
-        next_value = scale_factor * (base**exponent)
-        if next_value < max_value:
-            exponent += 1
-            yield next_value
-        else:
-            yield max_value
-
-
 def retry_until_successful(
     backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
 ):
@@ -1019,64 +969,35 @@ def retry_until_successful(
     :param kwargs: functions kwargs
     :return: function result
     """
-    start_time = time.time()
-    last_exception = None
+    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
 
-    # Check if backoff is just a simple interval
-    if isinstance(backoff, int) or isinstance(backoff, float):
-        backoff = create_linear_backoff(base=backoff, coefficient=0)
 
-    first_interval = next(backoff)
-    if timeout and timeout <= first_interval:
-        logger.warning(
-            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
-            f" Set timeout to be higher than backoff."
-        )
-
-    # If deadline was not provided or deadline not reached
-    while timeout is None or time.time() < start_time + timeout:
-        next_interval = first_interval or next(backoff)
-        first_interval = None
-        try:
-            result = _function(*args, **kwargs)
-            return result
-
-        except mlrun.errors.MLRunFatalFailureError as exc:
-            raise exc.original_exception
-        except Exception as exc:
-            last_exception = exc
-
-            # If next interval is within allowed time period - wait on interval, abort otherwise
-            if timeout is None or time.time() + next_interval < start_time + timeout:
-                if logger is not None and verbose:
-                    logger.debug(
-                        f"Operation not yet successful, Retrying in {next_interval} seconds."
-                        f" exc: {err_to_str(exc)}"
-                    )
-
-                time.sleep(next_interval)
-            else:
-                break
-
-    if logger is not None:
-        logger.warning(
-            f"Operation did not complete on time. last exception: {last_exception}"
-        )
-
-    raise mlrun.errors.MLRunRetryExhaustedError(
-        f"Failed to execute command by the given deadline."
-        f" last_exception: {last_exception},"
-        f" function_name: {_function.__name__},"
-        f" timeout: {timeout}"
-    ) from last_exception
+async def retry_until_successful_async(
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+):
+    """
+    Runs function with given *args and **kwargs.
+    Tries to run it until success or timeout reached (timeout is optional)
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
+    :param timeout: pass None if timeout is not wanted, number of seconds if it is
+    :param logger: a logger so we can log the failures
+    :param verbose: whether to log the failure on each retry
+    :param _function: function to run
+    :param args: functions args
+    :param kwargs: functions kwargs
+    :return: function result
+    """
+    return await AsyncRetryer(
+        backoff, timeout, logger, verbose, _function, *args, **kwargs
+    ).run()
 
 
 def get_ui_url(project, uid=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
-        url = "{}/{}/{}/jobs".format(
-            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-        )
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/jobs"
         if uid:
             url += f"/monitor/{uid}/overview"
     return url
@@ -1092,7 +1013,7 @@ def get_workflow_url(project, id=None):
 
 
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=typing.List[str]
+    exception: Exception, strings_list=list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1272,7 +1193,7 @@ def has_timezone(timestamp):
         return False
 
 
-def as_list(element: Any) -> List[Any]:
+def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 
 
@@ -1525,6 +1446,24 @@ def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 
 
+def normalize_project_username(username: str):
+    username = username.lower()
+
+    # remove domain if exists
+    username = username.split("@")[0]
+
+    # replace non r'a-z0-9\-_' chars with empty string
+    username = inflection.parameterize(username, separator="")
+
+    # replace underscore with dashes
+    username = inflection.dasherize(username)
+
+    # ensure ends with alphanumeric
+    username = username.rstrip("-_")
+
+    return username
+
+
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
 # without importing fastapi in the client
 async def run_in_threadpool(func, *args, **kwargs):
@@ -1597,7 +1536,7 @@ def is_ecr_url(registry: str) -> bool:
     return ".ecr." in registry and ".amazonaws.com" in registry
 
 
-def get_local_file_schema() -> List:
+def get_local_file_schema() -> list:
     # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
     # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     return ["file"] + list(string.ascii_lowercase)

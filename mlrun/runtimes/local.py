@@ -436,7 +436,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out, err
 
 
-class _DupStdout(object):
+class _DupStdout:
     def __init__(self):
         self.terminal = sys.stdout
         self.buf = StringIO()

@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import datetime
+from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from typing import Iterator, NamedTuple, Optional
+from typing import NamedTuple, Optional
 from unittest.mock import Mock, patch
 
 import pytest

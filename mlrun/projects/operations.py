@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import warnings
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import kfp
 
@@ -61,7 +61,7 @@ def run_function(
     hyperparams: dict = None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
     inputs: dict = None,
-    outputs: List[str] = None,
+    outputs: list[str] = None,
     workdir: str = "",
     labels: dict = None,
     base_task: mlrun.model.RunTemplate = None,
@@ -73,8 +73,8 @@ def run_function(
     auto_build: bool = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
-    notifications: List[mlrun.model.Notification] = None,
-    returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    notifications: list[mlrun.model.Notification] = None,
+    returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
@@ -239,7 +239,7 @@ def build_function(
     base_image=None,
     commands: list = None,
     secret_name=None,
-    requirements: Union[str, List[str]] = None,
+    requirements: Union[str, list[str]] = None,
     requirements_file: str = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,

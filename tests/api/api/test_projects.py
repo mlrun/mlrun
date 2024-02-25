@@ -17,7 +17,6 @@ import datetime
 import http
 import json.decoder
 import os
-import typing
 import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
@@ -38,6 +37,7 @@ import server.api.api.utils
 import server.api.crud
 import server.api.main
 import server.api.utils.auth.verifier
+import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
@@ -770,6 +770,12 @@ def test_projects_crud(
         ),
     )
 
+    # create - fail invalid label
+    invalid_project_create_request = project_1.dict()
+    invalid_project_create_request["metadata"]["labels"] = {".a": "invalid-label"}
+    response = client.post("projects", json=invalid_project_create_request)
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
     # create
     response = client.post("projects", json=project_1.dict())
     assert response.status_code == HTTPStatus.CREATED.value
@@ -958,7 +964,7 @@ def test_project_with_parameters(
 )
 def test_delete_project_not_found_in_leader(
     unversioned_client: TestClient,
-    mock_project_leader_iguazio_client,
+    mock_project_follower_iguazio_client,
     delete_api_version: str,
 ) -> None:
     project = mlrun.common.schemas.Project(
@@ -970,15 +976,80 @@ def test_delete_project_not_found_in_leader(
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
-    response = unversioned_client.delete(
-        f"{delete_api_version}/projects/{project.metadata.name}",
-    )
-    assert response.status_code == HTTPStatus.ACCEPTED.value
+    with unittest.mock.patch.object(
+        mock_project_follower_iguazio_client,
+        "delete_project",
+        side_effect=mlrun.errors.MLRunNotFoundError("Project not found"),
+    ):
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.ACCEPTED.value
 
-    response = unversioned_client.get(
-        f"v1/projects/{project.metadata.name}",
+        response = unversioned_client.get(
+            f"v1/projects/{project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+# Test should not run more than a few seconds because we test that if the background task fails,
+# the wrapper task fails fast
+@pytest.mark.timeout(10)
+@pytest.mark.parametrize(
+    "delete_api_version",
+    [
+        "v1",
+        "v2",
+    ],
+)
+def test_delete_project_fail_fast(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    delete_api_version: str,
+) -> None:
+    # Set the igz version for the project leader mock
+    # We only test igz version < 3.5.5 flow because from 3.5.5 iguazio waits for the inner background task to
+    # finish so the wrapper task does not wait for the inner task
+    mlrun.mlconf.igz_version = "3.5.4"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
     )
-    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+    response = unversioned_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    with unittest.mock.patch(
+        "server.api.crud.projects.Projects.delete_project_resources",
+        side_effect=Exception("some error"),
+    ):
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{project.metadata.name}",
+            headers={
+                mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading,
+            },
+        )
+        if delete_api_version == "v1":
+            assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR.value
+            assert (
+                "Failed to delete project project-name: some error"
+                in response.json()["detail"]
+            )
+        else:
+            assert response.status_code == HTTPStatus.ACCEPTED.value
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                background_task.metadata.name
+            )
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+            assert (
+                "Failed to delete project project-name: some error"
+                in background_task.status.error
+            )
 
 
 def _create_resources_of_all_kinds(
@@ -1183,7 +1254,7 @@ def _assert_resources_in_project(
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
-) -> typing.Tuple[typing.Dict, typing.Dict]:
+) -> tuple[dict, dict]:
     object_type_records_count_map = {
         "Logs": _assert_logs_in_project(project, assert_no_resources),
         "Schedules": _assert_schedules_in_project(project, assert_no_resources),
@@ -1244,7 +1315,7 @@ def _assert_db_resources_in_project(
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
-) -> typing.Dict:
+) -> dict:
     table_name_records_count_map = {}
     for cls in _classes:
         # User support is not really implemented or in use
@@ -1370,7 +1441,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
+    client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
     params["format"] = mlrun.common.schemas.ProjectsFormat.name_only

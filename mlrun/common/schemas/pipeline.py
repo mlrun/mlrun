@@ -34,6 +34,6 @@ class PipelinesPagination(str):
 
 class PipelinesOutput(pydantic.BaseModel):
     # use the format query param to control what is returned
-    runs: typing.List[typing.Union[dict, str]]
+    runs: list[typing.Union[dict, str]]
     total_size: int
     next_page_token: typing.Optional[str]

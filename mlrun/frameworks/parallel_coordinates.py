@@ -14,7 +14,7 @@
 #
 import datetime
 import os
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -239,7 +239,7 @@ def _runs_list_to_df(runs_list, extend_iterations=False):
 
 @filter_warnings("ignore", FutureWarning)
 def compare_run_objects(
-    runs_list: Union[mlrun.model.RunObject, List[mlrun.model.RunObject]],
+    runs_list: Union[mlrun.model.RunObject, list[mlrun.model.RunObject]],
     hide_identical: bool = True,
     exclude: list = None,
     show: bool = None,

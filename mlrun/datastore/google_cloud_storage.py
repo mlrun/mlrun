@@ -60,7 +60,7 @@ class GoogleCloudStorageStore(DataStore):
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials
-                return self._sanitize_storage_options(dict(token=token))
+            return self._sanitize_storage_options(dict(token=token))
         else:
             logger.info(
                 "No GCS credentials available - auth will rely on auto-discovery of credentials"
@@ -138,7 +138,7 @@ class GoogleCloudStorageStore(DataStore):
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
             if isinstance(st["token"], str):
                 # Token is a filename, read json from it
-                with open(st["token"], "r") as file:
+                with open(st["token"]) as file:
                     credentials = json.load(file)
             else:
                 # Token is a dictionary, use it directly

@@ -42,11 +42,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     async def filter_project_resources_by_permissions(
         self,
         resource_type: mlrun.common.schemas.AuthorizationResourceTypes,
-        resources: typing.List,
+        resources: list,
         project_and_resource_name_extractor: typing.Callable,
         auth_info: mlrun.common.schemas.AuthInfo,
         action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
-    ) -> typing.List:
+    ) -> list:
         def _generate_opa_resource(resource):
             project_name, resource_name = project_and_resource_name_extractor(resource)
             return self._generate_resource_string_from_project_resource(
@@ -59,10 +59,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     async def filter_projects_by_permissions(
         self,
-        project_names: typing.List[str],
+        project_names: list[str],
         auth_info: mlrun.common.schemas.AuthInfo,
         action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
-    ) -> typing.List:
+    ) -> list:
         return await self.filter_by_permissions(
             project_names,
             self._generate_resource_string_from_project_name,
@@ -73,7 +73,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     async def query_project_resources_permissions(
         self,
         resource_type: mlrun.common.schemas.AuthorizationResourceTypes,
-        resources: typing.List,
+        resources: list,
         project_and_resource_name_extractor: typing.Callable,
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
@@ -175,11 +175,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     async def filter_by_permissions(
         self,
-        resources: typing.List,
+        resources: list,
         opa_resource_extractor: typing.Callable,
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> typing.List:
+    ) -> list:
         return await self._auth_provider.filter_by_permissions(
             resources,
             opa_resource_extractor,
@@ -246,9 +246,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
         return auth_info
 
-    def get_or_create_access_key(
-        self, session: str, planes: typing.List[str] = None
-    ) -> str:
+    def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(
                 "Access key is currently supported only for iguazio authentication mode"

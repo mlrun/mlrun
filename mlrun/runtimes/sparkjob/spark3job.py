@@ -231,7 +231,7 @@ class Spark3JobSpec(KubeResourceSpec):
         self.executor_cores = executor_cores
 
     @property
-    def executor_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:
+    def executor_tolerations(self) -> list[kubernetes.client.V1Toleration]:
         return self._executor_tolerations
 
     @executor_tolerations.setter
@@ -243,7 +243,7 @@ class Spark3JobSpec(KubeResourceSpec):
         )
 
     @property
-    def driver_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:
+    def driver_tolerations(self) -> list[kubernetes.client.V1Toleration]:
         return self._driver_tolerations
 
     @driver_tolerations.setter
@@ -484,11 +484,9 @@ class Spark3Runtime(KubejobRuntime):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[
-            typing.List[kubernetes.client.V1Toleration]
-        ] = None,
+        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         if node_name:
             raise NotImplementedError(
@@ -518,11 +516,9 @@ class Spark3Runtime(KubejobRuntime):
     def with_driver_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[
-            typing.List[kubernetes.client.V1Toleration]
-        ] = None,
+        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         """
         Enables control of which k8s node the spark executor will run on.
@@ -551,11 +547,9 @@ class Spark3Runtime(KubejobRuntime):
     def with_executor_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[
-            typing.List[kubernetes.client.V1Toleration]
-        ] = None,
+        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         """
         Enables control of which k8s node the spark executor will run on.

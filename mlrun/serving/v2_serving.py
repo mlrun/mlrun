@@ -15,7 +15,7 @@
 import threading
 import time
 import traceback
-from typing import Dict, Union
+from typing import Union
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
@@ -29,8 +29,6 @@ from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
 class V2ModelServer(StepToDict):
-    """base model serving class (v2), using similar API to KFServing v2 and Triton"""
-
     def __init__(
         self,
         context=None,
@@ -221,6 +219,8 @@ class V2ModelServer(StepToDict):
 
     def _pre_event_processing_actions(self, event, event_body, op):
         self._check_readiness(event)
+        if "_dict" in op:
+            event_body = self._inputs_to_list(event_body)
         request = self.preprocess(event_body, op)
         return self.validate(request, op)
 
@@ -237,7 +237,12 @@ class V2ModelServer(StepToDict):
         if not op and event.method != "GET":
             op = "infer"
 
-        if op == "predict" or op == "infer":
+        if (
+            op == "predict"
+            or op == "infer"
+            or op == "infer_dict"
+            or op == "predict_dict"
+        ):
             # predict operation
             request = self._pre_event_processing_actions(event, event_body, op)
             try:
@@ -362,21 +367,58 @@ class V2ModelServer(StepToDict):
 
         return request
 
-    def preprocess(self, request: Dict, operation) -> Dict:
+    def preprocess(self, request: dict, operation) -> dict:
         """preprocess the event body before validate and action"""
         return request
 
-    def postprocess(self, request: Dict) -> Dict:
+    def postprocess(self, request: dict) -> dict:
         """postprocess, before returning response"""
         return request
 
-    def predict(self, request: Dict) -> Dict:
+    def predict(self, request: dict) -> dict:
         """model prediction operation"""
         raise NotImplementedError()
 
-    def explain(self, request: Dict) -> Dict:
+    def explain(self, request: dict) -> dict:
         """model explain operation"""
         raise NotImplementedError()
+
+    def _inputs_to_list(self, request: dict) -> dict:
+        """
+        Convert the inputs from list of dictionary / dictionary to list of lists / list
+        where the internal list order is according to the ArtifactModel inputs.
+
+        :param request: event
+        :return: evnet body converting the inputs to be list of lists
+        """
+        if self.model_spec and self.model_spec.inputs:
+            input_order = [feature.name for feature in self.model_spec.inputs]
+        else:
+            raise mlrun.MLRunInvalidArgumentError(
+                "In order to use predict_dict or infer_dict operation you have to provide `model_path` "
+                "to the model server and to load it by `load()` function"
+            )
+        inputs = request.get("inputs")
+        try:
+            if isinstance(inputs, list) and all(
+                isinstance(item, dict) for item in inputs
+            ):
+                new_inputs = [
+                    [input_dict[key] for key in input_order] for input_dict in inputs
+                ]
+            elif isinstance(inputs, dict):
+                new_inputs = [inputs[key] for key in input_order]
+            else:
+                raise mlrun.MLRunInvalidArgumentError(
+                    "When using predict_dict or infer_dict operation the inputs must be "
+                    "of type `list[dict]` or `dict`"
+                )
+        except KeyError:
+            raise mlrun.MLRunInvalidArgumentError(
+                f"Input dictionary don't contain all the necessary input keys : {input_order}"
+            )
+        request["inputs"] = new_inputs
+        return request
 
 
 class _ModelLogPusher:

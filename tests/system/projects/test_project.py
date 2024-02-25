@@ -1147,13 +1147,14 @@ class TestProject(TestMLRunSystem):
         data = {"col1": [1, 2], "col2": [3, 4]}
         data_frame = pd.DataFrame(data=data)
         key = "my-df"
+        data_frame.to_parquet(local_path)
         dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
             key, df=data_frame, format="parquet", target_path=local_path
         )
         project_1.log_artifact(dataset_artifact)
 
         # export the artifact to a zip file
-        dataset_artifact = project_1.get_artifact("my-df")
+        dataset_artifact = project_1.get_artifact(key)
         export_path = f"{str(self.assets_path)}/exported_dataset.zip"
         dataset_artifact.export(export_path)
 

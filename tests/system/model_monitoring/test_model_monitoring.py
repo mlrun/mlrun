@@ -325,7 +325,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"
         ]
-        total = sum((m[1] for m in predictions_per_second))
+        total = sum(m[1] for m in predictions_per_second)
         assert total > 0
 
 

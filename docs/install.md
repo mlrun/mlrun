@@ -8,6 +8,8 @@ MLRun has two main components, the service and the client (SDK and UI):
 - MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
 - MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
+This release of MLRun supports only Python 3.9 for both the server and the client. 
+
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
 
 **In this section**

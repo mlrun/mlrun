@@ -17,7 +17,8 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Iterator, NamedTuple, Optional, Union, cast
+from collections.abc import Iterator
+from typing import Any, NamedTuple, Optional, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 

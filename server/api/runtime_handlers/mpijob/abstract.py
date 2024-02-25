@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 import time
-import typing
 
 from kubernetes import client
 
@@ -114,7 +113,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
         meta: client.V1ObjectMeta,
-    ) -> typing.Dict:
+    ) -> dict:
         pass
 
     @abc.abstractmethod
@@ -129,7 +128,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
     # should return the mpijob CRD information -> (group, version, plural)
     @staticmethod
     @abc.abstractmethod
-    def _get_crd_info() -> typing.Tuple[str, str, str]:
+    def _get_crd_info() -> tuple[str, str, str]:
         pass
 
     def _get_launcher(self, name, namespace=None):

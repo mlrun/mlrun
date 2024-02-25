@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Extra, Field
 
@@ -56,12 +56,7 @@ class HubSource(BaseModel):
     status: Optional[ObjectStatus] = ObjectStatus(state="created")
 
     def get_full_uri(self, relative_path):
-        return "{base}/{object_type}/{channel}/{relative_path}".format(
-            base=self.spec.path,
-            object_type=self.spec.object_type,
-            channel=self.spec.channel,
-            relative_path=relative_path,
-        )
+        return f"{self.spec.path}/{self.spec.object_type}/{self.spec.channel}/{relative_path}"
 
     def get_catalog_uri(self):
         return self.get_full_uri(mlrun.config.config.hub.catalog_filename)
@@ -120,7 +115,7 @@ class HubItemMetadata(HubObjectMetadata):
 
 class HubItemSpec(ObjectSpec):
     item_uri: str
-    assets: Dict[str, str] = {}
+    assets: dict[str, str] = {}
 
 
 class HubItem(BaseModel):
@@ -133,4 +128,4 @@ class HubItem(BaseModel):
 class HubCatalog(BaseModel):
     kind: ObjectKind = Field(ObjectKind.hub_catalog, const=True)
     channel: str
-    catalog: List[HubItem]
+    catalog: list[HubItem]

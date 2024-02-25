@@ -35,7 +35,7 @@ def seconds2minutes(seconds: Seconds) -> Minutes:
     return Minutes(math.ceil(seconds / _SECONDS_IN_MINUTE))
 
 
-def get_batching_interval_param(intervals_list: typing.List):
+def get_batching_interval_param(intervals_list: list):
     """Convert each value in the intervals list into a float number. None
     Values will be converted into 0.0.
 
@@ -79,11 +79,10 @@ def convert_to_cron_string(
     minute_delay: Minutes = Minutes(0),
 ) -> str:
     """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
-    return "{} {} {} * *".format(
-        add_minutes_offset(cron_trigger.minute, minute_delay),
-        cron_trigger.hour,
-        cron_trigger.day,
-    ).replace("None", "*")
+    return (
+        f"{add_minutes_offset(cron_trigger.minute, minute_delay)} {cron_trigger.hour} {cron_trigger.day} "
+        "* *".replace("None", "*")
+    )
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:

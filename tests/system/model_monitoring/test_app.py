@@ -19,7 +19,7 @@ import typing
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -49,7 +49,7 @@ from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 @dataclass
 class _AppData:
-    class_: typing.Type[ModelMonitoringApplicationBase]
+    class_: type[ModelMonitoringApplicationBase]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
@@ -127,9 +127,6 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow"
-    project_name += datetime.now().strftime(  # remove when ML-5588 is fixed
-        "%y%m%d%H%M"
-    )
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
@@ -207,7 +204,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     @classmethod
-    def _deploy_model_serving(cls) -> mlrun.runtimes.serving.ServingRuntime:
+    def _deploy_model_serving(cls) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
         )
@@ -226,7 +223,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     @classmethod
     def _get_model_enpoint_id(cls) -> str:

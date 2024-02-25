@@ -17,7 +17,6 @@ import collections
 import json
 import pathlib
 import re
-import typing
 import unittest.mock
 
 import deepdiff
@@ -111,7 +110,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.6.18"},
+        "storey": {"~=1.7.4"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -223,7 +222,7 @@ def test_requirement_from_remote():
     }
 
 
-def _generate_all_requirement_specifiers_map() -> typing.Dict[str, typing.Set]:
+def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = list(
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
@@ -243,7 +242,7 @@ def _generate_all_requirement_specifiers_map() -> typing.Dict[str, typing.Set]:
 
 def _parse_requirement_specifiers_list(
     requirement_specifiers,
-) -> typing.Dict[str, typing.Set]:
+) -> dict[str, set]:
     specific_module_regex = (
         r"^"
         r"(?P<requirementName>[a-zA-Z\-0-9_]+)"

@@ -45,7 +45,7 @@ def get_or_create_model_endpoint(
     endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
-    sample_set_statistics: typing.Dict[str, typing.Any] = None,
+    sample_set_statistics: dict[str, typing.Any] = None,
     drift_threshold: float = None,
     possible_drift_threshold: float = None,
     monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
@@ -82,7 +82,7 @@ def get_or_create_model_endpoint(
     if not endpoint_id:
         # Generate a new model endpoint id based on the project name and model name
         endpoint_id = hashlib.sha1(
-            f"{project}_{model_endpoint_name}".encode("utf-8")
+            f"{project}_{model_endpoint_name}".encode()
         ).hexdigest()
 
     if not db_session:
@@ -239,7 +239,7 @@ def record_results(
 def _model_endpoint_validations(
     model_endpoint: ModelEndpoint,
     model_path: str = "",
-    sample_set_statistics: typing.Dict[str, typing.Any] = None,
+    sample_set_statistics: dict[str, typing.Any] = None,
     drift_threshold: float = None,
     possible_drift_threshold: float = None,
 ):
@@ -307,7 +307,7 @@ def get_drift_thresholds_if_not_none(
     model_endpoint: ModelEndpoint,
     drift_threshold: float = None,
     possible_drift_threshold: float = None,
-) -> typing.Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Get drift and possible drift thresholds. If one of the thresholds is missing, will try to retrieve
     it from the `ModelEndpoint` object. If not defined under the `ModelEndpoint` as well, will retrieve it from
@@ -386,7 +386,7 @@ def _generate_model_endpoint(
     model_endpoint_name: str,
     function_name: str,
     context: mlrun.MLClientCtx,
-    sample_set_statistics: typing.Dict[str, typing.Any],
+    sample_set_statistics: dict[str, typing.Any],
     drift_threshold: float,
     possible_drift_threshold: float,
     monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
@@ -452,8 +452,8 @@ def _generate_model_endpoint(
 def trigger_drift_batch_job(
     project: str,
     default_batch_image="mlrun/mlrun",
-    model_endpoints_ids: typing.List[str] = None,
-    batch_intervals_dict: typing.Dict[str, float] = None,
+    model_endpoints_ids: list[str] = None,
+    batch_intervals_dict: dict[str, float] = None,
     db_session=None,
 ):
     """
@@ -476,9 +476,7 @@ def trigger_drift_batch_job(
         db_session = mlrun.get_run_db()
 
     # Register the monitoring batch job (do nothing if already exist) and get the job function as a dictionary
-    batch_function_dict: typing.Dict[
-        str, typing.Any
-    ] = db_session.deploy_monitoring_batch_job(
+    batch_function_dict: dict[str, typing.Any] = db_session.deploy_monitoring_batch_job(
         project=project,
         default_batch_image=default_batch_image,
     )
@@ -495,8 +493,8 @@ def trigger_drift_batch_job(
 
 
 def _generate_job_params(
-    model_endpoints_ids: typing.List[str],
-    batch_intervals_dict: typing.Dict[str, float] = None,
+    model_endpoints_ids: list[str],
+    batch_intervals_dict: dict[str, float] = None,
 ):
     """
     Generate the required params for the model monitoring batch job function.
@@ -519,9 +517,9 @@ def _generate_job_params(
 def get_sample_set_statistics(
     sample_set: DatasetType = None,
     model_artifact_feature_stats: dict = None,
-    sample_set_columns: typing.Optional[typing.List] = None,
-    sample_set_drop_columns: typing.Optional[typing.List] = None,
-    sample_set_label_columns: typing.Optional[typing.List] = None,
+    sample_set_columns: typing.Optional[list] = None,
+    sample_set_drop_columns: typing.Optional[list] = None,
+    sample_set_label_columns: typing.Optional[list] = None,
 ) -> dict:
     """
     Get the sample set statistics either from the given sample set or the statistics logged with the model while
@@ -576,10 +574,10 @@ def get_sample_set_statistics(
 
 def read_dataset_as_dataframe(
     dataset: DatasetType,
-    feature_columns: typing.Union[str, typing.List[str]] = None,
-    label_columns: typing.Union[str, typing.List[str]] = None,
-    drop_columns: typing.Union[str, typing.List[str], int, typing.List[int]] = None,
-) -> typing.Tuple[pd.DataFrame, typing.List[str]]:
+    feature_columns: typing.Union[str, list[str]] = None,
+    label_columns: typing.Union[str, list[str]] = None,
+    drop_columns: typing.Union[str, list[str], int, list[int]] = None,
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Parse the given dataset into a DataFrame and drop the columns accordingly. In addition, the label columns will be
     parsed and validated as well.
@@ -670,7 +668,7 @@ def perform_drift_analysis(
     possible_drift_threshold: float,
     artifacts_tag: str = "",
     db_session=None,
-):
+) -> None:
     """
     Calculate drift per feature and produce the drift table artifact for logging post prediction. Note that most of
     the calculations were already made through the monitoring batch job.
@@ -696,7 +694,7 @@ def perform_drift_analysis(
     metrics = model_endpoint.status.drift_measures
     inputs_statistics = model_endpoint.status.current_stats
 
-    inputs_statistics.pop("timestamp", None)
+    inputs_statistics.pop(EventFieldType.TIMESTAMP, None)
 
     # Calculate drift for each feature
     virtual_drift = VirtualDrift()
@@ -708,7 +706,6 @@ def perform_drift_analysis(
 
     # Drift table plot
     html_plot = FeaturesDriftTablePlot().produce(
-        features=list(inputs_statistics.keys()),
         sample_set_statistics=sample_set_statistics,
         inputs_statistics=inputs_statistics,
         metrics=metrics,
@@ -746,7 +743,7 @@ def perform_drift_analysis(
 def _log_drift_artifacts(
     context: mlrun.MLClientCtx,
     html_plot: str,
-    metrics_per_feature: typing.Dict[str, float],
+    metrics_per_feature: dict[str, float],
     drift_status: bool,
     drift_metric: float,
     artifacts_tag: str,
@@ -789,7 +786,7 @@ def _get_drift_result(
     tvd: float,
     hellinger: float,
     threshold: float,
-) -> typing.Tuple[bool, float]:
+) -> tuple[bool, float]:
     """
     Calculate the drift result by the following equation: (tvd + hellinger) / 2
 

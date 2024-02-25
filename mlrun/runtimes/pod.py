@@ -266,7 +266,7 @@ class KubeResourceSpec(FunctionSpec):
         self._affinity = transform_attribute_to_k8s_class_instance("affinity", affinity)
 
     @property
-    def tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+    def tolerations(self) -> list[k8s_client.V1Toleration]:
         return self._tolerations
 
     @tolerations.setter
@@ -526,7 +526,7 @@ class KubeResourceSpec(FunctionSpec):
             return {}
         return resources
 
-    def _merge_node_selector(self, node_selector: typing.Dict[str, str]):
+    def _merge_node_selector(self, node_selector: dict[str, str]):
         if not node_selector:
             return
 
@@ -535,7 +535,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _merge_tolerations(
         self,
-        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations: list[k8s_client.V1Toleration],
         tolerations_field_name: str,
     ):
         if not tolerations:
@@ -720,7 +720,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _merge_node_selector_term_to_node_affinity(
         self,
-        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
+        node_selector_terms: list[k8s_client.V1NodeSelectorTerm],
         affinity_field_name: str,
     ):
         if not node_selector_terms:
@@ -765,7 +765,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_affinity_node_selector_requirement(
         self,
-        node_selector_requirements: typing.List[k8s_client.V1NodeSelectorRequirement],
+        node_selector_requirements: list[k8s_client.V1NodeSelectorRequirement],
         affinity_field_name: str = "affinity",
     ):
         """
@@ -820,20 +820,18 @@ class KubeResourceSpec(FunctionSpec):
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
-        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
-        node_selector_requirements_to_prune: typing.List[
-            k8s_client.V1NodeSelectorRequirement
-        ],
-    ) -> typing.List[k8s_client.V1NodeSelectorTerm]:
+        node_selector_terms: list[k8s_client.V1NodeSelectorTerm],
+        node_selector_requirements_to_prune: list[k8s_client.V1NodeSelectorRequirement],
+    ) -> list[k8s_client.V1NodeSelectorTerm]:
         """
         Goes over each expression in all the terms provided and removes the expressions if it matches
         one of the requirements provided to remove
 
         :return: New list of terms without the provided node selector requirements
         """
-        new_node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm] = []
+        new_node_selector_terms: list[k8s_client.V1NodeSelectorTerm] = []
         for term in node_selector_terms:
-            new_node_selector_requirements: typing.List[
+            new_node_selector_requirements: list[
                 k8s_client.V1NodeSelectorRequirement
             ] = []
             for node_selector_requirement in term.match_expressions:
@@ -862,7 +860,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_tolerations(
         self,
-        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations: list[k8s_client.V1Toleration],
         tolerations_field_name: str = "tolerations",
     ):
         """
@@ -891,7 +889,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_node_selector(
         self,
-        node_selector: typing.Dict[str, str],
+        node_selector: dict[str, str],
         node_selector_field_name: str,
     ):
         """
@@ -1114,7 +1112,7 @@ class KubeResource(BaseRuntime):
 
     def set_state_thresholds(
         self,
-        state_thresholds: typing.Dict[str, str],
+        state_thresholds: dict[str, str],
         patch: bool = True,
     ):
         """
@@ -1175,9 +1173,9 @@ class KubeResource(BaseRuntime):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[k8s_client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[k8s_client.V1Toleration]] = None,
+        tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
     ):
         """
         Enables to control on which k8s node the job will run

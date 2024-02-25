@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Extra, Field
 
@@ -46,8 +46,8 @@ class Entity(BaseModel):
 
 
 class FeatureSetSpec(ObjectSpec):
-    entities: List[Entity] = []
-    features: List[Feature] = []
+    entities: list[Entity] = []
+    features: list[Feature] = []
     engine: Optional[str] = Field(default="storey")
 
 
@@ -65,7 +65,7 @@ class FeatureSet(BaseModel):
 class EntityRecord(BaseModel):
     name: str
     value_type: str
-    labels: List[LabelRecord]
+    labels: list[LabelRecord]
 
     class Config:
         orm_mode = True
@@ -74,31 +74,31 @@ class EntityRecord(BaseModel):
 class FeatureRecord(BaseModel):
     name: str
     value_type: str
-    labels: List[LabelRecord]
+    labels: list[LabelRecord]
 
     class Config:
         orm_mode = True
 
 
 class FeatureSetRecord(ObjectRecord):
-    entities: List[EntityRecord]
-    features: List[FeatureRecord]
+    entities: list[EntityRecord]
+    features: list[FeatureRecord]
 
     class Config:
         orm_mode = True
 
 
 class FeatureSetsOutput(BaseModel):
-    feature_sets: List[FeatureSet]
+    feature_sets: list[FeatureSet]
 
 
 class FeatureSetsTagsOutput(BaseModel):
-    tags: List[str] = []
+    tags: list[str] = []
 
 
 class FeatureSetDigestSpec(BaseModel):
-    entities: List[Entity]
-    features: List[Feature]
+    entities: list[Entity]
+    features: list[Feature]
 
 
 class FeatureSetDigestOutput(BaseModel):
@@ -112,7 +112,7 @@ class FeatureListOutput(BaseModel):
 
 
 class FeaturesOutput(BaseModel):
-    features: List[FeatureListOutput]
+    features: list[FeatureListOutput]
 
 
 class EntityListOutput(BaseModel):
@@ -121,7 +121,7 @@ class EntityListOutput(BaseModel):
 
 
 class EntitiesOutput(BaseModel):
-    entities: List[EntityListOutput]
+    entities: list[EntityListOutput]
 
 
 class FeatureVector(BaseModel):
@@ -140,11 +140,11 @@ class FeatureVectorRecord(ObjectRecord):
 
 
 class FeatureVectorsOutput(BaseModel):
-    feature_vectors: List[FeatureVector]
+    feature_vectors: list[FeatureVector]
 
 
 class FeatureVectorsTagsOutput(BaseModel):
-    tags: List[str] = []
+    tags: list[str] = []
 
 
 class DataSource(BaseModel):
@@ -167,7 +167,7 @@ class DataTarget(BaseModel):
 
 class FeatureSetIngestInput(BaseModel):
     source: Optional[DataSource]
-    targets: Optional[List[DataTarget]]
+    targets: Optional[list[DataTarget]]
     infer_options: Optional[int]
     credentials: Credentials = Credentials()
 

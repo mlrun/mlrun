@@ -540,8 +540,8 @@ class BaseMerger(abc.ABC):
             self,
             name: str,
             order: int,
-            left_keys: typing.List[str] = None,
-            right_keys: typing.List[str] = None,
+            left_keys: list[str] = None,
+            right_keys: list[str] = None,
         ):
             self.name = name
             self.left_keys = left_keys if left_keys is not None else []
@@ -750,8 +750,8 @@ class BaseMerger(abc.ABC):
     def _get_engine_df(
         self,
         feature_set: FeatureSet,
-        feature_set_name: typing.List[str],
-        column_names: typing.List[str] = None,
+        feature_set_name: list[str],
+        column_names: list[str] = None,
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
         time_column: typing.Optional[str] = None,
@@ -773,8 +773,8 @@ class BaseMerger(abc.ABC):
     def _rename_columns_and_select(
         self,
         df,
-        rename_col_dict: typing.Dict[str, str],
-        columns: typing.List[str] = None,
+        rename_col_dict: dict[str, str],
+        columns: list[str] = None,
     ):
         """
         rename the columns of the df according to rename_col_dict, and select only `columns` if it is not none
@@ -801,7 +801,7 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
-    def _order_by(self, order_by_active: typing.List[str]):
+    def _order_by(self, order_by_active: list[str]):
         """
         Order by `order_by_active` along all axis.
 

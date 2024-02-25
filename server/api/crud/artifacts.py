@@ -139,7 +139,7 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "",
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         since=None,
         until=None,
         kind: typing.Optional[str] = None,
@@ -148,7 +148,7 @@ class Artifacts(
         best_iteration: bool = False,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         producer_id: str = None,
-    ) -> typing.List:
+    ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
@@ -199,7 +199,7 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "latest",
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         producer_id: str = None,
     ):

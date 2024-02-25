@@ -25,7 +25,7 @@ def secret_test_function(context, secrets: list = None):
     secrets = secrets or []
     for sec_name in secrets:
         sec_value = context.get_secret(sec_name)
-        context.logger.info("Secret: {} ==> {}".format(sec_name, sec_value))
+        context.logger.info(f"Secret: {sec_name} ==> {sec_value}")
         context.log_result(sec_name, sec_value)
     return True
 

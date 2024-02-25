@@ -15,7 +15,7 @@ import abc
 import os
 from copy import deepcopy
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -439,7 +439,7 @@ with ctx:
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+    ) -> tuple[bool, Optional[datetime], Optional[str]]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         if not state:
             return False, None, None
@@ -475,7 +475,7 @@ with ctx:
         project: str,
         uid: str,
         crd_object,
-        run: Dict,
+        run: dict,
     ):
         if not run:
             logger.warning(
@@ -523,7 +523,7 @@ with ctx:
         return "spark-role=driver"
 
     @staticmethod
-    def _get_crd_info() -> Tuple[str, str, str]:
+    def _get_crd_info() -> tuple[str, str, str]:
         return (
             Spark3Runtime.group,
             Spark3Runtime.version,
@@ -535,7 +535,7 @@ with ctx:
         db: DBInterface,
         db_session: Session,
         namespace: str,
-        deleted_resources: List[Dict],
+        deleted_resources: list[dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,

@@ -14,7 +14,7 @@
 #
 import asyncio
 from http import HTTPStatus
-from typing import List, Union
+from typing import Union
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -54,12 +54,12 @@ def grafana_proxy_model_endpoints_check_connection(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.post("/search", response_model=List[str])
+@router.post("/search", response_model=list[str])
 async def grafana_proxy_model_endpoints_search(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-) -> List[str]:
+) -> list[str]:
     """
     Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -99,7 +99,7 @@ async def grafana_proxy_model_endpoints_search(
 
 @router.post(
     "/query",
-    response_model=List[
+    response_model=list[
         Union[
             mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
             mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,
@@ -109,7 +109,7 @@ async def grafana_proxy_model_endpoints_search(
 async def grafana_proxy_model_endpoints_query(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-) -> List[
+) -> list[
     Union[
         mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
         mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,

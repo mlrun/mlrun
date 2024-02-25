@@ -15,7 +15,7 @@
 import inspect
 from abc import ABCMeta
 from types import MethodType
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, Union
 
 import docstring_parser
 
@@ -51,7 +51,7 @@ class _DefaultPackagerMeta(ABCMeta):
         return super().__new__(mcls, name, bases, namespace, **kwargs)
 
     @property
-    def __doc__(cls: Type["DefaultPackager"]) -> str:
+    def __doc__(cls: type["DefaultPackager"]) -> str:
         """
         Override the `__doc__` attribute of a `DefaultPackager` to be a property in order to auto-summarize the
         packager's class docstring. The summary is concatenated after the original class doc string.
@@ -273,7 +273,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     """
 
     #: The type of object this packager can pack and unpack.
-    PACKABLE_OBJECT_TYPE: Type = ...
+    PACKABLE_OBJECT_TYPE: type = ...
 
     #: A flag for indicating whether to also pack all subclasses of the `PACKABLE_OBJECT_TYPE`.
     PACK_SUBCLASSES = False
@@ -306,7 +306,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         """
         return self.DEFAULT_UNPACKING_ARTIFACT_TYPE
 
-    def get_supported_artifact_types(self) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager.
 
@@ -326,7 +326,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         key: str = None,
         artifact_type: str = None,
         configurations: dict = None,
-    ) -> Union[Tuple[Artifact, dict], dict]:
+    ) -> Union[tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -442,7 +442,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         obj: Any,
         key: str,
         pickle_module_name: str = DEFAULT_PICKLE_MODULE,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a python object, pickling it into a pkl file and store it in an artifact.
 

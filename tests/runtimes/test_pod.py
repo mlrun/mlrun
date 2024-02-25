@@ -36,8 +36,8 @@ def test_runtimes_inheritance(method, base_classes):
     classes_map = {
         mlrun.runtimes.base.FunctionSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
-            mlrun.runtimes.function.NuclioSpec,
-            mlrun.runtimes.serving.ServingSpec,
+            mlrun.runtimes.nuclio.function.NuclioSpec,
+            mlrun.runtimes.nuclio.serving.ServingSpec,
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
@@ -45,25 +45,25 @@ def test_runtimes_inheritance(method, base_classes):
         ],
         mlrun.runtimes.pod.KubeResourceSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
-            mlrun.runtimes.function.NuclioSpec,
-            mlrun.runtimes.serving.ServingSpec,
+            mlrun.runtimes.nuclio.function.NuclioSpec,
+            mlrun.runtimes.nuclio.serving.ServingSpec,
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
-        mlrun.runtimes.function.NuclioSpec: [
-            mlrun.runtimes.serving.ServingSpec,
+        mlrun.runtimes.nuclio.function.NuclioSpec: [
+            mlrun.runtimes.nuclio.serving.ServingSpec,
         ],
         mlrun.runtimes.base.FunctionStatus: [
             mlrun.runtimes.daskjob.DaskStatus,
-            mlrun.runtimes.function.NuclioStatus,
+            mlrun.runtimes.nuclio.function.NuclioStatus,
         ],
         mlrun.runtimes.base.BaseRuntime: [
             mlrun.runtimes.local.HandlerRuntime,
             mlrun.runtimes.local.BaseRuntime,
-            mlrun.runtimes.function.RemoteRuntime,
-            mlrun.runtimes.serving.ServingRuntime,
+            mlrun.runtimes.nuclio.function.RemoteRuntime,
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
             mlrun.runtimes.kubejob.KubejobRuntime,
             mlrun.runtimes.daskjob.DaskCluster,
             mlrun.runtimes.mpijob.v1.MpiRuntimeV1,

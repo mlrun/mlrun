@@ -15,13 +15,14 @@
 import datetime
 import typing
 import unittest.mock
+from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Generator
 
 import deepdiff
 import httpx
 import kfp
 import pytest
+import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
@@ -347,6 +348,7 @@ class MockedProjectFollowerIguazioClient(
 ):
     def __init__(self):
         self._db_session = None
+        self._unversioned_client = None
 
     def create_project(
         self,
@@ -372,15 +374,27 @@ class MockedProjectFollowerIguazioClient(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
-        raise mlrun.errors.MLRunNotFoundError("Project not found")
+        api_version = "v2"
+        igz_version = mlrun.mlconf.get_parsed_igz_version()
+        if igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
+            api_version = "v1"
+
+        self._unversioned_client.delete(
+            f"{api_version}/projects/{name}",
+            headers={
+                mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader,
+                mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy,
+            },
+        )
+
+        # Mock waiting for completion in iguazio (return False to indicate 'not running in background')
+        return False
 
     def list_projects(
         self,
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> typing.Tuple[
-        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
-    ]:
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         return [], None
 
     def get_project(
@@ -404,7 +418,9 @@ class MockedProjectFollowerIguazioClient(
 
 
 @pytest.fixture()
-def mock_project_leader_iguazio_client(db: sqlalchemy.orm.Session):
+def mock_project_follower_iguazio_client(
+    db: sqlalchemy.orm.Session, unversioned_client: TestClient
+):
     """
     This fixture mocks the project leader iguazio client.
     """
@@ -413,8 +429,10 @@ def mock_project_leader_iguazio_client(db: sqlalchemy.orm.Session):
     old_iguazio_client = server.api.utils.clients.iguazio.Client
     server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
     server.api.utils.singletons.project_member.initialize_project_member()
-    MockedProjectFollowerIguazioClient()._db_session = db
+    iguazio_client = MockedProjectFollowerIguazioClient()
+    iguazio_client._db_session = db
+    iguazio_client._unversioned_client = unversioned_client
 
-    yield
+    yield iguazio_client
 
     server.api.utils.clients.iguazio.Client = old_iguazio_client

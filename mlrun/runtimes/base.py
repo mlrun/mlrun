@@ -18,7 +18,7 @@ import typing
 import warnings
 from base64 import b64encode
 from os import environ
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
@@ -218,7 +218,7 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
-    def set_categories(self, categories: List[str]):
+    def set_categories(self, categories: list[str]):
         self.metadata.categories = mlrun.utils.helpers.as_list(categories)
 
     @property
@@ -292,7 +292,7 @@ class BaseRuntime(ModelObj):
             mlrun.model.Credentials.generate_access_key
         )
 
-    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> List[Dict]:
+    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> list[dict]:
         """
         Prepares a runtime environment as it's expected by kubernetes.models.V1Container
 
@@ -313,23 +313,23 @@ class BaseRuntime(ModelObj):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[Dict[str, list]] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -426,7 +426,7 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject = None) -> Dict:
+    def _generate_runtime_env(self, runobj: RunObject = None) -> dict:
         """
         Prepares all available environment variables for usage on a runtime
         Data will be extracted from several sources and most of them are not guaranteed to be available
@@ -661,7 +661,7 @@ class BaseRuntime(ModelObj):
         use_db=True,
         verbose=None,
         scrape_metrics=False,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
         auto_build: bool = False,
     ):
         """Run a local or remote task.
@@ -767,7 +767,7 @@ class BaseRuntime(ModelObj):
                     body = fp.read()
             if self.kind == mlrun.runtimes.RuntimeKinds.serving:
                 body = body + mlrun_footer.format(
-                    mlrun.runtimes.serving.serving_subkind
+                    mlrun.runtimes.nuclio.serving.serving_subkind
                 )
 
         self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
@@ -779,7 +779,7 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[List[str]] = None,
+        requirements: Optional[list[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
         requirements_file: str = "",
@@ -801,7 +801,7 @@ class BaseRuntime(ModelObj):
 
     def with_commands(
         self,
-        commands: List[str],
+        commands: list[str],
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
     ):

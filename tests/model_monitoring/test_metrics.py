@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-from typing import Type
 
 import numpy as np
 import pytest
@@ -87,7 +86,7 @@ from mlrun.model_monitoring.batch import (
     ),
 )
 def test_histogram_metric_calculation(
-    metric_class: Type[HistogramDistanceMetric],
+    metric_class: type[HistogramDistanceMetric],
     distrib_u: np.ndarray,
     distrib_t: np.ndarray,
     expected_result: float,
@@ -123,7 +122,7 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
 )
 @pytest.mark.filterwarnings("error")
 def test_same_distrib_gives_zero_distance(
-    metric_class: Type[HistogramDistanceMetric], distrib: np.ndarray
+    metric_class: type[HistogramDistanceMetric], distrib: np.ndarray
 ) -> None:
     return test_histogram_metric_calculation(
         metric_class=metric_class,

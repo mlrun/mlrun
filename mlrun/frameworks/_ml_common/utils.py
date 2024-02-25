@@ -14,7 +14,7 @@
 #
 from abc import ABC
 from enum import Enum
-from typing import Callable, List, Tuple, Union
+from typing import Callable, Union
 
 import pandas as pd
 from sklearn.base import is_classifier, is_regressor
@@ -137,10 +137,10 @@ class MLTypes(CommonTypes, ABC):
     # of the function and the full module path to the function to import. Arguments to use when calling the metric can
     # be joined by wrapping it as a tuple:
     # TODO: will be moved to SKLearn's framework once LightGBM and XGBoost are fully supported.
-    MetricEntryType = Union[Tuple[Union[Callable, str], dict], Callable, str]
+    MetricEntryType = Union[tuple[Union[Callable, str], dict], Callable, str]
 
     # Type for the target column name - a list of indices or column names that are the ground truth (y) of a dataset.
-    TargetColumnsNamesType = Union[List[str], List[int]]
+    TargetColumnsNamesType = Union[list[str], list[int]]
 
 
 class MLUtils(CommonUtils, ABC):
@@ -154,7 +154,7 @@ class MLUtils(CommonUtils, ABC):
         y: CommonTypes.DatasetType = None,
         target_columns_names: MLTypes.TargetColumnsNamesType = None,
         default_target_column_prefix: str = "y_",
-    ) -> Tuple[pd.DataFrame, Union[MLTypes.TargetColumnsNamesType, None]]:
+    ) -> tuple[pd.DataFrame, Union[MLTypes.TargetColumnsNamesType, None]]:
         """
         Concatenating the provided x and y data into a single pd.DataFrame, casting from np.ndarray and renaming y's
         original columns if 'y_columns' was not provided. The concatenated dataset index level will be reset to 0

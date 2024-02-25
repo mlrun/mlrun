@@ -75,7 +75,7 @@ class ThresholdStates:
         ]
 
     @staticmethod
-    def from_pod_phase(pod_phase: str, pod: typing.Dict) -> typing.Optional[str]:
+    def from_pod_phase(pod_phase: str, pod: dict) -> typing.Optional[str]:
         if pod_phase == PodPhases.pending:
             if ThresholdStates.is_pod_in_image_pull_backoff(pod):
                 return ThresholdStates.image_pull_backoff
@@ -90,7 +90,7 @@ class ThresholdStates:
         return None
 
     @staticmethod
-    def is_pod_scheduled(pod: typing.Dict):
+    def is_pod_scheduled(pod: dict):
         conditions = pod["status"].get("conditions", []) or []
         for condition in conditions:
             if condition["type"] == "PodScheduled" and condition["status"] == "True":
@@ -98,7 +98,7 @@ class ThresholdStates:
         return False
 
     @staticmethod
-    def is_pod_in_image_pull_backoff(pod: typing.Dict):
+    def is_pod_in_image_pull_backoff(pod: dict):
         container_statuses = pod.get("status").get("container_statuses", []) or []
         for container_status in container_statuses:
             state_waiting = container_status.get("state", {}).get("waiting", {}) or {}
@@ -107,7 +107,7 @@ class ThresholdStates:
         return False
 
 
-class MPIJobCRDVersions(object):
+class MPIJobCRDVersions:
     v1 = "v1"
     v1alpha1 = "v1alpha1"
 
@@ -127,7 +127,7 @@ class MPIJobCRDVersions(object):
         }[version]
 
 
-class RunStates(object):
+class RunStates:
     completed = "completed"
     error = "error"
     running = "running"

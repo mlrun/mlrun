@@ -22,6 +22,7 @@ from kubernetes.client.rest import ApiException
 import mlrun
 import mlrun.common.schemas
 import mlrun.common.secrets
+import mlrun.common.secrets as mlsecrets
 import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
@@ -68,7 +69,7 @@ class SecretTypes:
     v3io_fuse = "v3io/fuse"
 
 
-class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
+class K8sHelper(mlsecrets.SecretProviderInterface):
     def __init__(self, namespace=None, silent=False, log=True):
         self.namespace = namespace or mlrun.mlconf.namespace
         self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
@@ -207,7 +208,15 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
 
-    def delete_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+    def delete_crd(
+        self,
+        name,
+        crd_group,
+        crd_version,
+        crd_plural,
+        namespace=None,
+        grace_period_seconds=None,
+    ):
         try:
             namespace = self.resolve_namespace(namespace)
             self.crdapi.delete_namespaced_custom_object(
@@ -216,6 +225,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 namespace,
                 crd_plural,
                 name,
+                grace_period_seconds=grace_period_seconds,
             )
             logger.info(
                 "Deleted crd object",
@@ -392,7 +402,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             secret_data,
             namespace,
             type_=SecretTypes.v3io_fuse,
-            labels={"mlrun/username": username},
+            labels=self._resolve_secret_labels(username),
             retry_on_conflict=True,
         )
         return secret_name, action
@@ -578,6 +588,18 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
         return results
 
+    def _resolve_secret_labels(self, username):
+        if not username:
+            return {}
+        labels = {
+            "mlrun/username": username,
+        }
+        if "@" in username:
+            username, domain = username.split("@")
+            labels["mlrun/username"] = username
+            labels["mlrun/username_domain"] = domain
+        return labels
+
 
 class BasePod:
     def __init__(
@@ -699,7 +721,7 @@ class BasePod:
             sub_path=sub_path,
         )
 
-    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+    def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
 
     def _get_spec(self, template=False):

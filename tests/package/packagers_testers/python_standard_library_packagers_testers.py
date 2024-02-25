@@ -16,7 +16,6 @@ import ast
 import os
 import pathlib
 import tempfile
-from typing import Tuple
 
 from mlrun import MLClientCtx
 from mlrun.package.packagers.python_standard_library_packagers import (
@@ -252,7 +251,7 @@ def unpack_str(obj: str):
 
 def unpack_str_path_file(obj: str):
     assert isinstance(obj, str)
-    with open(obj, "r") as file:
+    with open(obj) as file:
         file_content = file.read()
     assert file_content == _STR_FILE_SAMPLE
 
@@ -260,12 +259,12 @@ def unpack_str_path_file(obj: str):
 def unpack_str_path_directory(obj: str):
     assert isinstance(obj, str)
     for i in range(5):
-        with open(os.path.join(obj, f"file_{i}.txt"), "r") as file:
+        with open(os.path.join(obj, f"file_{i}.txt")) as file:
             file_content = file.read()
         assert file_content == _STR_DIRECTORY_FILES_SAMPLE.format(i)
 
 
-def prepare_str_path_file() -> Tuple[str, str]:
+def prepare_str_path_file() -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, "my_file.txt")
     with open(file_path, "w") as file:
@@ -345,7 +344,7 @@ def validate_dict_result(result: dict) -> bool:
     return result == _DICT_SAMPLE
 
 
-def prepare_dict_file(file_format: str) -> Tuple[str, str]:
+def prepare_dict_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -421,7 +420,7 @@ def validate_list_result(result: list) -> bool:
     return result == _LIST_SAMPLE
 
 
-def prepare_list_file(file_format: str) -> Tuple[str, str]:
+def prepare_list_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -498,7 +497,7 @@ def validate_tuple_result(result: list) -> bool:
     return tuple(result) == _TUPLE_SAMPLE
 
 
-def prepare_tuple_file(file_format: str) -> Tuple[str, str]:
+def prepare_tuple_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -575,7 +574,7 @@ def validate_set_result(result: list) -> bool:
     return set(result) == _SET_SAMPLE
 
 
-def prepare_set_file(file_format: str) -> Tuple[str, str]:
+def prepare_set_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -652,7 +651,7 @@ def validate_frozenset_result(result: list) -> bool:
     return frozenset(result) == _FROZENSET_SAMPLE
 
 
-def prepare_frozenset_file(file_format: str) -> Tuple[str, str]:
+def prepare_frozenset_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -729,7 +728,7 @@ def validate_bytearray_result(result: str) -> bool:
     return bytearray(ast.literal_eval(result)) == _BYTEARRAY_SAMPLE
 
 
-def prepare_bytearray_file(file_format: str) -> Tuple[str, str]:
+def prepare_bytearray_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -806,7 +805,7 @@ def validate_bytes_result(result: str) -> bool:
     return ast.literal_eval(result) == _BYTES_SAMPLE
 
 
-def prepare_bytes_file(file_format: str) -> Tuple[str, str]:
+def prepare_bytes_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -905,7 +904,7 @@ def unpack_path(obj: pathlib.Path):
 
 def unpack_path_file(obj: pathlib.Path):
     assert isinstance(obj, pathlib.Path)
-    with open(obj, "r") as file:
+    with open(obj) as file:
         file_content = file.read()
     assert file_content == _STR_FILE_SAMPLE
 
@@ -913,7 +912,7 @@ def unpack_path_file(obj: pathlib.Path):
 def unpack_path_directory(obj: pathlib.Path):
     assert isinstance(obj, pathlib.Path)
     for i in range(5):
-        with open(obj / f"file_{i}.txt", "r") as file:
+        with open(obj / f"file_{i}.txt") as file:
             file_content = file.read()
         assert file_content == _STR_DIRECTORY_FILES_SAMPLE.format(i)
 

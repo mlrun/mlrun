@@ -70,9 +70,7 @@ def store_path_to_spark(path, spark_options=None):
     return path
 
 
-def parse_kafka_url(
-    url: str, bootstrap_servers: typing.List = None
-) -> typing.Tuple[str, typing.List]:
+def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
@@ -157,7 +155,7 @@ def _execute_time_filter(
 
 def select_columns_from_df(
     df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    columns: typing.List[str],
+    columns: list[str],
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not columns:
         return df
@@ -169,7 +167,7 @@ def select_columns_from_df(
 
 def select_columns_generator(
     dfs: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    columns: typing.List[str],
+    columns: list[str],
 ) -> typing.Iterator[pd.DataFrame]:
     for df in dfs:
         yield df[columns]
@@ -179,7 +177,7 @@ def _generate_sql_query_with_time_filter(
     table_name: str,
     engine: "sqlalchemy.engine.Engine",  # noqa: F821,
     time_column: str,
-    parse_dates: typing.List[str],
+    parse_dates: list[str],
     start_time: pd.Timestamp,
     end_time: pd.Timestamp,
 ):

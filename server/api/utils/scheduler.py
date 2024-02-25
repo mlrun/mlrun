@@ -18,7 +18,7 @@ import json
 import traceback
 import typing
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import fastapi.concurrency
 import humanfriendly
@@ -111,9 +111,9 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds,
-        scheduled_object: Union[Dict, Callable],
+        scheduled_object: Union[dict, Callable],
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger],
-        labels: Dict = None,
+        labels: dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
@@ -186,9 +186,9 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
-        scheduled_object: Union[Dict, Callable] = None,
+        scheduled_object: Union[dict, Callable] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Dict = None,
+        labels: dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
@@ -311,9 +311,9 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds = None,
-        scheduled_object: Union[Dict, Callable] = None,
+        scheduled_object: Union[dict, Callable] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Dict = None,
+        labels: dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
@@ -439,7 +439,7 @@ class Scheduler:
         session: Session,
         project: str,
         identifier: mlrun.common.schemas.ScheduleIdentifier,
-        notifications: List[mlrun.model.Notification],
+        notifications: list[mlrun.model.Notification],
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
         """
@@ -614,7 +614,7 @@ class Scheduler:
 
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
-    ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
+    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
         schedule_access_key_secret_key = (
             server.api.crud.Secrets().generate_client_project_secret_key(
                 server.api.crud.SecretsClientType.schedules,
@@ -938,7 +938,7 @@ class Scheduler:
         schedule_name: str,
         schedule_concurrency_limit: int,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
+    ) -> tuple[Callable, Optional[Union[list, tuple]], Optional[dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
@@ -977,7 +977,7 @@ class Scheduler:
 
     @staticmethod
     def _enrich_schedule_notifications(
-        project: str, schedule_name: str, scheduled_object: Union[Dict, Callable]
+        project: str, schedule_name: str, scheduled_object: Union[dict, Callable]
     ):
         if not isinstance(scheduled_object, dict):
             return

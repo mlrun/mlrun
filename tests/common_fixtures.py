@@ -21,13 +21,15 @@ from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+import v3io.dataplane.object
+import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.schemas
@@ -43,7 +45,7 @@ import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
-from mlrun.runtimes.function import NuclioStatus
+from mlrun.runtimes.nuclio.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
@@ -62,14 +64,14 @@ def config_test_base():
 
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
-    environ["MLRUN_httpdb__dirpath"] = rundb_path
-    environ["MLRUN_httpdb__logs_path"] = logs_path
-    environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
-    environ["MLRUN_httpdb__projects__counters_cache_ttl"] = "0 seconds"
+    environ["MLRUN_HTTPDB__DIRPATH"] = rundb_path
+    environ["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    environ["MLRUN_HTTPDB__PROJECTS__PERIODIC_SYNC_INTERVAL"] = "0 seconds"
+    environ["MLRUN_HTTPDB__PROJECTS__COUNTERS_CACHE_TTL"] = "0 seconds"
     environ["MLRUN_EXEC_CONFIG"] = ""
     global_context.set(None)
     log_level = "DEBUG"
-    environ["MLRUN_log_level"] = log_level
+    environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 
@@ -139,12 +141,27 @@ def chdir_to_test_location(request):
 
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
             self.container = self
 
         def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
 
@@ -155,12 +172,27 @@ def patch_file_forbidden(monkeypatch):
 
 @pytest.fixture
 def patch_file_not_found(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
             self.container = self
 
         def list(self, *args, **kwargs):
             raise FileNotFoundError
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
 
@@ -272,9 +304,9 @@ class RunDBMock:
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,

@@ -14,7 +14,6 @@
 #
 import asyncio
 import http
-import typing
 import unittest.mock
 
 import deepdiff
@@ -456,8 +455,8 @@ def test_delete_runtime_resources_with_object_id(
 
 def _mock_runtime_handlers_delete_resources(
     monkeypatch,
-    kinds: typing.List[str],
-    allowed_projects: typing.List[str],
+    kinds: list[str],
+    allowed_projects: list[str],
 ):
     def _assert_delete_resources_label_selector(
         db,
@@ -668,7 +667,7 @@ def _mock_opa_filter_and_assert_list_response(
 
 
 def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
-    allowed_projects: typing.List[str],
+    allowed_projects: list[str],
     filter_kind: str,
     grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
@@ -701,7 +700,7 @@ def _filter_kind_from_grouped_by_project_runtime_resources_output(
 
 
 def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-    allowed_projects: typing.List[str],
+    allowed_projects: list[str],
     grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
 ):

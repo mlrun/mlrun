@@ -38,7 +38,7 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_filename = here / "test.txt"
-with open(test_filename, "r") as f:
+with open(test_filename) as f:
     test_string = f.read()
 
 # Used to test dataframe functionality (will be saved as csv)

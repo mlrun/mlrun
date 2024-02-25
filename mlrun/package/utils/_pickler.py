@@ -19,7 +19,7 @@ import sys
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Union
 
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
@@ -35,7 +35,7 @@ class Pickler:
     @staticmethod
     def pickle(
         obj: Any, pickle_module_name: str, output_path: str = None
-    ) -> Tuple[str, Dict[str, Union[str, None]]]:
+    ) -> tuple[str, dict[str, Union[str, None]]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
 

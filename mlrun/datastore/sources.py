@@ -17,7 +17,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import pandas as pd
 import semver
@@ -27,9 +27,9 @@ from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
 import mlrun
+from mlrun.config import config
 from mlrun.secrets import SecretsStore
 
-from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
@@ -170,10 +170,10 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         schedule: str = None,
-        parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        parse_dates: Union[None, int, str, list[int], list[str]] = None,
         **kwargs,
     ):
         super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
@@ -299,7 +299,7 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -800,7 +800,7 @@ class OnlineSource(BaseSourceDriver):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         workers: int = None,
@@ -812,16 +812,11 @@ class OnlineSource(BaseSourceDriver):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
-        source_class = (
-            storey.AsyncEmitSource
-            if config.datastore.async_source_mode == "enabled"
-            else storey.SyncEmitSource
-        )
         source_args = self.attributes.get("source_args", {})
         explicit_ack = (
             is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
         )
-        src_class = source_class(
+        src_class = storey.AsyncEmitSource(
             context=context,
             key_field=self.key_field or key_field,
             full_event=True,
@@ -848,8 +843,6 @@ class HttpSource(OnlineSource):
 
 
 class StreamSource(OnlineSource):
-    """Sets stream source for the flow. If stream doesn't exist it will create it"""
-
     kind = "v3ioStream"
 
     def __init__(
@@ -863,7 +856,7 @@ class StreamSource(OnlineSource):
         **kwargs,
     ):
         """
-        Sets stream source for the flow. If stream doesn't exist it will create it
+        Sets the stream source for the flow. If the stream doesn't exist it will create it.
 
         :param name: stream name. Default "stream"
         :param group: consumer group. Default "serving"
@@ -900,7 +893,7 @@ class StreamSource(OnlineSource):
             engine = function.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
-            kwargs["workerAllocationMode"] = "static"
+            kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
             self.path,
@@ -915,8 +908,6 @@ class StreamSource(OnlineSource):
 
 
 class KafkaSource(OnlineSource):
-    """Sets kafka source for the flow"""
-
     kind = "kafka"
 
     def __init__(
@@ -989,8 +980,12 @@ class KafkaSource(OnlineSource):
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                "workerAllocationMode", "static"
+                "worker_allocation_mode", "static"
             )
+
+        trigger_kwargs = {}
+        if "max_workers" in extra_attributes:
+            trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
@@ -1000,7 +995,7 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
-            max_workers=extra_attributes.pop("max_workers", 4),
+            **trigger_kwargs,
         )
         function = function.add_trigger("kafka", trigger)
 
@@ -1043,7 +1038,7 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        parse_dates: List[str] = None,
+        parse_dates: list[str] = None,
         **kwargs,
     ):
         """

@@ -15,7 +15,7 @@
 import os
 import uuid
 from copy import deepcopy
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 import yaml
@@ -45,7 +45,7 @@ from .utils import (
 )
 
 
-class MLClientCtx(object):
+class MLClientCtx:
     """ML Execution Client Context
 
     The context is generated and injected to the function using the ``function.run()``
@@ -738,8 +738,8 @@ class MLClientCtx(object):
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
+        inputs: list[Feature] = None,
+        outputs: list[Feature] = None,
         feature_vector: str = None,
         feature_weights: list = None,
         training_set=None,

@@ -195,7 +195,7 @@ class StoreManager:
         store_key = f"{schema}://{endpoint}"
 
         if schema == "ds":
-            datastore_profile = datastore_profile_read(url, project_name)
+            datastore_profile = datastore_profile_read(url, project_name, secrets)
             if secrets and datastore_profile.secrets():
                 secrets = merge(secrets, datastore_profile.secrets())
             else:

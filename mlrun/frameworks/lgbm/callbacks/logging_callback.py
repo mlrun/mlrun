@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import List
 
 from ..._ml_common.loggers import Logger
 from ..utils import LGBMTypes
@@ -26,8 +25,8 @@ class LoggingCallback(Callback):
 
     def __init__(
         self,
-        dynamic_hyperparameters: List[str] = None,
-        static_hyperparameters: List[str] = None,
+        dynamic_hyperparameters: list[str] = None,
+        static_hyperparameters: list[str] = None,
     ):
         """
         Initialize the logging callback with the given configuration. All the metrics data will be collected but the
@@ -41,7 +40,7 @@ class LoggingCallback(Callback):
                                         The parameter expects a list of all the hyperparameters names to track our of
                                         the `params` dictionary.
         """
-        super(LoggingCallback, self).__init__()
+        super().__init__()
         self._logger = Logger()
         self._dynamic_hyperparameters_keys = (
             dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
@@ -76,7 +75,7 @@ class LoggingCallback(Callback):
         self._log_hyperparameters(parameters=env.params)
 
     def _log_results(
-        self, evaluation_result_list: List[LGBMTypes.EvaluationResultType]
+        self, evaluation_result_list: list[LGBMTypes.EvaluationResultType]
     ):
         """
         Log the callback environment results data into the logger.

@@ -59,9 +59,7 @@ class Provider(
         )
 
         # owner id -> allowed project -> ttl
-        self._allowed_project_owners_cache: typing.Dict[
-            str, typing.Dict[str, datetime]
-        ] = {}
+        self._allowed_project_owners_cache: dict[str, dict[str, datetime]] = {}
 
     async def query_permissions(
         self,
@@ -112,11 +110,11 @@ class Provider(
 
     async def filter_by_permissions(
         self,
-        resources: typing.List,
+        resources: list,
         opa_resource_extractor: typing.Callable,
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> typing.List:
+    ) -> list:
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.common.schemas.AuthorizationAction.store:
             raise NotImplementedError("Store action is not supported in filtering")
@@ -251,7 +249,7 @@ class Provider(
 
     @staticmethod
     def _generate_filter_request_body(
-        resources: typing.List[str],
+        resources: list[str],
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> dict:

@@ -19,7 +19,6 @@ import json
 import logging
 import os
 import subprocess
-from typing import List
 
 import click
 import coloredlogs
@@ -33,8 +32,8 @@ logger = logging.getLogger("mlrun-patch")
 coloredlogs.install(level=log_level, logger=logger, fmt=fmt)
 
 
-class MLRunPatcher(object):
-    class Consts(object):
+class MLRunPatcher:
+    class Consts:
         mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD", "DOCKER_REGISTRY"}
         api_container = "mlrun-api"
         log_collector_container = "mlrun-log-collector"
@@ -422,7 +421,7 @@ class MLRunPatcher(object):
                 "scale",
                 "deploy",
                 "mlrun-api-worker",
-                "--replicas={}".format(curr_worker_replicas),
+                f"--replicas={curr_worker_replicas}",
             ],
         )
 
@@ -442,14 +441,13 @@ class MLRunPatcher(object):
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
-        for line in proc.stdout:
-            yield line
+        yield from proc.stdout
         proc.stdout.close()
         ret_code = proc.wait()
         if ret_code:
             raise subprocess.CalledProcessError(ret_code, cmd)
 
-    def _exec_local(self, cmd: List[str], live=False) -> str:
+    def _exec_local(self, cmd: list[str], live=False) -> str:
         logger.debug("Exec local: %s", " ".join(cmd))
         buf = io.StringIO()
         for line in self._execute_local_proc_interactive(cmd):
@@ -459,7 +457,7 @@ class MLRunPatcher(object):
         output = buf.getvalue()
         return output
 
-    def _exec_remote(self, cmd: List[str], live=False) -> str:
+    def _exec_remote(self, cmd: list[str], live=False) -> str:
         cmd_str = " ".join(cmd)
 
         logger.debug("Exec remote: %s", cmd_str)

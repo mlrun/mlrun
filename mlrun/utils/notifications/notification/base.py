@@ -23,7 +23,7 @@ class NotificationBase:
     def __init__(
         self,
         name: str = None,
-        params: typing.Dict[str, str] = None,
+        params: dict[str, str] = None,
     ):
         self.name = name
         self.params = params or {}
@@ -49,7 +49,7 @@ class NotificationBase:
 
     def load_notification(
         self,
-        params: typing.Dict[str, str],
+        params: dict[str, str],
     ) -> None:
         self.params = params or {}
 

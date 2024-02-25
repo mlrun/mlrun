@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import sqlalchemy.orm
 
@@ -90,9 +89,9 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "",
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         hash_key: str = "",
-    ) -> typing.List:
+    ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []

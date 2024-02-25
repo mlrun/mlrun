@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import List
 
 from .._common.artifacts_library import ArtifactsLibrary, Plan
 from .plans import (
@@ -47,7 +46,7 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
     @classmethod
     def default(
         cls, model: MLTypes.ModelType, y: MLTypes.DatasetType = None, *args, **kwargs
-    ) -> List[Plan]:
+    ) -> list[Plan]:
         """
         Get the default artifacts plans list of this framework's library.
 

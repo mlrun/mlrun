@@ -22,7 +22,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from os import environ
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import pydantic.error_wrappers
 
@@ -590,7 +590,7 @@ class ImageBuilder(ModelObj):
 
     def with_commands(
         self,
-        commands: List[str],
+        commands: list[str],
         overwrite: bool = False,
     ):
         """add commands to build spec.
@@ -617,7 +617,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[List[str]] = None,
+        requirements: Optional[list[str]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -650,7 +650,7 @@ class ImageBuilder(ModelObj):
 
         # handle the requirements_file argument
         if requirements_file:
-            with open(requirements_file, "r") as fp:
+            with open(requirements_file) as fp:
                 requirements_to_resolve.extend(fp.read().splitlines())
 
         # handle the requirements argument
@@ -729,7 +729,7 @@ class Notification(ModelObj):
             )
 
     @staticmethod
-    def validate_notification_uniqueness(notifications: List["Notification"]):
+    def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""
         names = [notification.name for notification in notifications]
         if len(names) != len(set(names)):
@@ -912,7 +912,7 @@ class RunSpec(ModelObj):
         return param_file or self.hyperparams
 
     @property
-    def inputs(self) -> Dict[str, str]:
+    def inputs(self) -> dict[str, str]:
         """
         Get the inputs dictionary. A dictionary of parameter names as keys and paths as values.
 
@@ -921,7 +921,7 @@ class RunSpec(ModelObj):
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: Dict[str, str]):
+    def inputs(self, inputs: dict[str, str]):
         """
         Set the given inputs in the spec. Inputs can include a type hint string in their keys following a colon, meaning
         following this structure: "<input key : type hint>".
@@ -944,7 +944,7 @@ class RunSpec(ModelObj):
         self._inputs = self._verify_dict(inputs, "inputs")
 
     @property
-    def inputs_type_hints(self) -> Dict[str, str]:
+    def inputs_type_hints(self) -> dict[str, str]:
         """
         Get the input type hints. A dictionary of parameter names as keys and their type hints as values.
 
@@ -953,7 +953,7 @@ class RunSpec(ModelObj):
         return self._inputs_type_hints
 
     @inputs_type_hints.setter
-    def inputs_type_hints(self, inputs_type_hints: Dict[str, str]):
+    def inputs_type_hints(self, inputs_type_hints: dict[str, str]):
         """
         Set the inputs type hints to parse during a run.
 
@@ -974,7 +974,7 @@ class RunSpec(ModelObj):
         return self._returns
 
     @returns.setter
-    def returns(self, returns: List[Union[str, Dict[str, str]]]):
+    def returns(self, returns: list[Union[str, dict[str, str]]]):
         """
         Set the returns list to log the returning values at the end of a run.
 
@@ -1008,7 +1008,7 @@ class RunSpec(ModelObj):
         )
 
     @property
-    def outputs(self) -> List[str]:
+    def outputs(self) -> list[str]:
         """
         Get the expected outputs. The list is constructed from keys of both the `outputs` and `returns` properties.
 
@@ -1073,7 +1073,7 @@ class RunSpec(ModelObj):
         return self._state_thresholds
 
     @state_thresholds.setter
-    def state_thresholds(self, state_thresholds: Dict[str, str]):
+    def state_thresholds(self, state_thresholds: dict[str, str]):
         """
         Set the dictionary of k8s resource states to thresholds time strings.
         The state will be matched against the pod's status. The threshold should be a time string that conforms
@@ -1125,8 +1125,8 @@ class RunSpec(ModelObj):
 
     @staticmethod
     def join_outputs_and_returns(
-        outputs: List[str], returns: List[Union[str, Dict[str, str]]]
-    ) -> List[str]:
+        outputs: list[str], returns: list[Union[str, dict[str, str]]]
+    ) -> list[str]:
         """
         Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
         that were set by the user.
@@ -1157,7 +1157,7 @@ class RunSpec(ModelObj):
         return outputs
 
     @staticmethod
-    def _separate_type_hint_from_input_key(input_key: str) -> Tuple[str, str]:
+    def _separate_type_hint_from_input_key(input_key: str) -> tuple[str, str]:
         """
         An input key in the `inputs` dictionary parameter of a task (or `Runtime.run` method) or the docs setting of a
         `Runtime` handler can be provided with a colon to specify its type hint in the following structure:
@@ -1201,7 +1201,7 @@ class RunStatus(ModelObj):
         iterations=None,
         ui_url=None,
         reason: str = None,
-        notifications: Dict[str, Notification] = None,
+        notifications: dict[str, Notification] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1446,7 +1446,7 @@ class RunObject(RunTemplate):
         """UI URL (for relevant runtimes)"""
         self.refresh()
         if not self._status.ui_url:
-            print("UI currently not available (status={})".format(self._status.state))
+            print(f"UI currently not available (status={self._status.state})")
         return self._status.ui_url
 
     @property
@@ -1609,7 +1609,7 @@ class RunObject(RunTemplate):
         return f"{project}@{uid}#{iteration}{tag}"
 
     @staticmethod
-    def parse_uri(uri: str) -> Tuple[str, str, str, str]:
+    def parse_uri(uri: str) -> tuple[str, str, str, str]:
         uri_pattern = (
             r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
         )
@@ -1830,7 +1830,7 @@ class DataSource(ModelObj):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -1896,16 +1896,16 @@ class DataTargetBase(ModelObj):
         kind: str = None,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: Dict[str, str] = None,
-        schema: Dict[str, Any] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
         credentials_prefix=None,
     ):
         self.name = name
@@ -1992,8 +1992,8 @@ class VersionedObjMetadata(ModelObj):
         tag: str = None,
         uid: str = None,
         project: str = None,
-        labels: Dict[str, str] = None,
-        annotations: Dict[str, str] = None,
+        labels: dict[str, str] = None,
+        annotations: dict[str, str] = None,
         updated=None,
     ):
         self.name = name

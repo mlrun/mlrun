@@ -1,3 +1,4 @@
+(project-setup)=
 # MLRun project bootstrapping with `project_setup.py`
 
 ## Overview

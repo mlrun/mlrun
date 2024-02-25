@@ -185,9 +185,7 @@ class Client(
         response_json = response.json()
         return response_json["data"]["attributes"]["uid"]
 
-    def get_or_create_access_key(
-        self, session: str, planes: typing.List[str] = None
-    ) -> str:
+    def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
         if planes is None:
             planes = [
                 SessionPlanes.data,
@@ -294,9 +292,7 @@ class Client(
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
         page_size: typing.Optional[int] = None,
-    ) -> typing.Tuple[
-        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
-    ]:
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         project_names, latest_updated_at = self._list_project_names(
             session, updated_after, page_size
         )
@@ -401,7 +397,7 @@ class Client(
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
         page_size: typing.Optional[int] = None,
-    ) -> typing.Tuple[typing.List[str], typing.Optional[datetime.datetime]]:
+    ) -> tuple[list[str], typing.Optional[datetime.datetime]]:
         params = {}
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
@@ -433,8 +429,8 @@ class Client(
         return project_names, latest_updated_at
 
     def _list_projects_data(
-        self, session: str, project_names: typing.List[str]
-    ) -> typing.List[mlrun.common.schemas.Project]:
+        self, session: str, project_names: list[str]
+    ) -> list[mlrun.common.schemas.Project]:
         return [
             self._get_project_from_iguazio(session, project_name)
             for project_name in project_names
@@ -526,7 +522,7 @@ class Client(
         session: str,
         body: dict,
         **kwargs,
-    ) -> typing.Tuple[mlrun.common.schemas.Project, str]:
+    ) -> tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
             "POST",
             "projects",
@@ -694,7 +690,7 @@ class Client(
     @staticmethod
     def _resolve_params_from_response_body(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> typing.Tuple[typing.Optional[str], typing.Optional[typing.List[str]]]:
+    ) -> tuple[typing.Optional[str], typing.Optional[list[str]]]:
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}
         )
@@ -768,7 +764,7 @@ class Client(
     @staticmethod
     def _transform_mlrun_labels_to_iguazio_labels(
         mlrun_labels: dict,
-    ) -> typing.List[dict]:
+    ) -> list[dict]:
         iguazio_labels = []
         for label_key, label_value in mlrun_labels.items():
             iguazio_labels.append({"name": label_key, "value": label_value})
@@ -776,7 +772,7 @@ class Client(
 
     @staticmethod
     def _transform_iguazio_labels_to_mlrun_labels(
-        iguazio_labels: typing.List[dict],
+        iguazio_labels: list[dict],
     ) -> dict:
         return {label["name"]: label["value"] for label in iguazio_labels}
 

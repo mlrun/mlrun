@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import sqlalchemy.orm
 
@@ -167,7 +167,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         source: mlrun.common.schemas.hub.HubSource,
         item: mlrun.common.schemas.hub.HubItem,
         asset_name: str,
-    ) -> Tuple[bytes, str]:
+    ) -> tuple[bytes, str]:
         """
         Retrieve asset object from hub source.
 
@@ -190,7 +190,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
-    ) -> List[mlrun.common.schemas.IndexedHubSource]:
+    ) -> list[mlrun.common.schemas.IndexedHubSource]:
         hub_sources = server.api.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )
@@ -198,11 +198,11 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     def filter_hub_sources(
         self,
-        sources: List[mlrun.common.schemas.IndexedHubSource],
+        sources: list[mlrun.common.schemas.IndexedHubSource],
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
-    ) -> List[mlrun.common.schemas.IndexedHubSource]:
+    ) -> list[mlrun.common.schemas.IndexedHubSource]:
         """
         Retrieve only the sources that contains the item name
         (and tag/version if supplied, if tag and version are both given, only tag will be taken into consideration)
@@ -315,7 +315,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _transform_catalog_dict_to_schema(
-        source: mlrun.common.schemas.hub.HubSource, catalog_dict: Dict[str, Any]
+        source: mlrun.common.schemas.hub.HubSource, catalog_dict: dict[str, Any]
     ) -> mlrun.common.schemas.hub.HubCatalog:
         """
         Transforms catalog dictionary to HubCatalog schema
@@ -362,9 +362,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _get_catalog_items_filtered_by_name(
-        catalog: List[mlrun.common.schemas.hub.HubItem],
+        catalog: list[mlrun.common.schemas.hub.HubItem],
         item_name: str,
-    ) -> List[mlrun.common.schemas.hub.HubItem]:
+    ) -> list[mlrun.common.schemas.hub.HubItem]:
         """
         Retrieve items from catalog filtered by name
 

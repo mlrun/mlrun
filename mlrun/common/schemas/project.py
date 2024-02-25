@@ -84,7 +84,7 @@ class ProjectSpec(pydantic.BaseModel):
     subpath: typing.Optional[str] = None
     origin_url: typing.Optional[str] = None
     desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
-    custom_packagers: typing.Optional[typing.List[typing.Tuple[str, bool]]] = None
+    custom_packagers: typing.Optional[list[tuple[str, bool]]] = None
     default_image: typing.Optional[str] = None
     build: typing.Optional[ImageBuilder] = None
 
@@ -129,8 +129,8 @@ class ProjectsOutput(pydantic.BaseModel):
     # union by the definition order. Therefore we can't currently add generic dict for all leader formats, but we need
     # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
     # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
-    projects: typing.List[typing.Union[Project, str, ProjectSummary, IguazioProject]]
+    projects: list[typing.Union[Project, str, ProjectSummary, IguazioProject]]
 
 
 class ProjectSummariesOutput(pydantic.BaseModel):
-    project_summaries: typing.List[ProjectSummary]
+    project_summaries: list[ProjectSummary]

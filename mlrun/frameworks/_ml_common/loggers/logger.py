@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, List
 
 from ..utils import MLTypes
 
@@ -42,7 +41,7 @@ class Logger:
         self._iterations = 0
 
     @property
-    def results(self) -> Dict[str, Dict[str, List[float]]]:
+    def results(self) -> dict[str, dict[str, list[float]]]:
         """
         Get the results logged. The results will be stored in a dictionary where each key is the validation set name
         and the value is a dictionary of metrics to their list of iterations values.
@@ -52,7 +51,7 @@ class Logger:
         return self._results
 
     @property
-    def static_hyperparameters(self) -> Dict[str, MLTypes.TrackableType]:
+    def static_hyperparameters(self) -> dict[str, MLTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -62,7 +61,7 @@ class Logger:
         return self._static_hyperparameters
 
     @property
-    def dynamic_hyperparameters(self) -> Dict[str, List[MLTypes.TrackableType]]:
+    def dynamic_hyperparameters(self) -> dict[str, list[MLTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.

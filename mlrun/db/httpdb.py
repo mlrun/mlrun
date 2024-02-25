@@ -250,7 +250,7 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             response = self.session.request(
-                method, url, timeout=timeout, verify=False, **kw
+                method, url, timeout=timeout, verify=mlrun.mlconf.httpdb.http.verify, **kw
             )
         except requests.RequestException as exc:
             error = f"{err_to_str(exc)}: {error}" if error else err_to_str(exc)

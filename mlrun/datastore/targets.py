@@ -1065,6 +1065,7 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
         if self.path and self.path.startswith("ds://"):
+            storage_spark_options = store.get_spark_options()
             return {**result, **storage_spark_options}
         return result
 

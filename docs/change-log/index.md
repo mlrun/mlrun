@@ -1,6 +1,7 @@
 (change-log)=
 # Change log
 
+- [v1.6.1](v1-6-1-xx-march-2024)
 - [v1.6.0](v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -11,6 +12,21 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
+
+
+## v1.6.1 (xx March 2024)
+
+### Data store
+| ID |Description                                                                                         |
+|----|-----------------------------------------------------------------------------------------------------|
+|ML-5656|Snowflake is not supported as an offline target store.|
+
+### Workflows
+
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-5483|Now supports remote workflows for a project with the workflow source inside the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow).|
+
 
 
 ## v1.6.0 (22 February 2024)
@@ -913,7 +929,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs` | NA. Was not used.|
+|               |v1.6.1   |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_target_dir` needs to be added to deprecation
+| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
 | v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|

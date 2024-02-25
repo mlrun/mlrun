@@ -324,8 +324,14 @@ class WorkflowRunners(
         )
 
         if is_context:
-            run_object.spec.parameters["project_context"] = source
-            run_object.spec.parameters.pop("url", None)
+            if project.spec.load_source_on_run:
+                run_object.spec.parameters["url"] = project.spec.source
+                if source.startswith("./") and len(source) > 2:
+                    run_object.spec.parameters["subpath"] = source
+            else:
+                # Configure load_and_run to not load the source as it is already loaded on the image
+                run_object.spec.parameters["project_context"] = source
+                run_object.spec.parameters.pop("url", None)
 
         if not load_only:
             workflow_spec = workflow_request.spec
@@ -382,6 +388,8 @@ class WorkflowRunners(
                 return source, save, True
 
             if source.startswith("./") or source == ".":
+                # When the source is relative, it is relative to the project's source_code_target_dir
+                # If the project's source_code_target_dir is not set, the source is relative to the cwd
                 if project.spec.build and project.spec.build.source_code_target_dir:
                     source = os.path.normpath(
                         os.path.join(project.spec.build.source_code_target_dir, source)

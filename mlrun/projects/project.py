@@ -2639,9 +2639,13 @@ class MlrunProject(ModelObj):
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a remote URL or a path to the project's context on the runner's image.
-                          Path can be absolute or relative to `project.spec.build.source_code_target_dir`.
-                          For other engines the source is to validate that the code is up-to-date
+                          Can be a remote URL or a path to the project's context on the runner's (workflow) image.
+                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                          (enriched when building a project image with source).
+                          Works in pair with `project.spec.load_source_on_run`, if True, the source will be loaded
+                          to the runner, otherwise the source should be loaded when building the image with
+                          `project.build_image`.
+                          For other engines the source is used to validate that the code is up-to-date.
         :param cleanup_ttl:
                           Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           Workflow and all its resources are deleted)
@@ -3139,7 +3143,7 @@ class MlrunProject(ModelObj):
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:

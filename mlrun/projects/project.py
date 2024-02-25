@@ -1802,6 +1802,8 @@ class MlrunProject(ModelObj):
     ) -> mlrun.runtimes.BaseRuntime:
         """
         Update or add a monitoring function to the project.
+        Note: to deploy the function after linking it to the project,
+        call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
             project.set_model_monitoring_function(
@@ -2006,7 +2008,7 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if deploy_histogram_data_drift_app:
-            self.set_model_monitoring_function(
+            fn = self.set_model_monitoring_function(
                 func=str(
                     pathlib.Path(__file__).parent.parent
                     / "model_monitoring/applications/histogram_data_drift.py"
@@ -2015,6 +2017,7 @@ class MlrunProject(ModelObj):
                 application_class="HistogramDataDriftApplication",
                 image="mlrun/mlrun",
             )
+            fn.deploy()
         return db.create_model_monitoring_controller(
             project=self.name,
             default_controller_image=default_controller_image,

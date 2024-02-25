@@ -33,8 +33,8 @@ from kfp import Client
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
-from mlrun.pipelines.common.ops import format_summary_from_kfp_run
-from mlrun.pipelines.ops import show_kfp_run
+from mlrun.pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun.pipelines.models import PipelineRun
 from mlrun.runtimes.nuclio.serving import serving_subkind
 
 from .common.helpers import parse_versioned_object_uri
@@ -71,6 +71,8 @@ from .utils import (
 
 
 class RunStatuses:
+    # TODO: MLRun's run states differ from 2.0 options; see V2beta1RuntimeState on the KFP codebase
+    # TODO: KFP's 1.8 and 2.0 statuses use different casing; evaluate options to address this
     succeeded = "Succeeded"
     failed = "Failed"
     skipped = "Skipped"
@@ -934,7 +936,7 @@ def wait_for_pipeline_completion(
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
             show_kfp_run(pipeline, clear_output=True)
-            if pipeline_status not in RunStatuses.stable_statuses():
+            if pipeline_status.capitalize() not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",
                     run_id=run_id,
@@ -966,6 +968,7 @@ def wait_for_pipeline_completion(
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
+    status = status.capitalize()
     message = resp["run"].get("message", "")
     if expected_statuses:
         if status not in expected_statuses:
@@ -1003,7 +1006,7 @@ def get_pipeline(
     :param project:    the project of the pipeline run
     :param remote:     read kfp data from mlrun service (default=True)
 
-    :return: kfp run dict
+    :return: kfp run
     """
     namespace = namespace or mlconf.namespace
     if remote:
@@ -1027,7 +1030,7 @@ def get_pipeline(
                 not format_
                 or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(resp)
+                resp = format_summary_from_kfp_run(PipelineRun(resp))
 
     show_kfp_run(resp)
     return resp

@@ -1,4 +1,45 @@
+# Copyright 2024 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 from mlrun.pipelines.common.helpers import FlexibleMapper
+
+
+class PipelineManifest(FlexibleMapper):
+    """
+    A Pipeline Manifest might have been created by an 1.8 SDK regardless of coming from a 2.0 API,
+    so this class tries to account for that
+    """
+
+    def get_schema_version(self) -> str:
+        try:
+            return self._external_data["schemaVersion"]
+        except KeyError:
+            return self._external_data["apiVersion"]
+
+    def is_argo_compatible(self) -> bool:
+        if self.get_schema_version().startswith("argoproj.io"):
+            return True
+        return False
+
+    def get_executors(self):
+        if self.is_argo_compatible():
+            yield from [
+                (t.get("name"), t) for t in self._external_data["spec"]["templates"]
+            ]
+        else:
+            yield from self._external_data["deploymentSpec"]["executors"].items()
 
 
 class PipelineRun(FlexibleMapper):
@@ -59,5 +100,13 @@ class PipelineRun(FlexibleMapper):
         self._external_data["finished_at"] = finished_at
 
     @property
-    def workflow_manifest(self) -> dict:
-        return self._external_data["pipeline_spec"]
+    def workflow_manifest(self) -> PipelineManifest:
+        return PipelineManifest(
+            self._external_data["pipeline_spec"],
+        )
+
+
+class PipelineExperiment(FlexibleMapper):
+    @property
+    def id(self):
+        return self._external_data["experiment_id"]

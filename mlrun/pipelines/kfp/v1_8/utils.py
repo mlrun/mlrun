@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import tempfile
+
+import kfp
 from kubernetes import client
+
+from mlrun.pipelines import new_pipe_metadata
 
 
 def apply_kfp(modify, cop, runtime):
@@ -50,3 +55,16 @@ def apply_kfp(modify, cop, runtime):
         cop.container.volume_mounts.clear()
 
     return runtime
+
+
+def compile_pipeline(artifact_path, cleanup_ttl, ops, pipeline):
+    pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
+    conf = new_pipe_metadata(
+        artifact_path=artifact_path,
+        cleanup_ttl=cleanup_ttl,
+        op_transformers=ops,
+    )
+    kfp.compiler.Compiler().compile(
+        pipeline, pipe_file, type_check=False, pipeline_conf=conf
+    )
+    return pipe_file

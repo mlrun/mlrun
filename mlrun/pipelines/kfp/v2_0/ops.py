@@ -1,11 +1,32 @@
-from typing import Dict, List, Union
+# Copyright 2024 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
+import os
+
+from kfp import dsl
+from kfp import kubernetes as kfp_k8s
+
+import mlrun
+from mlrun.config import config
 from mlrun.pipelines.common.helpers import (
     function_annotation,
     project_annotation,
     run_annotation,
 )
-from mlrun.utils import get_in
+from mlrun.pipelines.common.ops import PipelineRunType
+from mlrun.utils import get_in, logger
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):
@@ -13,12 +34,13 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     if not workflow:
         return None, project, None
 
+    # TODO: this method does not take into account that KFP API 2.0 might return a manifest with the 1.8 schema
+
     templates = {}
-    for template in workflow["spec"]["templates"]:
+    for name, template in workflow.get_executors():
         project = project or get_in(
             template, ["metadata", "annotations", project_annotation], ""
         )
-        name = template["name"]
         templates[name] = {
             "run_type": get_in(
                 template, ["metadata", "annotations", run_annotation], ""
@@ -28,9 +50,10 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
             ),
         }
 
-    # nodes = workflow["status"].get("nodes", {})
-    nodes = run["run_details"]["task_details"]
     dag = {}
+    nodes = []
+    if run["run_details"]:
+        nodes = run["run_details"].get("task_details", [])
     for node in nodes:
         name = node["display_name"]
         record = {
@@ -53,127 +76,155 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     return dag, project, run["state"]
 
 
-def show_kfp_run(run, clear_output=False):
-    return
+def add_default_function_resources(
+    task: dsl.PipelineTask,
+) -> dsl.PipelineTask:
+    __set_task_requests = {
+        "cpu": task.set_cpu_request,
+        "memory": task.set_memory_request,
+    }
+    __set_task_limits = {
+        "cpu": task.set_cpu_limit,
+        "memory": task.set_memory_limit,
+    }
+
+    default_resources = config.get_default_function_pod_resources()
+    for resource_name, resource_value in default_resources["requests"].items():
+        if resource_value:
+            __set_task_requests[resource_name](resource_value)
+
+    for resource_name, resource_value in default_resources["limits"].items():
+        if resource_value:
+            __set_task_limits[resource_name](resource_value)
+
+    return task
 
 
-def mlrun_op(
-    name: str = "",
-    project: str = "",
-    function=None,
-    func_url=None,
-    image: str = "",
-    runobj=None,
-    command: str = "",
-    secrets: list = None,
-    params: dict = None,
-    job_image=None,
-    hyperparams: dict = None,
-    param_file: str = "",
-    labels: dict = None,
-    selector: str = "",
-    inputs: dict = None,
-    outputs: list = None,
-    in_path: str = "",
-    out_path: str = "",
-    rundb: str = "",
-    mode: str = "",
-    handler: str = "",
-    more_args: list = None,
-    hyper_param_options=None,
-    verbose=None,
-    scrape_metrics=False,
-    returns: List[Union[str, Dict[str, str]]] = None,
-    auto_build: bool = False,
+def add_function_node_selection_attributes(
+    function, task: dsl.PipelineTask
+) -> dsl.PipelineTask:
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            for k, v in function.spec.node_selector.items():
+                task = kfp_k8s.add_node_selector(task, k, v)
+
+    # TODO: is there a way to also set tolerations and affinities to a task?
+
+    return task
+
+
+def add_annotations(
+    task: dsl.PipelineTask,
+    kind: str,
+    function,
+    func_url: str = None,
+    project: str = None,
 ):
-    """mlrun KubeFlow pipelines operator, use to form pipeline steps
+    # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
+    if not hasattr(kfp_k8s, "add_pod_annotation"):
+        logger.warning(
+            "Support for Pod annotations is not yet available on the KFP 2 engine",
+            project=project,
+            function_name=function.metadata.name,
+        )
+        return
 
-    when using kubeflow pipelines, each step is wrapped in an mlrun_op
-    one step can pass state and data to the next step, see example below.
-
-    :param name:    name used for the step
-    :param project: optional, project name
-    :param image:   optional, run container image (will be executing the step)
-                    the container should host all required packages + code
-                    for the run, alternatively user can mount packages/code via
-                    shared file volumes like v3io (see example below)
-    :param function: optional, function object
-    :param func_url: optional, function object url
-    :param command: exec command (or URL for functions)
-    :param secrets: extra secrets specs, will be injected into the runtime
-                    e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
-    :param params:  dictionary of run parameters and values
-    :param hyperparams: dictionary of hyper parameters and list values, each
-                        hyperparam holds a list of values, the run will be
-                        executed for every parameter combination (GridSearch)
-    :param param_file:  a csv/json file with parameter combinations, first csv row hold
-                        the parameter names, following rows hold param values
-    :param selector: selection criteria for hyperparams e.g. "max.accuracy"
-    :param hyper_param_options: hyper param options class, see: :py:class:`~mlrun.model.HyperParamOptions`
-    :param labels:   labels to tag the job/run with ({key:val, ..})
-    :param inputs:   dictionary of input objects + optional paths (if path is
-                     omitted the path will be the in_path/key.
-    :param outputs:  dictionary of output objects + optional paths (if path is
-                     omitted the path will be the out_path/key.
-    :param in_path:  default input path/url (prefix) for inputs
-    :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
-    :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/handler name
-    :param job_image name of the image user for the job
-    :param verbose:  add verbose prints/logs
-    :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
-    :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts or
-                    results). The list's length must be equal to the amount of returning objects. A configuration may be
-                    given as:
-
-                    * A string of the key to use to log the returning value as result or as an artifact. To specify
-                      The artifact type, it is possible to pass a string in the following structure:
-                      "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
-                      type is specified, the object's default artifact type will be used.
-                    * A dictionary of configurations to use when logging. Further info per object type and artifact
-                      type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-    :param auto_build: when set to True and the function require build it will be built on the first
-                       function run, use only if you dont plan on changing the build config between runs
-
-    :returns: KFP step operation
-
-    Example:
-    from kfp import dsl
-    from mlrun import mlrun_op
-    from mlrun.platforms import mount_v3io
-
-    def mlrun_train(p1, p2):
-    return mlrun_op('training',
-                    command = '/User/kubeflow/training.py',
-                    params = {'p1':p1, 'p2':p2},
-                    outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
-
-    # use data from the first step
-    def mlrun_validate(modelfile):
-        return mlrun_op('validation',
-                    command = '/User/kubeflow/validation.py',
-                    inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
-
-    @dsl.pipeline(
-        name='My MLRUN pipeline', description='Shows how to use mlrun.'
+    if func_url and func_url.startswith("db://"):
+        func_url = func_url[len("db://") :]
+    kfp_k8s.add_pod_annotation(task, run_annotation, kind)
+    kfp_k8s.add_pod_annotation(
+        task, project_annotation, project or function.metadata.project
     )
-    def mlrun_pipeline(
-        p1 = 5 , p2 = '"text"'
-    ):
-        # run training, mount_v3io will mount "/User" into the pipeline step
-        train = mlrun_train(p1, p2).apply(mount_v3io())
+    kfp_k8s.add_pod_annotation(task, function_annotation, func_url or function.uri)
 
-        # feed 1st step results into the second step
-        validate = mlrun_validate(
-            train.outputs['model-txt']).apply(mount_v3io())
 
-    """
-    return
+def add_labels(task, function, scrape_metrics=False):
+    # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
+    if not hasattr(kfp_k8s, "add_pod_label"):
+        logger.warning(
+            "Support for Pod labels is not yet available on the KFP 2 engine",
+            project=function.metadata.project,
+            function_name=function.metadata.name,
+        )
+        return
+
+    prefix = mlrun.runtimes.utils.mlrun_key
+    kfp_k8s.add_pod_label(task, prefix + "class", function.kind)
+    kfp_k8s.add_pod_label(task, prefix + "function", function.metadata.name)
+    kfp_k8s.add_pod_label(task, prefix + "name", task.name)
+    kfp_k8s.add_pod_label(task, prefix + "project", function.metadata.project)
+    kfp_k8s.add_pod_label(task, prefix + "tag", function.metadata.tag or "latest")
+    kfp_k8s.add_pod_label(
+        task, prefix + "scrape-metrics", "True" if scrape_metrics else "False"
+    )
+
+
+def add_default_env(task):
+    # TODO: how to add an env variable that references the metadata namespace attribute?
+    #  "MLRUN_NAMESPACE" depends on it
+    task.set_env_variable(name="MLRUN_NAMESPACE", value="mlrun")
+
+    if config.httpdb.api_url:
+        task.set_env_variable(name="MLRUN_DBPATH", value=config.httpdb.api_url)
+
+    if config.mpijob_crd_version:
+        task.set_env_variable(
+            name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
+        )
+
+    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+        task.set_env_variable(
+            name=auth_env_var,
+            value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
+        )
+
+
+def generate_pipeline_node(
+    project_name: str,
+    name: str,
+    image: str,
+    command: list,
+    file_outputs: dict,
+    function,
+    func_url: str,
+    scrape_metrics: bool,
+    code_env: str,
+    registry: str,
+):
+    csp = dsl.ContainerSpec(
+        image=image,
+        command=command,
+    )
+
+    container_component = dsl.component_factory.create_container_component_from_func(
+        lambda: csp
+    )
+    task = container_component()
+
+    # TODO: work out how to reproduce the file and artifacts output behaviour used on ContainerOp
+
+    # TODO: ensure that "name" can be used to identify the current pipeline node
+    task.set_display_name(name)
+
+    task = add_default_function_resources(task)
+    task = add_function_node_selection_attributes(function, task)
+
+    add_annotations(task, PipelineRunType.run, function, func_url, project_name)
+    add_labels(task, function, scrape_metrics)
+    task.set_env_variable(
+        name="MLRUN_ARTIFACT_PATH",
+        value=mlrun.pipeline_context.project._enrich_artifact_path_with_workflow_uid(),
+    )
+    if code_env:
+        task.set_env_variable(name="MLRUN_EXEC_CODE", value=code_env)
+    if registry:
+        task.set_env_variable(
+            name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
+        )
+
+    add_default_env(task)
+    return task
 
 
 def build_op(
@@ -188,7 +239,7 @@ def build_op(
     skip_deployed=False,
 ):
     """build Docker image."""
-    return
+    raise NotImplementedError
 
 
 def deploy_op(
@@ -202,4 +253,4 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-    return
+    raise NotImplementedError

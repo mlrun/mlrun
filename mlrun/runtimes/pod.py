@@ -19,17 +19,18 @@ import typing
 from enum import Enum
 
 import dotenv
-import kfp.dsl
 import kubernetes.client as k8s_client
 
 import mlrun.errors
 import mlrun.pipelines.iguazio
+import mlrun.pipelines.platform_other
 import mlrun.utils.regex
 from mlrun.common.schemas import (
     NodeSelectorOperator,
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
+from mlrun.pipelines.mixins import KfpAdapterMixin
 
 from ..config import config as mlconf
 from ..k8s_utils import (
@@ -38,7 +39,6 @@ from ..k8s_utils import (
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
 )
-from ..pipelines.utils import apply_kfp
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
@@ -939,7 +939,7 @@ class AutoMountType(str, Enum):
             mlrun.pipelines.iguazio.mount_v3io.__name__,
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
-            mlrun.platforms.mount_s3.__name__,
+            mlrun.pipelines.platform_other.mount_s3.__name__,
             mlrun.platforms.set_env_variables.__name__,
         ]
 
@@ -972,12 +972,12 @@ class AutoMountType(str, Enum):
             AutoMountType.v3io_fuse: mlrun.pipelines.iguazio.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
-            AutoMountType.s3: mlrun.platforms.mount_s3,
+            AutoMountType.s3: mlrun.pipelines.platform_other.mount_s3,
             AutoMountType.env: mlrun.platforms.set_env_variables,
         }[self]
 
 
-class KubeResource(BaseRuntime):
+class KubeResource(BaseRuntime, KfpAdapterMixin):
     """
     A parent class for runtimes that generate k8s resources when executing.
     """
@@ -996,26 +996,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def apply(self, modify):
-        """
-        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
-        Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
-        a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
-        one after the other.
-
-        :param modify: a modifier runnable object
-        :return: the runtime (self) after the modifications
-        """
-
-        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
-        # we remove the hook to suppress kubeflow op registration and return it after the apply()
-        old_op_handler = kfp.dsl._container_op._register_op_handler
-        kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
-        cop = kfp.dsl.ContainerOp("name", "image")
-        kfp.dsl._container_op._register_op_handler = old_op_handler
-
-        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""

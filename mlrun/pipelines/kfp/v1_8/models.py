@@ -1,15 +1,28 @@
+# Copyright 2024 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import json
 from typing import Any
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 
-from mlrun.pipelines.common.helpers import (
-    FlexibleMapper,
-)
+from mlrun.pipelines.common.helpers import FlexibleMapper
 
 
 class PipelineManifest(FlexibleMapper):
-    def __init__(self, workflow_manifest: str, pipeline_manifest: str = None):
+    def __init__(self, workflow_manifest: str, pipeline_manifest: str = "{}"):
         main_manifest = json.loads(workflow_manifest or "{}")
         if pipeline_manifest:
             pipeline_manifest = json.loads(pipeline_manifest)
@@ -92,3 +105,9 @@ class PipelineRun(FlexibleMapper):
     @property
     def workflow_manifest(self) -> PipelineManifest:
         return self._workflow_manifest
+
+
+class PipelineExperiment(FlexibleMapper):
+    @property
+    def id(self):
+        return self._external_data["id"]

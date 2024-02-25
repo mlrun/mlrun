@@ -14,7 +14,6 @@
 import enum
 import http
 import re
-import tempfile
 import time
 import traceback
 import typing
@@ -24,7 +23,6 @@ from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
 
-import kfp
 import requests
 import semver
 
@@ -34,13 +32,13 @@ import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
+from mlrun.pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
-from ..pipelines.helpers import new_pipe_metadata
 from ..runtimes import BaseRuntime
 from ..utils import datetime_to_iso, dict_to_json, logger, normalize_name, version
 from .base import RunDBError, RunDBInterface
@@ -1612,7 +1610,7 @@ class HTTPRunDB(RunDBInterface):
         :param run: A name for this specific run.
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
-        :param ops: Transformers to apply on all ops in the pipeline.
+        :param ops: Transformers to apply on all ops in the pipeline. (KFP 1.8 only)
         :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         """
@@ -1620,14 +1618,11 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_metadata(
+            pipe_file = compile_pipeline(
                 artifact_path=artifact_path,
                 cleanup_ttl=cleanup_ttl,
-                op_transformers=ops,
-            )
-            kfp.compiler.Compiler().compile(
-                pipeline, pipe_file, type_check=False, pipeline_conf=conf
+                ops=ops,
+                pipeline=pipeline,
             )
 
         if pipe_file.endswith(".yaml"):

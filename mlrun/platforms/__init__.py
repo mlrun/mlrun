@@ -17,7 +17,6 @@ import json
 from pprint import pprint
 from time import sleep
 
-from ..pipelines.iguazio import mount_v3io, v3io_cred
 from .iguazio import (
     V3ioStreamClient,
     VolumeMount,
@@ -29,7 +28,6 @@ from .other import (
     mount_configmap,
     mount_hostpath,
     mount_pvc,
-    mount_s3,
     mount_secret,
     set_env_variables,
 )

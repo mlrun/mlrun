@@ -30,7 +30,7 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
-from mlrun.pipelines.ops import mlrun_op
+from mlrun.pipelines.common.ops import mlrun_op
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
 from ..config import config

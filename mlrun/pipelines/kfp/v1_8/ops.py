@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,49 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
 import json
 import os
 import os.path
 from copy import deepcopy
-from typing import Union
 
+import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
 
 import mlrun
 from mlrun.config import config
-from mlrun.errors import err_to_str
-from mlrun.model import HyperParamOptions, RunSpec
 from mlrun.pipelines.common.helpers import (
     function_annotation,
     project_annotation,
     run_annotation,
 )
+from mlrun.pipelines.common.ops import KFP_ARTIFACTS_DIR, KFPMETA_DIR, PipelineRunType
 from mlrun.utils import (
     dict_to_yaml,
     gen_md_table,
     get_artifact_target,
-    get_workflow_url,
-    is_ipython,
+    get_in,
     is_legacy_artifact,
     logger,
     run_keys,
-    version,
 )
 
-# default KFP artifacts and output (ui metadata, metrics etc.)
-# directories to /tmp to allow running with security context
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
-KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
-
 dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
-
-
-class PipelineRunType:
-    run = "run"
-    build = "build"
-    deploy = "deploy"
 
 
 def is_num(v):
@@ -82,6 +69,7 @@ def write_kfpmeta(struct):
         project,
     )
 
+    # /tmp/run_id
     results["run_id"] = results.get("run_id", "/".join([project, uid]))
     for key in struct["spec"].get(run_keys.outputs, []):
         val = "None"
@@ -108,6 +96,8 @@ def write_kfpmeta(struct):
         "outputs": output_artifacts
         + [{"type": "markdown", "storage": "inline", "source": text}]
     }
+
+    # saar is working on removing this
     with open(KFPMETA_DIR + "/mlpipeline-ui-metadata.json", "w") as f:
         json.dump(metadata, f)
 
@@ -166,312 +156,6 @@ def get_kfp_outputs(artifacts, labels, project):
                 outputs += [meta]
 
     return outputs, out_dict
-
-
-def mlrun_op(
-    name: str = "",
-    project: str = "",
-    function=None,
-    func_url=None,
-    image: str = "",
-    runobj=None,
-    command: str = "",
-    secrets: list = None,
-    params: dict = None,
-    job_image=None,
-    hyperparams: dict = None,
-    param_file: str = "",
-    labels: dict = None,
-    selector: str = "",
-    inputs: dict = None,
-    outputs: list = None,
-    in_path: str = "",
-    out_path: str = "",
-    rundb: str = "",
-    mode: str = "",
-    handler: str = "",
-    more_args: list = None,
-    hyper_param_options=None,
-    verbose=None,
-    scrape_metrics=False,
-    returns: list[Union[str, dict[str, str]]] = None,
-    auto_build: bool = False,
-):
-    """mlrun KubeFlow pipelines operator, use to form pipeline steps
-
-    when using kubeflow pipelines, each step is wrapped in an mlrun_op
-    one step can pass state and data to the next step, see example below.
-
-    :param name:    name used for the step
-    :param project: optional, project name
-    :param image:   optional, run container image (will be executing the step)
-                    the container should host all required packages + code
-                    for the run, alternatively user can mount packages/code via
-                    shared file volumes like v3io (see example below)
-    :param function: optional, function object
-    :param func_url: optional, function object url
-    :param command: exec command (or URL for functions)
-    :param secrets: extra secrets specs, will be injected into the runtime
-                    e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
-    :param params:  dictionary of run parameters and values
-    :param hyperparams: dictionary of hyper parameters and list values, each
-                        hyperparam holds a list of values, the run will be
-                        executed for every parameter combination (GridSearch)
-    :param param_file:  a csv/json file with parameter combinations, first csv row hold
-                        the parameter names, following rows hold param values
-    :param selector: selection criteria for hyperparams e.g. "max.accuracy"
-    :param hyper_param_options: hyper param options class, see: :py:class:`~mlrun.model.HyperParamOptions`
-    :param labels:   labels to tag the job/run with ({key:val, ..})
-    :param inputs:   dictionary of input objects + optional paths (if path is
-                     omitted the path will be the in_path/key.
-    :param outputs:  dictionary of output objects + optional paths (if path is
-                     omitted the path will be the out_path/key.
-    :param in_path:  default input path/url (prefix) for inputs
-    :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
-    :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/handler name
-    :param job_image name of the image user for the job
-    :param verbose:  add verbose prints/logs
-    :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
-    :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts or
-                    results). The list's length must be equal to the amount of returning objects. A configuration may be
-                    given as:
-
-                    * A string of the key to use to log the returning value as result or as an artifact. To specify
-                      The artifact type, it is possible to pass a string in the following structure:
-                      "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
-                      type is specified, the object's default artifact type will be used.
-                    * A dictionary of configurations to use when logging. Further info per object type and artifact
-                      type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-    :param auto_build: when set to True and the function require build it will be built on the first
-                       function run, use only if you dont plan on changing the build config between runs
-
-    :returns: KFP step operation
-
-    Example:
-    from kfp import dsl
-    from mlrun import mlrun_op
-    from mlrun.platforms import mount_v3io
-
-    def mlrun_train(p1, p2):
-    return mlrun_op('training',
-                    command = '/User/kubeflow/training.py',
-                    params = {'p1':p1, 'p2':p2},
-                    outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
-
-    # use data from the first step
-    def mlrun_validate(modelfile):
-        return mlrun_op('validation',
-                    command = '/User/kubeflow/validation.py',
-                    inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
-
-    @dsl.pipeline(
-        name='My MLRUN pipeline', description='Shows how to use mlrun.'
-    )
-    def mlrun_pipeline(
-        p1 = 5 , p2 = '"text"'
-    ):
-        # run training, mount_v3io will mount "/User" into the pipeline step
-        train = mlrun_train(p1, p2).apply(mount_v3io())
-
-        # feed 1st step results into the second step
-        validate = mlrun_validate(
-            train.outputs['model-txt']).apply(mount_v3io())
-
-    """
-    secrets = [] if secrets is None else secrets
-    params = {} if params is None else params
-    hyperparams = {} if hyperparams is None else hyperparams
-    if hyper_param_options and isinstance(hyper_param_options, dict):
-        hyper_param_options = HyperParamOptions.from_dict(hyper_param_options)
-    inputs = {} if inputs is None else inputs
-    returns = [] if returns is None else returns
-    outputs = [] if outputs is None else outputs
-    labels = {} if labels is None else labels
-
-    rundb = rundb or mlrun.db.get_or_set_dburl()
-    cmd = [
-        "python",
-        "-m",
-        "mlrun",
-        "run",
-        "--kfp",
-        "--from-env",
-        "--workflow",
-        "{{workflow.uid}}",
-    ]
-    file_outputs = {}
-
-    runtime = None
-    code_env = None
-    function_name = ""
-    if function:
-        if not func_url:
-            if function.kind in ["", "local"]:
-                image = image or function.spec.image
-                command = command or function.spec.command
-                more_args = more_args or function.spec.args
-                mode = mode or function.spec.mode
-                rundb = rundb or function.spec.rundb
-                code_env = str(function.spec.build.functionSourceCode)
-            else:
-                runtime = str(function.to_dict())
-
-        function_name = function.metadata.name
-        if function.kind == "dask":
-            image = image or function.spec.kfp_image or config.dask_kfp_image
-
-    image = image or config.kfp_image
-
-    if runobj:
-        handler = handler or runobj.spec.handler_name
-        params = params or runobj.spec.parameters
-        hyperparams = hyperparams or runobj.spec.hyperparams
-        param_file = (
-            param_file
-            or runobj.spec.param_file
-            or runobj.spec.hyper_param_options.param_file
-        )
-        hyper_param_options = hyper_param_options or runobj.spec.hyper_param_options
-        selector = (
-            selector or runobj.spec.selector or runobj.spec.hyper_param_options.selector
-        )
-        inputs = inputs or runobj.spec.inputs
-        returns = returns or runobj.spec.returns
-        outputs = outputs or runobj.spec.outputs
-        in_path = in_path or runobj.spec.input_path
-        out_path = out_path or runobj.spec.output_path
-        secrets = secrets or runobj.spec.secret_sources
-        project = project or runobj.metadata.project
-        labels = runobj.metadata.labels or labels
-        verbose = verbose or runobj.spec.verbose
-        scrape_metrics = scrape_metrics or runobj.spec.scrape_metrics
-
-    outputs = RunSpec.join_outputs_and_returns(outputs=outputs, returns=returns)
-
-    if not name:
-        if not function_name:
-            raise ValueError("name or function object must be specified")
-        name = function_name
-        if handler:
-            short_name = handler
-            for separator in ["#", "::", "."]:
-                # drop paths, module or class name from short name
-                if separator in short_name:
-                    short_name = short_name.split(separator)[-1]
-            name += "-" + short_name
-
-    if hyperparams or param_file:
-        outputs.append("iteration_results")
-    if "run_id" not in outputs:
-        outputs.append("run_id")
-
-    params = params or {}
-    hyperparams = hyperparams or {}
-    inputs = inputs or {}
-    returns = returns or []
-    secrets = secrets or []
-
-    mlrun.runtimes.utils.enrich_run_labels(labels)
-
-    if name:
-        cmd += ["--name", name]
-    if func_url:
-        cmd += ["-f", func_url]
-    for secret in secrets:
-        cmd += ["-s", f"{secret['kind']}={secret['source']}"]
-    for param, val in params.items():
-        cmd += ["-p", f"{param}={val}"]
-    for xpram, val in hyperparams.items():
-        cmd += ["-x", f"{xpram}={val}"]
-    for input_param, val in inputs.items():
-        cmd += ["-i", f"{input_param}={val}"]
-    for log_hint in returns:
-        cmd += [
-            "--returns",
-            json.dumps(log_hint) if isinstance(log_hint, dict) else log_hint,
-        ]
-    for label, val in labels.items():
-        cmd += ["--label", f"{label}={val}"]
-    for output in outputs:
-        cmd += ["-o", str(output)]
-        file_outputs[
-            output.replace(".", "_")
-        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
-    if project:
-        cmd += ["--project", project]
-    if handler:
-        cmd += ["--handler", handler]
-    if runtime:
-        cmd += ["--runtime", runtime]
-    if in_path:
-        cmd += ["--in-path", in_path]
-    if out_path:
-        cmd += ["--out-path", out_path]
-    if param_file:
-        cmd += ["--param-file", param_file]
-    if hyper_param_options:
-        cmd += ["--hyper-param-options", hyper_param_options.to_json()]
-    if selector:
-        cmd += ["--selector", selector]
-    if job_image:
-        cmd += ["--image", job_image]
-    if mode:
-        cmd += ["--mode", mode]
-    if verbose:
-        cmd += ["--verbose"]
-    if scrape_metrics:
-        cmd += ["--scrape-metrics"]
-    if auto_build:
-        cmd += ["--auto-build"]
-    if more_args:
-        cmd += more_args
-
-    registry = get_default_reg()
-    if image and image.startswith("."):
-        if registry:
-            image = f"{registry}/{image[1:]}"
-        else:
-            raise ValueError("local image registry env not found")
-
-    image = mlrun.utils.enrich_image_url(
-        image, mlrun.get_version(), str(version.Version().get_python_version())
-    )
-
-    cop = dsl.ContainerOp(
-        name=name,
-        image=image,
-        command=cmd + [command],
-        file_outputs=file_outputs,
-        output_artifact_paths={
-            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
-        },
-    )
-    cop = add_default_function_resources(cop)
-    cop = add_function_node_selection_attributes(container_op=cop, function=function)
-
-    add_annotations(cop, PipelineRunType.run, function, func_url, project)
-    add_labels(cop, function, scrape_metrics)
-    if code_env:
-        cop.container.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
-        )
-    if registry:
-        cop.container.add_env_variable(
-            k8s_client.V1EnvVar(
-                name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
-            )
-        )
-
-    add_default_env(k8s_client, cop)
-
-    return cop
 
 
 def deploy_op(
@@ -624,6 +308,49 @@ def build_op(
     return cop
 
 
+def generate_pipeline_node(
+    project_name: str,
+    name: str,
+    image: str,
+    command: list,
+    file_outputs: dict,
+    function,
+    func_url: str,
+    scrape_metrics: bool,
+    code_env: str,
+    registry: str,
+):
+    cop = dsl.ContainerOp(
+        name=name,
+        image=image,
+        command=command,
+        file_outputs=file_outputs,
+        output_artifact_paths={
+            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
+            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
+        },
+    )
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
+
+    add_annotations(cop, PipelineRunType.run, function, func_url, project_name)
+    add_labels(cop, function, scrape_metrics)
+    if code_env:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
+        )
+    if registry:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
+            )
+        )
+
+    add_default_env(k8s_client, cop)
+
+    return cop
+
+
 def add_default_env(k8s_client, cop):
     cop.container.add_env_variable(
         k8s_client.V1EnvVar(
@@ -658,15 +385,6 @@ def add_default_env(k8s_client, cop):
         )
 
 
-def get_default_reg():
-    if config.httpdb.builder.docker_registry:
-        return config.httpdb.builder.docker_registry
-    namespace_domain = os.environ.get("IGZ_NAMESPACE_DOMAIN", None)
-    if namespace_domain is not None:
-        return f"docker-registry.{namespace_domain}:80"
-    return ""
-
-
 def add_annotations(cop, kind, function, func_url=None, project=None):
     if func_url and func_url.startswith("db://"):
         func_url = func_url[len("db://") :]
@@ -683,66 +401,6 @@ def add_labels(cop, function, scrape_metrics=False):
     cop.add_pod_label(prefix + "project", function.metadata.project)
     cop.add_pod_label(prefix + "tag", function.metadata.tag or "latest")
     cop.add_pod_label(prefix + "scrape-metrics", "True" if scrape_metrics else "False")
-
-
-def show_kfp_run(run, clear_output=False):
-    phase_to_color = {
-        mlrun.run.RunStatuses.failed: "red",
-        mlrun.run.RunStatuses.succeeded: "green",
-        mlrun.run.RunStatuses.skipped: "white",
-    }
-    runtype_to_shape = {
-        PipelineRunType.run: "ellipse",
-        PipelineRunType.build: "box",
-        PipelineRunType.deploy: "box3d",
-    }
-    if not run or "graph" not in run:
-        return
-    if is_ipython:
-        try:
-            from graphviz import Digraph
-        except ImportError:
-            return
-
-        try:
-            graph = run["graph"]
-            dag = Digraph("kfp", format="svg")
-            dag.attr(compound="true")
-
-            for key, node in graph.items():
-                if node["type"] != "DAG" or node["parent"]:
-                    shape = "ellipse"
-                    if node.get("run_type"):
-                        shape = runtype_to_shape.get(node["run_type"], None)
-                    elif node["phase"] == "Skipped" or (
-                        node["type"] == "DAG" and node["name"].startswith("condition-")
-                    ):
-                        shape = "diamond"
-                    dag.node(
-                        key,
-                        label=node["name"],
-                        fillcolor=phase_to_color.get(node["phase"], None),
-                        style="filled",
-                        shape=shape,
-                        tooltip=node.get("error", None),
-                    )
-                    for child in node.get("children") or []:
-                        dag.edge(key, child)
-
-            import IPython
-
-            if clear_output:
-                IPython.display.clear_output(wait=True)
-
-            run_id = run["run"]["id"]
-            url = get_workflow_url(run["run"]["project"], run_id)
-            href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
-            html = IPython.display.HTML(
-                f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"
-            )
-            IPython.display.display(html, dag)
-        except Exception as exc:
-            logger.warning(f"failed to plot graph, {err_to_str(exc)}")
 
 
 def add_default_function_resources(
@@ -773,3 +431,49 @@ def add_function_node_selection_attributes(
             container_op.affinity = function.spec.affinity
 
     return container_op
+
+
+def generate_kfp_dag_and_resolve_project(run, project=None):
+    workflow = run.workflow_manifest
+    if not workflow:
+        return None, project, None
+
+    templates = {}
+    for template in workflow["spec"]["templates"]:
+        project = project or get_in(
+            template, ["metadata", "annotations", project_annotation], ""
+        )
+        name = template["name"]
+        templates[name] = {
+            "run_type": get_in(
+                template, ["metadata", "annotations", run_annotation], ""
+            ),
+            "function": get_in(
+                template, ["metadata", "annotations", function_annotation], ""
+            ),
+        }
+
+    nodes = workflow["status"].get("nodes", {})
+    dag = {}
+    for node in nodes.values():
+        name = node["displayName"]
+        record = {
+            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
+        }
+
+        # snake case
+        # align kfp fields to mlrun snake case convention
+        # create snake_case for consistency.
+        # retain the camelCase for compatibility
+        for key in list(record.keys()):
+            record[inflection.underscore(key)] = record[key]
+
+        record["parent"] = node.get("boundaryID", "")
+        record["name"] = name
+        record["children"] = node.get("children", [])
+        if name in templates:
+            record["function"] = templates[name].get("function")
+            record["run_type"] = templates[name].get("run_type")
+        dag[node["id"]] = record
+
+    return dag, project, workflow["status"].get("message", "")

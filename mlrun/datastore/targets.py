@@ -1156,7 +1156,12 @@ class SnowflakeTarget(BaseStoreTarget):
         storage_options: dict[str, str] = None,
         schema: dict[str, Any] = None,
         #  credentials_prefix=None, # good for what?
-        db_url: str = None,
+        #db_url: str = None,
+        url: str = None,  #  change to url from db url
+        user: str = None,  #  from source.
+        db_schema: str = None,  # my addition # optional
+        database: str = None, #  from source.
+        warehouse: str =None, #  from source.
         table_name: str = None,
         primary_key_column: str = "",
         if_exists: str = "append",
@@ -1164,15 +1169,24 @@ class SnowflakeTarget(BaseStoreTarget):
         # create_according_to_data: bool = False,
         varchar_len: int = 50,
         parse_dates: list[str] = None,
-        db_schema: str = None,  # my addition # optional
     ):
-        db_url = db_url or mlrun.mlconf.sql.url
-        self.db_url = db_url
-        self.table_name = table_name
+        #db_url = db_url or mlrun.mlconf.sql.url
+        #self.db_url = db_url
+        # self.table_name = table_name
         self.primary_key_column = primary_key_column
         self.if_exists = if_exists
         self.parse_dates = parse_dates
         self.db_schema = db_schema
+
+
+        attrs = {
+            "url": url,
+            "user": user,
+            "database": database,
+            "schema": db_schema,
+            "warehouse": warehouse,
+        }
+
         #  TODO PATH or db_url logic
         # if db_url is None or table_name is None:
         #     attr = {}

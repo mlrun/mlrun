@@ -85,7 +85,7 @@ def write_spark_dataframe_with_options(spark_options, df, mode, write_format=Non
         df.sql_ctx.sparkSession, spark_options
     )
     if write_format:
-        df.format(write_format).write.mode(mode).save(**non_hadoop_spark_options)
+        df.write.format(write_format).mode(mode).save(**non_hadoop_spark_options)
     else:
         df.write.mode(mode).save(**non_hadoop_spark_options)
 
@@ -1156,12 +1156,12 @@ class SnowflakeTarget(BaseStoreTarget):
         storage_options: dict[str, str] = None,
         schema: dict[str, Any] = None,
         #  credentials_prefix=None, # good for what?
-        #db_url: str = None,
+        # db_url: str = None,
         url: str = None,  #  change to url from db url
         user: str = None,  #  from source.
         db_schema: str = None,  # my addition # optional
-        database: str = None, #  from source.
-        warehouse: str =None, #  from source.
+        database: str = None,  #  from source.
+        warehouse: str = None,  #  from source.
         table_name: str = None,
         primary_key_column: str = "",
         if_exists: str = "append",
@@ -1170,14 +1170,13 @@ class SnowflakeTarget(BaseStoreTarget):
         varchar_len: int = 50,
         parse_dates: list[str] = None,
     ):
-        #db_url = db_url or mlrun.mlconf.sql.url
-        #self.db_url = db_url
+        # db_url = db_url or mlrun.mlconf.sql.url
+        # self.db_url = db_url
         # self.table_name = table_name
         self.primary_key_column = primary_key_column
         self.if_exists = if_exists
         self.parse_dates = parse_dates
         self.db_schema = db_schema
-
 
         attrs = {
             "url": url,

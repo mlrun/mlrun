@@ -571,13 +571,20 @@ def _migrate_artifacts_batch(
         # project - copy as is
         new_artifact.project = artifact_metadata.get("project", None)
 
-        # key - the artifact's key, without iteration if it is attached to it
-        key = artifact_metadata.get("key", "")
-        new_artifact.key = key
-
         # iteration - the artifact's iteration
         iteration = artifact_metadata.get("iter", None)
         new_artifact.iteration = int(iteration) if iteration else 0
+
+        # key - the artifact's key, without iteration if it is attached to it
+        key = (
+            artifact.key
+            or artifact_dict.get("spec", {}).get("db_key")
+            or artifact_metadata.get("key", "")
+        )
+        key_parts = key.split("-")
+        if len(key_parts) > 1 and iteration and key_parts[0] == str(iteration):
+            key = "-".join(key_parts[1:])
+        new_artifact.key = key
 
         # best iteration
         # if iteration == 0 it means it is from a single run since link artifacts were already

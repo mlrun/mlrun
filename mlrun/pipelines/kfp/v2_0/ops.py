@@ -207,9 +207,8 @@ def generate_pipeline_node(
     # TODO: ensure that "name" can be used to identify the current pipeline node
     task.set_display_name(name)
 
-    task = add_default_function_resources(task)
-    task = add_function_node_selection_attributes(function, task)
-
+    add_default_function_resources(task)
+    add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.run, function, func_url, project_name)
     add_labels(task, function, scrape_metrics)
     task.set_env_variable(

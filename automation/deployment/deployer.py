@@ -25,10 +25,8 @@ import requests
 class Constants:
     helm_repo_name = "mlrun-ce"
     helm_release_name = "mlrun-ce"
-    # helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
-    helm_chart_name = "/Users/laury/dev/iguazio/ce/charts/mlrun-ce"
-    # helm_repo_url = "https://mlrun.github.io/ce"
-    helm_repo_url = "/Users/laury/dev/iguazio/ce/charts/mlrun-ce"
+    helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
+    helm_repo_url = "https://mlrun.github.io/ce"
     default_registry_secret_name = "registry-credentials"
     mlrun_image_values = [
         "mlrun.api",
@@ -467,17 +465,8 @@ class CommunityEditionDeployer:
             "global.registry.secretName": f'"{ep.registry_secret_name}"'  # adding quotes in case of empty string
             if ep.registry_secret_name is not None
             else Constants.default_registry_secret_name,
-            "global.externalHostAddress": "192.168.15.7",
-            "nuclio.dashboard.externalIPAddresses[0]": "192.168.15.7",
-            "pipelines.images.apiServer.tag": "2.0.5",
-            "pipelines.images.persistenceagent.tag": "2.0.5",
-            "pipelines.images.scheduledworkflow.tag": "2.0.5",
-            "pipelines.images.ui.tag": "2.0.5",
-            "pipelines.images.viewerCrdController.tag": "2.0.5",
-            "pipelines.images.visualizationServer.tag": "2.0.5",
-            "pipelines.images.metadataEnvoy.tag": "2.0.5",
-            "pipelines.images.metadataWriter.tag": "2.0.5",
-            "mlrun.api.sidecars.logCollector.image.tag": "1.6.0-rc23",
+            "global.externalHostAddress": host_ip,
+            "nuclio.dashboard.externalIPAddresses[0]": host_ip,
         }
 
         if ep.mlrun_version:

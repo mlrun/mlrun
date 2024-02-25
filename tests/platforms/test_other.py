@@ -16,7 +16,7 @@ import deepdiff
 
 import mlrun
 import mlrun.errors
-import mlrun.pipelines.kfp.v1_8.platforms.other
+import mlrun.pipelines.platform_other
 
 
 def test_mount_configmap():
@@ -88,7 +88,7 @@ def test_mount_s3():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun.pipelines.kfp.v1_8.platforms.other.mount_s3(
+        mlrun.pipelines.platform_other.mount_s3(
             aws_access_key="xx", aws_secret_key="yy", endpoint_url="a.b"
         )
     )
@@ -103,9 +103,7 @@ def test_mount_s3():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun.pipelines.kfp.v1_8.platforms.other.mount_s3(
-            secret_name="s", endpoint_url="a.b"
-        )
+        mlrun.pipelines.platform_other.mount_s3(secret_name="s", endpoint_url="a.b")
     )
     env_dict = {
         var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env

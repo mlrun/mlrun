@@ -1987,6 +1987,7 @@ class MlrunProject(ModelObj):
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
+        deploy_histogram_data_drift_app: bool = True,
     ) -> dict:
         """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
@@ -2000,9 +2001,20 @@ class MlrunProject(ModelObj):
         :param base_period:              The time period in minutes in which the model monitoring controller job
                                          runs. By default, the base period is 10 minutes. The schedule for the job
                                          will be the following cron expression: "\\*/{base_period} \\* \\* \\* \\*".
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+        if deploy_histogram_data_drift_app:
+            self.set_model_monitoring_function(
+                func=str(
+                    pathlib.Path(__file__).parent.parent
+                    / "model_monitoring/applications/histogram_data_drift.py"
+                ),
+                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+                application_class="HistogramDataDriftApplication",
+                image="mlrun/mlrun",
+            )
         return db.create_model_monitoring_controller(
             project=self.name,
             default_controller_image=default_controller_image,

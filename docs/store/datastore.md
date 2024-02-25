@@ -135,6 +135,11 @@ Not supported by the spark and remote-spark runtimes.
   
 ## Using data store profiles
 
+```{admonition} Notes
+- Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+- Datastore profiles are not part of a project export/import.
+```
+
 You can use a data store profile to manage datastore credentials. A data store profile 
 holds all the information required to address an external data source, including credentials. 
 You can create 
@@ -167,11 +172,6 @@ redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
-```{admonition} Note
-Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
-```
-
-
 ### Azure data store profile
 ```
 profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)

@@ -332,7 +332,7 @@ class FeaturesDriftTablePlot:
 
         return feature_row_table
 
-    def _plot_histogram_scatters(
+    def _plot_histogram_bars(
         self, sample_hist: tuple[list, list], input_hist: tuple[list, list]
     ) -> tuple[go.Scatter, go.Scatter]:
         """
@@ -348,8 +348,8 @@ class FeaturesDriftTablePlot:
                  [0] - Sample set histogram.
                  [1] - Input histogram.
         """
-        # Initialize a list to collect the scatters:
-        scatters = []
+        # Initialize a list to collect the bars:
+        bars = []
 
         # Plot the histograms:
         for name, color, histogram in zip(
@@ -366,7 +366,7 @@ class FeaturesDriftTablePlot:
             # Center the bins (leave the first one):
             bins = 0.5 * (bins[:-1] + bins[1:])
             # Plot the histogram as a line with filled background below it:
-            histogram_scatter = go.Scatter(
+            histogram_bar = go.Scatter(
                 x=bins,
                 y=counts,
                 fill="tozeroy",
@@ -375,9 +375,9 @@ class FeaturesDriftTablePlot:
                 line={"color": color},
                 legendgroup=name,
             )
-            scatters.append(histogram_scatter)
+            bars.append(histogram_bar)
 
-        return scatters[0], scatters[1]
+        return bars[0], bars[1]
 
     def _calculate_row_height(self, features: list[str]) -> int:
         """
@@ -543,7 +543,7 @@ class FeaturesDriftTablePlot:
                     f"{inputs_statistics.keys() = }\n"
                 )
             # Add the histograms (both traces are added to the same subplot figure):
-            sample_hist, input_hist = self._plot_histogram_scatters(
+            sample_hist, input_hist = self._plot_histogram_bars(
                 sample_hist=sample_set_statistics[feature]["hist"],
                 input_hist=inputs_statistics[feature]["hist"],
             )

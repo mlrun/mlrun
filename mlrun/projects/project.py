@@ -1805,8 +1805,9 @@ class MlrunProject(ModelObj):
         Update or add a monitoring function to the project.
 
         examples::
-            project.set_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.set_model_monitoring_function(
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
+            )
 
         :param func:                    Function object or spec/code url, None refers to current Notebook
         :param name:                    Name of the function (under the project), can be specified with a tag to support
@@ -1821,7 +1822,7 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            A list of python packages
         :param requirements_file:       Path to a python requirements file
-        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """

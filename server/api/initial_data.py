@@ -581,9 +581,8 @@ def _migrate_artifacts_batch(
             or artifact_dict.get("spec", {}).get("db_key")
             or artifact_metadata.get("key", "")
         )
-        key_parts = key.split("-")
-        if len(key_parts) > 1 and iteration and key_parts[0] == str(iteration):
-            key = "-".join(key_parts[1:])
+        if iteration and key.startswith(f"{iteration}-"):
+            key = key[len(f"{iteration}-") :]
         new_artifact.key = key
 
         # best iteration

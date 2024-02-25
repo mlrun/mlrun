@@ -1322,7 +1322,7 @@ class TestArtifacts:
             assert artifacts[0]["metadata"]["project"] == project
             assert artifacts[0]["metadata"]["uid"] != artifact_uid
 
-    def test_migrate_artifact_v2_persist_db_key(
+    def test_migrate_artifact_v2_persist_db_key_with_iteration(
         self, db: DBInterface, db_session: Session
     ):
         artifact_key = "artifact"
@@ -1368,6 +1368,7 @@ class TestArtifacts:
         )
         new_artifact = query_all.one()
         assert new_artifact.key == db_key
+        assert new_artifact.iteration == iteration
 
     def test_update_model_spec(self, db: DBInterface, db_session: Session):
         artifact_key = "model1"

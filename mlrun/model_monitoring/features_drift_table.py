@@ -56,6 +56,7 @@ class FeaturesDriftTablePlot:
     # Histograms configurations:
     _SAMPLE_SET_HISTOGRAM_COLOR = "rgb(0,112,192)"  # Blue
     _INPUTS_HISTOGRAM_COLOR = "rgb(208,0,106)"  # Magenta
+    _HISTOGRAM_OPACITY = 0.75
 
     # Notification configurations:
     _NOTIFICATION_COLORS = {
@@ -366,13 +367,12 @@ class FeaturesDriftTablePlot:
             # Center the bins (leave the first one):
             bins = 0.5 * (bins[:-1] + bins[1:])
             # Plot the histogram as a line with filled background below it:
-            histogram_bar = go.Scatter(
+            histogram_bar = go.Bar(
                 x=bins,
                 y=counts,
-                fill="tozeroy",
                 name=name,
-                line_shape="spline",  # Make the line rounder.
-                line={"color": color},
+                marker_color=color,
+                opacity=self._HISTOGRAM_OPACITY,
                 legendgroup=name,
             )
             bars.append(histogram_bar)
@@ -579,6 +579,8 @@ class FeaturesDriftTablePlot:
                 "x": 1.0 - (self._NOTIFICATIONS_COLUMN_WIDTH / width) - 0.01,
                 "bgcolor": "rgba(0,0,0,0)",
             },
+            barmode="overlay",
+            bargap=0,
         )
         main_figure.update_xaxes(
             showticklabels=False,

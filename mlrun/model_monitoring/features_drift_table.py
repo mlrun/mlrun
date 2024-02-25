@@ -28,7 +28,7 @@ DriftResultType = tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float
 class FeaturesDriftTablePlot:
     """
     Class for producing a features drift table. The plot is a table with columns of all the statistics and metrics
-    provided with two additional plot columns of the histograms and drift notification. The rows content will be drawn
+    provided with two additional plot columns of the histograms and drift status. The rows content will be drawn
     per feature.
 
     For example, if the statistics are 'mean', 'min', 'max' and one metric of 'tvd', for 3 features the table will be:
@@ -48,7 +48,7 @@ class FeaturesDriftTablePlot:
         70  # The width for the values of all the statistics and metrics columns.
     )
     _HISTOGRAMS_COLUMN_WIDTH = 180
-    _NOTIFICATIONS_COLUMN_WIDTH = 20
+    _STATUS_COLUMN_WIDTH = 20
 
     # Table rows heights:
     _HEADER_ROW_HEIGHT = 25
@@ -59,8 +59,8 @@ class FeaturesDriftTablePlot:
     _INPUTS_HISTOGRAM_COLOR = "rgb(208,0,106)"  # Magenta
     _HISTOGRAM_OPACITY = 0.75
 
-    # Notification configurations:
-    _NOTIFICATION_COLORS = {
+    # Status configurations:
+    _STATUS_COLORS = {
         mlrun.common.schemas.model_monitoring.DriftStatus.NO_DRIFT: "rgb(0,176,80)",  # Green
         mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT: "rgb(255,192,0)",  # Orange
         mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED: "rgb(208,0,106)",  # Magenta
@@ -200,7 +200,7 @@ class FeaturesDriftTablePlot:
                 self._FEATURE_NAME_COLUMN_WIDTH,
                 *self._value_columns_widths,
                 self._HISTOGRAMS_COLUMN_WIDTH,
-                self._NOTIFICATIONS_COLUMN_WIDTH,
+                self._STATUS_COLUMN_WIDTH,
             ],
             header_fill_color=self._BACKGROUND_COLOR,
         )
@@ -224,7 +224,7 @@ class FeaturesDriftTablePlot:
                 [self._FEATURE_NAME_COLUMN_WIDTH]
                 + [self._VALUE_COLUMN_WIDTH]
                 * (2 * len(self._statistics_columns) + len(self._metrics_columns))
-                + [self._HISTOGRAMS_COLUMN_WIDTH, self._NOTIFICATIONS_COLUMN_WIDTH]
+                + [self._HISTOGRAMS_COLUMN_WIDTH, self._STATUS_COLUMN_WIDTH]
             ),
             header_fill_color=self._BACKGROUND_COLOR,
         )
@@ -399,7 +399,7 @@ class FeaturesDriftTablePlot:
             self._FEATURE_ROW_HEIGHT, 1.5 * self._FONT_SIZE * feature_name_seperations
         )
 
-    def _plot_notification_circle(
+    def _plot_status_circle(
         self,
         figure: go.Figure,
         row: int,
@@ -407,8 +407,8 @@ class FeaturesDriftTablePlot:
         drift_result: DriftResultType,
     ):
         """
-        Plot the drift notification - a little circle with color as configured in the class. The color will beb chosen
-        according to the drift status given.
+        Plot the drift status - a little circle with color as configured in the
+        class. The color will be chosen according to the drift status given.
 
         :param figure:       The figure (feature row cell) to draw the circle in.
         :param row:          The row number.
@@ -420,12 +420,12 @@ class FeaturesDriftTablePlot:
         # row 3) times the plot columns (2 columns has axes in each row) + 2 (to get to the column of the notification):
         axis_number = (row - 3) * 2 + 2
         figure["layout"][f"xaxis{axis_number}"].update(
-            range=[0, self._NOTIFICATIONS_COLUMN_WIDTH]
+            range=[0, self._STATUS_COLUMN_WIDTH]
         )
         figure["layout"][f"yaxis{axis_number}"].update(range=[0, row_height])
 
         # Get the color:
-        notification_color = self._NOTIFICATION_COLORS[drift_result[0]]
+        notification_color = self._STATUS_COLORS[drift_result[0]]
         half_transparent_notification_color = notification_color.replace(
             "rgb", "rgba"
         ).replace(")", ",0.5)")
@@ -434,8 +434,8 @@ class FeaturesDriftTablePlot:
         # size of the text as well):
         y0 = 36 + (row_height - self._FEATURE_ROW_HEIGHT)
         y1 = y0 + self._FONT_SIZE
-        x0 = (self._NOTIFICATIONS_COLUMN_WIDTH / 2) - ((y1 - y0) / 2)
-        x1 = (self._NOTIFICATIONS_COLUMN_WIDTH / 2) + ((y1 - y0) / 2)
+        x0 = (self._STATUS_COLUMN_WIDTH / 2) - ((y1 - y0) / 2)
+        x1 = (self._STATUS_COLUMN_WIDTH / 2) + ((y1 - y0) / 2)
 
         # Draw the circle on top of the figure:
         figure.add_shape(
@@ -486,7 +486,7 @@ class FeaturesDriftTablePlot:
             self._FEATURE_NAME_COLUMN_WIDTH
             + sum(self._value_columns_widths)
             + self._HISTOGRAMS_COLUMN_WIDTH
-            + self._NOTIFICATIONS_COLUMN_WIDTH
+            + self._STATUS_COLUMN_WIDTH
         )
         height = 2 * self._HEADER_ROW_HEIGHT + len(features) * row_height
 
@@ -507,7 +507,7 @@ class FeaturesDriftTablePlot:
                 (self._FEATURE_NAME_COLUMN_WIDTH + sum(self._value_columns_widths))
                 / width,
                 self._HISTOGRAMS_COLUMN_WIDTH / width,
-                self._NOTIFICATIONS_COLUMN_WIDTH / width,
+                self._STATUS_COLUMN_WIDTH / width,
             ],
             horizontal_spacing=0,
             vertical_spacing=0,
@@ -518,7 +518,7 @@ class FeaturesDriftTablePlot:
         main_figure.add_trace(header_trace, row=1, col=1)
         main_figure.add_trace(sub_header_trace, row=2, col=1)
 
-        # Start going over the features and plot each row, histogram and notification:
+        # Start going over the features and plot each row, histogram and status
         for row, feature in enumerate(
             features,
             start=3,  # starting from row 3 after the headers
@@ -554,8 +554,8 @@ class FeaturesDriftTablePlot:
                 # Only the first row should have its legend visible
                 showlegend=(row == 3),
             )
-            # Add the notification (a circle with color according to the drift alert):
-            self._plot_notification_circle(
+            # Add the status (a circle with color according to the drift status)
+            self._plot_status_circle(
                 figure=main_figure,
                 row=row,
                 row_height=row_height,
@@ -577,7 +577,7 @@ class FeaturesDriftTablePlot:
                 "yanchor": "top",
                 "y": 1.0 - (self._HEADER_ROW_HEIGHT / height) + 0.002,
                 "xanchor": "right",
-                "x": 1.0 - (self._NOTIFICATIONS_COLUMN_WIDTH / width) - 0.01,
+                "x": 1.0 - (self._STATUS_COLUMN_WIDTH / width) - 0.01,
                 "bgcolor": "rgba(0,0,0,0)",
             },
             barmode="overlay",

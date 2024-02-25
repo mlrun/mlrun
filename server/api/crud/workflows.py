@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import os
-import typing
 import uuid
 
 from sqlalchemy.orm import Session
@@ -351,7 +350,7 @@ class WorkflowRunners(
     @staticmethod
     def _validate_source(
         project: mlrun.common.schemas.Project, source: str, load_only: bool = False
-    ) -> typing.Tuple[str, bool, bool]:
+    ) -> tuple[str, bool, bool]:
         """
         In case the user provided a source we want to load the project from the source
         (like from a specific commit/branch from git repo) without changing the source of the project (save=False).

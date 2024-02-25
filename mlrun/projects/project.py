@@ -1254,7 +1254,7 @@ class MlrunProject(ModelObj):
         workflow_path: str,
         embed: bool = False,
         engine: Optional[str] = None,
-        args_schema: typing.List[EntrypointParam] = None,
+        args_schema: list[EntrypointParam] = None,
         handler: Optional[str] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl: Optional[int] = None,
@@ -3067,7 +3067,8 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
-        :param source_code_target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
+        :param source_code_target_dir: Path on the image where source code would be extracted
+            (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0

@@ -2639,12 +2639,11 @@ class MlrunProject(ModelObj):
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a remote URL or a path to the project's context on the runner's (workflow) image.
+                          Can be a one of:
+                            1. Remote URL which is loaded dynamically to the workflow runner.
+                            2. A path to the project's context on the workflow runner's image.
                           Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
-                          (enriched when building a project image with source).
-                          Works in pair with `project.spec.load_source_on_run`, if True, the source will be loaded
-                          to the runner, otherwise the source should be loaded when building the image with
-                          `project.build_image`.
+                          (enriched when building a project image with source, see `MlrunProject.build_image`).
                           For other engines the source is used to validate that the code is up-to-date.
         :param cleanup_ttl:
                           Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the

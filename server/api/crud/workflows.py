@@ -324,14 +324,8 @@ class WorkflowRunners(
         )
 
         if is_context:
-            if project.spec.load_source_on_run:
-                run_object.spec.parameters["url"] = project.spec.source
-                if source.startswith("./") and len(source) > 2:
-                    run_object.spec.parameters["subpath"] = source
-            else:
-                # Configure load_and_run to not load the source as it is already loaded on the image
-                run_object.spec.parameters["project_context"] = source
-                run_object.spec.parameters.pop("url", None)
+            run_object.spec.parameters["project_context"] = source
+            run_object.spec.parameters.pop("url", None)
 
         if not load_only:
             workflow_spec = workflow_request.spec

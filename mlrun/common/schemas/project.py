@@ -87,7 +87,6 @@ class ProjectSpec(pydantic.BaseModel):
     custom_packagers: typing.Optional[list[tuple[str, bool]]] = None
     default_image: typing.Optional[str] = None
     build: typing.Optional[ImageBuilder] = None
-    load_source_on_run: typing.Optional[bool] = None
 
     class Config:
         extra = pydantic.Extra.allow

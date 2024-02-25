@@ -1352,14 +1352,7 @@ class TestProject(TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_project(name)
 
-    @pytest.mark.parametrize(
-        "pull_at_runtime",
-        [
-            True,
-            False,
-        ],
-    )
-    def test_remote_workflow_source_on_image(self, pull_at_runtime):
+    def test_remote_workflow_source_on_image(self):
         name = "source-project"
         self.custom_project_names_to_delete.append(name)
 
@@ -1375,19 +1368,16 @@ class TestProject(TestMLRunSystem):
             source,
             name=name,
         )
-        project.set_source(source, pull_at_runtime=pull_at_runtime)
+        project.set_source(source)
 
-        if not pull_at_runtime:
-            # Build the image, load the source to the target dir and save the project
-            project.build_image(target_dir=source_code_target_dir)
-            project.save()
+        # Build the image, load the source to the target dir and save the project
+        project.build_image(target_dir=source_code_target_dir)
+        project.save()
 
         run = project.run(
             "main",
             engine="remote",
-            source="./"
-            if not pull_at_runtime
-            else None,  # Relative to project.spec.build.source_code_target_dir
+            source="./",  # Relative to project.spec.build.source_code_target_dir
             artifact_path=artifact_path,
             dirty=True,
         )

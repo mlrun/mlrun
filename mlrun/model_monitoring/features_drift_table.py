@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+import functools
+from typing import Callable, Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -334,24 +335,24 @@ class FeaturesDriftTablePlot:
         return feature_row_table
 
     def _plot_histogram_bars(
-        self, sample_hist: tuple[list, list], input_hist: tuple[list, list]
-    ) -> tuple[go.Scatter, go.Scatter]:
+        self,
+        figure_add_trace: Callable,
+        sample_hist: tuple[list, list],
+        input_hist: tuple[list, list],
+        showlegend: bool = False,
+    ) -> None:
         """
-        Plot the feature's histograms to include in the "histograms" column. Both histograms are returned to later be
-        added in the same figure, so they will be on top of each other and not separated. Both histograms are rescaled
+        Plot the feature's histograms to include in the "histograms" column. Both histograms are rescaled
         to be from 0.0 to 1.0, so they will be drawn in the same scale regardless the amount of elements they were
         calculated upon.
 
-        :param sample_hist: The sample set histogram data.
-        :param input_hist:  The input histogram data.
+        :param figure_add_trace: The figure's method that get the histogram and adds it to the figure.
+        :param sample_hist:      The sample set histogram data.
+        :param input_hist:       The input histogram data.
+        :param showlegend:       Show the legend for each histogram or not.
 
-        :return: A tuple with both histograms - `Scatter` traces:
-                 [0] - Sample set histogram.
-                 [1] - Input histogram.
+        :return: None
         """
-        # Initialize a list to collect the bars:
-        bars = []
-
         # Plot the histograms:
         for name, color, histogram in zip(
             ["sample", "input"],
@@ -374,10 +375,9 @@ class FeaturesDriftTablePlot:
                 marker_color=color,
                 opacity=self._HISTOGRAM_OPACITY,
                 legendgroup=name,
+                showlegend=showlegend,
             )
-            bars.append(histogram_bar)
-
-        return bars[0], bars[1]
+            figure_add_trace(histogram_bar)
 
     def _calculate_row_height(self, features: list[str]) -> int:
         """
@@ -543,15 +543,15 @@ class FeaturesDriftTablePlot:
                     f"{inputs_statistics.keys() = }\n"
                 )
             # Add the histograms (both traces are added to the same subplot figure):
-            sample_hist, input_hist = self._plot_histogram_bars(
+            self._plot_histogram_bars(
+                figure_add_trace=functools.partial(
+                    main_figure.add_trace, row=row, col=2
+                ),
                 sample_hist=sample_set_statistics[feature]["hist"],
                 input_hist=inputs_statistics[feature]["hist"],
+                # Only the first row should have its legend visible
+                showlegend=(row == 3),
             )
-            if row != 3:  # Only the first row should have its legend visible:
-                sample_hist.showlegend = False
-                input_hist.showlegend = False
-            main_figure.add_trace(sample_hist, row=row, col=2)
-            main_figure.add_trace(input_hist, row=row, col=2)
             # Add the notification (a circle with color according to the drift alert):
             self._plot_notification_circle(
                 figure=main_figure,

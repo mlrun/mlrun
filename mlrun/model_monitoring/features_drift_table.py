@@ -80,9 +80,6 @@ class FeaturesDriftTablePlot:
     _BACKGROUND_COLOR = "rgb(255,255,255)"  # White
     _SEPARATORS_COLOR = "rgb(240,240,240)"  # Light grey
 
-    # File name:
-    _FILE_NAME = "table_plot.html"
-
     def __init__(self):
         """
         Initialize the plot producer for later calling the `produce` method.

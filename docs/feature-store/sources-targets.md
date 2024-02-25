@@ -168,6 +168,9 @@ target = KafkaTarget(path="ds://profile-name")
 {py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
 The Parquet file is ideal for fetching large sets of data for training.
 
+{py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
+The Parquet file is ideal for fetching large sets of data for training.
+
 ### Partitioning
 
 When writing data to a ParquetTarget, you can use partitioning. Partitioning organizes data 

@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 from mlrun.artifacts import Artifact
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.data_types.infer import DFDataInfer, default_num_bins
 from mlrun.model_monitoring.batch import VirtualDrift, calculate_inputs_statistics
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
@@ -65,6 +66,7 @@ def plot_produce(context: mlrun.MLClientCtx):
         df=sample_data,
         options=mlrun.data_types.infer.InferOptions.Histogram,
     )
+    pad_features_hist(FeatureStats(sample_data_statistics))
     inputs_statistics = calculate_inputs_statistics(
         sample_set_statistics=sample_data_statistics,
         inputs=inputs,

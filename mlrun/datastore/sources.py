@@ -39,7 +39,6 @@ from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
     select_columns_from_df,
-    store_path_to_spark,
 )
 
 
@@ -209,25 +208,17 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
+        store, path = mlrun.store_manager.get_or_create_store(self.path)
+        result = {
+            "path": store.spark_url + path,
+            "format": "csv",
+            "header": "true",
+            "inferSchema": "true",
+        }
         if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
             storage_spark_options = store.get_spark_options()
-            path = store.url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
-                "format": "csv",
-                "header": "true",
-                "inferSchema": "true",
-            }
-
             return {**result, **storage_spark_options}
-        else:
-            return {
-                "path": store_path_to_spark(self.path),
-                "format": "csv",
-                "header": "true",
-                "inferSchema": "true",
-            }
+        return result
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
@@ -374,20 +365,15 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
+        store, path = mlrun.store_manager.get_or_create_store(self.path)
+        result = {
+            "path": store.spark_url + path,
+            "format": "parquet",
+        }
         if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
             storage_spark_options = store.get_spark_options()
-            path = store.spark_url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
-                "format": "parquet",
-            }
             return {**result, **storage_spark_options}
-        else:
-            return {
-                "path": store_path_to_spark(self.path),
-                "format": "parquet",
-            }
+        return result
 
     def to_dataframe(
         self,

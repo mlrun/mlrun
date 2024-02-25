@@ -43,7 +43,6 @@ from .utils import (
     filter_df_start_end_time,
     parse_kafka_url,
     select_columns_from_df,
-    store_path_to_spark,
 )
 
 
@@ -925,22 +924,14 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
+        store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        result = {
+            "path": store.spark_url + path,
+            "format": "parquet",
+        }
         if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(
-                self.get_target_path()
-            )
             storage_spark_options = store.get_spark_options()
-            path = store.spark_url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
-                "format": "parquet",
-            }
             result = {**result, **storage_spark_options}
-        else:
-            result = {
-                "path": store_path_to_spark(self.get_target_path()),
-                "format": "parquet",
-            }
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
@@ -1067,24 +1058,15 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        result = {
+            "path": store.spark_url + path,
+            "format": "csv",
+            "header": "true",
+        }
         if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(
-                self.get_target_path()
-            )
-            storage_spark_options = store.get_spark_options()
-            path = store.spark_url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
-                "format": "csv",
-                "header": "true",
-            }
             return {**result, **storage_spark_options}
-        else:
-            return {
-                "path": store_path_to_spark(self.get_target_path()),
-                "format": "csv",
-                "header": "true",
-            }
+        return result
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1236,8 +1218,9 @@ class NoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
         spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
+            "path": store.spark_url + path,
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1330,10 +1313,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
-
+        store, path = self._get_store_and_path()
         return {
             "key.column": "_spark_object_name",
-            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "table": "{" + store.spark_url + path,
             "format": "org.apache.spark.sql.redis",
             "host": parsed_endpoint.hostname,
             "port": parsed_endpoint.port,

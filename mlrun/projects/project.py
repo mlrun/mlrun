@@ -36,7 +36,6 @@ import requests
 import yaml
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
@@ -2854,13 +2853,11 @@ class MlrunProject(ModelObj):
 
         secrets_dict = {}
         if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key
+            secrets_dict[mm_constants.ProjectSecretKeys.ACCESS_KEY] = access_key
 
         if endpoint_store_connection:
             secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
 
         if stream_path:
@@ -2868,9 +2865,7 @@ class MlrunProject(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Custom kafka topic is not allowed"
                 )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ] = stream_path
+            secrets_dict[mm_constants.ProjectSecretKeys.STREAM_PATH] = stream_path
 
         self.set_secrets(
             secrets=secrets_dict,

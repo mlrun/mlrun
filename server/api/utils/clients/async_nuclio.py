@@ -29,13 +29,10 @@ NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
-IGUAZIO_USERNAME_LABEL = "iguazio.com/username"
-
 
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._session = None
-        self._username = auth_info.username
         self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
@@ -116,7 +113,6 @@ class Client:
 
     def _set_iguazio_labels(self, nuclio_object, project_name):
         nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
-        nuclio_object.metadata.labels[IGUAZIO_USERNAME_LABEL] = self._username
         nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
 
     async def _ensure_async_session(self):

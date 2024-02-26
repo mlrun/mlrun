@@ -16,8 +16,6 @@ import json
 import os
 import urllib
 from collections import namedtuple
-from datetime import datetime
-from http import HTTPStatus
 from urllib.parse import urlparse
 
 import kfp.dsl

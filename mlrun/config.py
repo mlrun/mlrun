@@ -288,7 +288,6 @@ default_config = {
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
-
         # http client used by httpdb
         "http": {
             # when True, the client will verify the server's TLS

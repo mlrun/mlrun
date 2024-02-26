@@ -63,7 +63,7 @@ async def delete_project(
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
-        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+        return fastapi.Response(status_code=http.HTTPStatus.NOT_FOUND.value)
 
     # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
     # task, we need to check permissions here. skip permission check if the request is from the leader.

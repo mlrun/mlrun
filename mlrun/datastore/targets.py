@@ -925,18 +925,18 @@ class ParquetTarget(BaseStoreTarget):
                         break
 
         store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
-        result = {
-            "path": store.spark_url + path,
-            "format": "parquet",
-        }
-        if self.path and self.path.startswith("ds://"):
-            storage_spark_options = store.get_spark_options()
-            result = {**result, **storage_spark_options}
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "parquet",
+            }
+        )
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
-            result["partitionBy"] = partition_cols
-        return result
+            spark_options["partitionBy"] = partition_cols
+        return spark_options
 
     def get_dask_options(self):
         return {"format": "parquet"}
@@ -1059,15 +1059,15 @@ class CSVTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
-        result = {
-            "path": store.spark_url + path,
-            "format": "csv",
-            "header": "true",
-        }
-        if self.path and self.path.startswith("ds://"):
-            storage_spark_options = store.get_spark_options()
-            return {**result, **storage_spark_options}
-        return result
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "csv",
+                "header": "true",
+            }
+        )
+        return spark_options
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs

@@ -209,16 +209,16 @@ class CSVSource(BaseSourceDriver):
 
     def get_spark_options(self):
         store, path = mlrun.store_manager.get_or_create_store(self.path)
-        result = {
-            "path": store.spark_url + path,
-            "format": "csv",
-            "header": "true",
-            "inferSchema": "true",
-        }
-        if self.path and self.path.startswith("ds://"):
-            storage_spark_options = store.get_spark_options()
-            return {**result, **storage_spark_options}
-        return result
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "csv",
+                "header": "true",
+                "inferSchema": "true",
+            }
+        )
+        return spark_options
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
@@ -366,14 +366,14 @@ class ParquetSource(BaseSourceDriver):
 
     def get_spark_options(self):
         store, path = mlrun.store_manager.get_or_create_store(self.path)
-        result = {
-            "path": store.spark_url + path,
-            "format": "parquet",
-        }
-        if self.path and self.path.startswith("ds://"):
-            storage_spark_options = store.get_spark_options()
-            return {**result, **storage_spark_options}
-        return result
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "parquet",
+            }
+        )
+        return spark_options
 
     def to_dataframe(
         self,

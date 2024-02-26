@@ -30,6 +30,7 @@ NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
+
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._session = None

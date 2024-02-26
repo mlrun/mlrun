@@ -76,8 +76,8 @@ class APIGateway:
             else self._enrich_authentication_mode(username=username, password=password)
         )
         self.canary = canary
-        self.__username = username
-        self.__password = password
+        self._username = username
+        self._password = password
 
     def invoke(
         self,
@@ -153,7 +153,7 @@ class APIGateway:
             is NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
         ):
             api_gateway.spec.authentication = mlrun.common.schemas.APIGatewayBasicAuth(
-                username=self.__username, password=self.__password
+                username=self._username, password=self._password
             )
         return api_gateway
 

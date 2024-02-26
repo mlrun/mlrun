@@ -3381,7 +3381,7 @@ class HTTPRunDB(RunDBInterface):
         :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
             or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
-        :param name: api gateway name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
+
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
 

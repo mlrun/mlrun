@@ -149,7 +149,6 @@ default_config = {
         "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
-    "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster

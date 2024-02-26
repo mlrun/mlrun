@@ -94,6 +94,10 @@ def schema_to_store(schema):
         from .dbfs_store import DBFSStore
 
         return DBFSStore
+    elif schema == "hdfs":
+        from .hdfs import HdfsStore
+
+        return HdfsStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 
@@ -170,7 +174,7 @@ class StoreManager:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"resource {url} does not have a valid/persistent offline target"
             )
-        return resource, target
+        return resource, target or ""
 
     def object(
         self, url, key="", project="", allow_empty_resources=None, secrets: dict = None
@@ -185,7 +189,16 @@ class StoreManager:
         store, subpath = self.get_or_create_store(
             url, secrets=secrets, project_name=project
         )
-        return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
+        if url.startswith("ds://"):
+            url = store.url + subpath
+        return DataItem(
+            key,
+            store,
+            subpath,
+            url,
+            meta=meta,
+            artifact_url=artifact_url,
+        )
 
     def get_or_create_store(
         self, url, secrets: dict = None, project_name=""

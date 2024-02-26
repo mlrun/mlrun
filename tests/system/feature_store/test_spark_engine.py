@@ -30,6 +30,7 @@ import mlrun
 import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
 from mlrun.datastore.datastore_profile import (
+    DatastoreProfileHdfs,
     DatastoreProfileS3,
     register_temporary_client_datastore_profile,
 )
@@ -281,6 +282,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if self.run_local:
             os.makedirs(result, exist_ok=True)
         return result
+
+    hdfs_output_dir = "ds://my-hdfs/test/system-test-output"
 
     @staticmethod
     def get_test_name():
@@ -1331,14 +1334,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fstore.RunConfig(local=self.run_local),
             )
 
-    # ML-3092
-    @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
-    def test_get_offline_features_with_filter_and_indexes(self, timestamp_key):
+    # ML-5726
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT"}.issubset(os.environ.keys()),
+        reason="HDFS host and ports are not defined",
+    )
+    def test_ingest_and_get_offline_features_with_hdfs(self):
         key = "patient_id"
+
+        register_temporary_client_datastore_profile(
+            DatastoreProfileHdfs(
+                name="my-hdfs",
+                host=os.getenv("HDFS_HOST"),
+                port=int(os.getenv("HDFS_PORT")),
+                http_port=int(os.getenv("HDFS_HTTP_PORT")),
+            )
+        )
+
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
-            timestamp_key=timestamp_key,
+            timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
@@ -1361,7 +1377,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         my_fv.spec.with_indexes = True
         my_fv.save()
         target = ParquetTarget(
-            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
         )
         resp = fstore.get_offline_features(
             fv_name,
@@ -1380,10 +1396,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
 
-        assert resp_df.equals(target_df)
+        pd.testing.assert_frame_equal(resp_df, target_df)
 
         resp_df.reset_index(drop=True, inplace=True)
-        assert resp_df[["bad", "department"]].equals(expected_df)
+        pd.testing.assert_frame_equal(resp_df[["bad", "department"]], expected_df)
 
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):

@@ -199,3 +199,16 @@ class AzureBlobStore(DataStore):
             ] = "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
             res[f"spark.hadoop.fs.azure.sas.fixed.token.{host}"] = st["sas_token"]
         return res
+
+    @property
+    def spark_url(self):
+        spark_options = self.get_spark_options()
+        url = f"wasbs://{self.endpoint}"
+        prefix = "spark.hadoop.fs.azure.account.key."
+        if spark_options:
+            for key in spark_options:
+                if key.startswith(prefix):
+                    account_key = key[len(prefix) :]
+                    url += f"@{account_key}"
+                    break
+        return url

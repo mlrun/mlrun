@@ -490,10 +490,10 @@ class FeatureVector(ModelObj):
             vector = fstore.FeatureVector("my-vec", features)
 
             # get the vector as a dataframe
-            df = fstore.get_offline_features(vector).to_dataframe()
+            df = vector.get_offline_features().to_dataframe()
 
             # return an online/real-time feature service
-            svc = fstore.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            svc = vector.get_online_feature_service(impute_policy={"*": "$mean"})
             resp = svc.get([{"stock": "GOOG"}])
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)

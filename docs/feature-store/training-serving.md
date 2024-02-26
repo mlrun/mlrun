@@ -14,7 +14,10 @@ To use it, first create an online feature service with the feature vector.
 ```python
 import mlrun.feature_store as fstore
 
-svc = fstore.get_online_feature_service(<feature vector name>)
+# Create the Feature Vector Online Service
+feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
+
+svc = fvec.get_online_feature_service
 ```
 
 After creating the service, you can use the feature vector's entity to get the latest feature vector for it.

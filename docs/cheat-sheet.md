@@ -889,15 +889,17 @@ fvec = fstore.FeatureVector(
 )
 fvec.save()
 
+# Instantiate feature-vector from mlrun DB 
+fvec = fstore.get_feature_vector("iguazio-academy/heart-disease-vector")
+
 # Offline features for training
-df = fstore.get_offline_features("iguazio-academy/heart-disease-vector").to_dataframe()
-
+df = fvec.get_offline_features().to_dataframe()
+..
 # Materialize offline features to parquet
-fstore.get_offline_features("iguazio-academy/heart-disease-vector", target=ParquetTarget())
-
+fvec.get_offline_features(target=ParquetTarget())
+..
 # Online features for serving
-feature_service = fstore.get_online_feature_service(feature_vector="iguazio-academy/heart-disease-vector")
-feature_service.get(
+feature_service = fvec.get_online_feature_service()feature_service.get(
     [
         {"patient_id" : "e443544b-8d9e-4f6c-9623-e24b6139aae0"},
         {"patient_id" : "8227d3df-16ab-4452-8ea5-99472362d982"}

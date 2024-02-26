@@ -123,7 +123,7 @@ Here's an example of a new dataset from a Parquet target:
 from mlrun.datastore.targets import ParquetTarget
 
 # Get offline feature vector based on vector and parquet target
-offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarget())
+offline_fv = fvec.get_offline_features(target=ParquetTarget())
 
 # Return dataset
 dataset = offline_fv.to_dataframe()
@@ -245,7 +245,7 @@ import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
 feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
-svc = fstore.get_online_feature_service(feature_vector)
+svc = fvec.get_online_feature_service
 ```
 
 The online feature service supports value imputing (substitute NaN/Inf values with statistical or constant value). You 
@@ -254,7 +254,7 @@ instead of NaN/Inf value. This can be defined per column or for all the columns 
 The replaced value can be a fixed number for constants or `$mean`, `$max`, `$min`, `$std`, `$count` for statistical values.
 `"*"` is used to specify the default for all features, for example: 
 
-    svc = fstore.get_online_feature_service(feature_vector, impute_policy={"*": "$mean", "age": 33})
+    svc = fvec.get_online_feature_service(impute_policy={"*": "$mean", "age": 33})
 
 
 To use the online feature service you need to supply a list of entities you want to get the feature vectors for.

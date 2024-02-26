@@ -137,7 +137,7 @@ data schema, as well as processing the graph logic (assuming there is one) on a 
 The preview operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
-df = fstore.preview(quotes_set, quotes)
+df = FeatureSet.preview(quotes_set, quotes)
 
 # print the featue statistics
 print(quotes_set.get_stats_table())

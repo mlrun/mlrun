@@ -49,7 +49,7 @@ It infers the source data schema, and processes the graph logic (assuming there 
 The infer operation also learns the feature set schema and, by default, does statistical analysis on the result.
   
 ```python
-df = fstore.preview(quotes_set, quotes)
+df = FeatureSet.preview(quotes_set, quotes)
 
 # print the feature statistics
 print(quotes_set.get_stats_table())

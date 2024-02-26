@@ -575,7 +575,9 @@ def _migrate_artifacts_batch(
         iteration = artifact_metadata.get("iter", None)
         new_artifact.iteration = int(iteration) if iteration else 0
 
-        # key - the artifact's key, without iteration if it is attached to it
+        # key - retain the db key to ensure BC of reading artifacts by the index key.
+        # if iteration is concatenated to the key, remove it as this was only handled in the backend,
+        # and now the iteration is saved in a separate column
         key = artifact.key
         if iteration and key.startswith(f"{iteration}-"):
             key = key[len(f"{iteration}-") :]

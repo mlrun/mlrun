@@ -28,6 +28,7 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.helpers import to_parquet
@@ -1176,7 +1177,7 @@ class SnowflakeTarget(BaseStoreTarget):
         self.primary_key_column = primary_key_column
         self.if_exists = if_exists
         self.parse_dates = parse_dates
-        self.db_schema = db_schema
+        # self.db_schema = db_schema
 
         attrs = {
             "url": url,
@@ -1184,7 +1185,13 @@ class SnowflakeTarget(BaseStoreTarget):
             "database": database,
             "schema": db_schema,
             "warehouse": warehouse,
+            "table": table_name,
         }
+        extended_attrs = {
+            key: value for key, value in attrs.items() if value is not None
+        }
+        attributes = {} if not attributes else attributes
+        attributes.update(extended_attrs)
 
         #  TODO PATH or db_url logic
         # if db_url is None or table_name is None:
@@ -1209,22 +1216,25 @@ class SnowflakeTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        #  TODO complete this
-        spark_options = {
-            #  "path": store_path_to_spark(self.get_target_path()),  #TODO check this out!
-            "format": "snowflake",
-        }
-        if isinstance(key_column, list) and len(key_column) >= 1:
-            spark_options["key"] = key_column[0]
-            if len(key_column) > 2:
-                spark_options["sorting-key"] = "_spark_object_name"
-            if len(key_column) == 2:
-                spark_options["sorting-key"] = key_column[1]
-        else:
-            spark_options["key"] = key_column
-        if not overwrite:
-            spark_options["columnUpdate"] = True
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["dbtable"] = self.attributes.get("table")
         return spark_options
+        #  TODO complete this
+        # spark_options = {
+        #     #  "path": store_path_to_spark(self.get_target_path()),  #TODO check this out!
+        #     "format": "snowflake",
+        # }
+        # if isinstance(key_column, list) and len(key_column) >= 1:
+        #     spark_options["key"] = key_column[0]
+        #     if len(key_column) > 2:
+        #         spark_options["sorting-key"] = "_spark_object_name"
+        #     if len(key_column) == 2:
+        #         spark_options["sorting-key"] = key_column[1]
+        # else:
+        #     spark_options["key"] = key_column
+        # if not overwrite:
+        #     spark_options["columnUpdate"] = True
+        # return spark_options
 
 
 class NoSqlBaseTarget(BaseStoreTarget):

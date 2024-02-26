@@ -14,6 +14,7 @@
 #
 import os
 import pathlib
+import random
 import sys
 import tempfile
 import uuid
@@ -22,6 +23,7 @@ from datetime import datetime
 import fsspec
 import pandas as pd
 import pytest
+import snowflake.connector
 import v3iofs
 from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
@@ -39,6 +41,7 @@ from mlrun.datastore.targets import (
     NoSqlTarget,
     ParquetTarget,
     RedisNoSqlTarget,
+    SnowflakeTarget,
 )
 from mlrun.feature_store import FeatureSet
 from mlrun.feature_store.steps import (
@@ -53,7 +56,7 @@ from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
 
-SNOWFLAKE_PARAMETERS = [
+SNOWFLAKE_ENV_PARAMETERS = [
     "SNOWFLAKE_URL",
     "SNOWFLAKE_USER",
     "SNOWFLAKE_PASSWORD",
@@ -134,11 +137,46 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         return path
 
     @staticmethod
-    def get_missing_snowflake_parameters():
+    def get_missing_snowflake_spark_parameters():
         snowflake_missing_keys = [
-            key for key in SNOWFLAKE_PARAMETERS if key not in os.environ
+            key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
         ]
         return snowflake_missing_keys
+
+    @staticmethod
+    def generate_snowflake_table(
+        cursor,
+        database: str,
+        schema: str,
+        table_name: str,
+    ):
+        data_values = [
+            (
+                i + 1,
+                f"Name{i + 1}",
+                random.randint(20, 60),
+            )
+            for i in range(20)
+        ]
+        create_table_query = (
+            f"CREATE TABLE IF NOT EXISTS {database}.{schema}.{table_name} "
+            f"(ID INT,NAME VARCHAR(255),AGE INT)"
+        )
+        cursor.execute(create_table_query)
+        insert_query = f"INSERT INTO {database}.{schema}.{table_name} (ID ,NAME,AGE) VALUES (%s, %s, %s)"
+        cursor.executemany(insert_query, data_values)
+        return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE"])
+
+    @staticmethod
+    def drop_snowflake_tables(
+        cursor,
+        database: str,
+        schema: str,
+        tables: list,
+    ):
+        for table_name in tables:
+            drop_query = f"DROP TABLE IF EXISTS {database}.{schema}.{table_name}"
+            cursor.execute(drop_query)
 
     @classmethod
     def get_pq_source_path(cls):
@@ -568,42 +606,93 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             ]
 
     def test_snowflake_source(self):
+        url = os.environ.get("SNOWFLAKE_URL")
+        user = os.environ.get("SNOWFLAKE_USER")
+        database = os.environ.get("SNOWFLAKE_DATABASE")
+        warehouse = os.environ.get("SNOWFLAKE_WAREHOUSE")
+        password = os.environ["SNOWFLAKE_PASSWORD"]
+        schema = os.environ.get("SNOWFLAKE_SCHEMA")
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        source_table = f"source_{current_time}"
+        result_table = f"result_{current_time}"
+        snowflake_spark_parameters = dict(
+            url=url, user=user, database=database, warehouse=warehouse
+        )
+        account = url.replace(".snowflakecomputing.com", "")
         number_of_rows = 10
-        snowflake_missing_keys = self.get_missing_snowflake_parameters()
+
+        snowflake_missing_keys = self.get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
                 f"The following snowflake keys are missing: {snowflake_missing_keys}"
             )
-        self.project.set_secrets(
-            {"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]}
-        )
-        table_name = os.environ.get("SNOWFLAKE_TABLE_NAME")
+        self.project.set_secrets({"SNOWFLAKE_PASSWORD": password})
         feature_set = fstore.FeatureSet(
-            name="customer", entities=[fstore.Entity("C_CUSTKEY")], engine="spark"
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("C_CUSTKEY")],
+            engine="spark",
         )
         source = SnowflakeSource(
-            "customer_sf",
-            query=f"select * from {table_name} limit {number_of_rows}",
-            url=os.environ.get("SNOWFLAKE_URL"),
-            user=os.environ.get("SNOWFLAKE_USER"),
-            database=os.environ.get("SNOWFLAKE_DATABASE"),
-            schema=os.environ.get("SNOWFLAKE_SCHEMA"),
-            warehouse=os.environ.get("SNOWFLAKE_WAREHOUSE"),
+            "snowflake_source",
+            query=f"select * from {source_table} order by ID limit {number_of_rows}",
+            schema=schema,
+            **snowflake_spark_parameters,
         )
-        if self.run_local:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                target = ParquetTarget("parquet_target", temp_dir)
-                feature_set.ingest(
-                    source,
-                    targets=[target],
-                    spark_context=self.spark_service,
-                    run_config=fstore.RunConfig(local=self.run_local),
+        target = SnowflakeTarget(
+            "snowflake_target",
+            table_name=result_table,
+            db_schema=schema,
+            **snowflake_spark_parameters,
+        )
+        ctx = snowflake.connector.connect(
+            account=account,
+            user=user,
+            password=password,
+            warehouse=warehouse,
+        )
+        cursor = ctx.cursor()
+        try:
+            source_df = self.generate_snowflake_table(
+                cursor=cursor, database=database, schema=schema, table_name=source_table
+            )
+            feature_set.ingest(
+                source,
+                targets=[target],
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+            result_data = cursor.execute(
+                f"select * from {database}.{schema}.{result_table}"
+            ).fetchall()
+            column_names = [desc[0] for desc in cursor.description]
+            result_df = pd.DataFrame(result_data, columns=column_names)
+            expected_df = source_df.sort_values(by="ID").head(number_of_rows)
+            pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
+        finally:
+            try:
+                self.drop_snowflake_tables(
+                    cursor=cursor,
+                    database=database,
+                    schema=schema,
+                    tables=[source_table, result_table],
                 )
-                target_path = feature_set.get_target_path()
-                result_df = pd.read_parquet(target_path)
-                assert number_of_rows == len(result_df)
-        else:
-            pytest.skip("need to do")  #  TODO
+            finally:
+                if ctx:
+                    ctx.close()
+        # if self.run_local:
+        #     with tempfile.TemporaryDirectory() as temp_dir:
+        #         target = ParquetTarget("parquet_target", temp_dir)
+        #         feature_set.ingest(
+        #             source,
+        #             targets=[target],
+        #             spark_context=self.spark_service,
+        #             run_config=fstore.RunConfig(local=self.run_local),
+        #         )
+        #         target_path = feature_set.get_target_path()
+        #         result_df = pd.read_parquet(target_path)
+        #         assert number_of_rows == len(result_df)
+        # else:
+        #     pytest.skip("need to do")  #  TODO
 
     @pytest.mark.skipif(
         not mlrun.mlconf.redis.url,

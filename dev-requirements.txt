@@ -18,6 +18,7 @@ httpx~=0.23.0
 deepdiff~=6.5
 hypothesis[numpy]~=6.87
 pytest-rerunfailures~=13.0
+snowflake-connector-python~=3.7.1
 
 # system tests
 matplotlib~=3.5

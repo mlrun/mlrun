@@ -91,10 +91,13 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            if not mlrun.utils.helpers.resolve_safe_path(KFPMETA_DIR, key):
-                logger.warning("Path traversal is not allowed ignoring", path=key)
+
+            # NOTE: if key has "../x", it would fail on path traversal
+            path = os.path.join(KFP_ARTIFACTS_DIR, key)
+            if not mlrun.utils.helpers.resolve_safe_path(KFP_ARTIFACTS_DIR, path):
+                logger.warning("Path traversal is not allowed ignoring", path=path, key=key)
                 continue
-            path = os.path.abspath(os.path.join(KFP_ARTIFACTS_DIR, key))
+            path = os.path.abspath(path)
             logger.info("Writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))

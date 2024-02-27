@@ -152,7 +152,7 @@ def mlrun_op(
 
     """
     # TODO: improve code distribution to avoid circular imports
-    from mlrun.pipelines.ops import generate_pipeline_node
+    from mlrun_pipelines.ops import generate_pipeline_node
 
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
@@ -340,7 +340,7 @@ def format_summary_from_kfp_run(
     kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
 ):
     # TODO: improve code distribution to avoid circular imports
-    from mlrun.pipelines.ops import generate_kfp_dag_and_resolve_project
+    from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
     override_project = project if project and project != "*" else None
     dag, project, message = generate_kfp_dag_and_resolve_project(

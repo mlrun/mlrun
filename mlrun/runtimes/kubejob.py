@@ -15,10 +15,11 @@
 import time
 import warnings
 
+from mlrun_pipelines.ops import build_op
+
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-from mlrun.pipelines.ops import build_op
 
 from ..model import RunObject
 from ..utils import get_in, logger

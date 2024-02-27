@@ -29,12 +29,12 @@ from typing import Optional, Union
 import nuclio
 import yaml
 from kfp import Client
+from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
-from mlrun.pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
-from mlrun.pipelines.models import PipelineRun
 from mlrun.runtimes.nuclio.serving import serving_subkind
 
 from .common.helpers import parse_versioned_object_uri

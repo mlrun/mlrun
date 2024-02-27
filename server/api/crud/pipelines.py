@@ -20,21 +20,21 @@ import typing
 
 import kfp
 import kfp_server_api
+import mlrun_pipelines
+import mlrun_pipelines.common.helpers
+import mlrun_pipelines.common.ops
 import sqlalchemy.orm
+from mlrun_pipelines.mixins import PipelineProviderMixin
+from mlrun_pipelines.models import PipelineExperiment, PipelineRun
 
 import mlrun
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.pipelines
-import mlrun.pipelines.common.helpers
-import mlrun.pipelines.common.ops
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
 from mlrun.errors import err_to_str
-from mlrun.pipelines.mixins import PipelineProviderMixin
-from mlrun.pipelines.models import PipelineExperiment, PipelineRun
 from mlrun.utils import logger
 
 
@@ -316,7 +316,7 @@ class Pipelines(
             return run.get("name")
         elif format_ == mlrun.common.schemas.PipelinesFormat.summary:
             run_db = server.api.api.utils.get_run_db_instance(db_session)
-            return mlrun.pipelines.common.ops.format_summary_from_kfp_run(
+            return mlrun_pipelines.common.ops.format_summary_from_kfp_run(
                 run, run["project"], run_db=run_db
             )
         else:

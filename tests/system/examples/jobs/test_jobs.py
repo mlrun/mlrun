@@ -17,6 +17,7 @@ import os
 import kfp.compiler
 import kfp.dsl
 import pytest
+from mlrun_pipelines.iguazio import mount_v3io
 
 from mlrun import (
     _run_pipeline,
@@ -24,7 +25,6 @@ from mlrun import (
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.pipelines.iguazio import mount_v3io
 from tests.system.base import TestMLRunSystem
 
 

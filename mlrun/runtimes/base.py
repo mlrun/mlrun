@@ -20,6 +20,7 @@ from os import environ
 from typing import Callable, Optional, Union
 
 import requests.exceptions
+from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
 import mlrun.common.schemas
@@ -30,7 +31,6 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
-from mlrun.pipelines.common.ops import mlrun_op
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
 from ..config import config

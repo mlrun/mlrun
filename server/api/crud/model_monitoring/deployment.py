@@ -15,13 +15,13 @@
 import pathlib
 import typing
 
+import mlrun_pipelines.iguazio
 import sqlalchemy.orm
 from fastapi import Depends
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
-import mlrun.pipelines.iguazio
 import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -727,7 +727,7 @@ class MonitoringDeployment:
             )
 
             function.metadata.credentials.access_key = model_monitoring_access_key
-            function.apply(mlrun.pipelines.iguazio.v3io_cred())
+            function.apply(mlrun_pipelines.iguazio.v3io_cred())
 
             # Ensure that the auth env vars are set
             server.api.api.utils.ensure_function_has_auth_set(function, auth_info)

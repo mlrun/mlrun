@@ -20,6 +20,7 @@ from http import HTTPStatus
 import yaml
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
+from mlrun_pipelines.models import PipelineManifest
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -28,7 +29,6 @@ import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.k8s
 from mlrun.config import config
-from mlrun.pipelines.models import PipelineManifest
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.utils import log_and_raise

@@ -14,10 +14,10 @@
 #
 
 import kfp
-
-import mlrun
 from mlrun_pipelines.common.helpers import project_annotation
 from mlrun_pipelines.utils import apply_kfp
+
+import mlrun
 
 
 class KfpAdapterMixin:

@@ -13,23 +13,33 @@
 # limitations under the License.
 
 import logging
-from setuptools import setup, find_namespace_packages
 
+from setuptools import find_namespace_packages, setup
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
-    name="mlrun_kfp_adapters",
+    name="mlrun_pipelines_kfp_adapters",
     version="0.0.0",
-    description="MLRun Pipelines package for providing KFP 1.8 compatibility",
+    description="MLRun Pipelines package for providing KFP 2.* compatibility",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",
     license="Apache License 2.0",
     url="https://github.com/mlrun/mlrun",
-    packages=find_namespace_packages(where="src/", include=[
-        "mlrun_kfp.adapters",
-    ]),
+    packages=find_namespace_packages(
+        where="src/",
+        include=[
+            "mlrun_pipelines.helpers",
+            "mlrun_pipelines.iguazio",
+            "mlrun_pipelines.mixins",
+            "mlrun_pipelines.models",
+            "mlrun_pipelines.ops",
+            "mlrun_pipelines.patcher",
+            "mlrun_pipelines.platform_other",
+            "mlrun_pipelines.utils",
+        ],
+    ),
     package_dir={"": "src"},
     keywords=[
         "mlrun",
@@ -37,6 +47,6 @@ setup(
     ],
     python_requires=">=3.9, <3.12",
     install_requires=[
-        "kfp~=1.8",
+        "kfp~=2.5",
     ],
 )

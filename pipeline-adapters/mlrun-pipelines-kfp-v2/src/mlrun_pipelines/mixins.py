@@ -13,8 +13,9 @@
 # limitations under the License.
 #
 
+from mlrun_pipelines.common.helpers import project_annotation
+
 import mlrun
-from mlrun.pipelines.common.helpers import project_annotation
 
 
 class KfpAdapterMixin:

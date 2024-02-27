@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import mlrun_pipelines.iguazio
 import pytest
 
 import mlrun
-import mlrun.pipelines.iguazio
 from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 
@@ -50,7 +50,7 @@ class TestChurn(TestDemo):
             description="clean and encode raw data",
             categories=["data-prep"],
             labels={"author": "yasha", "framework": "xgboost"},
-        ).apply(mlrun.pipelines.iguazio.mount_v3io())
+        ).apply(mlrun_pipelines.iguazio.mount_v3io())
 
         clean_data_function.spec.remote = True
         clean_data_function.spec.replicas = 1

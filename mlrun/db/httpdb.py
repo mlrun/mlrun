@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 
 import requests
 import semver
+from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.schemas
@@ -32,7 +33,6 @@ import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
-from mlrun.pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
 from ..config import config

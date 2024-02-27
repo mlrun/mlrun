@@ -21,15 +21,15 @@ from copy import deepcopy
 import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
-
-import mlrun
-from mlrun.config import config
 from mlrun_pipelines.common.helpers import (
     function_annotation,
     project_annotation,
     run_annotation,
 )
-from mlrun.pipelines.common.ops import KFP_ARTIFACTS_DIR, KFPMETA_DIR, PipelineRunType
+from mlrun_pipelines.common.ops import KFP_ARTIFACTS_DIR, KFPMETA_DIR, PipelineRunType
+
+import mlrun
+from mlrun.config import config
 from mlrun.utils import (
     dict_to_yaml,
     gen_md_table,

@@ -15,11 +15,11 @@ import re
 from subprocess import run
 
 import kubernetes.client
+from mlrun_pipelines.iguazio import mount_v3io, mount_v3iod
 
 import mlrun.errors
 from mlrun.config import config
 
-from ..pipelines.iguazio import mount_v3io, mount_v3iod
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 

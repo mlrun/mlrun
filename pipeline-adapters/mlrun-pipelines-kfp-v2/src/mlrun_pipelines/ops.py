@@ -17,15 +17,15 @@ import os
 
 from kfp import dsl
 from kfp import kubernetes as kfp_k8s
-
-import mlrun
-from mlrun.config import config
-from mlrun.pipelines.common.helpers import (
+from mlrun_pipelines.common.helpers import (
     function_annotation,
     project_annotation,
     run_annotation,
 )
-from mlrun.pipelines.common.ops import PipelineRunType
+from mlrun_pipelines.common.ops import PipelineRunType
+
+import mlrun
+from mlrun.config import config
 from mlrun.utils import get_in, logger
 
 

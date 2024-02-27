@@ -20,10 +20,10 @@ import typing
 import uuid
 
 from kfp.compiler import compiler
+from mlrun_pipelines.helpers import new_pipe_metadata
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.pipelines.patcher  # patch KFP functionality, if needed
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -35,7 +35,6 @@ from mlrun.utils import (
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
-from ..pipelines.helpers import new_pipe_metadata
 from ..run import _run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 

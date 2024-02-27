@@ -13,31 +13,30 @@
 # limitations under the License.
 #
 
+import mlrun_pipelines
 import pytest
-
-import mlrun.pipelines
 
 
 @pytest.mark.parametrize(
     "fullname, path, final_import_path",
     [
         (
-            "mlrun.pipelines.iguazio",
+            "mlrun_pipelines.iguazio",
             ["/app/iguazio/mlrun/mlrun/pipelines"],
             "/app/iguazio/mlrun/mlrun/pipelines/kfp/v1_8/iguazio.py",
         ),
         (
-            "mlrun.pipelines.ops",
+            "mlrun_pipelines.ops",
             ["/app/iguazio/mlrun/mlrun/pipelines"],
             "/app/iguazio/mlrun/mlrun/pipelines/kfp/v1_8/ops.py",
         ),
         (
-            "mlrun.pipelines.utils",
+            "mlrun_pipelines.utils",
             ["/app/iguazio/mlrun/mlrun/pipelines"],
             "/app/iguazio/mlrun/mlrun/pipelines/kfp/v1_8/utils.py",
         ),
         (
-            "mlrun.pipelines.api.utils",
+            "mlrun_pipelines.api.utils",
             ["/app/iguazio/mlrun/mlrun/pipelines"],
             "/app/iguazio/mlrun/mlrun/pipelines/kfp/v1_8/api/utils.py",
         ),
@@ -46,8 +45,8 @@ import mlrun.pipelines
 def test_pipeline_engine_path_finder(
     fullname: str, path: str, final_import_path: str, monkeypatch
 ):
-    monkeypatch.setattr(mlrun.pipelines, "PIPELINE_COMPATIBILITY_MODE", "kfp-v1.8")
+    monkeypatch.setattr(mlrun_pipelines, "PIPELINE_COMPATIBILITY_MODE", "kfp-v1.8")
     assert (
-        mlrun.pipelines.PipelineEngineModuleFinder._resolve_module_path(fullname, path)
+        mlrun_pipelines.PipelineEngineModuleFinder._resolve_module_path(fullname, path)
         == final_import_path
     )

@@ -24,12 +24,12 @@ import kfp
 import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import tests.conftest
-from mlrun.pipelines.models import PipelineRun
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(

@@ -30,6 +30,7 @@ from typing import Callable, Optional, Union
 import dotenv
 import git
 import git.exc
+import mlrun_pipelines.iguazio
 import nuclio
 import requests
 import yaml
@@ -39,7 +40,6 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
-import mlrun.pipelines.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
@@ -1813,7 +1813,7 @@ class MlrunProject(ModelObj):
         function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.pipelines.iguazio.mount_v3io())
+            function_object.apply(mlrun_pipelines.iguazio.mount_v3io())
 
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
@@ -1941,7 +1941,7 @@ class MlrunProject(ModelObj):
         function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.pipelines.iguazio.mount_v3io())
+            function_object.apply(mlrun_pipelines.iguazio.mount_v3io())
 
         return resolved_function_name, function_object, func
 

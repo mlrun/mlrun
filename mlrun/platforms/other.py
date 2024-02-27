@@ -16,11 +16,10 @@
 import os
 
 import kfp.dsl
+from mlrun_pipelines.iguazio import mount_v3io
 
 from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
-
-from ..pipelines.iguazio import mount_v3io
 
 
 def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):

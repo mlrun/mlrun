@@ -13,62 +13,59 @@
 # limitations under the License.
 #
 
-import json
-from typing import Any
-
-from kfp_server_api.models.api_run_detail import ApiRunDetail
-
 from mlrun_pipelines.common.helpers import FlexibleMapper
 
 
 class PipelineManifest(FlexibleMapper):
-    def __init__(self, workflow_manifest: str, pipeline_manifest: str = "{}"):
-        main_manifest = json.loads(workflow_manifest or "{}")
-        if pipeline_manifest:
-            pipeline_manifest = json.loads(pipeline_manifest)
-            main_manifest["status"] = pipeline_manifest.get("status", {})
-        super().__init__(main_manifest)
+    """
+    A Pipeline Manifest might have been created by an 1.8 SDK regardless of coming from a 2.0 API,
+    so this class tries to account for that
+    """
+
+    def get_schema_version(self) -> str:
+        try:
+            return self._external_data["schemaVersion"]
+        except KeyError:
+            return self._external_data["apiVersion"]
+
+    def is_argo_compatible(self) -> bool:
+        if self.get_schema_version().startswith("argoproj.io"):
+            return True
+        return False
+
+    def get_executors(self):
+        if self.is_argo_compatible():
+            yield from [
+                (t.get("name"), t) for t in self._external_data["spec"]["templates"]
+            ]
+        else:
+            yield from self._external_data["deploymentSpec"]["executors"].items()
 
 
 class PipelineRun(FlexibleMapper):
-    _workflow_manifest: PipelineManifest
-
-    def __init__(self, external_data: Any):
-        if isinstance(external_data, ApiRunDetail):
-            super().__init__(external_data.run)
-            self._workflow_manifest = PipelineManifest(
-                self._external_data.get("pipeline_spec", {}).get("workflow_manifest"),
-                external_data.pipeline_runtime.workflow_manifest,
-            )
-        else:
-            super().__init__(external_data)
-            self._workflow_manifest = PipelineManifest(
-                self._external_data.get("pipeline_spec", {}).get("workflow_manifest"),
-            )
-
     @property
     def id(self):
-        return self._external_data["id"]
+        return self._external_data["run_id"]
 
     @id.setter
     def id(self, _id):
-        self._external_data["id"] = _id
+        self._external_data["run_id"] = _id
 
     @property
     def name(self):
-        return self._external_data["name"]
+        return self._external_data["display_name"]
 
     @name.setter
     def name(self, name):
-        self._external_data["name"] = name
+        self._external_data["display_name"] = name
 
     @property
     def status(self):
-        return self._external_data["status"]
+        return self._external_data["state"]
 
     @status.setter
     def status(self, status):
-        self._external_data["status"] = status
+        self._external_data["state"] = status
 
     @property
     def description(self):
@@ -104,10 +101,12 @@ class PipelineRun(FlexibleMapper):
 
     @property
     def workflow_manifest(self) -> PipelineManifest:
-        return self._workflow_manifest
+        return PipelineManifest(
+            self._external_data["pipeline_spec"],
+        )
 
 
 class PipelineExperiment(FlexibleMapper):
     @property
     def id(self):
-        return self._external_data["id"]
+        return self._external_data["experiment_id"]

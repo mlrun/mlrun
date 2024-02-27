@@ -16,8 +16,8 @@
 import kfp
 
 import mlrun
-from mlrun.pipelines.common.helpers import project_annotation
-from mlrun.pipelines.utils import apply_kfp
+from mlrun_pipelines.common.helpers import project_annotation
+from mlrun_pipelines.utils import apply_kfp
 
 
 class KfpAdapterMixin:

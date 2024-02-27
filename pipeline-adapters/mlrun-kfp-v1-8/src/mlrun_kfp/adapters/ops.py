@@ -24,7 +24,7 @@ from kubernetes import client as k8s_client
 
 import mlrun
 from mlrun.config import config
-from mlrun.pipelines.common.helpers import (
+from mlrun_pipelines.common.helpers import (
     function_annotation,
     project_annotation,
     run_annotation,

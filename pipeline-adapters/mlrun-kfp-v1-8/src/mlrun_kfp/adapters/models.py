@@ -18,7 +18,7 @@ from typing import Any
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 
-from mlrun.pipelines.common.helpers import FlexibleMapper
+from mlrun_pipelines.common.helpers import FlexibleMapper
 
 
 class PipelineManifest(FlexibleMapper):

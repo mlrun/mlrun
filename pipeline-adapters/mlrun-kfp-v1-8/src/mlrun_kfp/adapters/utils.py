@@ -17,7 +17,7 @@ import tempfile
 import kfp
 from kubernetes import client
 
-from mlrun.pipelines import new_pipe_metadata
+from mlrun_pipelines.helpers import new_pipe_metadata
 
 
 def apply_kfp(modify, cop, runtime):

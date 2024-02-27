@@ -21,12 +21,10 @@ from urllib.parse import urlparse
 import kfp.dsl
 import requests
 import semver
-import urllib3
 import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
-from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json
 
 _cached_control_session = None
@@ -484,25 +482,6 @@ class V3ioStreamClient:
         response.raise_for_status()
         self._location = response.output.next_location
         return response.output.records
-
-
-def create_control_session(url, username, password):
-    # for systems without production cert - silence no cert verification WARN
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    if not username or not password:
-        raise ValueError("cannot create session key, missing username or password")
-
-    session = requests.Session()
-    session.auth = (username, password)
-    try:
-        auth = session.post(f"{url}/api/sessions", verify=False)
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
-
-    if not auth.ok:
-        raise OSError(f"failed to create session: {url}, {auth.text}")
-
-    return auth.json()["data"]["id"]
 
 
 def is_iguazio_endpoint(endpoint_url: str) -> bool:

@@ -190,8 +190,7 @@ class GraphServer(ModelObj):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
         if self.graph.kind == "router" or self.context.is_mock:
             return v2_serving_handler
-        else:
-            return v2_serving_async_handler
+        return v2_serving_async_handler
 
     def test(
         self,

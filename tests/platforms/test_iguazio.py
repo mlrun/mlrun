@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import os
-from http import HTTPStatus
 from unittest.mock import Mock
 
 import deepdiff

@@ -314,7 +314,7 @@ ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 - `host` &mdash; HDFS namenode host
 - `port` &mdash; HDFS namenode port
 - `http_port` &mdash; WebHDFS port
-- `user` &mdash; User name. Currently, this has no effect when using Spark. Optional. Defaults to the value of the `HADOOP_USER_NAME` environment variable, or else the current user's user name.
+- `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name will be the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name will be used. In Spark, this is evaluated at the time that the spark context is created.
 
 
 

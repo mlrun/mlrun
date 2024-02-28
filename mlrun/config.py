@@ -1095,7 +1095,7 @@ class Config:
                 project=project,
                 kind=kind
                 if application_name is None
-                else f"{kind}-{application_name.lower()}",
+                else f"{kind}",
             )
 
         # Get the current offline path from the configuration

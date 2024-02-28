@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.schedule
 import mlrun.errors
 import server.api.crud.secrets
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 Seconds = typing.NewType("Seconds", int)
 Minutes = typing.NewType("Minutes", int)
@@ -153,7 +154,7 @@ def get_stream_path(project: str = None, application_name: str = None):
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
         secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if application_name is None
+        if application_name is mm_constants.MonitoringFunctionNames.STREAM
         else "",
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,

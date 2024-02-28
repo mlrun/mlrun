@@ -141,7 +141,7 @@ class MonitoringDeployment:
         """
 
         MonitoringDeployment._check_if_already_deployed(
-            function_name="model-monitoring-stream",
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
             project=project,
             auth_info=auth_info,
         )
@@ -161,7 +161,7 @@ class MonitoringDeployment:
         )
 
         # Adding label to the function - will be used to identify the stream pod
-        fn.metadata.labels = {"type": "model-monitoring-stream"}
+        fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
         server.api.api.endpoints.functions._build_function(
             db_session=db_session,
@@ -398,7 +398,7 @@ class MonitoringDeployment:
             auth_info=auth_info,
         )
 
-        # Adding label to the function - will be used to identify the stream pod
+        # Adding label to the function - will be used to identify the writer pod
         fn.metadata.labels = {"type": "model-monitoring-writer"}
 
         server.api.api.endpoints.functions._build_function(
@@ -444,7 +444,7 @@ class MonitoringDeployment:
         function = typing.cast(
             mlrun.runtimes.ServingRuntime,
             mlrun.code_to_function(
-                name="model-monitoring-stream",
+                name=mm_constants.MonitoringFunctionNames.STREAM,
                 project=project,
                 filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
                 kind=mlrun.run.RuntimeKinds.serving,
@@ -464,6 +464,7 @@ class MonitoringDeployment:
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
             auth_info=auth_info,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM
         )
 
         # Apply feature store run configurations on the serving function
@@ -684,6 +685,13 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
             if stream_path.startswith("v3io://"):
+                server.api.api.endpoints.functions.create_model_monitoring_stream(
+                    project=project,
+                    function=function,
+                    monitoring_application=function_name,
+                    stream_path=stream_path,
+                    access_key=model_monitoring_access_key,
+                )
                 kwargs = {}
                 if function_name != mm_constants.MonitoringFunctionNames.STREAM:
                     kwargs["access_key"] = model_monitoring_access_key
@@ -767,7 +775,7 @@ class MonitoringDeployment:
             name=mm_constants.MonitoringFunctionNames.WRITER,
             project=project,
             filename=str(_MONITORING_WRITER_FUNCTION_PATH),
-            kind="serving",
+            kind= mlrun.run.RuntimeKinds.serving,
             image=writer_image,
         )
 

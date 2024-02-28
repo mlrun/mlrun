@@ -188,7 +188,6 @@ class GraphServer(ModelObj):
 
     def init_object(self, namespace):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
-        return v2_serving_handler if self.context.is_mock else v2_serving_async_handler
 
     def test(
         self,
@@ -339,9 +338,9 @@ def v2_serving_init(context, namespace=None):
         **kwargs,
     )
     context.logger.info("Initializing graph steps")
-    serving_handler = server.init_object(namespace or get_caller_globals())
+    server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
-    setattr(context, "mlrun_handler", serving_handler)
+    setattr(context, "mlrun_handler", v2_serving_handler)
     setattr(context, "_server", server)
     context.logger.info_with("Serving was initialized", verbose=server.verbose)
     if server.verbose:
@@ -387,11 +386,6 @@ def v2_serving_handler(context, event, get_body=False):
             event.body = None
 
     return context._server.run(event, context, get_body)
-
-
-async def v2_serving_async_handler(context, event, get_body=False):
-    """hook for nuclio handler()"""
-    return await context._server.run(event, context, get_body)
 
 
 def create_graph_server(

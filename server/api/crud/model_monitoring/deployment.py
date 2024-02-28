@@ -459,7 +459,7 @@ class MonitoringDeployment:
         function.metadata.project = project
 
         # Add stream triggers
-        function = self._apply_stream_trigger(
+        function = self._apply_and_create_stream_trigger(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -637,7 +637,7 @@ class MonitoringDeployment:
         }
         return schedule, batch_dict
 
-    def _apply_stream_trigger(
+    def _apply_and_create_stream_trigger(
         self,
         project: str,
         function: mlrun.runtimes.ServingRuntime,
@@ -688,7 +688,7 @@ class MonitoringDeployment:
                 server.api.api.endpoints.functions.create_model_monitoring_stream(
                     project=project,
                     function=function,
-                    monitoring_application=function_name,
+                    monitoring_application=True,
                     stream_path=stream_path,
                     access_key=model_monitoring_access_key,
                 )
@@ -786,20 +786,8 @@ class MonitoringDeployment:
         # Set the project to the serving function
         function.metadata.project = project
 
-        # create v3io stream for  model_monitoring_writer | model monitoring application
-        server.api.api.endpoints.functions.create_model_monitoring_stream(
-            project=project,
-            function=function,
-            monitoring_application=mm_constants.MonitoringFunctionNames.WRITER,
-            stream_path=server.api.crud.model_monitoring.get_stream_path(
-                project=project,
-                application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ),
-            access_key=model_monitoring_access_key,
-        )
-
         # Add stream triggers
-        function = self._apply_stream_trigger(
+        function = self._apply_and_create_stream_trigger(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,

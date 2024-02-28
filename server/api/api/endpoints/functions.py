@@ -782,6 +782,7 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
         if serving_to_monitor:
+            # TODO : delete when batch is deprecated.
             _deploy_serving_monitoring(
                 auth_info,
                 db_session,
@@ -790,8 +791,15 @@ def _deploy_nuclio_runtime(
                 monitoring_application,
             )
         if monitoring_application:
-            fn = _deploy_monitoring_application(
-                auth_info, fn, model_monitoring_access_key, monitoring_application
+            monitoring_deploy = (
+                server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+            )
+            fn = monitoring_deploy._apply_and_create_stream_trigger(
+                project=fn.metadata.project,
+                function=fn,
+                model_monitoring_access_key=model_monitoring_access_key,
+                function_name=fn.metadata.name,
+                auth_info=auth_info,
             )
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
@@ -810,11 +818,11 @@ def _deploy_serving_monitoring(
     model_monitoring_access_key,
     monitoring_application,
 ):
+    # TODO : delete when batch is deprecated.
     try:
         # Handle model monitoring
         logger.info("Tracking enabled, initializing model monitoring")
 
-        # TODO : delete when batch is deprecated.
         if fn.spec.tracking_policy:
             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
             fn.spec.tracking_policy = TrackingPolicy.from_dict(fn.spec.tracking_policy)
@@ -855,35 +863,6 @@ def _deploy_serving_monitoring(
             exc=exc,
             traceback=traceback.format_exc(),
         )
-
-
-def _deploy_monitoring_application(
-    auth_info, fn, model_monitoring_access_key, monitoring_application
-):
-    if not mlrun.mlconf.is_ce_mode():
-        # create v3io stream for model monitoring application
-        create_model_monitoring_stream(
-            project=fn.metadata.project,
-            function=fn,
-            monitoring_application=monitoring_application,
-            stream_path=server.api.crud.model_monitoring.get_stream_path(
-                project=fn.metadata.project,
-                application_name=fn.metadata.name,
-            ),
-            access_key=model_monitoring_access_key,
-        )
-    # apply stream trigger to monitoring application
-    monitoring_deploy = (
-        server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-    )
-    fn = monitoring_deploy._apply_stream_trigger(
-        project=fn.metadata.project,
-        function=fn,
-        model_monitoring_access_key=model_monitoring_access_key,
-        function_name=fn.metadata.name,
-        auth_info=auth_info,
-    )
-    return fn
 
 
 def _parse_start_function_body(db_session, data):

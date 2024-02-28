@@ -18,7 +18,7 @@ import random
 import sys
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import fsspec
 import pandas as pd
@@ -93,7 +93,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = True  # TODO change back to False before merge.
+    run_local = False
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -154,18 +154,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             (
                 i + 1,
                 f"Name{i + 1}",
-                random.randint(20, 60),
+                random.randint(23, 60),
+                datetime.now()
+                - timedelta(
+                    days=random.randint(0, 1000),
+                    hours=random.randint(0, 23),
+                    minutes=random.randint(0, 59),
+                ),
             )
             for i in range(20)
         ]
         create_table_query = (
             f"CREATE TABLE IF NOT EXISTS {database}.{schema}.{table_name} "
-            f"(ID INT,NAME VARCHAR(255),AGE INT)"
+            f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP)"
         )
         cursor.execute(create_table_query)
-        insert_query = f"INSERT INTO {database}.{schema}.{table_name} (ID ,NAME,AGE) VALUES (%s, %s, %s)"
+        insert_query = (
+            f"INSERT INTO {database}.{schema}.{table_name}"
+            f" (ID ,NAME,AGE, LICENSE_DATE) VALUES (%s, %s, %s, %s)"
+        )
         cursor.executemany(insert_query, data_values)
-        return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE"])
+        return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE", "LICENSE_DATE"])
 
     @staticmethod
     def drop_snowflake_tables(
@@ -679,20 +688,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             finally:
                 if ctx:
                     ctx.close()
-        # if self.run_local:
-        #     with tempfile.TemporaryDirectory() as temp_dir:
-        #         target = ParquetTarget("parquet_target", temp_dir)
-        #         feature_set.ingest(
-        #             source,
-        #             targets=[target],
-        #             spark_context=self.spark_service,
-        #             run_config=fstore.RunConfig(local=self.run_local),
-        #         )
-        #         target_path = feature_set.get_target_path()
-        #         result_df = pd.read_parquet(target_path)
-        #         assert number_of_rows == len(result_df)
-        # else:
-        #     pytest.skip("need to do")  #  TODO
 
     @pytest.mark.skipif(
         not mlrun.mlconf.redis.url,

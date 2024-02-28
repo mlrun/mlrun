@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import enum
 import functools
 import hashlib
@@ -31,7 +32,6 @@ from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
-import anyio
 import git
 import inflection
 import numpy as np
@@ -1558,13 +1558,15 @@ def normalize_project_username(username: str):
     return username
 
 
-# run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
-# without importing fastapi in the client
 async def run_in_threadpool(func, *args, **kwargs):
+    """
+    Run a sync-function in the loop default thread pool executor pool and await its result.
+    Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
+    """
+    loop = asyncio.get_running_loop()
     if kwargs:
-        # run_sync doesn't accept 'kwargs', so bind them in here
         func = functools.partial(func, **kwargs)
-    return await anyio.to_thread.run_sync(func, *args)
+    return await loop.run_in_executor(None, func, *args)
 
 
 def is_explicit_ack_supported(context):

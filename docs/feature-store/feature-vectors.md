@@ -246,7 +246,8 @@ import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
 feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
-svc = fvec.get_online_feature_service
+fvec = fstore.get_feature_vector(feature_vector)
+svc = fvec.get_online_feature_service()
 ```
 
 The online feature service supports value imputing (substitute NaN/Inf values with statistical or constant value). You 

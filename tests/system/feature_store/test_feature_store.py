@@ -2156,11 +2156,11 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
 
         if use_ds_profile:
-            profile = DatastoreProfileV3io(name="v3io_profile")
+            profile = DatastoreProfileV3io(name="v3io_profile", path_is_absolute=True)
             register_temporary_client_datastore_profile(profile)
             targets = [
                 ParquetTarget(
-                    path="ds://v3io_profile//bigdata/overwrite-pq-spec/my.parquet"
+                    path="ds://v3io_profile/bigdata/overwrite-pq-spec/my.parquet"
                 )
             ]
         else:

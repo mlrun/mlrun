@@ -192,14 +192,10 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
-            path = store.url + path
-        else:
-            path = data_item.url
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
 
         return storey.CSVSource(
-            paths=path,  # unlike self.path, it already has store:// replaced
+            paths=url,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
@@ -208,11 +204,11 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path = mlrun.store_manager.get_or_create_store(self.path)
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
-                "path": store.spark_url + path,
+                "path": url,
                 "format": "csv",
                 "header": "true",
                 "inferSchema": "true",
@@ -348,14 +344,10 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
-            path = store.url + path
-        else:
-            path = data_item.url
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
 
         return storey.ParquetSource(
-            paths=path,  # unlike self.path, it already has store:// replaced
+            paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
@@ -365,7 +357,7 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path = mlrun.store_manager.get_or_create_store(self.path)
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -862,19 +854,16 @@ class StreamSource(OnlineSource):
 
     def add_nuclio_trigger(self, function):
         access_key = None
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
-            storage_options = store.get_storage_options()
-            access_key = storage_options.get("v3io_access_key")
-            if hasattr(store, "kind") and store.kind == "v3io":
-                path = "v3io:/" + path
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Only profiles that reference the v3io datastore are supported"
-                )
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+        if hasattr(store, "kind") and store.kind == "v3io":
+            path = "v3io:/" + path
         else:
-            path = self.path
-        endpoint, stream_path = parse_path(path)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Only profiles that reference the v3io datastore can be used with StreamSource"
+            )
+        endpoint, stream_path = parse_path(url)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint, access_key=access_key)
         container, stream_path = split_path(stream_path)
         res = v3io_client.stream.create(

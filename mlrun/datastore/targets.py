@@ -447,17 +447,11 @@ class BaseStoreTarget(DataTargetBase):
             if self.credentials_prefix
             else None
         )
-        store, resolved_store_path = mlrun.store_manager.get_or_create_store(
+        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        if self.get_target_path() and self.get_target_path().startswith("ds://"):
-            if hasattr(store, "kind") and store.kind == "v3io":
-                return store, "v3io:/" + resolved_store_path
-            else:
-                return store, store.url + resolved_store_path
-        else:
-            return store, self.get_target_path()
+        return store, url
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -927,7 +921,9 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
-        store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, path, url = mlrun.store_manager.get_or_create_store(
+            self.get_target_path()
+        )
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -1061,7 +1057,9 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        store, path = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, path, url = mlrun.store_manager.get_or_create_store(
+            self.get_target_path()
+        )
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -1197,7 +1195,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
             store, target_path = self._get_store_and_path()
             storage_options = store.get_storage_options()
-            access_key = storage_options.get("v3io_access_key") or access_key
+            access_key = storage_options.get("v3io_access_key", access_key)
 
             _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
@@ -1241,7 +1239,7 @@ class NoSqlTarget(NoSqlBaseTarget):
                 "Spark will disregard the store-provided key."
             )
         spark_options = {
-            "path": store_path_to_spark(target_path),
+            "path": store.spark_url + target_path,
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1541,7 +1539,7 @@ class TSDBTarget(BaseStoreTarget):
 
         store, target_path = self._get_store_and_path()
         storage_options = store.get_storage_options()
-        access_key = storage_options.get("v3io_access_key") or access_key
+        access_key = storage_options.get("v3io_access_key", access_key)
 
         _, path_with_container = parse_path(target_path)
         container, path = split_path(path_with_container)

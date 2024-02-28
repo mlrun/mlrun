@@ -135,10 +135,15 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
+    path_is_absolute: typing.Optional[bool] = True
     _private_attributes = "v3io_access_key"
 
     def url(self, subpath):
-        return f"v3io://{subpath}"
+        subpath = subpath.lstrip("/")
+        if self.path_is_absolute:
+            return f"v3io:///{subpath}"
+        else:
+            return f"v3io://{subpath}"
 
     def secrets(self) -> dict:
         res = {}

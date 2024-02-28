@@ -19,6 +19,7 @@ You can add a time-based filter condition when running `get_offline_feature` wit
 import mlrun.feature_store as fstore
 
 feature_vector = '<feature_vector_name>'
+fvec = fstore.get_feature_vector(feature_vector)
 offline_fv = fvec.get_offline_features(target=ParquetTarget())
 ```
 

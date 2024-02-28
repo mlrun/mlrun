@@ -884,6 +884,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
+|ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5776|Concurrent request to project deletion may fail thought first call would gracefully finish the flow, without experiencing any error. Other concurrent requests would not impact the project deletion flow.|NA| v1.6.0|
 
 

@@ -16,6 +16,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes spark and remote-spark)
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
+* **hdfs** &mdash; Hadoop file system, Use `DatastoreProfileHdfs`.
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
@@ -316,3 +317,14 @@ the profiles. Access to private attributes is restricted to applications running
 
 
 
+```
+profile = DatastoreProfileHdfs(name="profile-name")
+ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
+```
+
+`DatastoreProfileHdfs` init parameters:
+- `name` &mdash; Name of the profile
+- `host` &mdash; HDFS namenode host
+- `port` &mdash; HDFS namenode port
+- `http_port` &mdash; WebHDFS port
+- `user` &mdash; User name. Currently, this has no effect when using Spark. Optional. Defaults to the value of the `HADOOP_USER_NAME` environment variable, or else the current user's user name.

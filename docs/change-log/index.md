@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.1](v1-6-1-xx-march-2024)
+- [v1.6.1](v1-6-1-xx-february-2024)
 - [v1.6.0](v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -14,20 +14,12 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
-## v1.6.1 (xx March 2024)
+## v1.6.1 (xx February 2024)
 
-### Data store
-| ID |Description                                                                                         |
-|----|-----------------------------------------------------------------------------------------------------|
-|ML-5656|Snowflake is not supported as an offline target store.|
-
-### Workflows
-
-| ID     |Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-|ML-5483|Now supports remote workflows for a project with the workflow source inside the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow).|
-
-
+###  Closed issues
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-5799|The artifact db_key is not overwritten after upgrade.|
 
 ## v1.6.0 (22 February 2024)
 
@@ -935,7 +927,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
 | v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0       |v1.6.0    |Feature store: `deploy_ingestion_service_v2`                                         |`FeatureSet.deploy_ingestion_service()`|
-| v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |

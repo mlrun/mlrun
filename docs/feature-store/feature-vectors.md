@@ -256,6 +256,7 @@ instead of NaN/Inf value. This can be defined per column or for all the columns 
 The replaced value can be a fixed number for constants or `$mean`, `$max`, `$min`, `$std`, `$count` for statistical values.
 `"*"` is used to specify the default for all features, for example: 
 
+    fvec = fstore.get_feature_vector(feature_vector)
     svc = fvec.get_online_feature_service(impute_policy={"*": "$mean", "age": 33})
 
 

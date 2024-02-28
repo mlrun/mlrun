@@ -382,22 +382,23 @@ class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
     image: typing.Optional[str] = None
 
     @pytest.mark.timeout(270)
-    def test_sanity(self):
+    def test_enable_model_monitoring(self):
+
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(image=self.image or 'mlrun/mlrun')
 
         self.project.enable_model_monitoring(image=self.image or 'mlrun/mlrun')
 
-        controller = self.project.list_functions(name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)[0]
-        writer = self.project.list_functions(name=mm_constants.MonitoringFunctionNames.WRITER)[0]
-        stream = self.project.list_functions(name="model-monitoring-stream")[0]
+        controller = self.project.get_function(key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)
+        writer = self.project.get_function(key=mm_constants.MonitoringFunctionNames.WRITER)
+        stream = self.project.get_function(key="model-monitoring-stream")
 
         controller._wait_for_function_deployment(db=controller._get_db())
         writer._wait_for_function_deployment(db=writer._get_db())
         stream._wait_for_function_deployment(db=stream._get_db())
-        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['intervals'] == '10m'
+        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['interval'] == '10m'
 
         self.project.update_model_monitoring_controller(image=self.image or 'mlrun/mlrun', base_period=1)
-        controller = self.project.list_functions(name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)[0]
+        controller = self.project.get_function(key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)
         controller._wait_for_function_deployment(db=controller._get_db())
-        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['intervals'] == '1m'
+        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['interval'] == '1m'

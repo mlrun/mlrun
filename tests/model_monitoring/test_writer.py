@@ -17,14 +17,13 @@ from unittest.mock import Mock
 
 import pytest
 from _pytest.fixtures import FixtureRequest
+from v3io_frames.client import ClientBase as V3IOFramesClient
 
+from mlrun.common.schemas.model_monitoring.constants import AppResultEvent, RawEvent
 from mlrun.model_monitoring.writer import (
     ModelMonitoringWriter,
-    V3IOFramesClient,
     WriterEvent,
-    _AppResultEvent,
     _Notifier,
-    _RawEvent,
     _WriterEventTypeError,
     _WriterEventValueError,
 )
@@ -32,8 +31,8 @@ from mlrun.utils.notifications.notification_pusher import CustomNotificationPush
 
 
 @pytest.fixture(params=[0])
-def event(request: FixtureRequest) -> _AppResultEvent:
-    return _AppResultEvent(
+def event(request: FixtureRequest) -> AppResultEvent:
+    return AppResultEvent(
         {
             WriterEvent.ENDPOINT_ID: "some-ep-id",
             WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
@@ -60,7 +59,7 @@ def notification_pusher() -> CustomNotificationPusher:
         ({WriterEvent.ENDPOINT_ID: "ep2211"}, _WriterEventValueError),
     ],
 )
-def test_reconstruct_event_error(event: _RawEvent, exception: type[Exception]) -> None:
+def test_reconstruct_event_error(event: RawEvent, exception: type[Exception]) -> None:
     with pytest.raises(exception):
         ModelMonitoringWriter._reconstruct_event(event)
 
@@ -71,7 +70,7 @@ def test_reconstruct_event_error(event: _RawEvent, exception: type[Exception]) -
     indirect=["event"],
 )
 def test_notifier(
-    event: _AppResultEvent,
+    event: AppResultEvent,
     expected_notification_call: bool,
     notification_pusher: Mock,
 ) -> None:
@@ -95,7 +94,7 @@ class TestTSDB:
 
     @staticmethod
     def test_no_extra(
-        event: _AppResultEvent,
+        event: AppResultEvent,
         tsdb_client: V3IOFramesClient,
         writer: ModelMonitoringWriter,
     ) -> None:

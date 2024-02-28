@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 import collections
 import datetime
 import json
@@ -24,14 +24,13 @@ import pandas as pd
 import requests
 import v3io
 import v3io.dataplane
-import v3io_frames
-from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
@@ -462,24 +461,11 @@ class BatchProcessor:
         )
 
     def _initialize_v3io_configurations(self):
-        self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
+        self.v3io_access_key = mlrun.mlconf.get_v3io_access_key()
         self.model_monitoring_access_key = (
             os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
         )
 
-        # Define the required paths for the project objects
-        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=self.project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.EVENTS,
-        )
-        (
-            _,
-            self.tsdb_container,
-            self.tsdb_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            tsdb_path
-        )
-        # stream_path = template.format(project=self.project, kind="log_stream")
         stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project,
             kind=mlrun.common.schemas.model_monitoring.FileTargetKind.LOG_STREAM,
@@ -497,19 +483,26 @@ class BatchProcessor:
         self.v3io = mlrun.utils.v3io_clients.get_v3io_client(
             access_key=self.v3io_access_key
         )
-        self.frames = mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
-            container=self.tsdb_container,
-            token=self.v3io_access_key,
+
+        # Define the required paths for the TSDB store
+        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.EVENTS,
         )
-        logger.info(
-            "Creating table in TSDB if it does not already exist", table=self.tsdb_path
+        (
+            _,
+            self.tsdb_container,
+            self.tsdb_path,
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            tsdb_path
         )
-        self.frames.create(
-            backend="tsdb",
+
+        self.tsdb_store = mlrun.model_monitoring.get_tsdb_store(
+            project=self.project,
+            access_key=self.v3io_access_key,
             table=self.tsdb_path,
-            if_exists=IGNORE,
-            rate="1/s",
+            container=self.tsdb_container,
+            create_table=True,
         )
 
     def post_init(self):
@@ -518,7 +511,7 @@ class BatchProcessor:
         """
 
         if not mlrun.mlconf.is_ce_mode():
-            # Create v3io stream based on the input stream
+            # Create v3io log stream based on the input stream
             response = self.v3io.stream.create(
                 container=self.stream_container,
                 stream_path=self.stream_path,
@@ -746,7 +739,7 @@ class BatchProcessor:
                 self._infer_kv_schema()
 
                 # Update drift results in TSDB
-                self._update_drift_in_v3io_tsdb(
+                self.tsdb_store.update_default_data_drift(
                     endpoint_id=endpoint[
                         mlrun.common.schemas.model_monitoring.EventFieldType.UID
                     ],
@@ -754,6 +747,8 @@ class BatchProcessor:
                     drift_measure=drift_measure,
                     drift_result=drift_result,
                     timestamp=timestamp,
+                    stream_container=self.stream_container,
+                    stream_path=self.stream_path,
                 )
 
             else:
@@ -804,73 +799,6 @@ class BatchProcessor:
         for pair in batch_list:
             pair_list = pair.split(":")
             self.batch_dict[pair_list[0]] = float(pair_list[1])
-
-    def _update_drift_in_v3io_tsdb(
-        self,
-        endpoint_id: str,
-        drift_status: mlrun.common.schemas.model_monitoring.DriftStatus,
-        drift_measure: float,
-        drift_result: dict[str, dict[str, Any]],
-        timestamp: pd.Timestamp,
-    ):
-        """Update drift results in input stream.
-
-        :param endpoint_id:   The unique id of the model endpoint.
-        :param drift_status:  Drift status result. Possible values can be found under DriftStatus enum class.
-        :param drift_measure: The drift result (float) based on the mean of the Total Variance Distance and the
-                              Hellinger distance.
-        :param drift_result:  A dictionary that includes the drift results for each feature.
-        :param timestamp:     Pandas Timestamp value.
-
-        """
-
-        if (
-            drift_status
-            == mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT
-            or drift_status
-            == mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED
-        ):
-            self.v3io.stream.put_records(
-                container=self.stream_container,
-                stream_path=self.stream_path,
-                records=[
-                    {
-                        "data": json.dumps(
-                            {
-                                "endpoint_id": endpoint_id,
-                                "drift_status": drift_status.value,
-                                "drift_measure": drift_measure,
-                                "drift_per_feature": {**drift_result},
-                            }
-                        )
-                    }
-                ],
-            )
-
-        # Update the results in tsdb:
-        tsdb_drift_measures = {
-            "endpoint_id": endpoint_id,
-            "timestamp": timestamp,
-            "record_type": "drift_measures",
-            "tvd_mean": drift_result["tvd_mean"],
-            "kld_mean": drift_result["kld_mean"],
-            "hellinger_mean": drift_result["hellinger_mean"],
-        }
-
-        try:
-            self.frames.write(
-                backend="tsdb",
-                table=self.tsdb_path,
-                dfs=pd.DataFrame.from_records([tsdb_drift_measures]),
-                index_cols=["timestamp", "endpoint_id", "record_type"],
-            )
-        except v3io_frames.errors.Error as err:
-            logger.warn(
-                "Could not write drift measures to TSDB",
-                err=err,
-                tsdb_path=self.tsdb_path,
-                endpoint=endpoint_id,
-            )
 
     def _update_drift_in_prometheus(
         self,
@@ -958,9 +886,14 @@ class BatchProcessor:
             logger.info(
                 "Generate a new V3IO KV schema file", kv_table_path=self.db.path
             )
-            self.frames.execute(
-                backend="kv", table=self.db.path, command="infer_schema"
+
+            frames = mlrun.utils.v3io_clients.get_frames_client(
+                address=mlrun.mlconf.v3io_framesd,
+                container=self.tsdb_container,
+                token=self.v3io_access_key,
             )
+
+            frames.execute(backend="kv", table=self.db.path, command="infer_schema")
 
 
 def handler(context: mlrun.run.MLClientCtx):

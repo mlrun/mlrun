@@ -15,7 +15,7 @@
 import hashlib
 from dataclasses import dataclass
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Any, NewType, Optional
 
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
@@ -289,3 +289,7 @@ class ModelMonitoringAppLabel:
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"
+
+
+RawEvent = dict[str, Any]
+AppResultEvent = NewType("AppResultEvent", RawEvent)

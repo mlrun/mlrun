@@ -334,17 +334,6 @@ class KVModelEndpointStore(ModelEndpointStore):
                  includes timestamps and the values.
         """
 
-        # Initialize access key
-        access_key = access_key or mlrun.mlconf.get_v3io_access_key()
-
-        if not metrics:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Metric names must be provided"
-            )
-
-        # Initialize metrics mapping dictionary
-        metrics_mapping = {}
-
         # Getting the path for the time series DB
         events_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
@@ -360,39 +349,18 @@ class KVModelEndpointStore(ModelEndpointStore):
             events_path
         )
 
-        # Retrieve the raw data from the time series DB based on the provided metrics and time ranges
-        frames_client = mlrun.utils.v3io_clients.get_frames_client(
-            token=access_key,
-            address=mlrun.mlconf.v3io_framesd,
+        tsdb_store = mlrun.model_monitoring.get_tsdb_store(
+            project=self.project,
+            access_key=self.access_key,
+            table=events_path,
             container=container,
         )
-
-        try:
-            data = frames_client.read(
-                backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
-                table=events_path,
-                columns=["endpoint_id", *metrics],
-                filter=f"endpoint_id=='{endpoint_id}'",
-                start=start,
-                end=end,
-            )
-
-            # Fill the metrics mapping dictionary with the metric name and values
-            data_dict = data.to_dict()
-            for metric in metrics:
-                metric_data = data_dict.get(metric)
-                if metric_data is None:
-                    continue
-
-                values = [
-                    (str(timestamp), value) for timestamp, value in metric_data.items()
-                ]
-                metrics_mapping[metric] = values
-
-        except v3io_frames.errors.ReadError:
-            logger.warn("Failed to read tsdb", endpoint=endpoint_id)
-
-        return metrics_mapping
+        return tsdb_store.get_endpoint_real_time_metrics(
+            endpoint_id=endpoint_id,
+            metrics=metrics,
+            start=start,
+            end=end,
+        )
 
     def _generate_tsdb_paths(self) -> tuple[str, str]:
         """Generate a short path to the TSDB resources and a filtered path for the frames object

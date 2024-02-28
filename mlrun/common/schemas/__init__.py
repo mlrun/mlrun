@@ -107,6 +107,7 @@ from .hub import (
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_monitoring import (
+    AppResultEvent,
     DriftStatus,
     EndpointType,
     EndpointUID,
@@ -129,6 +130,7 @@ from .model_monitoring import (
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     TimeSeriesTarget,
+    WriterEvent,
 )
 from .notification import (
     Notification,

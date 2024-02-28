@@ -16,8 +16,8 @@ import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
 feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
-
-svc = fvec.get_online_feature_service
+fvec = fstore.get_feature_vector(feature_vector)
+svc = fvec.get_online_feature_service()
 ```
 
 After creating the service, you can use the feature vector's entity to get the latest feature vector for it.

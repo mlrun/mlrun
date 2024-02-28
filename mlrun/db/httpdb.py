@@ -1175,7 +1175,7 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state (defaults to mlrun.config.runtime_resources_deletion_grace_period).
+            the moment they moved to terminal state (defaults to mlrun.config.config.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
@@ -1342,7 +1342,7 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(
                 "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
                 "keys. Only the permissions granted to the platform's configured secret will take affect "
-                "(see mlrun.config.httpdb.builder.docker_registry_secret). "
+                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
                 "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
                 source=func.spec.build.source,
                 load_source_on_run=func.spec.build.load_source_on_run,
@@ -1497,7 +1497,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.config.default_project).
+        :param project: Project name (defaults to mlrun.config.config.default_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.

@@ -1624,7 +1624,7 @@ def get_local_file_schema() -> List:
     return ["file"] + list(string.ascii_lowercase)
 
 
-def resolve_safe_path(base, filepath, is_symlink=False):
+def is_safe_path(base, filepath, is_symlink=False):
     # Avoid path traversal attacks by ensuring that the path is safe
     resolved_filepath = (
         os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)

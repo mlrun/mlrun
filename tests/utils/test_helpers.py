@@ -965,6 +965,6 @@ def test_normalize_username(username, expected_normalized_username):
         ("/base", "/../invalid", False, False),
     ],
 )
-def test_resolve_safe_path(basedir, path, is_symlink, is_valid):
-    safe = mlrun.utils.resolve_safe_path(basedir, path, is_symlink)
+def test_is_safe_path(basedir, path, is_symlink, is_valid):
+    safe = mlrun.utils.is_safe_path(basedir, path, is_symlink)
     assert safe == is_valid

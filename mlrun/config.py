@@ -291,7 +291,7 @@ default_config = {
         # http client used by httpdb
         "http": {
             # when True, the client will verify the server's TLS
-            # sset to False for backwards compatibility.
+            # set to False for backwards compatibility.
             "verify": False,
         },
         "db": {

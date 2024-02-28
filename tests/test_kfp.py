@@ -18,13 +18,13 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import mlrun_pipelines.common.ops
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
 import yaml
 
-import mlrun_pipelines.common.ops
 from mlrun import new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
@@ -88,7 +88,9 @@ def kfp_dirs(monkeypatch):
             output_dir=output_dir,
         )
         monkeypatch.setattr(mlrun_pipelines.common.ops, "KFPMETA_DIR", str(meta_dir))
-        monkeypatch.setattr(mlrun_pipelines.common.ops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
+        monkeypatch.setattr(
+            mlrun_pipelines.common.ops, "KFP_ARTIFACTS_DIR", str(artifacts_dir)
+        )
         yield (str(meta_dir), str(artifacts_dir), str(output_dir))
 
 

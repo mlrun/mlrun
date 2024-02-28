@@ -123,6 +123,7 @@ Here's an example of a new dataset from a Parquet target:
 from mlrun.datastore.targets import ParquetTarget
 
 # Get offline feature vector based on vector and parquet target
+fvec = fstore.get_feature_vector(feature_vector_name)
 offline_fv = fvec.get_offline_features(target=ParquetTarget())
 
 # Return dataset

@@ -337,9 +337,9 @@ class ServingRuntime(RemoteRuntime):
         self.spec.track_models = True
         self.spec.tracking_policy = None
         if tracking_policy:
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.8.0
             warnings.warn(
-                "`tracking_policy` is deprecated and will be removed in 1.9.0. "
+                "`tracking_policy` is deprecated and will be removed in 1.8.0. "
                 "Run `project.enable_model_monitoring()` to make sure all "
                 "the monitoring resources are deployed.",
                 DeprecationWarning,

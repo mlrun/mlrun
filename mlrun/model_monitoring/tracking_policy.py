@@ -56,9 +56,9 @@ class TrackingPolicy(mlrun.model.ModelObj):
                                             writer function, which is a real time nuclio functino, will be deployed
                                             with the same image. By default, the image is mlrun/mlrun.
         """
-        # TODO: Remove this in 1.9.0
+        # TODO: Remove this in 1.8.0
         warnings.warn(
-            "`TrackingPolicy` is deprecated and will be removed in 1.9.0. "
+            "`TrackingPolicy` is deprecated and will be removed in 1.8.0. "
             "Run `project.enable_model_monitoring()` to make sure all "
             "the monitoring resources are deployed.",
             DeprecationWarning,

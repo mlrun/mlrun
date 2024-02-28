@@ -823,7 +823,7 @@ class MonitoringDeployment:
             try:
                 # validate that the model monitoring stream has not yet been deployed
                 mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                    name=mm_constants.MonitoringFunctionNames.WRITER,
+                    name=function_name,
                     project=project,
                     tag="",
                     auth_info=auth_info,

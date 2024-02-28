@@ -38,7 +38,7 @@ from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VER
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
-
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
@@ -88,7 +88,7 @@ class _V3IORecordsChecker:
             ), f"V3IO KV app data is empty for app {app_name}"
             if app_data.metrics:
                 assert (
-                    data.keys() == app_data.metrics
+                        data.keys() == app_data.metrics
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
@@ -101,7 +101,7 @@ class _V3IORecordsChecker:
         )
         assert not df.empty, "No TSDB data"
         assert (
-            df.endpoint_id == ep_id
+                df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
@@ -114,7 +114,7 @@ class _V3IORecordsChecker:
                 app_name = app_data.class_.name
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
                 assert (
-                    set(tsdb_metrics[app_name]) == app_metrics
+                        set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
@@ -349,7 +349,8 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
+            # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
 
@@ -371,3 +372,32 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(2.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
+    project_name = "test-mm-initialize"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @pytest.mark.timeout(270)
+    def test_sanity(self):
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.update_model_monitoring_controller(image=self.image or 'mlrun/mlrun')
+
+        self.project.enable_model_monitoring(image=self.image or 'mlrun/mlrun')
+
+        controller = self.project.list_functions(name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)[0]
+        writer = self.project.list_functions(name=mm_constants.MonitoringFunctionNames.WRITER)[0]
+        stream = self.project.list_functions(name="model-monitoring-stream")[0]
+
+        controller._wait_for_function_deployment(db=controller._get_db())
+        writer._wait_for_function_deployment(db=writer._get_db())
+        stream._wait_for_function_deployment(db=stream._get_db())
+        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['intervals'] == '10m'
+
+        self.project.update_model_monitoring_controller(image=self.image or 'mlrun/mlrun', base_period=1)
+        controller = self.project.list_functions(name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)[0]
+        controller._wait_for_function_deployment(db=controller._get_db())
+        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['intervals'] == '1m'

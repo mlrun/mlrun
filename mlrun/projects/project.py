@@ -1989,7 +1989,7 @@ class MlrunProject(ModelObj):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
     ) -> dict:
-        r"""
+        """
         Deploy model monitoring application controller, writer and stream functions.
         While the main goal of the controller function is to handle the monitoring processing and triggering
         applications, the goal of the model monitoring writer function is to write all the monitoring
@@ -2024,7 +2024,6 @@ class MlrunProject(ModelObj):
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
-        overwrite: bool = False,
         image: str = "mlrun/mlrun",
     ) -> dict:
         r"""
@@ -2044,7 +2043,6 @@ class MlrunProject(ModelObj):
             project=self.name,
             image=image,
             base_period=base_period,
-            overwrite=overwrite,
         )
 
     def disable_model_monitoring(self):

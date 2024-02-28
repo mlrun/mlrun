@@ -1139,6 +1139,7 @@ class CSVTarget(BaseStoreTarget):
 class SnowflakeTarget(BaseStoreTarget):
     support_spark = True
     support_append = True
+    is_offline = True
     kind = TargetTypes.snowflake
 
     def __init__(
@@ -1147,7 +1148,7 @@ class SnowflakeTarget(BaseStoreTarget):
         path=None,
         attributes: dict[str, str] = None,
         after_step=None,
-        #  columns=None, # we will get it from schema...
+        columns=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[list[str]] = None,
@@ -1156,29 +1157,14 @@ class SnowflakeTarget(BaseStoreTarget):
         flush_after_seconds: Optional[int] = None,
         storage_options: dict[str, str] = None,
         schema: dict[str, Any] = None,
-        #  credentials_prefix=None, # good for what?
-        # db_url: str = None,
-        url: str = None,  #  change to url from db url
-        user: str = None,  #  from source.
-        db_schema: str = None,  # my addition # optional
-        database: str = None,  #  from source.
-        warehouse: str = None,  #  from source.
+        credentials_prefix=None,
+        url: str = None,
+        user: str = None,
+        db_schema: str = None,
+        database: str = None,
+        warehouse: str = None,
         table_name: str = None,
-        primary_key_column: str = "",
-        if_exists: str = "append",
-        create_table: bool = False,
-        # create_according_to_data: bool = False,
-        varchar_len: int = 50,
-        parse_dates: list[str] = None,
     ):
-        # db_url = db_url or mlrun.mlconf.sql.url
-        # self.db_url = db_url
-        # self.table_name = table_name
-        self.primary_key_column = primary_key_column
-        self.if_exists = if_exists
-        self.parse_dates = parse_dates
-        # self.db_schema = db_schema
-
         attrs = {
             "url": url,
             "user": user,
@@ -1192,19 +1178,12 @@ class SnowflakeTarget(BaseStoreTarget):
         }
         attributes = {} if not attributes else attributes
         attributes.update(extended_attrs)
-
-        #  TODO PATH or db_url logic
-        # if db_url is None or table_name is None:
-        #     attr = {}
-        # else:
-        #     pass
-        # TODO
         super().__init__(
             name,
             path,
             attributes,
             after_step,
-            list(schema.keys()) if schema else None,
+            list(schema.keys()) if schema else columns,
             partitioned,
             key_bucketing_number,
             partition_cols,
@@ -1213,28 +1192,28 @@ class SnowflakeTarget(BaseStoreTarget):
             flush_after_seconds=flush_after_seconds,
             storage_options=storage_options,
             schema=schema,
+            credentials_prefix=credentials_prefix,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = get_snowflake_spark_options(self.attributes)
         spark_options["dbtable"] = self.attributes.get("table")
         return spark_options
-        #  TODO complete this
-        # spark_options = {
-        #     #  "path": store_path_to_spark(self.get_target_path()),  #TODO check this out!
-        #     "format": "snowflake",
-        # }
-        # if isinstance(key_column, list) and len(key_column) >= 1:
-        #     spark_options["key"] = key_column[0]
-        #     if len(key_column) > 2:
-        #         spark_options["sorting-key"] = "_spark_object_name"
-        #     if len(key_column) == 2:
-        #         spark_options["sorting-key"] = key_column[1]
-        # else:
-        #     spark_options["key"] = key_column
-        # if not overwrite:
-        #     spark_options["columnUpdate"] = True
-        # return spark_options
+
+    def purge(self):
+        pass
+
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
 
 
 class NoSqlBaseTarget(BaseStoreTarget):

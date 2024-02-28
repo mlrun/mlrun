@@ -80,6 +80,10 @@ class V3ioStore(DataStore):
         return f"{schema}://{self.endpoint}"
 
     @property
+    def spark_url(self):
+        return "v3io:/"
+
+    @property
     def filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:

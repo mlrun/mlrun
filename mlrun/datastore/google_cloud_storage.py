@@ -161,3 +161,7 @@ class GoogleCloudStorageStore(DataStore):
             if "client_id" in credentials:
                 res["spark.hadoop.fs.gs.client.id"] = credentials["client_id"]
         return res
+
+    @property
+    def spark_url(self):
+        return f"gs://{self.endpoint}"

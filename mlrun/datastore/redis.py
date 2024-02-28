@@ -163,3 +163,7 @@ class RedisStore(DataStore):
                 self.redis.delete(k)
         else:
             self.redis.delete(key)
+
+    @property
+    def spark_url(self):
+        return ""

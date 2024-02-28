@@ -287,7 +287,7 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ### S3 data store profile
 
 
-```
+```python
 profile = DatastoreProfileS3(name="profile-name")
 ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 ```
@@ -301,8 +301,20 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
+### HDFS data store profile
 
 
+```python
+profile = DatastoreProfileHdfs(name="profile-name")
+ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
+```
+
+`DatastoreProfileHdfs` init parameters:
+- `name` &mdash; Name of the profile
+- `host` &mdash; HDFS namenode host
+- `port` &mdash; HDFS namenode port
+- `http_port` &mdash; WebHDFS port
+- `user` &mdash; User name. Currently, this has no effect when using Spark. Optional. Defaults to the value of the `HADOOP_USER_NAME` environment variable, or else the current user's user name.
 
 
 
@@ -314,17 +326,3 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
 the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
-
-
-
-```
-profile = DatastoreProfileHdfs(name="profile-name")
-ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
-```
-
-`DatastoreProfileHdfs` init parameters:
-- `name` &mdash; Name of the profile
-- `host` &mdash; HDFS namenode host
-- `port` &mdash; HDFS namenode port
-- `http_port` &mdash; WebHDFS port
-- `user` &mdash; User name. Currently, this has no effect when using Spark. Optional. Defaults to the value of the `HADOOP_USER_NAME` environment variable, or else the current user's user name.

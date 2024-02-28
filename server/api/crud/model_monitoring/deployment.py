@@ -688,7 +688,7 @@ class MonitoringDeployment:
                 server.api.api.endpoints.functions.create_model_monitoring_stream(
                     project=project,
                     function=function,
-                    monitoring_application=True,
+                    monitoring_application=function_name != mm_constants.MonitoringFunctionNames.STREAM,
                     stream_path=stream_path,
                     access_key=model_monitoring_access_key,
                 )

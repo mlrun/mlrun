@@ -31,8 +31,7 @@ from mlrun.common.schemas.model_monitoring import (
 from mlrun.model_monitoring.stores.tsdb import TSDBstore
 from mlrun.utils import logger
 
-# noinspection PyUnresolvedReferences
-from .stream_graph_steps import FilterAndUnpackKeys, ProcessBeforeTSDB
+from .stream_graph_steps import FilterAndUnpackKeys, ProcessBeforeTSDB  # noqa: F401
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
@@ -109,7 +108,7 @@ class V3IOTSDBstore(TSDBstore):
             graph.add_step(
                 "FilterAndUnpackKeys",
                 name=name,
-                after="FilterAndUnpackKeys",
+                after="ProcessBeforeTSDB",
                 keys=[keys],
             )
 

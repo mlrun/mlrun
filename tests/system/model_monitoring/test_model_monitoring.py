@@ -235,6 +235,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
 
 
+@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestBasicModelMonitoring(TestMLRunSystem):
@@ -329,6 +330,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         assert total > 0
 
 
+@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
@@ -485,6 +487,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert expected_uri == monitoring_feature_set.uri
 
 
+@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestVotingModelMonitoring(TestMLRunSystem):

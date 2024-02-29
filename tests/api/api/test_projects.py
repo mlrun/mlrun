@@ -90,7 +90,7 @@ def test_redirection_from_worker_to_chief_delete_project(
     response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project_name}"
+    endpoint = f"projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
         headers = {"x-mlrun-deletion-strategy": strategy.value}
         for test_case in [
@@ -122,7 +122,7 @@ def test_redirection_from_worker_to_chief_delete_project(
             expected_response = test_case.get("expected_body")
 
             httpserver.expect_ordered_request(
-                endpoint, method="DELETE"
+                f"{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}", method="DELETE"
             ).respond_with_json(expected_response, status=expected_status)
             url = httpserver.url_for("")
             mlrun.mlconf.httpdb.clusterization.chief.url = url

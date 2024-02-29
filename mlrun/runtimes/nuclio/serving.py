@@ -203,7 +203,7 @@ class ServingSpec(NuclioSpec):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
-        self.tracking_policy = tracking_policy  # TODO: Remove this in 1.9.0
+        self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
 
@@ -337,13 +337,6 @@ class ServingRuntime(RemoteRuntime):
         self.spec.track_models = True
         self.spec.tracking_policy = None
         if tracking_policy:
-            # TODO: Remove this in 1.8.0
-            warnings.warn(
-                "`tracking_policy` is deprecated and will be removed in 1.8.0. "
-                "Run `project.enable_model_monitoring()` to make sure all "
-                "the monitoring resources are deployed.",
-                DeprecationWarning,
-            )
             if isinstance(tracking_policy, dict):
                 # Convert tracking policy dictionary into `model_monitoring.TrackingPolicy` object
                 self.spec.tracking_policy = TrackingPolicy.from_dict(tracking_policy)

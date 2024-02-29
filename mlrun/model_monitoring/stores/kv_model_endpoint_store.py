@@ -50,6 +50,8 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
 
+        logger.info("[DAVID] KV conf", path=self.path, container=self.container, access_key=self.access_key)
+
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """
         Create a new endpoint record in the KV table.

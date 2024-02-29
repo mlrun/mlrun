@@ -139,12 +139,12 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(project: str = None, application_name: str = mm_constants.MonitoringFunctionNames.STREAM):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param application_name:    Application name, None for model_monitoring_stream.
+    :param application_name:    Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """

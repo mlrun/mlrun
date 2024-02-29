@@ -29,6 +29,7 @@ from mlrun.utils import logger
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class _BatchDict(typing.TypedDict):
@@ -41,19 +42,19 @@ class _MLRunNoRunsFoundError(Exception):
     pass
 
 
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(project: str = None, application_name: str = mm_constants.MonitoringFunctionNames.STREAM):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param application_name:    Application name, None for model_monitoring_stream.
+    :param application_name:    Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
     stream_uri = mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if application_name is None
+        if application_name is mm_constants.MonitoringFunctionNames.STREAM
         else ""
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,

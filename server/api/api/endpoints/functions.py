@@ -831,6 +831,17 @@ def _deploy_serving_monitoring(
             fn.spec.tracking_policy = TrackingPolicy()
 
         # TODO : delete when batch is deprecated.
+        if not mlrun.mlconf.is_ce_mode():
+            # create v3io stream for model_monitoring_stream
+            create_model_monitoring_stream(
+                project=fn.metadata.project,
+                function=fn,
+                monitoring_application=monitoring_application,
+                stream_path=server.api.crud.model_monitoring.get_stream_path(
+                    project=fn.metadata.project,
+                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
+                ),
+            )
         # deploy model monitoring stream, model monitoring batch job,
         monitoring_deploy = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment()

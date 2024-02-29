@@ -114,7 +114,9 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = load_spark_dataframe_with_options(session, self.get_spark_options())
+            spark_options = self.get_spark_options()
+            spark_format = spark_options.pop("format", None)
+            df = load_spark_dataframe_with_options(session, spark_options, format=spark_format)
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)

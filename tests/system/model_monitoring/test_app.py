@@ -382,7 +382,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
-    def test_enable_model_monitoring(self):
+    def test_enable_model_monitoring(self) -> None:
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"

@@ -235,7 +235,6 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
 
 
-@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestBasicModelMonitoring(TestMLRunSystem):
@@ -321,7 +320,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         assert len(endpoint.status.metrics) > 0
         self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 
-        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
+        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 102
 
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"

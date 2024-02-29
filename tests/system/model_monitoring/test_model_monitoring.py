@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import os
 import pickle
@@ -275,7 +275,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
             model_name,
-            model_dir=os.path.relpath(self.assets_path),
+            model_dir=str(self.assets_path),
             model_file="model.pkl",
             training_set=train_set,
             artifact_path=f"v3io:///projects/{project.metadata.name}",
@@ -294,7 +294,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Simulating valid requests
         iris_data = iris["data"].tolist()
 
-        for i in range(102):
+        for _ in range(102):
             data_point = choice(iris_data)
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})

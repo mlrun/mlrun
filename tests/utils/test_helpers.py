@@ -954,3 +954,17 @@ def test_iterate_list_by_chunks(iterable_list, chunk_size, expected_chunked_list
 def test_normalize_username(username, expected_normalized_username):
     normalized_username = mlrun.utils.helpers.normalize_project_username(username)
     assert normalized_username == expected_normalized_username
+
+
+@pytest.mark.parametrize(
+    "basedir,path,is_symlink, is_valid",
+    [
+        ("/base", "/base/valid", False, True),
+        ("/base", "/base/valid", True, True),
+        ("/base", "/../invalid", True, False),
+        ("/base", "/../invalid", False, False),
+    ],
+)
+def test_is_safe_path(basedir, path, is_symlink, is_valid):
+    safe = mlrun.utils.is_safe_path(basedir, path, is_symlink)
+    assert safe == is_valid

@@ -951,7 +951,7 @@ def test_export_to_zip(rundb_mock):
     assert os.path.isfile(zip_path)
 
     zipf = zipfile.ZipFile(zip_path, "r")
-    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+    assert set(zipf.namelist()) == {"./", "f.py", "project.yaml"}
 
     # check upload to (remote) DataItem
     project.export("memory://x.zip")

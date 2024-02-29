@@ -237,7 +237,13 @@ class Client(
         if auth_info:
             auth = auth_info.to_nuclio_auth_info().to_requests_auth()
 
-        response = self._session.request(method, url, verify=False, auth=auth, **kwargs)
+        response = self._session.request(
+            method,
+            url,
+            verify=mlrun.config.config.httpdb.http.verify,
+            auth=auth,
+            **kwargs,
+        )
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)
             log_kwargs.update({"method": method, "path": path})

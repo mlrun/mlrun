@@ -2051,6 +2051,14 @@ class MlrunProject(ModelObj):
             project=self.name,
             name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.WRITER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.STREAM,
+        )
 
     def set_function(
         self,

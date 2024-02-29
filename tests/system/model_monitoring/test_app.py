@@ -381,6 +381,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
+
     def test_enable_model_monitoring(self):
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
@@ -395,7 +396,9 @@ class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
         writer = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.WRITER
         )
-        stream = self.project.get_function(key="model-monitoring-stream")
+        stream = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.STREAM
+        )
 
         controller._wait_for_function_deployment(db=controller._get_db())
         writer._wait_for_function_deployment(db=writer._get_db())
@@ -411,7 +414,8 @@ class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
             image=self.image or "mlrun/mlrun", base_period=1
         )
         controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
         )
         controller._wait_for_function_deployment(db=controller._get_db())
         assert (

@@ -20,7 +20,6 @@ import typing
 import mlrun.common.schemas.secret
 import mlrun.errors
 
-from ...utils import logger
 from .model_endpoint_store import ModelEndpointStore
 
 

@@ -27,8 +27,8 @@ from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
 import mlrun
-from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource

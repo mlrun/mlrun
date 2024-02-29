@@ -16,6 +16,7 @@ import sys
 import typing
 
 import mlrun.common
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas.model_monitoring import (
     EndpointUID,
     FunctionURI,
@@ -72,7 +73,10 @@ def parse_monitoring_stream_path(
                 "Custom kafka topic is not allowed"
             )
         # Add topic to stream kafka uri
-        if application_name is None:
+        if (
+            application_name is None
+            or application_name == mm_constants.MonitoringFunctionNames.STREAM
+        ):
             stream_uri += f"?topic=monitoring_stream_{project}"
         else:
             stream_uri += f"?topic=monitoring_stream_{project}_{application_name}"

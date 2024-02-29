@@ -1083,6 +1083,7 @@ class Config:
 
             if (
                 application_name
+                and application_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(

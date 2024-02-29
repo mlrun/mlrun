@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.0](v1-6-0-22-february-2024)
+- [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -12,6 +12,13 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
 
+
+## v1.6.1 (29 February 2024)
+
+###  Closed issue
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-5799|The artifact `db_key` is not overwritten after upgrade.|
 
 ## v1.6.0 (22 February 2024)
 
@@ -24,7 +31,7 @@
 ### Feature store
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4622|Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets`.| 
+|ML-4622|Feature set and feature vector APIs are now class methods. See examples in {ref}`feature-sets` and {ref}`create-use-feature-vectors`.| 
 |ML-5109|You can set `min_replicas` and `max_replicas` for `KafkaSource`. See [Consumer function configuration](../serving/graph-ha-cfg.html#consumer-function-configuration).|
 
 ### Model monitoring 
@@ -876,6 +883,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
+|ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5776|Concurrent request to project deletion may fail thought first call would gracefully finish the flow, without experiencing any error. Other concurrent requests would not impact the project deletion flow.|NA| v1.6.0|
 
 
@@ -913,12 +921,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs` | NA. Was not used.|
+| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
 | v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0       |v1.6.0    |Feature store: `deploy_ingestion_service_v2`                                         |`FeatureSet.deploy_ingestion_service()`|
-| v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |

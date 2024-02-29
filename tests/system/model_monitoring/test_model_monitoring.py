@@ -301,13 +301,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             sleep(choice([0.01, 0.04]))
 
         # Test metrics
-        mlrun.utils.helpers.retry_until_successful(
-            3,
-            10,
-            self._logger,
-            False,
-            self._assert_model_endpoint_metrics,
-        )
+        sleep(5)
+        self._assert_model_endpoint_metrics()
 
     def _assert_model_endpoint_metrics(self):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(

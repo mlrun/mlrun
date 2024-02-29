@@ -156,6 +156,10 @@ class S3Store(DataStore):
 
         return self._sanitize_storage_options(storage_options)
 
+    @property
+    def spark_url(self):
+        return f"s3a://{self.endpoint}"
+
     def get_bucket_and_key(self, key):
         path = self._join(key)[1:]
         return self.endpoint, path

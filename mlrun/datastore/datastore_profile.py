@@ -295,6 +295,30 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
         return res if res else None
 
 
+class DatastoreProfileHdfs(DatastoreProfile):
+    type: str = pydantic.Field("hdfs")
+    _private_attributes = "token"
+    host: typing.Optional[str] = None
+    port: typing.Optional[int] = None
+    http_port: typing.Optional[int] = None
+    user: typing.Optional[str] = None
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.host:
+            res["HDFS_HOST"] = self.host
+        if self.port:
+            res["HDFS_PORT"] = self.port
+        if self.port:
+            res["HDFS_HTTP_PORT"] = self.http_port
+        if self.user:
+            res["HDFS_USER"] = self.user
+        return res or None
+
+    def url(self, subpath):
+        return f"hdfs://{self.host}:{self.http_port}{subpath}"
+
+
 class DatastoreProfile2Json(pydantic.BaseModel):
     @staticmethod
     def _to_json(attributes):
@@ -354,6 +378,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "dbfs": DatastoreProfileDBFS,
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
+            "hdfs": DatastoreProfileHdfs,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

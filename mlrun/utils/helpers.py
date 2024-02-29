@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import enum
 import functools
 import hashlib
@@ -30,7 +31,6 @@ from os import path
 from types import ModuleType
 from typing import Any, Optional
 
-import anyio
 import git
 import inflection
 import numpy as np
@@ -49,6 +49,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.config import config
 
 from .logger import create_logger
@@ -268,6 +269,17 @@ def validate_artifact_key_name(
         raise_on_failure=raise_on_failure,
         log_message="Slashes are not permitted in the artifact key (both \\ and /)",
     )
+
+
+def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
+    if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
+        raise mlrun.errors.MLRunBadRequestError(
+            "The body of the artifact exceeds the maximum allowed size. "
+            "Avoid embedding the artifact body. "
+            "This increases the size of the project yaml file and could affect the project during loading and saving. "
+            "More information is available at"
+            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
+        )
 
 
 def validate_v3io_stream_consumer_group(
@@ -1464,13 +1476,15 @@ def normalize_project_username(username: str):
     return username
 
 
-# run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
-# without importing fastapi in the client
 async def run_in_threadpool(func, *args, **kwargs):
+    """
+    Run a sync-function in the loop default thread pool executor pool and await its result.
+    Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
+    """
+    loop = asyncio.get_running_loop()
     if kwargs:
-        # run_sync doesn't accept 'kwargs', so bind them in here
         func = functools.partial(func, **kwargs)
-    return await anyio.to_thread.run_sync(func, *args)
+    return await loop.run_in_executor(None, func, *args)
 
 
 def is_explicit_ack_supported(context):

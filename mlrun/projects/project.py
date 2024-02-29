@@ -2448,6 +2448,16 @@ class MlrunProject(ModelObj):
             f = self.spec._function_definitions.get(name)
             if not f:
                 raise ValueError(f"function named {name} not found")
+            # If this function is already available locally, don't recreate it unless always=True
+            if (
+                isinstance(
+                    self.spec._function_objects.get(name, None),
+                    mlrun.runtimes.base.BaseRuntime,
+                )
+                and not always
+            ):
+                funcs[name] = self.spec._function_objects[name]
+                continue
             if hasattr(f, "to_dict"):
                 name, func = _init_function_from_obj(f, self, name)
             else:

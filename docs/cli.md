@@ -31,25 +31,25 @@ Usage: mlrun build [OPTIONS] FUNC_URL
 
 Example:  `mlrun build myfunc.yaml`
 
-| Flag                                   | Description                                                                                                                                                                                        |
-|----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;name TEXT                | Function name                                                                                                                                                                                      |
-| &minus;&minus;project TEXT             | Project name                                                                                                                                                                                       |
-| &minus;&minus;tag TEXT                 | Function tag                                                                                                                                                                                       |
-| &minus;i, &minus;&minus;image TEXT      | Target image path                                                                                                                                                                                  |
-| &minus;s, &minus;&minus;source TEXT     | Path/URL of the function source code. A PY file, or if `-a/--archive`  is specified, a directory to archive. (Default: './')                                                                       |
-| &minus;b, &minus;&minus;base-image TEXT | Base Docker image                                                                                                                                                                                  |
-| &minus;c, &minus;&minus;command TEXT    | Build commands; for example, '-c pip install pandas'                                                                                                                                               |
-| &minus;&minus;secret&minus;name TEXT   | Name of a container-registry secret                                                                                                                                                                |
-| &minus;a, &minus;&minus;archive TEXT    | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s/--source`) are archived into a TAR file and then extracted into the archive directory |
-| &minus;&minus;silent                   | Do not show build logs                                                                                                                                                                             |
-| &minus;&minus;with&minus;mlrun         | Add the MLRun package ("mlrun")                                                                                                                                                                    |
-| &minus;&minus;db TEXT                  | Save the run results to path or DB url                                                                                                                                                             |
-| &minus;r, &minus;&minus;runtime TEXT    | Function spec dict, for pipeline usage                                                                                                                                                             |
-| &minus;&minus;kfp                      | Running inside Kubeflow Piplines, do not use                                                                                                                                                       |
-| &minus;&minus;skip                     | Skip if already deployed                                                                                                                                                                           |
-| &minus;&minus;env&minus;file TEXT      | Path to .env file to load config/variables from                                                                                                                                                    |
-| &minus;&minus;ensure&minus;project     | Ensure the project exists, if not, create project                                                                                                                                                  |
+| Flag                  | Description                                                                                                                                                                                        |
+|-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| \--name TEXT          | Function name                                                                                                                                                                                      |
+| \--project TEXT       | Project name                                                                                                                                                                                       |
+| \--tag TEXT           | Function tag                                                                                                                                                                                       |
+| -i, --image TEXT      | Target image path                                                                                                                                                                                  |
+| -s, --source TEXT     | Path/URL of the function source code. A PY file, or if `-a/--archive`  is specified, a directory to archive. (Default: './')                                                                       |
+| -b, --base-image TEXT | Base Docker image                                                                                                                                                                                  |
+| -c, --command TEXT    | Build commands; for example, '-c pip install pandas'                                                                                                                                               |
+| \--secret-name TEXT   | Name of a container-registry secret                                                                                                                                                                |
+| -a, --archive TEXT    | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s/--source`) are archived into a TAR file and then extracted into the archive directory |
+| \--silent             | Do not show build logs                                                                                                                                                                             |
+| \--with-mlrun         | Add the MLRun package ("mlrun")                                                                                                                                                                    |
+| \--db TEXT            | Save the run results to path or DB url                                                                                                                                                             |
+| -r, --runtime TEXT    | Function spec dict, for pipeline usage                                                                                                                                                             |
+| \--kfp                | Running inside Kubeflow Piplines, do not use                                                                                                                                                       |
+| \--skip               | Skip if already deployed                                                                                                                                                                           |
+| \--env-file TEXT      | Path to .env file to load config/variables from                                                                                                                                                    |
+| \--ensure-project     | Ensure the project exists, if not, create project                                                                                                                                                  |
 
 
 > **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.
@@ -68,18 +68,18 @@ Examples:
 - Clean resources for specific job (by uid):  `mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b`
 
 
-| Flag               | Description                                                                                                                                                                                                                                                         |
-|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;kind | Clean resources for all runs of a specific kind (e.g. job).                                                                                                                                                                                                         |
-| &minus;&minus;id   | Delete the resources of the mlrun object with this identifier. For most function runtimes, runtime resources are per run, and the identifier is the run’s UID. For DASK runtime, the runtime resources are per function, and the identifier is the function’s name. |
+| Flag    | Description                                                                                                                                                                                                                                                         |
+|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| \--kind | Clean resources for all runs of a specific kind (e.g. job).                                                                                                                                                                                                         |
+| \--id   | Delete the resources of the mlrun object with this identifier. For most function runtimes, runtime resources are per run, and the identifier is the run’s UID. For DASK runtime, the runtime resources are per function, and the identifier is the function’s name. |
 
   
-| Options                                             | Description                                                                                                                                         |
-|-----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;api TEXT                              | URL of the mlrun-api service.                                                                                                                       |
-| &minus;ls, &minus;&minus;label&minus;selector TEXT  | Delete only the runtime resources matching the label selector.                                                                                      |
-| &minus;f, &minus;&minus;force                       | Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.                                               |
-| &minus;gp, &minus;&minus;grace&minus;period INTEGER | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state. |
+| Options                     | Description                                                                                                                                         |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| \--api TEXT                 | URL of the mlrun-api service.                                                                                                                       |
+| -ls, --label-selector TEXT  | Delete only the runtime resources matching the label selector.                                                                                      |
+| -f, --force                 | Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.                                               |
+| -gp, --grace-period INTEGER | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state. |
 
 <a id="cli-cmd-config"></a>
 ### `config` 
@@ -88,15 +88,15 @@ Use the `config` CLI command to show the mlrun client environment configuration,
 
 Example:  `mlrun config`
 
-| Flag                                       | Description                                              |
-|--------------------------------------------|----------------------------------------------------------|
-| &minus;&minus;command TEXT                 | get (default), set or clear                              |
-| &minus;&minus;env&minus;file TEXT          | Path to the mlrun .env file (defaults to '~/.mlrun.env') |
-| &minus;a, &minus;&minus;api TEXT                 | API service url                                          |
-| &minus;p, &minus;&minus;artifact&minus;path TEXT | Default artifacts path                                   |
-| &minus;u, &minus;&minus;username TEXT            | Username (for remote access)                             |
-| &minus;k, &minus;&minus;access-key TEXT          | Access key (for remote access)                           |
-| &minus;e, &minus;&minus;env&minus;vars TEXT      | Additional env vars, e.g. -e AWS_ACCESS_KEY_ID=<key-id>  |
+| Flag                     | Description                                              |
+|--------------------------|----------------------------------------------------------|
+| \--command TEXT          | get (default), set or clear                              |
+| \--env-file TEXT         | Path to the mlrun .env file (defaults to '~/.mlrun.env') |
+| -a, --api TEXT           | API service url                                          |
+| -p, --artifact-path TEXT | Default artifacts path                                   |
+| -u, --username TEXT      | Username (for remote access)                             |
+| -k, --access-key TEXT    | Access key (for remote access)                           |
+| -e, --env-vars TEXT      | Additional env vars, e.g. -e AWS_ACCESS_KEY_ID=<key-id>  |
 
 
 <a id="cli-cmd-get"></a>
@@ -113,16 +113,16 @@ Examples:
 - `mlrun get artifacts --project getting-started-admin`
 - `mlrun get func prep-data --project getting-started-admin`
 
-| Flag                             | Description                                                           |
-|----------------------------------|-----------------------------------------------------------------------|
-| &minus;&minus;kind TEXT          | resource type to list/get: run, runtime, workflow, artifact, function |
-| &minus;&minus;name TEXT          | Name of object to return                                              |
-| &minus;s, &minus;&minus;selector TEXT  | Label selector                                                        |
-| &minus;n, &minus;&minus;namespace TEXT | Kubernetes namespace                                                  |
-| &minus;&minus;uid TEXT           | Object ID                                                             |
-| &minus;&minus;project TEXT       | Project name to return                                                |
-| &minus;t, &minus;&minus;tag TEXT       | Artifact/function tag of object to return                             |
-| &minus;&minus;db TEXT            | db path/url of object to return                                       |
+| Flag                 | Description                                                           |
+|----------------------|-----------------------------------------------------------------------|
+| \--kind TEXT         | resource type to list/get: run, runtime, workflow, artifact, function |
+| \--name TEXT         | Name of object to return                                              |
+| -s, --selector TEXT  | Label selector                                                        |
+| -n, --namespace TEXT | Kubernetes namespace                                                  |
+| \--uid TEXT          | Object ID                                                             |
+| \--project TEXT      | Project name to return                                                |
+| -t, --tag TEXT       | Artifact/function tag of object to return                             |
+| \--db TEXT           | db path/url of object to return                                       |
 
 
 <a id="cli-cmd-logs"></a>
@@ -134,13 +134,13 @@ Usage: logs [OPTIONS] uid
 
 Example:  `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started-admin`
 
-| Flag                           | Description                                                                                                                                                                                                                                                                   |
-|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;uid TEXT         | UID of the run to get logs for                                                                                                                                                                                                                                                |
-| &minus;p, &minus;&minus;project TEXT | Project name                                                                                                                                                                                                                                                                  |
-| &minus;&minus;offset TEXT      | Retrieve partial log, get up to size bytes starting at the offset from beginning of log                                                                                                                                                                                       |
-| &minus;&minus;db TEXT          | API service url                                                                                                                                                                                                                                                               |
-| &minus;w, &minus;&minus;watch        | Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
+| Flag               | Description                                                                                                                                                                                                                                                                   |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| \--uid TEXT        | UID of the run to get logs for                                                                                                                                                                                                                                                |
+| -p, --project TEXT | Project name                                                                                                                                                                                                                                                                  |
+| \--offset TEXT     | Retrieve partial log, get up to size bytes starting at the offset from beginning of log                                                                                                                                                                                       |
+| \--db TEXT         | API service url                                                                                                                                                                                                                                                               |
+| -w, --watch        | Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
 
 
 <a id="cli-cmd-project"></a>
@@ -153,34 +153,34 @@ Usage: mlrun project [OPTIONS] [CONTEXT]
 Example:  `mlrun project -r workflow.py .`
 
 
-| Flag                                           | Description                                                                                                                                                                                                                                                        |
-|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|     
-| &minus;n, &minus;&minus;context TEXT                 | Project context path                                                                                                                                                                                                                                               |
-| &minus;n, &minus;&minus;name TEXT                    | Project name                                                                                                                                                                                                                                                       |
-| &minus;u, &minus;&minus;url TEXT                     | Remote git or archive url of the project                                                                                                                                                                                                                           |
-| &minus;r, &minus;&minus;run TEXT                     | Run workflow name of .py file                                                                                                                                                                                                                                      |
-| &minus;a, &minus;&minus;arguments TEXT               | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6                                                                                                                                                                                      |
-| &minus;p, &minus;&minus;artifact&minus;path TEXT     | Target path/url for workflow artifacts.  The string `{{workflow.uid}}` is replaced by workflow id                                                                                                                                                                  | 
-| &minus;x, &minus;&minus;param TEXT                   | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'                                                                                                                                                                                            |
-| &minus;s, &minus;&minus;secrets TEXT                 | Secrets file=<filename> or env=ENV_KEY1,..                                                                                                                                                                                                                         |
-| &minus;&minus;namespace TEXT                   | k8s namespace                                                                                                                                                                                                                                                      |
-| &minus;&minus;db TEXT                          | API service url                                                                                                                                                                                                                                                    |
-| &minus;&minus;init&minus;git                   | For new projects init git the context dir                                                                                                                                                                                                                          |
-| &minus;c, &minus;&minus;clone                        | Force override/clone into the context dir                                                                                                                                                                                                                          |
-| &minus;&minus;sync                             | Sync functions into db                                                                                                                                                                                                                                             |
-| &minus;w, &minus;&minus;watch                        | Wait for pipeline completion (with -r flag)                                                                                                                                                                                                                        |
-| &minus;d, &minus;&minus;dirty                        | Allow run with uncommitted git changes                                                                                                                                                                                                                             |
-| &minus;&minus;git&minus;repo TEXT              | git repo (org/repo) for git comments                                                                                                                                                                                                                               |
-| &minus;&minus;git&minus;issue INTEGER          | git issue number for git comments                                                                                                                                                                                                                                  |
-| &minus;&minus;handler TEXT                     | Workflow function handler name                                                                                                                                                                                                                                     |
-| &minus;&minus;engine TEXT                      | Workflow engine (kfp/local)                                                                                                                                                                                                                                        |
-| &minus;&minus;local                            | Try to run workflow functions locally                                                                                                                                                                                                                              |
-| &minus;&minus;timeout INTEGER                  | Timeout in seconds to wait for pipeline completion (used when watch=True)                                                                                                                                                                                          |
-| &minus;&minus;env&minus;file TEXT              | Path to .env file to load config/variables from                                                                                                                                                                                                                    |
-| &minus;&minus;save/&minus;&minus;no&minus;save | Create and save the project if not exist (default to save)                                                                                                                                                                                                         |
-| &minus;&minus;schedule TEXT                    | To create a schedule, define a standard crontab expression string. To use the pre-defined workflow's schedule: `set --schedule 'true'`. [See cron details](https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron). |
-| &minus;&minus;save&minus;secrets TEXT          | Store the project secrets as k8s secrets                                                                                                                                                                                                                           |
-| -nt, &minus;&minus;notifications TEXT          | To have a notification for the run set notification file destination define: file=notification.json or a 'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\''                                                                                      |
+| Flag                      | Description                                                                                                                                                                                                                                                        |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|     
+| -n, --context TEXT        | Project context path                                                                                                                                                                                                                                               |
+| -n, --name TEXT           | Project name                                                                                                                                                                                                                                                       |
+| -u, --url TEXT            | Remote git or archive url of the project                                                                                                                                                                                                                           |
+| -r, --run TEXT            | Run workflow name of .py file                                                                                                                                                                                                                                      |
+| -a, --arguments TEXT      | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6                                                                                                                                                                                      |
+| -p, --artifact-path TEXT  | Target path/url for workflow artifacts.  The string `{{workflow.uid}}` is replaced by workflow id                                                                                                                                                                  | 
+| -x, --param TEXT          | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text'                                                                                                                                                                                            |
+| -s, --secrets TEXT        | Secrets file=<filename> or env=ENV_KEY1,..                                                                                                                                                                                                                         |
+| --namespace TEXT          | k8s namespace                                                                                                                                                                                                                                                      |
+| \--db TEXT                | API service url                                                                                                                                                                                                                                                    |
+| \--init-git               | For new projects init git the context dir                                                                                                                                                                                                                          |
+| -c, --clone               | Force override/clone into the context dir                                                                                                                                                                                                                          |
+| \--sync                   | Sync functions into db                                                                                                                                                                                                                                             |
+| -w, --watch               | Wait for pipeline completion (with -r flag)                                                                                                                                                                                                                        |
+| -d, --dirty               | Allow run with uncommitted git changes                                                                                                                                                                                                                             |
+| \--git-repo TEXT          | git repo (org/repo) for git comments                                                                                                                                                                                                                               |
+| \--git-issue INTEGER      | git issue number for git comments                                                                                                                                                                                                                                  |
+| \--handler TEXT           | Workflow function handler name                                                                                                                                                                                                                                     |
+| \--engine TEXT            | Workflow engine (kfp/local)                                                                                                                                                                                                                                        |
+| \--local                  | Try to run workflow functions locally                                                                                                                                                                                                                              |
+| \--timeout INTEGER        | Timeout in seconds to wait for pipeline completion (used when watch=True)                                                                                                                                                                                          |
+| \--env-file TEXT          | Path to .env file to load config/variables from                                                                                                                                                                                                                    |
+| \--save/--no-save         | Create and save the project if not exist (default to save)                                                                                                                                                                                                         |
+| \--schedule TEXT          | To create a schedule, define a standard crontab expression string. To use the pre-defined workflow's schedule: `set --schedule 'true'`. [See cron details](https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron). |
+| \--save-secrets TEXT      | Store the project secrets as k8s secrets                                                                                                                                                                                                                           |
+| -nt, --notifications TEXT | To have a notification for the run set notification file destination define: file=notification.json or a 'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\''                                                                                      |
 
 
 <a id="cli-cmd-run"></a>
@@ -195,48 +195,48 @@ Examples:
 - `mlrun run -f myfunc.yaml -w -p p1=3`
 
 
-| Flag                                                | Description                                                                                             |
-|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------| 
-| &minus;p, &minus;&minus;param TEXT                        | Parameter name and value tuples; for example, `-p x=37 -p y='text'`                                     |
-| &minus;i, &minus;&minus;inputs TEXT                       | Input artifact; for example, `-i infile.txt=s3://mybucket/infile.txt`                                   |
-| &minus;o, &minus;&minus;outputs TEXT                      | Output artifact/result for kfp"                                                                         |
-| &minus;&minus;in&minus;path TEXT                    | Base directory path/URL for storing input artifacts                                                     |
-| &minus;&minus;out&minus;path TEXT                   | Base directory path/URL for storing output artifacts                                                    |
-| &minus;s, &minus;&minus;secrets TEXT                      | Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt`           |
-| &minus;&minus;uid TEXT                              | Unique run ID                                                                                           |
-| &minus;&minus;name TEXT                             | Run name                                                                                                |
-| &minus;&minus;workflow TEXT                         | Workflow name/id                                                                                        |
-| &minus;&minus;project TEXT                          | Project name or ID                                                                                      |
-| &minus;&minus;db TEXT                               | Save run results to DB url                                                                              |
-| &minus;&minus;runtime TEXT                          | Function spec dict, for pipeline usage                                                                  |
-| &minus;&minus;kfp                                   | Running inside Kubeflow Piplines, do not use                                                            |
-| &minus;h, &minus;&minus;hyperparam TEXT                   | Hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]                           |
-| &minus;&minus;param&minus;file TEXT                 | Path to csv table of execution (hyper) params                                                           |
-| &minus;&minus;selector TEXT                         | How to select the best result from a list, e.g. max.accuracy                                            |
-| &minus;&minus;hyper&minus;param&minus;strategy TEXT | Hyperparam tuning strategy list, grid, random                                                           |
-| &minus;&minus;hyper&minus;param&minus;options TEXT  | Hyperparam options json string                                                                          |
-| &minus;f, &minus;&minus;func&minus;url TEXT               | Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object |
-| &minus;&minus;task TEXT                             | Path/URL of a YAML task-configuration file                                                              |
-| &minus;&minus;handler TEXT                          | Invoke the function handler inside the code file                                                        |
-| &minus;&minus;mode TEXT                             | Special run mode ('pass' for using the command as is)                                                   |
-| &minus;&minus;schedule TEXT                         | Cron schedule                                                                                           |
-| &minus;&minus;from&minus;env                        | Read the spec from the env var                                                                          |
-| &minus;&minus;dump                                  | Dump run results as YAML                                                                                |
-| &minus;&minus;image TEXT                            | Container image                                                                                         |
-| &minus;&minus;kind TEXT                             | Serverless runtime kind                                                                                 |
-| &minus;&minus;source TEXT                           | Source code archive/git                                                                                 |
-| &minus;&minus;local                                 | Run the task locally (ignore runtime)                                                                   |
-| &minus;&minus;auto&minus;mount                      | Add volume mount to job using auto mount option                                                         |
-| &minus;&minus;workdir TEXT                          | Run working directory                                                                                   |
-| &minus;&minus;origin&minus;file TEXT                | For internal use                                                                                        |
-| &minus;&minus;label TEXT                            | Run labels (key=val)                                                                                    |
-| &minus;w, &minus;&minus;watch                             | Watch/tail run log                                                                                      |
-| &minus;&minus;verbose                               | Verbose log                                                                                             |
-| &minus;&minus;scrape&minus;metrics                  | Whether to add the `mlrun/scrape-metrics` label to this run's resources                                 |
-| &minus;&minus;env&minus;file TEXT                   | Path to .env file to load config/variables from                                                         |
-| &minus;&minus;auto&minus;build                      | When set, the function image will be built prior to run if needed                                       |
-| &minus;&minus;ensure&minus;project                  | Ensure the project exists, if not, create project                                                       |
-| &minus;&minus;returns TEXT                          | Logging configurations for the handler's returning values                                               |
+| Flag                         | Description                                                                                             |
+|------------------------------|---------------------------------------------------------------------------------------------------------| 
+| -p, --param TEXT             | Parameter name and value tuples; for example, `-p x=37 -p y='text'`                                     |
+| -i, --inputs TEXT            | Input artifact; for example, `-i infile.txt=s3://mybucket/infile.txt`                                   |
+| -o, --outputs TEXT           | Output artifact/result for kfp"                                                                         |
+| \--in-path TEXT              | Base directory path/URL for storing input artifacts                                                     |
+| \--out-path TEXT             | Base directory path/URL for storing output artifacts                                                    |
+| -s, --secrets TEXT           | Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt`           |
+| \--uid TEXT                  | Unique run ID                                                                                           |
+| \--name TEXT                 | Run name                                                                                                |
+| \--workflow TEXT             | Workflow name/id                                                                                        |
+| \--project TEXT              | Project name or ID                                                                                      |
+| \--db TEXT                   | Save run results to DB url                                                                              |
+| \--runtime TEXT              | Function spec dict, for pipeline usage                                                                  |
+| \--kfp                       | Running inside Kubeflow Piplines, do not use                                                            |
+| -h, --hyperparam TEXT        | Hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]                           |
+| \--param-file TEXT           | Path to csv table of execution (hyper) params                                                           |
+| \--selector TEXT             | How to select the best result from a list, e.g. max.accuracy                                            |
+| \--hyper-param-strategy TEXT | Hyperparam tuning strategy list, grid, random                                                           |
+| \--hyper-param-options TEXT  | Hyperparam options json string                                                                          |
+| -f, --func-url TEXT          | Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object |
+| \--task TEXT                 | Path/URL of a YAML task-configuration file                                                              |
+| \--handler TEXT              | Invoke the function handler inside the code file                                                        |
+| \--mode TEXT                 | Special run mode ('pass' for using the command as is)                                                   |
+| \--schedule TEXT             | Cron schedule                                                                                           |
+| \--from-env                  | Read the spec from the env var                                                                          |
+| \--dump                      | Dump run results as YAML                                                                                |
+| \--image TEXT                | Container image                                                                                         |
+| \--kind TEXT                 | Serverless runtime kind                                                                                 |
+| \--source TEXT               | Source code archive/git                                                                                 |
+| \--local                     | Run the task locally (ignore runtime)                                                                   |
+| \--auto-mount                | Add volume mount to job using auto mount option                                                         |
+| \--workdir TEXT              | Run working directory                                                                                   |
+| \--origin-file TEXT          | For internal use                                                                                        |
+| \--label TEXT                | Run labels (key=val)                                                                                    |
+| -w, --watch                  | Watch/tail run log                                                                                      |
+| \--verbose                   | Verbose log                                                                                             |
+| \--scrape-metrics            | Whether to add the `mlrun/scrape-metrics` label to this run's resources                                 |
+| \--env-file TEXT             | Path to .env file to load config/variables from                                                         |
+| \--auto-build                | When set, the function image will be built prior to run if needed                                       |
+| \--ensure-project            | Ensure the project exists, if not, create project                                                       |
+| \--returns TEXT              | Logging configurations for the handler's returning values                                               |
 
 <a id="cli-cmd-version"></a>
 ### `version` 
@@ -256,12 +256,12 @@ Examples:
 - `mlrun watch-stream v3io:///users/my-test-stream -s 1 -s 2`
 - `mlrun watch-stream v3io:///users/my-test-stream -s 1 -s 2 --seek EARLIEST`
 
-| Flag                                | Description                                                |
-|-------------------------------------|------------------------------------------------------------| 
-| &minus;s, &minus;&minus;shard-ids INTEGER | Shard id to listen on (can be multiple).                   |  
-| &minus;&minus;seek TEXT             | Where to start/seek (EARLIEST or LATEST)                   |
-| &minus;i, &minus;&minus;interval INTEGER  | Interval in seconds. Default = 3                           |
-| &minus;j, &minus;&minus;is-json           | Indicates that the payload is json (will be deserialized). |
+| Flag                    | Description                                                |
+|-------------------------|------------------------------------------------------------| 
+| -s, --shard-ids INTEGER | Shard id to listen on (can be multiple).                   |  
+| \--seek TEXT            | Where to start/seek (EARLIEST or LATEST)                   |
+| -i, --interval INTEGER  | Interval in seconds. Default = 3                           |
+| -j, --is-json           | Indicates that the payload is json (will be deserialized). |
     
 <a id="git-func"></a>
 ## Building and running a function from a Git repository
@@ -280,7 +280,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:1.5.1
+    base_image: mlrun/mlrun:1.6.0
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -310,7 +310,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.5.1
+    base_image: mlrun/mlrun:1.6.0
     source: git://github.com/mlrun/ci-demo.git
 ```
 
@@ -338,7 +338,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.5.1
+    base_image: mlrun/mlrun:1.6.0
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

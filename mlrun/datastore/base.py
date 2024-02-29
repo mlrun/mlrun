@@ -147,6 +147,10 @@ class DataStore:
     def url(self):
         return f"{self.kind}://{self.endpoint}"
 
+    @property
+    def spark_url(self):
+        return self.url
+
     def get(self, key, size=None, offset=0):
         pass
 
@@ -320,31 +324,17 @@ class DataStore:
             raise Exception(f"File type unhandled {url}")
 
         if file_system:
-            if (
-                self.supports_isdir()
-                and file_system.isdir(file_url)
-                or self._is_dd(df_module)
-            ):
-                storage_options = self.get_storage_options()
-                if url.startswith("ds://"):
-                    parsed_url = urllib.parse.urlparse(url)
-                    url = parsed_url.path
-                    if self.using_bucket:
-                        url = url[1:]
-                    # Pass the underlying file system
-                    kwargs["filesystem"] = file_system
-                elif storage_options:
-                    kwargs["storage_options"] = storage_options
-                df = reader(url, **kwargs)
-            else:
-                file = url
-                # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
-                if file_system.protocol != "file":
-                    # If not dir, use file_system.open() to avoid regression when pandas < 1.2 and does not
-                    # support the storage_options parameter.
-                    file = file_system.open(url)
-
-                df = reader(file, **kwargs)
+            storage_options = self.get_storage_options()
+            if url.startswith("ds://"):
+                parsed_url = urllib.parse.urlparse(url)
+                url = parsed_url.path
+                if self.using_bucket:
+                    url = url[1:]
+                # Pass the underlying file system
+                kwargs["filesystem"] = file_system
+            elif storage_options:
+                kwargs["storage_options"] = storage_options
+            df = reader(url, **kwargs)
         else:
             temp_file = tempfile.NamedTemporaryFile(delete=False)
             self.download(self._join(subpath), temp_file.name)

@@ -26,6 +26,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 from mlrun.artifacts.manager import extend_artifact_path
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.utils import StorePrefix
 from tests import conftest
 
@@ -377,6 +378,27 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
                 context.log_artifact(item=artifact, local_path=path)
         else:
             context.log_artifact(item=artifact, local_path=local_path)
+
+
+@pytest.mark.parametrize(
+    "body_size,expectation",
+    [
+        (
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+        ),
+        (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, does_not_raise()),
+    ],
+)
+def test_ensure_fail_on_oversized_artifact(body_size, expectation):
+    artifact = mlrun.artifacts.Artifact(
+        "artifact-name",
+        is_inline=True,
+        body="a" * body_size,
+    )
+    context = mlrun.get_or_create_ctx("test")
+    with expectation:
+        context.log_artifact(item=artifact)
 
 
 @pytest.mark.parametrize(

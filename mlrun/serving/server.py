@@ -191,12 +191,12 @@ class GraphServer(ModelObj):
         # v2_serving_async_handler is only required to support nuclio<1.12.10
         # TODO: delete v2_serving_async_handler and always use v2_serving_handler once nuclio<1.12.10 support is dropped
         if (
-            self.context.is_mock
-            or hasattr(self.graph, "controller")
+            not self.context.is_mock
+            and hasattr(self.graph, "controller")
             and asyncio.iscoroutine(self.graph.controller.emit)
         ):
-            return v2_serving_handler
-        return v2_serving_async_handler
+            return v2_serving_async_handler
+        return v2_serving_handler
 
     def test(
         self,

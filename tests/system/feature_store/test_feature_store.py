@@ -2156,7 +2156,7 @@ class TestFeatureStore(TestMLRunSystem):
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
 
         if use_ds_profile:
-            profile = DatastoreProfileV3io(name="v3io_profile", path_is_absolute=True)
+            profile = DatastoreProfileV3io(name="v3io_profile")
             register_temporary_client_datastore_profile(profile)
             targets = [
                 ParquetTarget(

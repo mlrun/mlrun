@@ -135,15 +135,11 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
-    path_is_absolute: typing.Optional[bool] = True
     _private_attributes = "v3io_access_key"
 
     def url(self, subpath):
         subpath = subpath.lstrip("/")
-        if self.path_is_absolute:
-            return f"v3io:///{subpath}"
-        else:
-            return f"v3io://{subpath}"
+        return f"v3io:///{subpath}"
 
     def secrets(self) -> dict:
         res = {}
@@ -176,7 +172,7 @@ class DatastoreProfileS3(DatastoreProfile):
             res["AWS_PROFILE"] = self.profile_name
         if self.assume_role_arn:
             res["MLRUN_AWS_ROLE_ARN"] = self.assume_role_arn
-        return res if res else None
+        return res
 
     def url(self, subpath):
         return f"s3:/{subpath}"
@@ -219,7 +215,7 @@ class DatastoreProfileRedis(DatastoreProfile):
             res["REDIS_USER"] = self.username
         if self.password:
             res["REDIS_PASSWORD"] = self.password
-        return res if res else None
+        return res
 
     def url(self, subpath):
         return self.endpoint_url + subpath
@@ -240,7 +236,7 @@ class DatastoreProfileDBFS(DatastoreProfile):
             res["DATABRICKS_TOKEN"] = self.token
         if self.endpoint_url:
             res["DATABRICKS_HOST"] = self.endpoint_url
-        return res if res else None
+        return res
 
 
 class DatastoreProfileGCS(DatastoreProfile):
@@ -267,7 +263,7 @@ class DatastoreProfileGCS(DatastoreProfile):
             res["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         if self.gcp_credentials:
             res["GCP_CREDENTIALS"] = self.gcp_credentials
-        return res if res else None
+        return res
 
 
 class DatastoreProfileAzureBlob(DatastoreProfile):
@@ -312,7 +308,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
             res["sas_token"] = self.sas_token
         if self.credential:
             res["credential"] = self.credential
-        return res if res else None
+        return res
 
 
 class DatastoreProfileHdfs(DatastoreProfile):

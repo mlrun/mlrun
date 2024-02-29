@@ -58,10 +58,8 @@ class ModelEndpointStoreType(enum.Enum):
         if self.value == ModelEndpointStoreType.v3io_nosql.value:
             from .kv_model_endpoint_store import KVModelEndpointStore
 
-            logger.info("[DAVID] before ", access_key=access_key)
             # Get V3IO access key from env
             access_key = access_key or mlrun.mlconf.get_v3io_access_key()
-            logger.info("[DAVID] after ", access_key=access_key)
 
             return KVModelEndpointStore(project=project, access_key=access_key)
 

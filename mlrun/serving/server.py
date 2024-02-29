@@ -193,7 +193,7 @@ class GraphServer(ModelObj):
         if (
             not self.context.is_mock
             and hasattr(self.graph, "controller")
-            and asyncio.iscoroutine(self.graph.controller.emit)
+            and asyncio.iscoroutinefunction(self.graph.controller.emit)
         ):
             return v2_serving_async_handler
         return v2_serving_handler

@@ -2130,7 +2130,7 @@ class TestFeatureStore(TestMLRunSystem):
                 name="v3io_profile", v3io_access_key=os.getenv("V3IO_ACCESS_KEY")
             )
             register_temporary_client_datastore_profile(profile)
-            targets = [NoSqlTarget(path="ds://v3io_profile//bigdata/overwrite-spec")]
+            targets = [NoSqlTarget(path="ds://v3io_profile/bigdata/overwrite-spec")]
         else:
             targets = [NoSqlTarget(path="v3io:///bigdata/overwrite-spec")]
 

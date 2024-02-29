@@ -614,7 +614,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ]
 
-    def test_snowflake_source(self):
+    def test_snowflake_source_and_target(self):
         url = os.environ.get("SNOWFLAKE_URL")
         user = os.environ.get("SNOWFLAKE_USER")
         database = os.environ.get("SNOWFLAKE_DATABASE")

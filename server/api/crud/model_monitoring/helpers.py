@@ -20,10 +20,10 @@ import sqlalchemy.orm
 
 import mlrun.common
 import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.schedule
 import mlrun.errors
 import server.api.crud.secrets
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 Seconds = typing.NewType("Seconds", int)
 Minutes = typing.NewType("Minutes", int)
@@ -139,7 +139,10 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_stream_path(project: str = None, application_name: str = mm_constants.MonitoringFunctionNames.STREAM):
+def get_stream_path(
+    project: str = None,
+    application_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 

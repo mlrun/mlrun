@@ -42,7 +42,10 @@ class _MLRunNoRunsFoundError(Exception):
     pass
 
 
-def get_stream_path(project: str = None, application_name: str = mm_constants.MonitoringFunctionNames.STREAM):
+def get_stream_path(
+    project: str = None,
+    application_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 

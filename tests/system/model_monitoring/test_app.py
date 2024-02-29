@@ -30,6 +30,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
@@ -38,7 +39,7 @@ from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VER
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
+
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
@@ -88,7 +89,7 @@ class _V3IORecordsChecker:
             ), f"V3IO KV app data is empty for app {app_name}"
             if app_data.metrics:
                 assert (
-                        data.keys() == app_data.metrics
+                    data.keys() == app_data.metrics
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
@@ -101,7 +102,7 @@ class _V3IORecordsChecker:
         )
         assert not df.empty, "No TSDB data"
         assert (
-                df.endpoint_id == ep_id
+            df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
@@ -114,7 +115,7 @@ class _V3IORecordsChecker:
                 app_name = app_data.class_.name
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
                 assert (
-                        set(tsdb_metrics[app_name]) == app_metrics
+                    set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
@@ -380,25 +381,42 @@ class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
-
-    @pytest.mark.timeout(270)
     def test_enable_model_monitoring(self):
-
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            self.project.update_model_monitoring_controller(image=self.image or 'mlrun/mlrun')
+            self.project.update_model_monitoring_controller(
+                image=self.image or "mlrun/mlrun"
+            )
 
-        self.project.enable_model_monitoring(image=self.image or 'mlrun/mlrun')
+        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
 
-        controller = self.project.get_function(key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)
-        writer = self.project.get_function(key=mm_constants.MonitoringFunctionNames.WRITER)
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+        )
+        writer = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.WRITER
+        )
         stream = self.project.get_function(key="model-monitoring-stream")
 
         controller._wait_for_function_deployment(db=controller._get_db())
         writer._wait_for_function_deployment(db=writer._get_db())
         stream._wait_for_function_deployment(db=stream._get_db())
-        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['interval'] == '10m'
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "10m"
+        )
 
-        self.project.update_model_monitoring_controller(image=self.image or 'mlrun/mlrun', base_period=1)
-        controller = self.project.get_function(key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER)
+        self.project.update_model_monitoring_controller(
+            image=self.image or "mlrun/mlrun", base_period=1
+        )
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+        )
         controller._wait_for_function_deployment(db=controller._get_db())
-        assert controller.spec.config['spec.triggers.cron_interval']['attributes']['interval'] == '1m'
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "1m"
+        )

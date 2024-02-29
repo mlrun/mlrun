@@ -830,7 +830,6 @@ def _deploy_serving_monitoring(
             # Initialize tracking policy with default values
             fn.spec.tracking_policy = TrackingPolicy()
 
-        # TODO : delete when batch is deprecated.
         if not mlrun.mlconf.is_ce_mode():
             _init_serving_function_stream_args(fn=fn)
         # deploy model monitoring stream, model monitoring batch job,

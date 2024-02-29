@@ -464,7 +464,7 @@ class MonitoringDeployment:
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
             auth_info=auth_info,
-            function_name=mm_constants.MonitoringFunctionNames.STREAM
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
         )
 
         # Apply feature store run configurations on the serving function
@@ -688,7 +688,8 @@ class MonitoringDeployment:
                 server.api.api.endpoints.functions.create_model_monitoring_stream(
                     project=project,
                     function=function,
-                    monitoring_application=function_name != mm_constants.MonitoringFunctionNames.STREAM,
+                    monitoring_application=function_name
+                    != mm_constants.MonitoringFunctionNames.STREAM,
                     stream_path=stream_path,
                     access_key=model_monitoring_access_key,
                 )
@@ -775,7 +776,7 @@ class MonitoringDeployment:
             name=mm_constants.MonitoringFunctionNames.WRITER,
             project=project,
             filename=str(_MONITORING_WRITER_FUNCTION_PATH),
-            kind= mlrun.run.RuntimeKinds.serving,
+            kind=mlrun.run.RuntimeKinds.serving,
             image=writer_image,
         )
 

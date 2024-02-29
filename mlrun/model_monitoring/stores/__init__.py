@@ -20,8 +20,8 @@ import typing
 import mlrun.common.schemas.secret
 import mlrun.errors
 
-from .model_endpoint_store import ModelEndpointStore
 from ...utils import logger
+from .model_endpoint_store import ModelEndpointStore
 
 
 class ModelEndpointStoreType(enum.Enum):
@@ -73,7 +73,6 @@ class ModelEndpointStoreType(enum.Enum):
             sql_connection_string=endpoint_store_connection,
             secret_provider=secret_provider,
         )
-
 
     @classmethod
     def _missing_(cls, value: typing.Any):

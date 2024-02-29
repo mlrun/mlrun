@@ -20,6 +20,7 @@ from os import environ
 from typing import Callable, Optional, Union
 
 import requests.exceptions
+from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
 import mlrun.common.schemas
@@ -35,7 +36,6 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
-from ..kfpops import mlrun_op
 from ..lists import RunList
 from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (

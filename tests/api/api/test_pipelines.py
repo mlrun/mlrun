@@ -24,6 +24,7 @@ import kfp
 import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.schemas
 import server.api.crud
@@ -99,7 +100,10 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            db,
+            PipelineRun(api_run_detail.to_dict()["run"]),
+            format_,
+            api_run_detail.to_dict(),
         )
         _assert_get_pipeline_response(expected_run, response)
 

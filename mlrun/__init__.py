@@ -27,6 +27,7 @@ __all__ = [
 from os import environ, path
 
 import dotenv
+from mlrun_pipelines.iguazio import mount_v3io, v3io_cred
 
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
@@ -35,7 +36,7 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate, new_task
 from .package import ArtifactType, DefaultPackager, Packager, handler
-from .platforms import VolumeMount, auto_mount, mount_v3io, v3io_cred
+from .platforms import VolumeMount, auto_mount
 from .projects import (
     ProjectMetadata,
     build_function,

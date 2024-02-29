@@ -22,15 +22,12 @@ from .iguazio import (
     VolumeMount,
     add_or_refresh_credentials,
     is_iguazio_session_cookie,
-    mount_v3io,
-    v3io_cred,
 )
 from .other import (
     auto_mount,
     mount_configmap,
     mount_hostpath,
     mount_pvc,
-    mount_s3,
     mount_secret,
     set_env_variables,
 )

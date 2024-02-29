@@ -30,7 +30,7 @@ from typing import Callable, Optional, Union
 import dotenv
 import git
 import git.exc
-import kfp
+import mlrun_pipelines.iguazio
 import nuclio
 import requests
 import yaml
@@ -1851,7 +1851,7 @@ class MlrunProject(ModelObj):
         function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.mount_v3io())
+            function_object.apply(mlrun_pipelines.iguazio.mount_v3io())
 
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
@@ -1979,7 +1979,7 @@ class MlrunProject(ModelObj):
         function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.mount_v3io())
+            function_object.apply(mlrun_pipelines.iguazio.mount_v3io())
 
         return resolved_function_name, function_object, func
 
@@ -2899,7 +2899,9 @@ class MlrunProject(ModelObj):
         notifications: list[mlrun.model.Notification] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
-    ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+    ) -> mlrun.model.RunObject:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
         example (use with project)::
@@ -2995,7 +2997,9 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         force_build: bool = False,
-    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+    ) -> BuildStatus:
         """deploy ML function, build container with its dependencies
 
         :param function:            name of the function (in the project) or function object
@@ -3113,7 +3117,9 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         target_dir: str = None,
-    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+    ) -> BuildStatus:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
         If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
@@ -3228,7 +3234,9 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         builder_env: dict = None,
         mock: bool = None,
-    ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
+        # TODO: resolve ContainerOp situation
+        # ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
+    ) -> DeployStatus:
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object

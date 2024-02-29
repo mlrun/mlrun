@@ -19,8 +19,10 @@ import typing
 from enum import Enum
 
 import dotenv
-import kfp.dsl
 import kubernetes.client as k8s_client
+import mlrun_pipelines.iguazio
+import mlrun_pipelines.platform_other
+from mlrun_pipelines.mixins import KfpAdapterMixin
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -40,7 +42,6 @@ from ..k8s_utils import (
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
-    apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
     set_named_item,
@@ -934,11 +935,11 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun.v3io_cred.__name__,
-            mlrun.mount_v3io.__name__,
+            mlrun_pipelines.iguazio.v3io_cred.__name__,
+            mlrun_pipelines.iguazio.mount_v3io.__name__,
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
-            mlrun.platforms.mount_s3.__name__,
+            mlrun_pipelines.platform_other.mount_s3.__name__,
             mlrun.platforms.set_env_variables.__name__,
         ]
 
@@ -956,7 +957,7 @@ class AutoMountType(str, Enum):
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
         if mlconf.igz_version != "":
-            return mlrun.v3io_cred
+            return mlrun_pipelines.iguazio.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
         pvc_configured = (
             "MLRUN_PVC_MOUNT" in os.environ
@@ -967,16 +968,16 @@ class AutoMountType(str, Enum):
     def get_modifier(self):
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_credentials: mlrun.v3io_cred,
-            AutoMountType.v3io_fuse: mlrun.mount_v3io,
+            AutoMountType.v3io_credentials: mlrun_pipelines.iguazio.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun_pipelines.iguazio.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
-            AutoMountType.s3: mlrun.platforms.mount_s3,
+            AutoMountType.s3: mlrun_pipelines.platform_other.mount_s3,
             AutoMountType.env: mlrun.platforms.set_env_variables,
         }[self]
 
 
-class KubeResource(BaseRuntime):
+class KubeResource(BaseRuntime, KfpAdapterMixin):
     """
     A parent class for runtimes that generate k8s resources when executing.
     """
@@ -995,26 +996,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def apply(self, modify):
-        """
-        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
-        Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
-        a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
-        one after the other.
-
-        :param modify: a modifier runnable object
-        :return: the runtime (self) after the modifications
-        """
-
-        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
-        # we remove the hook to suppress kubeflow op registration and return it after the apply()
-        old_op_handler = kfp.dsl._container_op._register_op_handler
-        kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
-        cop = kfp.dsl.ContainerOp("name", "image")
-        kfp.dsl._container_op._register_op_handler = old_op_handler
-
-        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""

@@ -20,6 +20,7 @@ from http import HTTPStatus
 import yaml
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
+from mlrun_pipelines.models import PipelineManifest
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -258,5 +259,5 @@ def _try_resolve_project_from_body(
         return None
     workflow_manifest = yaml.load(data, Loader=yaml.FullLoader)
     return server.api.crud.Pipelines().resolve_project_from_workflow_manifest(
-        workflow_manifest
+        PipelineManifest(workflow_manifest)
     )

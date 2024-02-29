@@ -36,9 +36,9 @@ SNOWFLAKE_ENV_PARAMETERS = [
 ]
 
 
-class TestSnowFlake(TestFeatureStoreSparkEngine):
-    project_name = "fs-system-spark-engine"
-    run_local = True  # TODO remove
+class TestSnowFlakeSourceAndTarget(TestFeatureStoreSparkEngine):
+    project_name = "fs-system-snowflake-source-and-target"
+    run_local = False
 
     @staticmethod
     def get_missing_snowflake_spark_parameters():

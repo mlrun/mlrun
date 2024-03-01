@@ -34,8 +34,7 @@ from mlrun.config import config
 from server.api.db.sqldb.models import Run
 from server.api.utils.singletons.db import get_db
 
-API_V1 = "/api/v1"
-RUNS_API_V1 = f"{API_V1}/projects/{{project}}/runs"
+RUNS_API_ENDPOINT = "/projects/{project}/runs"
 
 
 def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
@@ -472,12 +471,12 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
 
     # Some negative testing - no sort by field
     response = client.get(
-        f"{RUNS_API_V1.format(project=projects[0])}?partition-by=name"
+        f"{RUNS_API_ENDPOINT.format(project=projects[0])}?partition-by=name"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
     response = client.get(
-        f"{RUNS_API_V1.format(project=projects[0])}?partition-by=key&partition-sort-by=name"
+        f"{RUNS_API_ENDPOINT.format(project=projects[0])}?partition-by=key&partition-sort-by=name"
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
@@ -535,7 +534,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid="some-uid", project=project)
     runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
-    response = client.delete(RUNS_API_V1.format(project="*"))
+    response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
     runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
@@ -546,7 +545,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid=None, project=second_project)
     all_runs = server.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
-    response = client.delete(RUNS_API_V1.format(project="*"))
+    response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
     runs = server.api.crud.Runs().list_runs(db, project="*")
     assert len(runs) == 0
@@ -561,20 +560,20 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     project = "some-project"
     runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
-    response = client.delete(RUNS_API_V1.format(project=project))
+    response = client.delete(RUNS_API_ENDPOINT.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
 
     # try delete runs with no permission to project (project contains runs)
     _store_run(db, uid="some-uid", project=project)
     runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
-    response = client.delete(RUNS_API_V1.format(project=project))
+    response = client.delete(RUNS_API_ENDPOINT.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
     # try delete runs from all projects with no permissions
-    response = client.delete(RUNS_API_V1.format(project="*"))
+    response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
@@ -873,7 +872,7 @@ def _store_run(db, uid, project="some-project"):
 def _list_and_assert_objects(
     client: TestClient, params, expected_number_of_runs: int, project: str
 ):
-    response = client.get(RUNS_API_V1.format(project=project), params=params)
+    response = client.get(RUNS_API_ENDPOINT.format(project=project), params=params)
     assert response.status_code == HTTPStatus.OK.value, response.text
 
     runs = response.json()["runs"]

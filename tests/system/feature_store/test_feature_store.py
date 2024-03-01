@@ -3350,7 +3350,10 @@ class TestFeatureStore(TestMLRunSystem):
             "Cookie": "session=j:" + json.dumps({"sid": os.getenv("V3IO_ACCESS_KEY")})
         }
         response = requests.patch(
-            request_url, json=request_body, headers=headers, verify=False
+            request_url,
+            json=request_body,
+            headers=headers,
+            verify=config.httpdb.http.verify,
         )
         assert (
             response.status_code == 200

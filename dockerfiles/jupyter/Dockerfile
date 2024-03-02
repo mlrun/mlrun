@@ -22,11 +22,13 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  graphviz \
- && rm -rf /var/lib/apt/lists/*
+RUN apt-get update  \
+    && apt-get install --no-install-recommends -y \
+      graphviz \
+      curl \
+      apt-transport-https \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y curl apt-transport-https
 # Download and install kubectl
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \

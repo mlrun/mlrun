@@ -1554,3 +1554,11 @@ def get_local_file_schema() -> list:
     # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
     # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     return ["file"] + list(string.ascii_lowercase)
+
+
+def is_safe_path(base, filepath, is_symlink=False):
+    # Avoid path traversal attacks by ensuring that the path is safe
+    resolved_filepath = (
+        os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)
+    )
+    return base == os.path.commonpath((base, resolved_filepath))

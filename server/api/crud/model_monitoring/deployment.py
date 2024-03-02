@@ -795,7 +795,9 @@ class MonitoringDeployment:
         return function
 
     @staticmethod
-    def _check_if_already_deployed(function_name, project, auth_info, overwrite=False) -> None:
+    def _check_if_already_deployed(
+        function_name, project, auth_info, overwrite=False
+    ) -> None:
         """
          If overwrite equal False the method check the desired function is all ready deployed
 

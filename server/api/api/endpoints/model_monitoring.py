@@ -93,7 +93,7 @@ async def update_model_monitoring_controller(
     base_period: int = 10,
 ):
     """
-    Deploy model monitoring application controller function.
+    Redeploy model monitoring application controller function.
     The main goal of the controller function is to handle the monitoring processing and triggering applications.
 
     :param project:                  Project name.

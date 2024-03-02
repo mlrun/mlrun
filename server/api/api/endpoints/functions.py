@@ -831,16 +831,7 @@ def _deploy_serving_monitoring(
             fn.spec.tracking_policy = TrackingPolicy()
 
         if not mlrun.mlconf.is_ce_mode():
-            # create v3io stream for model_monitoring_stream
-            create_model_monitoring_stream(
-                project=fn.metadata.project,
-                function=fn,
-                monitoring_application=monitoring_application,
-                stream_path=server.api.crud.model_monitoring.get_stream_path(
-                    project=fn.metadata.project,
-                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
-                ),
-            )
+            _init_serving_function_stream_args(fn=fn)
         # deploy model monitoring stream, model monitoring batch job,
         monitoring_deploy = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment()
@@ -1060,7 +1051,6 @@ def _is_nuclio_deploy_status_changed(
 
 def create_model_monitoring_stream(
     project: str,
-    function,
     stream_path: str,
     monitoring_application: bool = None,
     access_key: str = None,
@@ -1068,18 +1058,15 @@ def create_model_monitoring_stream(
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
 
-        _init_serving_function_stream_args(fn=function)
-
         _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
         # TODO: How should we configure sharding here?
         logger.info(
-            "Creating model endpoint stream for project",
+            "Creating stream",
             project=project,
             stream_path=stream_path,
             container=container,
             endpoint=config.v3io_api,
-            access_key=os.environ.get("V3IO_ACCESS_KEY"),
         )
 
         v3io_client = v3io.dataplane.Client(
@@ -1096,7 +1083,9 @@ def create_model_monitoring_stream(
             shard_count=stream_args.shard_count,
             retention_period_hours=stream_args.retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key,
+            access_key=access_key
+            if monitoring_application
+            else os.environ.get("V3IO_ACCESS_KEY"),
         )
 
         if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):

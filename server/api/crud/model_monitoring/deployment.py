@@ -680,7 +680,6 @@ class MonitoringDeployment:
             if stream_path.startswith("v3io://"):
                 server.api.api.endpoints.functions.create_model_monitoring_stream(
                     project=project,
-                    function=function,
                     monitoring_application=function_name
                     != mm_constants.MonitoringFunctionNames.STREAM,
                     stream_path=stream_path,
@@ -796,14 +795,15 @@ class MonitoringDeployment:
         return function
 
     @staticmethod
-    def _check_if_already_deployed(function_name, project, auth_info, overwrite=False):
+    def _check_if_already_deployed(function_name, project, auth_info, overwrite=False) -> None:
         """
+         If overwrite equal False the method check the desired function is all ready deployed
 
-        :param function_name:
-        :param project:
-        :param auth_info:
-        :param overwrite
-        :return:
+        :param function_name:   The name of the function to check.
+        :param project:         The name of the project.
+        :param auth_info:       The auth info of the request.
+        :param overwrite:       If true, overwrite the existing model monitoring controller.
+                                By default, False.
         """
         if not overwrite:
             logger.info(

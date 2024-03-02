@@ -1079,6 +1079,7 @@ def create_model_monitoring_stream(
             stream_path=stream_path,
             container=container,
             endpoint=config.v3io_api,
+            access_key=os.environ.get("V3IO_ACCESS_KEY"),
         )
 
         v3io_client = v3io.dataplane.Client(

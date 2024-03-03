@@ -15,7 +15,7 @@
 ARG PYTHON_VERSION=3.9
 ARG GO_VERSION=1.21
 
-FROM golang:${GO_VERSION}-alpine AS golang
+FROM gcr.io/iguazio/golang:${GO_VERSION}-alpine AS golang
 
 FROM python:${PYTHON_VERSION}-alpine
 
@@ -25,7 +25,7 @@ ARG GRPCIO_TOOLS_VERSION="~=1.59.0"
 
 WORKDIR /app/log-collector
 
-RUN apk add --no-cache protoc build-base linux-headers
+RUN apk --no-cache upgrade && apk add --no-cache protoc build-base linux-headers
 
 COPY --from=golang /usr/local/go/ /usr/local/go/
 

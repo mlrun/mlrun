@@ -14,11 +14,10 @@
 
 import datetime
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
-from contextlib import nullcontext as does_not_raise
 from typing import NamedTuple, Optional
 from unittest.mock import Mock, patch
 
+import nuclio
 import pytest
 from v3io.dataplane.response import HttpResponseError
 
@@ -32,7 +31,6 @@ from mlrun.common.model_monitoring.helpers import (
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
-from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import (
     _BatchWindow,
     _BatchWindowGenerator,
@@ -40,7 +38,6 @@ from mlrun.model_monitoring.controller import (
 )
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
-    _MLRunNoRunsFoundError,
     update_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
@@ -50,6 +47,15 @@ from mlrun.utils import datetime_now
 class _HistLen(NamedTuple):
     counts_len: int
     edges_len: int
+
+
+class TemplateFunction(mlrun.runtimes.ServingRuntime):
+    def __init__(self):
+        super().__init__()
+        self.add_trigger(
+            "cron_interval",
+            spec=nuclio.CronTrigger(interval=f"{1}m"),
+        )
 
 
 @pytest.fixture
@@ -462,51 +468,10 @@ class TestBumpModelEndpointLastRequest:
 
     @staticmethod
     @pytest.mark.parametrize(
-        ("runs", "error_context", "expected_window"),
+        ("function", "expected_window"),
         [
             (
-                [],
-                pytest.raises(
-                    _MLRunNoRunsFoundError, match="No model-monitoring-controller runs"
-                ),
-                None,
-            ),
-            (
-                [{"kind": "run", "spec": {"parameters": {}}}],
-                pytest.raises(
-                    MLRunValueError,
-                    match="Could not find `batch_intervals_dict` in model-monitoring-controller run",
-                ),
-                None,
-            ),
-            (
-                [
-                    {
-                        "kind": "run",
-                        "spec": {
-                            "parameters": {
-                                "batch_intervals_dict": {
-                                    "minutes": 1,
-                                    "hours": 0,
-                                    "days": 0,
-                                }
-                            }
-                        },
-                    },
-                    {
-                        "kind": "run",
-                        "spec": {
-                            "parameters": {
-                                "batch_intervals_dict": {
-                                    "minutes": 1,
-                                    "hours": 2,
-                                    "days": 3,
-                                }
-                            }
-                        },
-                    },
-                ],
-                does_not_raise(),
+                TemplateFunction(),
                 datetime.timedelta(minutes=1),
             ),
         ],
@@ -514,16 +479,14 @@ class TestBumpModelEndpointLastRequest:
     def test_get_monitoring_time_window_from_controller_run(
         project: str,
         db: NopDB,
-        runs: list[dict],
-        error_context: AbstractContextManager,
+        function: dict,
         expected_window: Optional[datetime.timedelta],
     ) -> None:
-        with patch.object(db, "list_runs", return_value=runs):
-            with error_context:
-                assert (
-                    _get_monitoring_time_window_from_controller_run(
-                        project=project,
-                        db=db,
-                    )
-                    == expected_window
-                ), "The window is different than expected"
+        with patch.object(db, "get_function", return_value=function):
+            assert (
+                _get_monitoring_time_window_from_controller_run(
+                    project=project,
+                    db=db,
+                )
+                == expected_window
+            ), "The window is different than expected"

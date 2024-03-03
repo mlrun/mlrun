@@ -20,9 +20,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
-    MonitoringFunctionNames,
 )
-from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
 
@@ -129,24 +127,27 @@ def _get_monitoring_time_window_from_controller_run(
     project: str, db: "RunDBInterface"
 ) -> datetime.timedelta:
     """
-    Get timedelta for the controller to run.
+    Get the base period form the controller.
 
     :param project: Project name.
     :param db:      DB interface.
 
     :return:    Timedelta for the controller to run.
+    :raise:     MLRunNotFoundError if the controller isn't deployed yet
     """
-    run_name = MonitoringFunctionNames.APPLICATION_CONTROLLER
-    runs = db.list_runs(project=project, name=run_name, sort=True)
-    if not runs:
-        raise _MLRunNoRunsFoundError(f"No {run_name} runs were found")
-    last_run = runs[0]
-    try:
-        batch_dict = last_run["spec"]["parameters"]["batch_intervals_dict"]
-    except KeyError:
-        raise MLRunValueError(
-            f"Could not find `batch_intervals_dict` in {run_name} run"
-        )
+
+    controller = db.get_function(
+        name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        project=project,
+    )
+    base_period = controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+        "interval"
+    ]
+    batch_dict = {
+        mm_constants.EventFieldType.MINUTES: int(base_period[:-1]),
+        mm_constants.EventFieldType.HOURS: 0,
+        mm_constants.EventFieldType.DAYS: 0,
+    }
     return batch_dict2timedelta(batch_dict)
 
 
@@ -181,9 +182,9 @@ def update_model_endpoint_last_request(
     else:
         try:
             time_window = _get_monitoring_time_window_from_controller_run(project, db)
-        except _MLRunNoRunsFoundError:
+        except mlrun.errors.MLRunNotFoundError:
             logger.debug(
-                "Not bumping model endpoint last request time - no controller runs were found"
+                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet"
             )
             return
 

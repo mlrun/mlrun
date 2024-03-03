@@ -11,7 +11,8 @@ nbclassic>=0.2.8
 # added to tackle security vulnerabilities
 notebook~=6.4
 Pillow~=10.2
-jupyterlab-git~=0.44
+# remove once jupyter-server can be upgraded to >=2.0
+jupyterlab-git~=0.44,<0.50
 Pygments~=2.15
 wheel~=0.38
 setuptools~=69.1

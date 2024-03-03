@@ -92,7 +92,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     """
 
     # NAME: Final[str] = MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
-    NAME: Final[str] = "histogram_data_drift"
+    NAME: Final[str] = "histogram-data-drift"
     METRIC_KIND: Final[ResultKindApp] = ResultKindApp.data_drift
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}

@@ -3088,7 +3088,6 @@ class HTTPRunDB(RunDBInterface):
                                          By default, the image is mlrun/mlrun.
         :param base_period:              The time period in minutes in which the model monitoring controller function
                                          triggers. By default, the base period is 10 minutes.
-        :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
         """
 
         params = {

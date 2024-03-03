@@ -816,7 +816,6 @@ def _deploy_serving_monitoring(
     db_session,
     fn,
     model_monitoring_access_key,
-    monitoring_application,
 ):
     # TODO : delete when batch is deprecated.
     try:

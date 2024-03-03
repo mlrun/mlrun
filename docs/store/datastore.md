@@ -319,7 +319,9 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
-## V3IO credentials and parameters
+## V3IO 
+
+### V3IO credentials and parameters
 When running in an Iguazio system, MLRun automatically configures the executed functions to use `v3io` storage, and passes 
 the needed parameters (such as access-key) for authentication. Refer to the 
 [auto-mount](../runtimes/function-storage.html) section for more details on this process.
@@ -331,7 +333,16 @@ In some cases, the V3IO configuration needs to be overridden. The following para
 * `V3IO_USERNAME` &mdash; the user-name authenticating with V3IO. While not strictly required when using an access-key to 
 authenticate, it is used in several use-cases, such as resolving paths to the home-directory.
 
+### V3IO data store profile
+```python
+profile = DatastoreProfileV3io(name="test_profile", v3io_access_key="12345678-1234-1234-1234-123456789012")
+register_temporary_client_datastore_profile(profile) or project.register_datastore_profile(profile)
+ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
+```
 
+`DatastoreProfileV3io` init parameters:
+- `name`: name of the profile
+- `v3io_access_key` (optional):  Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

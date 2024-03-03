@@ -123,6 +123,7 @@ class ApplicationStatus(NuclioStatus):
         external_invocation_urls=None,
         build_pod=None,
         container_image=None,
+        application_image=None,
     ):
         super().__init__(
             state=state,
@@ -133,7 +134,7 @@ class ApplicationStatus(NuclioStatus):
             build_pod=build_pod,
             container_image=container_image,
         )
-        self.application_image = None
+        self.application_image = application_image or None
 
 
 class ApplicationRuntime(RemoteRuntime):
@@ -188,7 +189,9 @@ class ApplicationRuntime(RemoteRuntime):
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point
-        if self.spec.image and not self.status.application_image:
+        if (
+            self.spec.image and not self.status.application_image
+        ) or self.spec.image != self.status.container_image:
             self.status.application_image = self.spec.image
 
         if self.status.container_image:

@@ -133,7 +133,7 @@ async def update_model_monitoring_controller(
 
     except mlrun.errors.MLRunNotFoundError:
         raise mlrun.errors.MLRunNotFoundError(
-            f"{mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exists. "
+            f"{mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exist. "
             f"Run `project.enable_model_monitoring()` first."
         )
 

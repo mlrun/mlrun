@@ -350,8 +350,6 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
-            # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
 
@@ -377,7 +375,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestModelMonitoringInitialize(TestMLRunSystem, _V3IORecordsChecker):
+class TestModelMonitoringInitialize(TestMLRunSystem):
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None

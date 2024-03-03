@@ -619,12 +619,12 @@ class MonitoringApplicationController:
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                 project=project,
-                application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
-            stream_uri = get_stream_path(project=project, application_name=app_name)
+            stream_uri = get_stream_path(project=project, function_name=app_name)
 
             logger.info(
                 f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"

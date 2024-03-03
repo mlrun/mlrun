@@ -44,30 +44,30 @@ class _MLRunNoRunsFoundError(Exception):
 
 def get_stream_path(
     project: str = None,
-    application_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
 ):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param application_name:    Application name. Default is model_monitoring_stream.
+    :param function_name:    Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
     stream_uri = mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if application_name is mm_constants.MonitoringFunctionNames.STREAM
+        if function_name is mm_constants.MonitoringFunctionNames.STREAM
         else ""
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
         target="online",
-        application_name=application_name,
+        application_name=function_name,
     )
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, application_name=application_name
+        stream_uri=stream_uri, project=project, application_name=function_name
     )
 
 

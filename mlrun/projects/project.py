@@ -1826,6 +1826,11 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
+        if name in mm_constants.MonitoringFunctionNames.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Application name can not be on of the following name : "
+                f"{mm_constants.MonitoringFunctionNames.all()}"
+            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -2026,7 +2031,7 @@ class MlrunProject(ModelObj):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
     ) -> dict:
-        r"""
+        """
         Redeploy model monitoring application controller functions.
 
 

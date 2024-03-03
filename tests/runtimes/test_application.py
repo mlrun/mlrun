@@ -42,3 +42,4 @@ def test_deploy_application_runtime(rundb_mock):
     ]
     assert fn.get_env("SIDECAR_PORT") == "8080"
     assert fn.status.application_image == image
+    assert not fn.spec.image

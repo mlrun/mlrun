@@ -1,6 +1,6 @@
 matplotlib~=3.5
 scipy~=1.11
-scikit-learn~=1.0
+scikit-learn~=1.4
 seaborn~=0.11.0
 scikit-plot~=0.3.7
 xgboost~=1.1
@@ -14,7 +14,7 @@ Pillow~=10.2
 jupyterlab-git~=0.44
 Pygments~=2.15
 wheel~=0.38
-setuptools~=68.2
+setuptools~=69.1
 tornado~=6.3
 requests~=2.31
 cryptography~=42.0

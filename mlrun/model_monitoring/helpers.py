@@ -67,7 +67,7 @@ def get_stream_path(
     )
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, application_name=function_name
+        stream_uri=stream_uri, project=project, function_name=function_name
     )
 
 

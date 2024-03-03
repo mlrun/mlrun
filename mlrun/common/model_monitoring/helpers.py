@@ -65,7 +65,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
 
 def parse_monitoring_stream_path(
-    stream_uri: str, project: str, application_name: str = None
+    stream_uri: str, project: str, function_name: str = None
 ):
     if stream_uri.startswith("kafka://"):
         if "?topic" in stream_uri:
@@ -74,16 +74,16 @@ def parse_monitoring_stream_path(
             )
         # Add topic to stream kafka uri
         if (
-            application_name is None
-            or application_name == mm_constants.MonitoringFunctionNames.STREAM
+            function_name is None
+            or function_name == mm_constants.MonitoringFunctionNames.STREAM
         ):
             stream_uri += f"?topic=monitoring_stream_{project}"
         else:
-            stream_uri += f"?topic=monitoring_stream_{project}_{application_name}"
+            stream_uri += f"?topic=monitoring_stream_{project}_{function_name}"
 
     elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
         # V3IO is not supported in CE mode, generating a default http stream path
-        if application_name is None:
+        if function_name is None:
             stream_uri = (
                 mlrun.mlconf.model_endpoint_monitoring.default_http_sink.format(
                     project=project
@@ -92,7 +92,7 @@ def parse_monitoring_stream_path(
         else:
             stream_uri = (
                 mlrun.mlconf.model_endpoint_monitoring.default_http_sink_app.format(
-                    project=project, application_name=application_name
+                    project=project, application_name=function_name
                 )
             )
     return stream_uri

@@ -657,7 +657,7 @@ class MonitoringDeployment:
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
         stream_path = server.api.crud.model_monitoring.get_stream_path(
-            project=project, application_name=function_name
+            project=project, function_name=function_name
         )
 
         if stream_path.startswith("kafka://"):

@@ -132,10 +132,12 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        cls.max_events = typing.cast(
-            int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+        assert (
+            typing.cast(
+                int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+            )
+            == EXPECTED_EVENTS_COUNT
         )
-        assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"
         cls.num_features = 4
@@ -166,8 +168,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             ),
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
-        cls.infer_input = cls._generate_infer_input()
-        cls.next_window_input = cls._generate_infer_input(num_events=1)
 
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
@@ -226,16 +226,27 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     @classmethod
+    def _infer(
+        cls,
+        serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
+        *,
+        num_events: int = 10_000,
+    ) -> None:
+        result = serving_fn.invoke(
+            cls.infer_path,
+            json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+        )
+        assert isinstance(result, dict), "Unexpected result type"
+        assert "outputs" in result, "Result should have 'outputs' key"
+        assert (
+            len(result["outputs"]) == num_events
+        ), "Outputs length does not match inputs"
+
+    @classmethod
     def _get_model_enpoint_id(cls) -> str:
         endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
-
-    @classmethod
-    def _generate_infer_input(cls, num_events: typing.Optional[int] = None) -> str:
-        if num_events is None:
-            num_events = cls.max_events
-        return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
@@ -249,14 +260,14 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         serving_fn = future.result()
 
         time.sleep(5)
-        serving_fn.invoke(self.infer_path, self.infer_input)
+        self._infer(serving_fn)
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + 2
         )
-        serving_fn.invoke(self.infer_path, self.next_window_input)
+        self._infer(serving_fn, num_events=1)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 

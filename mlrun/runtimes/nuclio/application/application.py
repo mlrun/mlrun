@@ -193,6 +193,7 @@ class ApplicationRuntime(RemoteRuntime):
             self.spec.image and not self.status.application_image
         ) or self.spec.image != self.status.container_image:
             self.status.application_image = self.spec.image
+            self.spec.image = ""
 
         if self.status.container_image:
             self.from_image(self.status.container_image)

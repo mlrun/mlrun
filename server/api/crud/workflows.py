@@ -182,6 +182,8 @@ class WorkflowRunners(
         )
 
         if is_context:
+            # The source is a context (local path contained in the image),
+            # load the project from the context instead of remote URL
             run_object.spec.parameters["project_context"] = source
             run_object.spec.parameters.pop("url", None)
 
@@ -324,6 +326,8 @@ class WorkflowRunners(
         )
 
         if is_context:
+            # The source is a context (local path contained in the image),
+            # load the project from the context instead of remote URL
             run_object.spec.parameters["project_context"] = source
             run_object.spec.parameters.pop("url", None)
 

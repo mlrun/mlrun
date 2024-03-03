@@ -788,7 +788,6 @@ def _deploy_nuclio_runtime(
                 db_session,
                 fn,
                 model_monitoring_access_key,
-                monitoring_application,
             )
         if monitoring_application:
             monitoring_deploy = (

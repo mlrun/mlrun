@@ -61,6 +61,8 @@ class _AppData:
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
+        assert hasattr(self.class_, "NAME")
+
         path = Path(__file__).parent / self.rel_path
         assert path.exists()
         self.abs_path = str(path.absolute())
@@ -90,7 +92,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
-            app_name = app_data.class_.name
+            app_name = app_data.class_.NAME
             cls._logger.debug("Checking the KV record of app", app_name=app_name)
             resp = ModelMonitoringWriter._get_v3io_client().kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
@@ -117,13 +119,13 @@ class _V3IORecordsChecker:
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
-            app_data.class_.name for app_data in cls.apps_data
+            app_data.class_.NAME for app_data in cls.apps_data
         }, "The application names are different than expected"
 
         tsdb_metrics = df.groupby("application_name").result_name.unique()
         for app_data in cls.apps_data:
             if app_metrics := app_data.results:
-                app_name = app_data.class_.name
+                app_name = app_data.class_.NAME
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
                 assert (
                     set(tsdb_metrics[app_name]) == app_metrics
@@ -197,7 +199,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     fn = self.project.set_model_monitoring_function(
                         func=app_data.abs_path,
                         application_class=app_data.class_.__name__,
-                        name=app_data.class_.name,
+                        name=app_data.class_.NAME,
                         image="mlrun/mlrun" if self.image is None else self.image,
                         requirements=app_data.requirements,
                         **app_data.kwargs,
@@ -358,7 +360,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         fn = self.project.set_model_monitoring_function(
             func=self.app_data.abs_path,
             application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.name,
+            name=self.app_data.class_.NAME,
             requirements=self.app_data.requirements,
             image="mlrun/mlrun" if self.image is None else self.image,
             **self.app_data.kwargs,

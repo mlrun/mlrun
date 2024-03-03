@@ -34,6 +34,9 @@ import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications.histogram_data_drift import (
+    HistogramDataDriftApplication,
+)
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
@@ -55,11 +58,20 @@ class _AppData:
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
     metrics: typing.Optional[set[str]] = None  # only for testing
+    deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
         path = Path(__file__).parent / self.rel_path
         assert path.exists()
         self.abs_path = str(path.absolute())
+
+
+_DefaultDataDriftAppData = _AppData(
+    class_=HistogramDataDriftApplication,
+    rel_path="",
+    deploy=False,
+    metrics={"hellinger_mean", "kld_mean", "tvd_mean", "general_drift"},
+)
 
 
 class _V3IORecordsChecker:
@@ -151,6 +163,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.evidently_project_id = str(uuid.uuid4())
 
         cls.apps_data: list[_AppData] = [
+            _DefaultDataDriftAppData,
             _AppData(
                 class_=DemoMonitoringApp,
                 rel_path="assets/application.py",
@@ -180,15 +193,16 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _set_and_deploy_monitoring_apps(self) -> None:
         with ThreadPoolExecutor() as executor:
             for app_data in self.apps_data:
-                fn = self.project.set_model_monitoring_function(
-                    func=app_data.abs_path,
-                    application_class=app_data.class_.__name__,
-                    name=app_data.class_.name,
-                    image="mlrun/mlrun" if self.image is None else self.image,
-                    requirements=app_data.requirements,
-                    **app_data.kwargs,
-                )
-                executor.submit(fn.deploy)
+                if app_data.deploy:
+                    fn = self.project.set_model_monitoring_function(
+                        func=app_data.abs_path,
+                        application_class=app_data.class_.__name__,
+                        name=app_data.class_.name,
+                        image="mlrun/mlrun" if self.image is None else self.image,
+                        requirements=app_data.requirements,
+                        **app_data.kwargs,
+                    )
+                    executor.submit(fn.deploy)
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -311,7 +325,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         # model monitoring infra
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
-        cls.apps_data = [cls.app_data]
+        cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     @classmethod

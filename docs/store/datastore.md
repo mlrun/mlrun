@@ -3,26 +3,31 @@
 
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-**In this section**
-- [Shared data stores](#shared-data-stores)
-- [Storage credentials and parameters](#storage-credentials-and-parameters)
-- [Using data store profiles](#using-data-store-profiles)
-   
-## Shared data stores
-
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
-* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes spark and remote-spark)
+* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
-* **hdfs** &mdash; Hadoop file system, Use `DatastoreProfileHdfs`.
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
+
+**In this section**
+- [Storage credentials and parameters](#storage-credentials-and-parameters)
+- [Using data store profiles](#using-data-store-profiles)
+- [Azure](#azure)
+- [Databricks file system](#databricks-file-system)
+- [HDFS data store profile](#hdfs-data-store-profile)
+- [Google cloud storage](#google-cloud-storage)
+- [Kafka data store profile](#kafka-data-store-profile)
+- [Redis data store profile](#redis-data-store-profile)
+- [S3](#s3)
+- [V3IO](#v3io)
+
 
 ## Storage credentials and parameters
 Data stores might require connection credentials. These can be provided through environment variables 
@@ -71,70 +76,8 @@ db.create_project_secrets(project=project_name, provider="kubernetes", secrets=s
 
 remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
 ```
-
-The following sections list the credentials and configuration parameters applicable to each storage type.
-
-### v3io
-When running in an Iguazio system, MLRun automatically configures the executed functions to use `v3io` storage, and passes 
-the needed parameters (such as access-key) for authentication. Refer to the 
-[auto-mount](../runtimes/function-storage.html) section for more details on this process.
-
-In some cases, the v3io configuration needs to be overridden. The following parameters can be configured:
-
-* `V3IO_API` &mdash; URL pointing to the v3io web-API service.
-* `V3IO_ACCESS_KEY` &mdash; access key used to authenticate with the web API.
-* `V3IO_USERNAME` &mdash; the user-name authenticating with v3io. While not strictly required when using an access-key to 
-authenticate, it is used in several use-cases, such as resolving paths to the home-directory.
-
-
-
-### Azure Blob storage
-The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed
-here:
-
-| Authentication method | Parameters |
-|-----------------------|------------|
-| [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
-| [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
-| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
-| [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
-
-```{note}
-The `AZURE_STORAGE_CONNECTION_STRING` configuration uses the `BlobServiceClient` to access objects. This has
-limited functionality and cannot be used to access Azure Datalake storage objects. In this case use one of the other 
-authentication methods that use the `fsspec` mechanism. 
-```
-
-### Google cloud storage
-* `GOOGLE_APPLICATION_CREDENTIALS` &mdash; path to the application credentials to use (in the form of a JSON file). This can
-be used if this file is located in a location on shared storage, accessible to pods executing MLRun jobs.
-* `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this secret or environment variable
-may contain the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
-and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which passes `GCP_CREDENTIALS`'s
-contents directly to the query engine.
-
-### Databricks file system
-```{Admonition} Note
-Not supported by the spark and remote-spark runtimes.
-```
-* `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
-* `DATABRICKS_TOKEN` &mdash; Databricks access token. 
-   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication).
-
-### S3
-* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
-  parameters
-* `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
-  a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
-* `MLRUN_AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
-  Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
-  ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
-* `AWS_PROFILE` &mdash; name of credentials profile from a local AWS credentials file. 
-  When using a profile, the authentication secrets (if defined) are ignored, and credentials are retrieved from the 
-  file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
-  example)
   
-## Using data store profiles
+## Data store profiles
 
 ```{admonition} Notes
 - Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
@@ -168,13 +111,37 @@ To access a profile from the client/sdk, register the profile locally by calling
 You can also choose to retrieve the public information of an already registered profile by calling 
    `project.get_datastore_profile()` and then adding the private credentials before registering it locally.
 For example, using Redis:
-```
+```python
 redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
-### Azure data store profile
+
+
+
+
+
+## Azure 
+### Azure Blob storage credentials and parameters
+
+The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed
+here:
+
+| Authentication method | Parameters |
+|-----------------------|------------|
+| [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
+| [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
+| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
+| [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
+
+```{note}
+The `AZURE_STORAGE_CONNECTION_STRING` configuration uses the `BlobServiceClient` to access objects. This has
+limited functionality and cannot be used to access Azure Datalake storage objects. In this case use one of the other 
+authentication methods that use the `fsspec` mechanism. 
 ```
+
+### Azure data store profile
+```python
 profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)
 ParquetTarget(path="ds://profile-name/az_blob/path/to/parquet.pq")
 ```
@@ -213,9 +180,19 @@ credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
 
+## Databricks file system 
+### DBFS credentials and parameters
+
+```{Admonition} Note
+Not supported by the spark and remote-spark runtimes.
+```
+* `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
+* `DATABRICKS_TOKEN` &mdash; Databricks access token. 
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication).
+   
 ### DBFS data store profile
 
-```
+```python
 profile = DatastoreProfileDBFS(name="profile-name", endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com", token=token)
 ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 ```
@@ -228,8 +205,10 @@ The equivalent to this parameter in environment authentication is "DATABRICKS_HO
 For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
 The equivalent to this parameter in environment authentication is "DATABRICKS_TOKEN".
 
+## Google cloud storage
 ### GCS data store profile
-```
+
+```python
 profile = DatastoreProfileGCS(name="profile-name",credentials_path="/local_path/to/gcs_credentials.json")
 ParquetTarget(path="ds://profile-name/gcs_bucket/path/to/parquet.pq")
 ```
@@ -244,10 +223,31 @@ The equivalent to this parameter in environment authentication is "GCP_CREDENTIA
 
 The code prioritizes `gcp_credentials` over `credentials_path`.
 
+### GCS credentials and parameters
+* `GOOGLE_APPLICATION_CREDENTIALS` &mdash; path to the application credentials to use (in the form of a JSON file). This can
+be used if this file is located in a location on shared storage, accessible to pods executing MLRun jobs.
+* `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this secret or environment variable
+may contain the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
+and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which passes `GCP_CREDENTIALS`'s
+contents directly to the query engine.
 
-### Kafka data store profile
+## HDFS data store profile
 
+```python
+profile = DatastoreProfileHdfs(name="profile-name")
+ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 ```
+
+`DatastoreProfileHdfs` init parameters:
+- `name` &mdash; Name of the profile
+- `host` &mdash; HDFS namenode host
+- `port` &mdash; HDFS namenode port
+- `http_port` &mdash; WebHDFS port
+- `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name is the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name is used. In Spark, this is evaluated at the time that the spark context is created.
+
+## Kafka data store profile
+
+```python
 profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
 target = KafkaTarget(path="ds://profile-name")
 ```
@@ -255,12 +255,12 @@ target = KafkaTarget(path="ds://profile-name")
 `DatastoreProfileKafkaTarget` class parameters:
 - `name` &mdash; Name of the profile
 - `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
-- `topic` &mdash; A string that denotes the Kafka topic to which data will be sent or from which data will be received.
+- `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
 - `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
 - `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
 
 
-```
+```python
 profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
 target = KafkaSource(path="ds://profile-name")
 ```
@@ -268,7 +268,7 @@ target = KafkaSource(path="ds://profile-name")
 `DatastoreProfileKafkaSource` class parameters:
 - `name` &mdash; Name of the profile
 - `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
-- `topics` &mdash; A string or list of strings that denote the Kafka topics from which data will be sourced or read.
+- `topics` &mdash; A string or list of strings that denote the Kafka topics from which data is sourced or read.
 - `group` &mdash; A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
 - `initial_offset` &mdash; A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
 - `partitions` &mdash; This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
@@ -277,15 +277,33 @@ target = KafkaSource(path="ds://profile-name")
 - `kwargs_public` &mdash; This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
 - `kwargs_private` &mdash; This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
 
-### Redis data store profile
+
+
+## Redis data store profile
 
 ```python
 profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
 RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```
 
-### S3 data store profile
 
+
+## S3
+### S3 credentials and parameters
+
+* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
+  parameters
+* `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
+  a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
+* `MLRUN_AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
+  Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
+  ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
+* `AWS_PROFILE` &mdash; name of credentials profile from a local AWS credentials file. 
+  When using a profile, the authentication secrets (if defined) are ignored, and credentials are retrieved from the 
+  file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
+  example)
+  
+### S3 data store profile
 
 ```python
 profile = DatastoreProfileS3(name="profile-name")
@@ -301,24 +319,21 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
-### HDFS data store profile
+## V3IO credentials and parameters
+When running in an Iguazio system, MLRun automatically configures the executed functions to use `v3io` storage, and passes 
+the needed parameters (such as access-key) for authentication. Refer to the 
+[auto-mount](../runtimes/function-storage.html) section for more details on this process.
 
+In some cases, the V3IO configuration needs to be overridden. The following parameters can be configured:
 
-```python
-profile = DatastoreProfileHdfs(name="profile-name")
-ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
-```
-
-`DatastoreProfileHdfs` init parameters:
-- `name` &mdash; Name of the profile
-- `host` &mdash; HDFS namenode host
-- `port` &mdash; HDFS namenode port
-- `http_port` &mdash; WebHDFS port
-- `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name will be the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name will be used. In Spark, this is evaluated at the time that the spark context is created.
+* `V3IO_API` &mdash; URL pointing to the V3IO web-API service.
+* `V3IO_ACCESS_KEY` &mdash; access key used to authenticate with the web API.
+* `V3IO_USERNAME` &mdash; the user-name authenticating with V3IO. While not strictly required when using an access-key to 
+authenticate, it is used in several use-cases, such as resolving paths to the home-directory.
 
 
 
-### See also
+## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
 - {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`

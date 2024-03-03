@@ -10,14 +10,14 @@ nuclio-jupyter[jupyter-server]~=0.9.16
 nbclassic>=0.2.8
 # added to tackle security vulnerabilities
 notebook~=6.4
-Pillow~=10.0
-jupyterlab-git~=0.41.0
+Pillow~=10.2
+jupyterlab-git~=0.44
 Pygments~=2.15
 wheel~=0.38
 setuptools~=68.2
 tornado~=6.3
 requests~=2.31
 cryptography~=42.0
-certifi~=2023.7
+certifi~=2024.0
 mpmath~=1.3
 oauthlib~=3.2

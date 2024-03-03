@@ -27,6 +27,6 @@ avro~=1.11
 sqlalchemy-utils~=0.39.0
 
 # frameworks tests
-scikit-learn~=1.0
+scikit-learn~=1.4
 lightgbm~=3.0; platform_machine != 'arm64'
 xgboost~=1.1

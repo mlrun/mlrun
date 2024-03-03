@@ -57,7 +57,7 @@ class _AppData:
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
-    metrics: typing.Optional[set[str]] = None  # only for testing
+    results: typing.Optional[set[str]] = None  # only for testing
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -70,7 +70,7 @@ _DefaultDataDriftAppData = _AppData(
     class_=HistogramDataDriftApplication,
     rel_path="",
     deploy=False,
-    metrics={"hellinger_mean", "kld_mean", "tvd_mean", "general_drift"},
+    results={"hellinger_mean", "kld_mean", "tvd_mean", "general_drift"},
 )
 
 
@@ -98,9 +98,9 @@ class _V3IORecordsChecker:
             assert (
                 data := resp.output.item
             ), f"V3IO KV app data is empty for app {app_name}"
-            if app_data.metrics:
+            if app_data.results:
                 assert (
-                    data.keys() == app_data.metrics
+                    data.keys() == app_data.results
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
@@ -122,7 +122,7 @@ class _V3IORecordsChecker:
 
         tsdb_metrics = df.groupby("application_name").result_name.unique()
         for app_data in cls.apps_data:
-            if app_metrics := app_data.metrics:
+            if app_metrics := app_data.results:
                 app_name = app_data.class_.name
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
                 assert (
@@ -167,7 +167,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             _AppData(
                 class_=DemoMonitoringApp,
                 rel_path="assets/application.py",
-                metrics={"data_drift_test", "model_perf"},
+                results={"data_drift_test", "model_perf"},
             ),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
@@ -177,7 +177,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
                 },
-                metrics={"data_drift_test"},
+                results={"data_drift_test"},
             ),
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"

@@ -27,8 +27,8 @@ import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
 
 
-def exec_run(args):
-    cmd = [executable, "-m", "mlrun", "run"] + args
+def exec_cli(args, action="run"):
+    cmd = [executable, "-m", "mlrun", action] + args
     process = os.popen(" ".join(cmd))
     out = process.read()
     ret_code = process.close()
@@ -375,7 +375,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "handler",
         ]
         start_time = datetime.datetime.now()
-        exec_run(args)
+        exec_cli(args)
         end_time = datetime.datetime.now()
 
         assert (
@@ -406,8 +406,19 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--handler",
             "handler",
         ]
-        _, ret_code = exec_run(args)
+        _, ret_code = exec_cli(args)
         assert ret_code is None
+
+    def test_cli_build_function_without_kind(self):
+        # kind='job' should be used by default, the user is not required to specify it
+        function = str(self.assets_path / "function_without_kind.yaml")
+        args = [
+            "--name",
+            "test",
+            function,
+        ]
+        out, _ = exec_cli(args, action="build")
+        assert "Function built, state=ready" in out
 
     @pytest.mark.parametrize("local", [True, False])
     def test_df_as_params(self, local):

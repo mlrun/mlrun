@@ -163,7 +163,7 @@ def get_stream_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
         target="online",
-        application_name=application_name,
+        function_name=application_name,
     )
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(

@@ -1,6 +1,8 @@
 uvicorn~=0.27.1
 dask-kubernetes~=0.11.0
-apscheduler~=3.10.4
+# no support for 4 yet
+# 3.10.2 is bugged for python 3.9
+apscheduler~=3.10,>3.10.2,<4
 objgraph~=3.6
 igz-mgmt~=0.1.0
 humanfriendly~=10.0

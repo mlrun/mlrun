@@ -19,7 +19,7 @@ import numpy as np
 from pandas import DataFrame, Timestamp
 
 from mlrun.common.schemas.model_monitoring.constants import (
-    # MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+    MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
     ResultKindApp,
     ResultStatusApp,
 )
@@ -91,8 +91,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     and the status is returned.
     """
 
-    # NAME: Final[str] = MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
-    NAME: Final[str] = "histogram-data-drift"
+    NAME: Final[str] = MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
     METRIC_KIND: Final[ResultKindApp] = ResultKindApp.data_drift
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}

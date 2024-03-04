@@ -14,6 +14,7 @@
 
 __all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 
+import asyncio
 import os
 import pathlib
 import traceback
@@ -1160,19 +1161,19 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            if config.datastore.async_source_mode == "enabled":
+            if self.context.is_mock:
+                resp = self._controller.emit(
+                    event, return_awaitable_result=self._wait_for_result
+                )
+                if self._wait_for_result and resp:
+                    return resp.await_result()
+            else:
                 resp_awaitable = self._controller.emit(
                     event, await_result=self._wait_for_result
                 )
                 if self._wait_for_result:
                     return resp_awaitable
                 return self._await_and_return_id(resp_awaitable, event)
-            else:
-                resp = self._controller.emit(
-                    event, return_awaitable_result=self._wait_for_result
-                )
-                if self._wait_for_result and resp:
-                    return resp.await_result()
             event = copy(event)
             event.body = {"id": event.id}
             return event
@@ -1210,10 +1211,20 @@ class FlowStep(BaseStep):
 
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
+
         if self._controller:
-            if hasattr(self._controller, "terminate"):
-                self._controller.terminate()
-            return self._controller.await_termination()
+            if asyncio.iscoroutinefunction(self._controller.await_termination):
+
+                async def terminate_and_await_termination():
+                    if hasattr(self._controller, "terminate"):
+                        await self._controller.terminate()
+                    return await self._controller.await_termination()
+
+                return terminate_and_await_termination()
+            else:
+                if hasattr(self._controller, "terminate"):
+                    self._controller.terminate()
+                return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz
@@ -1542,6 +1553,7 @@ def _init_async_objects(context, steps):
                     result_path=step.result_path,
                     name=step.name,
                     context=context,
+                    pass_context=step._inject_context,
                 )
             if (
                 respond_supported
@@ -1554,10 +1566,14 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-
     explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
 
-    default_source = storey.SyncEmitSource(
+    if context.is_mock:
+        source_class = storey.SyncEmitSource
+    else:
+        source_class = storey.AsyncEmitSource
+
+    default_source = source_class(
         context=context,
         explicit_ack=explicit_ack,
         **source_args,

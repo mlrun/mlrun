@@ -17,7 +17,11 @@ from os.path import exists, isdir
 from urllib.parse import urlparse
 
 import mlrun.config
-from mlrun.utils.helpers import get_local_file_schema, template_artifact_path
+from mlrun.utils.helpers import (
+    get_local_file_schema,
+    template_artifact_path,
+    validate_inline_artifact_body_size,
+)
 
 from ..utils import (
     is_legacy_artifact,
@@ -132,6 +136,9 @@ class ArtifactManager:
         #  ModelArtifact is a directory.
         if isinstance(item, ModelArtifact):
             return
+        # Could happen in the import artifact scenario - that path is None.
+        if item.target_path:
+            return
         #  in DatasetArtifact
         if hasattr(item, "df") and item.df is not None:
             return
@@ -209,6 +216,7 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         validate_artifact_key_name(key, "artifact.key")
+        validate_inline_artifact_body_size(item.spec.inline)
         src_path = local_path or item.src_path  # TODO: remove src_path
         self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):

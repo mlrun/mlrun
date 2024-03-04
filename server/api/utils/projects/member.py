@@ -93,6 +93,7 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
+        background_task_name: str = None,
     ) -> bool:
         pass
 
@@ -159,3 +160,7 @@ class Member(abc.ABC):
         ):
             await server.api.crud.Logs().stop_logs_for_project(project_name)
             await server.api.crud.Logs().delete_project_logs(project_name)
+
+    def _validate_project(self, project: mlrun.common.schemas.Project):
+        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
+        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)

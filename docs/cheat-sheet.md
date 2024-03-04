@@ -620,7 +620,7 @@ Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html)
 
 ### Sources
 
-Docs: [Sources](./serving/available-steps.html#sources)
+Docs: [Sources](./feature-store/sources-targets.html#sources)
 
 ```python
 from mlrun.datastore.sources import CSVSource, ParquetSource, BigQuerySource, KafkaSource
@@ -666,7 +666,7 @@ snowflake_df = snowflake_source.to_dataframe()
 
 ### Targets
 
-Docs: [Targets](./serving/available-steps.html#targets)
+Docs: [Targets](./feature-store/sources-targets.html#targets), [Partitioning on Parquet target](./feature-store/sources-targets.html#partitioning-on-parquet-target)
 
 ```python
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
@@ -711,11 +711,11 @@ Docs: [Feature store overview](./feature-store/feature-store-overview.html)
 
 ### Engines
 
-Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html), [Ingest features with Spark](./feature-store/using-spark-engine.html)
+Docs: {ref}`feature-store-overview`, [Ingest features with Spark](./feature-store/using-spark-engine.html)
 
-- `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
-- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes
-- `spark` engine is designed for batch data that cannot fit into memory that will be transformed using Spark dataframes
+- `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes.
+- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments
+- `spark` engine is designed for batch data.
 
 ### Feature sets
 
@@ -889,15 +889,17 @@ fvec = fstore.FeatureVector(
 )
 fvec.save()
 
+# Instantiate feature-vector from mlrun DB 
+fvec = fstore.get_feature_vector("iguazio-academy/heart-disease-vector")
+
 # Offline features for training
-df = fstore.get_offline_features("iguazio-academy/heart-disease-vector").to_dataframe()
-
+df = fvec.get_offline_features().to_dataframe()
+..
 # Materialize offline features to parquet
-fstore.get_offline_features("iguazio-academy/heart-disease-vector", target=ParquetTarget())
-
+fvec.get_offline_features(target=ParquetTarget())
+..
 # Online features for serving
-feature_service = fstore.get_online_feature_service(feature_vector="iguazio-academy/heart-disease-vector")
-feature_service.get(
+feature_service = fvec.get_online_feature_service()feature_service.get(
     [
         {"patient_id" : "e443544b-8d9e-4f6c-9623-e24b6139aae0"},
         {"patient_id" : "8227d3df-16ab-4452-8ea5-99472362d982"}

@@ -85,11 +85,13 @@ You can define relations within a feature set in two ways:
 You can define a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`), which defines the join type. 
 You can use the graph to define complex joins and pass on the relations to the vector.  Currently, only one branch (DAG) is supported. 
 This means that operations involving brackets are not available.
+
+You can merge two feature sets when the left one has more entities, only if all the entities of the right feature set exist in the left feature set's entities.
     
 When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The left join type is the only one that 
 implements the "as_of" join.
 
-   Example, assuming three feature sets: [fs1, fs2. fs3]:
+An example, assuming three feature sets: [fs1, fs2, fs3]:
 ```
 join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
 vector = FeatureVector("myvector", features, 
@@ -121,7 +123,8 @@ Here's an example of a new dataset from a Parquet target:
 from mlrun.datastore.targets import ParquetTarget
 
 # Get offline feature vector based on vector and parquet target
-offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarget())
+fvec = fstore.get_feature_vector(feature_vector_name)
+offline_fv = fvec.get_offline_features(target=ParquetTarget())
 
 # Return dataset
 dataset = offline_fv.to_dataframe()
@@ -243,7 +246,8 @@ import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
 feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
-svc = fstore.get_online_feature_service(feature_vector)
+fvec = fstore.get_feature_vector(feature_vector)
+svc = fvec.get_online_feature_service()
 ```
 
 The online feature service supports value imputing (substitute NaN/Inf values with statistical or constant value). You 
@@ -252,7 +256,8 @@ instead of NaN/Inf value. This can be defined per column or for all the columns 
 The replaced value can be a fixed number for constants or `$mean`, `$max`, `$min`, `$std`, `$count` for statistical values.
 `"*"` is used to specify the default for all features, for example: 
 
-    svc = fstore.get_online_feature_service(feature_vector, impute_policy={"*": "$mean", "age": 33})
+    fvec = fstore.get_feature_vector(feature_vector)
+    svc = fvec.get_online_feature_service(impute_policy={"*": "$mean", "age": 33})
 
 
 To use the online feature service you need to supply a list of entities you want to get the feature vectors for.

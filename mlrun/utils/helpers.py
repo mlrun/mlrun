@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import enum
 import functools
 import hashlib
@@ -30,7 +31,6 @@ from os import path
 from types import ModuleType
 from typing import Any, Optional
 
-import anyio
 import git
 import inflection
 import numpy as np
@@ -49,6 +49,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.config import config
 
 from .logger import create_logger
@@ -181,6 +182,8 @@ def verify_field_regex(
     log_message: str = "Field is malformed. Does not match required pattern",
     mode: mlrun.common.schemas.RegexMatchModes = mlrun.common.schemas.RegexMatchModes.all,
 ) -> bool:
+    # limit the error message
+    max_chars = 63
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
@@ -193,7 +196,8 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
+                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -203,7 +207,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
+                f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -265,6 +269,17 @@ def validate_artifact_key_name(
         raise_on_failure=raise_on_failure,
         log_message="Slashes are not permitted in the artifact key (both \\ and /)",
     )
+
+
+def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
+    if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
+        raise mlrun.errors.MLRunBadRequestError(
+            "The body of the artifact exceeds the maximum allowed size. "
+            "Avoid embedding the artifact body. "
+            "This increases the size of the project yaml file and could affect the project during loading and saving. "
+            "More information is available at"
+            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
+        )
 
 
 def validate_v3io_stream_consumer_group(
@@ -1443,13 +1458,33 @@ def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 
 
-# run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
-# without importing fastapi in the client
+def normalize_project_username(username: str):
+    username = username.lower()
+
+    # remove domain if exists
+    username = username.split("@")[0]
+
+    # replace non r'a-z0-9\-_' chars with empty string
+    username = inflection.parameterize(username, separator="")
+
+    # replace underscore with dashes
+    username = inflection.dasherize(username)
+
+    # ensure ends with alphanumeric
+    username = username.rstrip("-_")
+
+    return username
+
+
 async def run_in_threadpool(func, *args, **kwargs):
+    """
+    Run a sync-function in the loop default thread pool executor pool and await its result.
+    Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
+    """
+    loop = asyncio.get_running_loop()
     if kwargs:
-        # run_sync doesn't accept 'kwargs', so bind them in here
         func = functools.partial(func, **kwargs)
-    return await anyio.to_thread.run_sync(func, *args)
+    return await loop.run_in_executor(None, func, *args)
 
 
 def is_explicit_ack_supported(context):
@@ -1519,3 +1554,11 @@ def get_local_file_schema() -> list:
     # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
     # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     return ["file"] + list(string.ascii_lowercase)
+
+
+def is_safe_path(base, filepath, is_symlink=False):
+    # Avoid path traversal attacks by ensuring that the path is safe
+    resolved_filepath = (
+        os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)
+    )
+    return base == os.path.commonpath((base, resolved_filepath))

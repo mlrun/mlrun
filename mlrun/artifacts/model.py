@@ -13,7 +13,9 @@
 # limitations under the License.
 import tempfile
 from os import path
+from typing import Any
 
+import pandas as pd
 import yaml
 from deprecated import deprecated
 
@@ -259,6 +261,7 @@ class ModelArtifact(Artifact):
         """
         subset = df
         inferer = get_infer_interface(subset)
+        numeric_columns = self._extract_numeric_features(df)
         if label_columns:
             if not isinstance(label_columns, list):
                 label_columns = [label_columns]
@@ -272,8 +275,12 @@ class ModelArtifact(Artifact):
             )
         if with_stats:
             self.spec.feature_stats = inferer.get_stats(
-                df, options=InferOptions.Histogram, num_bins=num_bins
+                df[numeric_columns], options=InferOptions.Histogram, num_bins=num_bins
             )
+
+    @staticmethod
+    def _extract_numeric_features(df: pd.DataFrame) -> list[Any]:
+        return [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
 
     @property
     def is_dir(self):

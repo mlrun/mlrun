@@ -499,10 +499,9 @@ class RemoteRuntime(KubeResource):
         # verify v3io stream trigger name is valid
         mlrun.utils.helpers.validate_v3io_stream_consumer_group(group)
 
-        consumer_group = kwargs.pop("consumerGroup", None)
-        if consumer_group:
+        if "consumer_group" in kwargs:
             logger.warning(
-                "'consumerGroup' kwargs value is ignored. use group argument instead"
+                "'consumer_group' in kwargs will be ignored. Use group parameter instead."
             )
 
         container, path = split_path(stream_path)
@@ -516,11 +515,11 @@ class RemoteRuntime(KubeResource):
                 name=name,
                 container=container,
                 path=path[1:],
-                consumerGroup=group,
-                seekTo=seek_to,
+                consumer_group=group,
+                seek_to=seek_to,
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
-                readBatchSize=256,
+                read_batch_size=256,
                 **kwargs,
             ),
         )

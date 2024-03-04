@@ -129,6 +129,24 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert "address" in status
         assert "container_image" in status
 
+    # ML-3804
+    def test_nuclio_function_handler_with_context(self):
+        code_path = str(self.assets_path / "nuclio_function_with_context.py")
+
+        serving_func_handler = self.project.set_function(
+            name="serving-handler-func",
+            func=code_path,
+            image="mlrun/mlrun",
+            kind="serving",
+        )
+        serving_func_handler.spec.parameters = {"Test": "test"}
+        graph = serving_func_handler.set_topology("flow")
+        graph.to(name="test", handler="test").respond()
+
+        serving_func_deploy = self.project.deploy_function("serving-handler-func")
+
+        serving_func_deploy.function.invoke("/")
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
@@ -300,7 +318,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_producer = kafka.KafkaProducer(bootstrap_servers=self.brokers)
 
         # Test runs
-        yield kafka_consumer, kafka_producer
+        yield kafka_consumer, kafka_producer, kafka_admin_client
 
         # Teardown
         kafka_admin_client.delete_topics([self.topic, self.topic_out])
@@ -362,11 +380,13 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         )
         stocks_set.save()
 
+        consumer_group = "my_group"
+
         kafka_source = KafkaSource(
             brokers=self.brokers,
             topics=self.topic_out,
             initial_offset="earliest",
-            group="my_group",
+            group=consumer_group,
         )
 
         func = mlrun.code_to_function(
@@ -390,7 +410,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         )
         print(stocks_set_endpoint)
 
-        kafka_consumer, kafka_producer = kafka_fixture
+        kafka_consumer, kafka_producer, kafka_admin = kafka_fixture
         self.produce_kafka_helper(kafka_producer, stocks_df[row_divide:])
 
         time.sleep(20)  # wait for ingestion-service parquet to be written
@@ -404,6 +424,14 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         # setting check_like=True since the order of the two parquet merge
         # can happen two-ways (based on alphanumeric order)
         pd.testing.assert_frame_equal(actual_df, expected_df, check_like=True)
+
+        consumer_group_offsets = kafka_admin.list_consumer_group_offsets(consumer_group)
+        print(f"consumer_group_offsets={consumer_group_offsets}")
+        sum_of_offsets = 0
+        for topic_partition, offset_and_metadata in consumer_group_offsets.items():
+            if topic_partition.topic == self.topic_out:
+                sum_of_offsets += offset_and_metadata.offset
+        assert sum_of_offsets == 3
 
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"

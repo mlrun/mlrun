@@ -43,6 +43,7 @@ from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaTarget,
     DatastoreProfileRedis,
+    DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.sources import (
@@ -2120,11 +2121,18 @@ class TestFeatureStore(TestMLRunSystem):
             .equals(dfout2.set_index(keys="name").sort_index())
         )
 
-    def test_overwrite_specified_nosql_path(self):
+    @pytest.mark.parametrize("use_ds_profile", [True, False])
+    def test_overwrite_specified_nosql_path(self, use_ds_profile):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
-
-        targets = [NoSqlTarget(path="v3io:///bigdata/overwrite-spec")]
+        if use_ds_profile:
+            profile = DatastoreProfileV3io(
+                name="v3io_profile", v3io_access_key=os.getenv("V3IO_ACCESS_KEY")
+            )
+            register_temporary_client_datastore_profile(profile)
+            targets = [NoSqlTarget(path="ds://v3io_profile/bigdata/overwrite-spec")]
+        else:
+            targets = [NoSqlTarget(path="v3io:///bigdata/overwrite-spec")]
 
         fset = fstore.FeatureSet(
             name="overwrite-spec-path", entities=[fstore.Entity("name")]
@@ -2142,11 +2150,23 @@ class TestFeatureStore(TestMLRunSystem):
             resp = svc.get(entity_rows=[{"name": "ABC"}])
             assert resp[0] is None
 
-    def test_overwrite_single_parquet_file(self):
+    @pytest.mark.parametrize("use_ds_profile", [True, False])
+    def test_overwrite_single_parquet_file(self, use_ds_profile):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
 
-        targets = [ParquetTarget(path="v3io:///bigdata/overwrite-pq-spec/my.parquet")]
+        if use_ds_profile:
+            profile = DatastoreProfileV3io(name="v3io_profile")
+            register_temporary_client_datastore_profile(profile)
+            targets = [
+                ParquetTarget(
+                    path="ds://v3io_profile/bigdata/overwrite-pq-spec/my.parquet"
+                )
+            ]
+        else:
+            targets = [
+                ParquetTarget(path="v3io:///bigdata/overwrite-pq-spec/my.parquet")
+            ]
 
         fset = fstore.FeatureSet(
             name="overwrite-pq-spec-path", entities=[fstore.Entity("name")]
@@ -3350,7 +3370,10 @@ class TestFeatureStore(TestMLRunSystem):
             "Cookie": "session=j:" + json.dumps({"sid": os.getenv("V3IO_ACCESS_KEY")})
         }
         response = requests.patch(
-            request_url, json=request_body, headers=headers, verify=False
+            request_url,
+            json=request_body,
+            headers=headers,
+            verify=config.httpdb.http.verify,
         )
         assert (
             response.status_code == 200

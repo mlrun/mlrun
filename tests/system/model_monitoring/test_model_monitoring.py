@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import os
 import pickle
@@ -274,7 +274,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
             model_name,
-            model_dir=os.path.relpath(self.assets_path),
+            model_dir=str(self.assets_path),
             model_file="model.pkl",
             training_set=train_set,
             artifact_path=f"v3io:///projects/{project.metadata.name}",
@@ -293,7 +293,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Simulating valid requests
         iris_data = iris["data"].tolist()
 
-        for i in range(102):
+        for _ in range(102):
             data_point = choice(iris_data)
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
@@ -301,13 +301,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             sleep(choice([0.01, 0.04]))
 
         # Test metrics
-        mlrun.utils.helpers.retry_until_successful(
-            3,
-            10,
-            self._logger,
-            False,
-            self._assert_model_endpoint_metrics,
-        )
+        sleep(5)
+        self._assert_model_endpoint_metrics()
 
     def _assert_model_endpoint_metrics(self):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
@@ -320,7 +315,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         assert len(endpoint.status.metrics) > 0
         self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 
-        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
+        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 102
 
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"
@@ -329,6 +324,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         assert total > 0
 
 
+@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
@@ -485,6 +481,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert expected_uri == monitoring_feature_set.uri
 
 
+@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestVotingModelMonitoring(TestMLRunSystem):

@@ -28,6 +28,8 @@ import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+import v3io.dataplane.object
+import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.schemas
@@ -138,12 +140,27 @@ def chdir_to_test_location(request):
 
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
             self.container = self
 
         def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
 
@@ -154,12 +171,27 @@ def patch_file_forbidden(monkeypatch):
 
 @pytest.fixture
 def patch_file_not_found(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
             self.container = self
 
         def list(self, *args, **kwargs):
             raise FileNotFoundError
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
 

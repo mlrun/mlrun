@@ -14,12 +14,28 @@
 #
 import typing
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends, Header
 
 import mlrun.common.schemas
+import server.api.api.utils
 import server.api.crud
 
 router = APIRouter()
+
+
+@server.api.api.utils.lru_cache_with_ttl(maxsize=32, ttl_seconds=60 * 5)
+def get_cached_client_spec(
+    client_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
+) -> mlrun.common.schemas.ClientSpec:
+    return server.api.crud.ClientSpec().get_client_spec(
+        client_version,
+        client_python_version,
+    )
 
 
 @router.get(
@@ -27,13 +43,6 @@ router = APIRouter()
     response_model=mlrun.common.schemas.ClientSpec,
 )
 def get_client_spec(
-    client_version: typing.Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.client_version
-    ),
-    client_python_version: typing.Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.python_version
-    ),
+    client_spec: mlrun.common.schemas.ClientSpec = Depends(get_cached_client_spec),
 ):
-    return server.api.crud.ClientSpec().get_client_spec(
-        client_version=client_version, client_python_version=client_python_version
-    )
+    return client_spec

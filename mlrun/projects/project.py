@@ -24,13 +24,12 @@ import typing
 import uuid
 import warnings
 import zipfile
-from os import environ, makedirs, path, remove
+from os import environ, makedirs, path
 from typing import Callable, Optional, Union
 
 import dotenv
 import git
 import git.exc
-import inflection
 import kfp
 import nuclio
 import requests
@@ -41,6 +40,7 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
@@ -171,7 +171,7 @@ def new_project(
     :param name:         project name
     :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
-    :param user_project: add the current user name to the provided project name (making it unique per user)
+    :param user_project: add the current username to the provided project name (making it unique per user)
     :param remote:       remote Git url
     :param from_template:     path to project YAML/zip file that will be used as a template
     :param secrets:      key:secret dict or SecretsStore used to download sources
@@ -319,7 +319,7 @@ def load_project(
     :param init_git:        if True, will git init the context dir
     :param subpath:         project subpath (within the archive)
     :param clone:           if True, always clone (delete any existing content)
-    :param user_project:    add the current user name to the project name (for db:// prefixes)
+    :param user_project:    add the current username to the project name (for db:// prefixes)
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
@@ -420,7 +420,7 @@ def get_or_create_project(
     save: bool = True,
     parameters: dict = None,
 ) -> "MlrunProject":
-    """Load a project from MLRun DB, or create/import if doesnt exist
+    """Load a project from MLRun DB, or create/import if it does not exist
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -580,24 +580,36 @@ def _run_project_setup(
 
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
-    fpath = path.join(context, subpath_str, "project.yaml")
+
+    # support both .yaml and .yml file extensions
+    project_file_path = path.join(context, subpath_str, "project.y*ml")
+    function_file_path = path.join(context, subpath_str, "function.y*ml")
     setup_file_path = path.join(context, subpath_str, "project_setup.py")
-    if path.isfile(fpath):
-        with open(fpath) as fp:
+
+    if project_files := glob.glob(project_file_path):
+        # if there are multiple project files, use the first one
+        project_file_path = project_files[0]
+        with open(project_file_path) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
             project = _project_instance_from_struct(struct, name)
             project.spec.context = context
-
-    elif path.isfile(path.join(context, subpath_str, "function.yaml")):
-        func = import_function(path.join(context, subpath_str, "function.yaml"))
+    elif function_files := glob.glob(function_file_path):
+        function_path = function_files[0]
+        func = import_function(function_path)
+        function_file_name = path.basename(path.normpath(function_path))
         project = MlrunProject.from_dict(
             {
                 "metadata": {
                     "name": func.metadata.project,
                 },
                 "spec": {
-                    "functions": [{"url": "function.yaml", "name": func.metadata.name}],
+                    "functions": [
+                        {
+                            "url": function_file_name,
+                            "name": func.metadata.name,
+                        },
+                    ],
                 },
             }
         )
@@ -620,9 +632,9 @@ def _add_username_to_project_name_if_needed(name, user_project):
         if not name:
             raise ValueError("user_project must be specified together with name")
         username = environ.get("V3IO_USERNAME") or getpass.getuser()
-        normalized_username = inflection.dasherize(username.lower())
+        normalized_username = mlrun.utils.normalize_project_username(username.lower())
         if username != normalized_username:
-            logger.info(
+            logger.debug(
                 "Username was normalized to match the required pattern for project name",
                 username=username,
                 normalized_username=normalized_username,
@@ -688,6 +700,31 @@ class ProjectMetadata(ModelObj):
             mlrun.utils.helpers.verify_field_regex(
                 "project.metadata.name", name, mlrun.utils.regex.project_name
             )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            if raise_on_failure:
+                raise
+            return False
+        return True
+
+    @staticmethod
+    def validate_project_labels(labels: dict, raise_on_failure: bool = True) -> bool:
+        """
+        This
+        https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+        """
+
+        # no labels is a valid case
+        if not labels:
+            return True
+        if not isinstance(labels, dict):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Labels must be a dictionary of key-value pairs"
+            )
+        try:
+            for key, value in labels.items():
+                mlrun.k8s_utils.verify_label_key(key)
+                mlrun.k8s_utils.verify_label_value(value, label_key=key)
+
         except mlrun.errors.MLRunInvalidArgumentError:
             if raise_on_failure:
                 raise
@@ -2411,6 +2448,16 @@ class MlrunProject(ModelObj):
             f = self.spec._function_definitions.get(name)
             if not f:
                 raise ValueError(f"function named {name} not found")
+            # If this function is already available locally, don't recreate it unless always=True
+            if (
+                isinstance(
+                    self.spec._function_objects.get(name, None),
+                    mlrun.runtimes.base.BaseRuntime,
+                )
+                and not always
+            ):
+                funcs[name] = self.spec._function_objects[name]
+                continue
             if hasattr(f, "to_dict"):
                 name, func = _init_function_from_obj(f, self, name)
             else:
@@ -2750,7 +2797,7 @@ class MlrunProject(ModelObj):
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)
 
-        By default the project object is exported to a yaml file, when the filepath suffix is '.zip'
+        By default, the project object is exported to a yaml file, when the filepath suffix is '.zip'
         the project context dir (code files) are also copied into the zip, the archive path can include
         DataItem urls (for remote object storage, e.g. s3://<bucket>/<path>).
 
@@ -2775,19 +2822,19 @@ class MlrunProject(ModelObj):
 
         if archive_code:
             files_filter = include_files or "**"
-            tmp_path = None
-            if "://" in filepath:
-                tmp_path = tempfile.mktemp(".zip")
-            zipf = zipfile.ZipFile(tmp_path or filepath, "w")
-            for file_path in glob.iglob(
-                f"{project_dir}/{files_filter}", recursive=True
-            ):
-                write_path = pathlib.Path(file_path)
-                zipf.write(write_path, arcname=write_path.relative_to(project_dir))
-            zipf.close()
-            if tmp_path:
-                mlrun.get_dataitem(filepath).upload(tmp_path)
-                remove(tmp_path)
+            with tempfile.NamedTemporaryFile(suffix=".zip") as f:
+                remote_file = "://" in filepath
+                fpath = f.name if remote_file else filepath
+                with zipfile.ZipFile(fpath, "w") as zipf:
+                    for file_path in glob.iglob(
+                        f"{project_dir}/{files_filter}", recursive=True
+                    ):
+                        write_path = pathlib.Path(file_path)
+                        zipf.write(
+                            write_path, arcname=write_path.relative_to(project_dir)
+                        )
+                if remote_file:
+                    mlrun.get_dataitem(filepath).upload(zipf.filename)
 
     def set_model_monitoring_credentials(
         self,

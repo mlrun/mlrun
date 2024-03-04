@@ -16,6 +16,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes spark and remote-spark)
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
+* **hdfs** &mdash; Hadoop file system, Use `DatastoreProfileHdfs`.
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
@@ -135,6 +136,11 @@ Not supported by the spark and remote-spark runtimes.
   
 ## Using data store profiles
 
+```{admonition} Notes
+- Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+- Datastore profiles are not part of a project export/import.
+```
+
 You can use a data store profile to manage datastore credentials. A data store profile 
 holds all the information required to address an external data source, including credentials. 
 You can create 
@@ -167,11 +173,6 @@ redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
-```{admonition} Note
-Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
-```
-
-
 ### Azure data store profile
 ```
 profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)
@@ -286,7 +287,7 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ### S3 data store profile
 
 
-```
+```python
 profile = DatastoreProfileS3(name="profile-name")
 ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 ```
@@ -300,19 +301,28 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
+### HDFS data store profile
 
 
+```python
+profile = DatastoreProfileHdfs(name="profile-name")
+ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
+```
+
+`DatastoreProfileHdfs` init parameters:
+- `name` &mdash; Name of the profile
+- `host` &mdash; HDFS namenode host
+- `port` &mdash; HDFS namenode port
+- `http_port` &mdash; WebHDFS port
+- `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name will be the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name will be used. In Spark, this is evaluated at the time that the spark context is created.
 
 
 
 ### See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
-- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile` 
+- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
 - {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
 
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
 the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
-
-
-

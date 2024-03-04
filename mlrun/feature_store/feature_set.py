@@ -318,8 +318,6 @@ def emit_policy_to_dict(policy: EmitPolicy):
 
 
 class FeatureSet(ModelObj):
-    """Feature set object, defines a set of features and their data pipeline"""
-
     kind = mlrun.common.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
@@ -990,6 +988,50 @@ class FeatureSet(ModelObj):
         spark_context=None,
         overwrite=None,
     ) -> Optional[pd.DataFrame]:
+        """Read local DataFrame, file, URL, or source into the feature store
+        Ingest reads from the source, run the graph transformations, infers  metadata and stats
+        and writes the results to the default of specified targets
+
+        when targets are not specified data is stored in the configured default targets
+        (will usually be NoSQL for real-time and Parquet for offline).
+
+        the `run_config` parameter allow specifying the function and job configuration,
+        see: :py:class:`~mlrun.feature_store.RunConfig`
+
+        example::
+
+            stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
+            stocks = pd.read_csv("stocks.csv")
+            df = stocks_set.ingest(stocks, infer_options=fstore.InferOptions.default())
+
+            # for running as remote job
+            config = RunConfig(image='mlrun/mlrun')
+            df = ingest(stocks_set, stocks, run_config=config)
+
+            # specify source and targets
+            source = CSVSource("mycsv", path="measurements.csv")
+            targets = [CSVTarget("mycsv", path="./mycsv.csv")]
+            ingest(measurements, source, targets)
+
+        :param source:        source dataframe or other sources (e.g. parquet source see:
+                            :py:class:`~mlrun.datastore.ParquetSource` and other classes in mlrun.datastore with suffix
+                            Source)
+        :param targets:       optional list of data target objects
+        :param namespace:     namespace or module containing graph classes
+        :param return_df:     indicate if to return a dataframe with the graph results
+        :param infer_options: schema (for discovery of entities, features in featureset), index, stats,
+                            histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+        :param run_config:    function and/or run configuration for remote jobs,
+                            see :py:class:`~mlrun.feature_store.RunConfig`
+        :param mlrun_context: mlrun context (when running as a job), for internal use !
+        :param spark_context: local spark session for spark ingestion, example for creating the spark context:
+                            `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
+                            For remote spark ingestion, this should contain the remote spark service name
+        :param overwrite:     delete the targets' data prior to ingestion
+                            (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                            False for scheduled ingest - does not delete the target)
+        :return:              if return_df is True, a dataframe will be returned based on the graph
+        """
         return mlrun.feature_store.api._ingest(
             self,
             source,
@@ -1012,6 +1054,26 @@ class FeatureSet(ModelObj):
         verbose: bool = False,
         sample_size: int = None,
     ) -> pd.DataFrame:
+        """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
+
+        example::
+
+            quotes_set = FeatureSet("stock-quotes", entities=[Entity("ticker")])
+            quotes_set.add_aggregation("ask", ["sum", "max"], ["1h", "5h"], "10m")
+            quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
+            df = quotes_set.preview(
+                quotes_df,
+                entity_columns=["ticker"],
+            )
+
+        :param source:         source dataframe or csv/parquet file path
+        :param entity_columns: list of entity (index) column names
+        :param namespace:      namespace or module containing graph classes
+        :param options:        schema (for discovery of entities, features in featureset), index, stats,
+                            histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+        :param verbose:        verbose log
+        :param sample_size:    num of rows to sample from the dataset (for large datasets)
+        """
         return mlrun.feature_store.api._preview(
             self, source, entity_columns, namespace, options, verbose, sample_size
         )
@@ -1024,6 +1086,31 @@ class FeatureSet(ModelObj):
         run_config: RunConfig = None,
         verbose=False,
     ) -> tuple[str, BaseRuntime]:
+        """Start real-time ingestion service using nuclio function
+
+        Deploy a real-time function implementing feature ingestion pipeline
+        the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
+
+        the `run_config` parameter allow specifying the function and job configuration,
+        see: :py:class:`~mlrun.feature_store.RunConfig`
+
+        example::
+
+            source = HTTPSource()
+            func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
+            config = RunConfig(function=func)
+            my_set.deploy_ingestion_service(source, run_config=config)
+
+        :param source:        data source object describing the online or offline source
+        :param targets:       list of data target objects
+        :param name:          name for the job/function
+        :param run_config:    service runtime configuration (function object/uri, resources, etc..)
+        :param verbose:       verbose log
+
+        :return: URL to access the deployed ingestion service, and the function that was deployed (which will
+                differ from the function passed in via the run_config parameter).
+        """
+
         return mlrun.feature_store.api._deploy_ingestion_service_v2(
             self, source, targets, name, run_config, verbose
         )

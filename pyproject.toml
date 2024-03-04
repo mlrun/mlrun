@@ -1,10 +1,6 @@
 [tool.ruff]
 extend-include = ["*.ipynb"]
 target-version = "py39"
-extend-exclude = [
-    "server/api/proto",
-    "playground",
-]
 
 [tool.ruff.lint]
 select = [

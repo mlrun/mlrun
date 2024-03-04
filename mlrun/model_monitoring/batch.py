@@ -818,7 +818,7 @@ class BatchProcessor:
         """
         stream_http_path = (
             mlrun.mlconf.model_endpoint_monitoring.default_http_sink.format(
-                project=self.project
+                project=self.project, namespace=mlrun.mlconf.namespace
             )
         )
 

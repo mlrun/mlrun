@@ -287,6 +287,12 @@ default_config = {
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
+        # http client used by httpdb
+        "http": {
+            # when True, the client will verify the server's TLS
+            # set to False for backwards compatibility.
+            "verify": False,
+        },
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -484,8 +490,8 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),

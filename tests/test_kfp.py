@@ -89,7 +89,7 @@ def kfp_dirs(monkeypatch):
         )
         monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
         monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
-        yield (str(meta_dir), str(artifacts_dir), str(output_dir))
+        yield str(meta_dir), str(artifacts_dir), str(output_dir)
 
 
 def test_kfp_function_run(kfp_dirs):

@@ -552,7 +552,9 @@ def parse_path(url, suffix="/"):
     parsed_url = urlparse(url)
     if parsed_url.netloc:
         scheme = parsed_url.scheme.lower()
-        if scheme == "v3ios":
+        if scheme == "s3":
+            prefix = "s3"
+        elif scheme == "v3ios":
             prefix = "https"
         elif scheme == "v3io":
             prefix = "http"

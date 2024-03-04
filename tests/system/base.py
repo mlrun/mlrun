@@ -187,7 +187,7 @@ class TestMLRunSystem:
         )
 
     @property
-    def assets_path(self):
+    def assets_path(self) -> pathlib.Path:
         """Returns the test file directory "assets" directory."""
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent

@@ -109,9 +109,9 @@ class HTTPSessionWithRetry(requests.Session):
     def request(self, method, url, **kwargs):
         retry_count = 0
         kwargs.setdefault("headers", {})
-        kwargs["headers"][
-            "User-Agent"
-        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        kwargs["headers"]["User-Agent"] = (
+            f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        )
         while True:
             try:
                 response = super().request(method, url, **kwargs)

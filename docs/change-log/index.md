@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.2](#v1-6-2-??-march-2024]  |  [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -12,6 +12,25 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
 
+## v1.6.2 (?? March 2024)
+
+
+### Feature store
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-5656|Snowflake is now supported as an offline target store. See [Targets](../feature-store/sources-targets.html#targets).|
+
+### Runtimes
+
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-5482  |Remote workflows support projects with workflow sources inside the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow).|
+
+###  Closed issues
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-3521|Can now schedule a workflow without a remote source. |
+|ML-5786|
 
 ## v1.6.1 (29 February 2024)
 
@@ -849,7 +868,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3143/ML-3432|Cannot delete a remote function from the DB (neither with SDK nor UI).  |NA |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
-|ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.1    |
 |ML-3526|Aggregation column order is not always respected (storey engine).| NA | v1.3.0|
 |ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. |NA | v1.3.0|
 |ML-3627|The feature store allows ingestion of string type for the timestamp key resulting in errors when trying to query the offline store with time filtration.|Use only timestamp type.| v1.2.1    |
@@ -921,6 +939,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.8.0       |v1.6.2   |`FunctionSpec.clone_target_dir`                                                                    | Moved to `ImageBuilder.source_target_dir` |
 | v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|

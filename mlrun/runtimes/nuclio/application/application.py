@@ -21,7 +21,7 @@ from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
 
 class ApplicationSpec(NuclioSpec):
     _dict_fields = NuclioSpec._dict_fields + [
-        "internal_app_port",
+        "internal_application_port",
     ]
 
     def __init__(
@@ -66,7 +66,7 @@ class ApplicationSpec(NuclioSpec):
         clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
-        internal_app_port=None,
+        internal_application_port=None,
     ):
         super().__init__(
             command=command,
@@ -110,7 +110,7 @@ class ApplicationSpec(NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
-        self.internal_application_port = internal_app_port or 8080
+        self.internal_application_port = internal_application_port or 8080
 
 
 class ApplicationStatus(NuclioStatus):

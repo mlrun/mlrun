@@ -282,18 +282,20 @@ class KVModelEndpointStore(ModelEndpointStore):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
 
-        # Cleanup TSDB
-        frames = self._get_frames_client()
-
         # Generate the required tsdb paths
         tsdb_path, filtered_path = self._generate_tsdb_paths()
 
         # Delete time series DB resources
         try:
-            frames.delete(
-                backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
+            tsdb_store = mlrun.model_monitoring.get_tsdb_store(
+                project=self.project,
+                access_key=self.access_key,
                 table=filtered_path,
+                container=self.container,
             )
+
+            tsdb_store.delete_tsdb_resources()
+
         except v3io_frames.errors.DeleteError as e:
             if "No TSDB schema file found" not in str(e):
                 logger.warning(

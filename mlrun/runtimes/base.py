@@ -851,7 +851,7 @@ class BaseRuntime(ModelObj):
             data = dict_to_json(struct)
         stores = store_manager.set(secrets)
         target = target or "function.yaml"
-        datastore, subpath = stores.get_or_create_store(target)
+        datastore, subpath, url = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info(f"function spec saved to path: {target}")
         return self

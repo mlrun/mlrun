@@ -110,7 +110,7 @@ class ApplicationSpec(NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
-        self.internal_app_port = internal_app_port or 8080
+        self.internal_application_port = internal_app_port or 8080
 
 
 class ApplicationStatus(NuclioStatus):
@@ -161,12 +161,12 @@ class ApplicationRuntime(RemoteRuntime):
     def status(self, status):
         self._status = self._verify_dict(status, "status", ApplicationStatus)
 
-    def set_internal_app_port(self, port: int):
+    def set_internal_application_port(self, port: int):
         port = int(port)
         if port < 0 or port > 65535:
             raise ValueError("Port must be in the range 0-65535")
 
-        self.spec.internal_app_port = port
+        self.spec.internal_application_port = port
 
     def deploy(
         self,
@@ -201,7 +201,7 @@ class ApplicationRuntime(RemoteRuntime):
         self._with_sidecar(
             name=f"{self.metadata.name}-sidecar",
             image=self.status.application_image,
-            port=self.spec.internal_app_port,
+            port=self.spec.internal_application_port,
         )
-        self.set_env("SIDECAR_PORT", self.spec.internal_app_port)
+        self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")

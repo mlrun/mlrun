@@ -2007,6 +2007,11 @@ class MlrunProject(ModelObj):
         :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+        controller_job = db.create_model_monitoring_controller(
+            project=self.name,
+            default_controller_image=default_controller_image,
+            base_period=base_period,
+        )
         if deploy_histogram_data_drift_app:
             fn = self.set_model_monitoring_function(
                 func=str(
@@ -2018,11 +2023,7 @@ class MlrunProject(ModelObj):
                 image="mlrun/mlrun",
             )
             fn.deploy()
-        return db.create_model_monitoring_controller(
-            project=self.name,
-            default_controller_image=default_controller_image,
-            base_period=base_period,
-        )
+        return controller_job
 
     def disable_model_monitoring(self):
         db = mlrun.db.get_run_db(secrets=self._secrets)

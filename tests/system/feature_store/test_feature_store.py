@@ -796,7 +796,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_ingest_large_parquet(self):
         num_rows = 17000  # because max events default == 10000
 
@@ -828,7 +827,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_csv_time_columns(self):
         df = pd.DataFrame(
             {
@@ -859,7 +857,6 @@ class TestFeatureStore(TestMLRunSystem):
             os.remove(csv_path)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_featureset_column_types(self):
         data = pd.DataFrame(
             {
@@ -889,7 +886,6 @@ class TestFeatureStore(TestMLRunSystem):
             verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     @pytest.mark.parametrize("with_tz", [False, True])
     def test_filtering_parquet_by_time(self, with_tz):
         key = "patient_id"
@@ -928,7 +924,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp) == 0
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
@@ -1104,7 +1099,6 @@ class TestFeatureStore(TestMLRunSystem):
                 ]
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
         key = "key"
@@ -1222,7 +1216,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert res["time"].dtype.name == "datetime64[ns]"
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_left_not_ordered_pandas_asof_merge(self):
         left = trades.sort_values(by="price")
 
@@ -1242,7 +1235,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_right_not_ordered_pandas_asof_merge(self):
         right = quotes.sort_values(by="bid")
 
@@ -1262,7 +1254,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     @TestMLRunSystem.skip_test_if_env_not_configured
-    @pytest.mark.enterprise
     def test_read_csv(self):
         source = CSVSource(
             "mycsv",

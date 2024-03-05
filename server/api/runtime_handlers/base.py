@@ -594,9 +594,9 @@ class BaseRuntimeHandler(ABC):
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
-                run.setdefault("status", {})[
-                    "reason"
-                ] = "A runtime resource related to this run could not be found"
+                run.setdefault("status", {})["reason"] = (
+                    "A runtime resource related to this run could not be found"
+                )
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
@@ -1513,10 +1513,10 @@ class BaseRuntimeHandler(ABC):
         if first_field_value not in resources:
             resources[first_field_value] = {}
         if second_field_value not in resources[first_field_value]:
-            resources[first_field_value][
-                second_field_value
-            ] = mlrun.common.schemas.RuntimeResources(
-                pod_resources=[], crd_resources=[]
+            resources[first_field_value][second_field_value] = (
+                mlrun.common.schemas.RuntimeResources(
+                    pod_resources=[], crd_resources=[]
+                )
             )
         if not getattr(
             resources[first_field_value][second_field_value], resource_field_name

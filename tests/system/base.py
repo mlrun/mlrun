@@ -46,6 +46,7 @@ class TestMLRunSystem:
         "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
+    enterprise_configured = os.getenv("V3IO_API")
 
     _logger = logger
 

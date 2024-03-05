@@ -518,7 +518,7 @@ class TestFeatureStore(TestMLRunSystem):
         if should_succeed:
             fset.ingest(source=stocks, targets=[target])
             if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
-                store, _ = mlrun.store_manager.get_or_create_store(
+                store, _, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
                 v3io = store.filesystem
@@ -558,7 +558,7 @@ class TestFeatureStore(TestMLRunSystem):
         if should_succeed:
             fset.ingest(source=source, targets=[target])
             if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
-                store, _ = mlrun.store_manager.get_or_create_store(
+                store, _, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
                 v3io = store.filesystem

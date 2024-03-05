@@ -69,16 +69,16 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        engine=None,
-        code=None,
-        path=None,
-        args=None,
-        name=None,
-        handler=None,
-        args_schema: dict = None,
+        engine: typing.Optional[str] = None,
+        code: typing.Optional[str] = None,
+        path: typing.Optional[str] = None,
+        args: typing.Optional[dict] = None,
+        name: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        args_schema: typing.Optional[dict] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        cleanup_ttl: int = None,
-        image: str = None,
+        cleanup_ttl: typing.Optional[int] = None,
+        image: typing.Optional[str] = None,
     ):
         self.engine = engine
         self.code = code
@@ -401,6 +401,9 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.spec.build.source_code_target_dir = (
+                project.spec.build.source_code_target_dir
+            )
             f.spec.workdir = project.spec.workdir or project.spec.subpath
             f.prepare_image_for_deploy()
 
@@ -862,6 +865,11 @@ class _RemoteRunner(_PipelineRunner):
                 )
                 return
 
+            logger.debug(
+                "Workflow submitted, waiting for pipeline run to start",
+                workflow_name=workflow_response.name,
+            )
+
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
@@ -988,6 +996,7 @@ def load_and_run(
     cleanup_ttl: int = None,
     load_only: bool = False,
     wait_for_completion: bool = False,
+    project_context: str = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1018,10 +1027,11 @@ def load_and_run(
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
     :param wait_for_completion: wait for workflow completion before returning
+    :param project_context:     project context path (used for loading the project)
     """
     try:
         project = mlrun.load_project(
-            context=f"./{project_name}",
+            context=project_context or f"./{project_name}",
             url=url,
             name=project_name,
             init_git=init_git,
@@ -1053,7 +1063,7 @@ def load_and_run(
 
         raise error
 
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    context.logger.info(f"Loaded project {project.name} successfully")
 
     if load_only:
         return

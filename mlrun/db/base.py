@@ -677,3 +677,21 @@ class RunDBInterface(ABC):
         self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
     ):
         pass
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            "mlrun.projects.pipelines.WorkflowSpec",
+            "mlrun.common.schemas.WorkflowSpec",
+            dict,
+        ],
+        arguments: Optional[dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        notifications: list["mlrun.model.Notification"] = None,
+    ) -> "mlrun.common.schemas.WorkflowResponse":
+        pass

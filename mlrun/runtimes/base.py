@@ -15,6 +15,7 @@ import enum
 import http
 import re
 import typing
+import warnings
 from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
@@ -124,7 +125,7 @@ class FunctionSpec(ModelObj):
         self.allow_empty_resources = None
         # the build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
-        self.clone_target_dir = clone_target_dir or ""
+        self._clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -133,6 +134,24 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    @property
+    def clone_target_dir(self):
+        warnings.warn(
+            "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.8.0. "
+            "Use spec.build.source_code_target_dir instead.",
+            FutureWarning,
+        )
+        return self.build.source_code_target_dir
+
+    @clone_target_dir.setter
+    def clone_target_dir(self, clone_target_dir):
+        warnings.warn(
+            "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.8.0. "
+            "Use spec.build.source_code_target_dir instead.",
+            FutureWarning,
+        )
+        self.build.source_code_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass

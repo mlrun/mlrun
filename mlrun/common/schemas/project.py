@@ -19,6 +19,7 @@ import pydantic
 
 import mlrun.common.types
 
+from .common import ImageBuilder
 from .object import ObjectKind, ObjectStatus
 
 
@@ -85,6 +86,7 @@ class ProjectSpec(pydantic.BaseModel):
     desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
     custom_packagers: typing.Optional[list[tuple[str, bool]]] = None
     default_image: typing.Optional[str] = None
+    build: typing.Optional[ImageBuilder] = None
 
     class Config:
         extra = pydantic.Extra.allow

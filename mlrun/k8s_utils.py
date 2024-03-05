@@ -134,19 +134,24 @@ def sanitize_label_value(value: str) -> str:
     return re.sub(r"([^a-zA-Z0-9_.-]|^[^a-zA-Z0-9]|[^a-zA-Z0-9]$)", "-", value[:63])
 
 
-def verify_label_key(key):
+def verify_label_key(key: str):
+    """
+    Verify that the label key is valid for Kubernetes.
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    """
     if not key:
         raise mlrun.errors.MLRunInvalidArgumentError("label key cannot be empty")
-    if key.startswith("k8s.io") or key.startswith("kubernetes.io"):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Labels cannot start with 'k8s.io' or 'kubernetes.io'"
-        )
 
     mlrun.utils.helpers.verify_field_regex(
         f"project.metadata.labels.'{key}'",
         key,
         mlrun.utils.regex.k8s_character_limit,
     )
+
+    if key.startswith("k8s.io/") or key.startswith("kubernetes.io/"):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
+        )
 
     parts = key.split("/")
     if len(parts) == 1:

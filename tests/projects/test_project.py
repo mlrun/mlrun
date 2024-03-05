@@ -1575,7 +1575,7 @@ def test_project_create_remote():
             "https://github.com/mlrun/some-other-git-repo.git",
             does_not_raise(),
         ),
-        # Remote exists, overwrite False, raise ConflictError
+        # Remote exists, overwrite False, raise MLRunConflictError
         (
             "https://github.com/mlrun/some-git-repo.git",
             "https://github.com/mlrun/some-git-other-repo.git",

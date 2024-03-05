@@ -23,6 +23,7 @@ import mlrun.model_monitoring.stores.tsdb.v3io.v3io_tsdb
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
     AppResultEvent,
+    FileTargetKind,
     RawEvent,
     ResultStatusApp,
     WriterEvent,
@@ -31,8 +32,6 @@ from mlrun.common.schemas.notification import NotificationKind, NotificationSeve
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
-
-_TSDB_TABLE = "app-results"
 
 
 class _WriterEventError:
@@ -158,9 +157,10 @@ class ModelMonitoringWriter(StepToDict):
             self._kv_schemas.append(endpoint_id)
 
     def _update_tsdb(self, event: AppResultEvent) -> None:
+        # TODO: remove create_table=True in 1.9.0 (backwards compatibility)
         tsdb_store = mlrun.model_monitoring.get_tsdb_store(
             project=self.project,
-            table=_TSDB_TABLE,
+            table=FileTargetKind.TSDB_APPLICATION_TABLE,
             container=self._v3io_container,
             create_table=True,
         )

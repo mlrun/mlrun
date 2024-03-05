@@ -484,6 +484,7 @@ default_config = {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
             "stream": "",
+            "monitoring-apps": "v3io:///users/pipelines/{project}/monitoring-apps/{table}",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
@@ -1061,6 +1062,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         application_name: str = None,
+        **kwargs,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1086,7 +1088,7 @@ class Config:
             )
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project)
+                return store_prefix_dict[kind].format(project=project, **kwargs)
 
             if (
                 application_name

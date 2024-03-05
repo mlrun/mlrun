@@ -1442,6 +1442,7 @@ def test_init_function_from_dict_function_in_spec():
                     "commands": [],
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
+                    "source_code_target_dir": "/home/mlrun_code/",
                 },
                 "description": "",
                 "disable_auto_mount": False,
@@ -1552,8 +1553,8 @@ def test_project_create_remote():
 @pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [
-        (None, None, "aaa/bbb", "ccc/ddd", ""),
-        ("git://some/repo", False, None, ".some-image", ""),
+        (None, None, "aaa/bbb", "ccc/ddd", None),
+        ("git://some/repo", False, None, ".some-image", None),
         (
             "git://some/other/repo",
             False,
@@ -1586,7 +1587,7 @@ def test_project_build_image(
     if pull_at_runtime:
         assert build_config.load_source_on_run is None
         assert build_config.source is None
-        assert clone_target_dir == ""
+        assert clone_target_dir is None
     else:
         assert not build_config.load_source_on_run
         assert build_config.source == source_url

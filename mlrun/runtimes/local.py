@@ -218,7 +218,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if workdir:
             self.spec.workdir = workdir
         if target_dir:
-            self.spec.clone_target_dir = target_dir
+            self.spec.build.source_code_target_dir = target_dir
 
     def is_deployed(self):
         return True
@@ -240,7 +240,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
-                self.spec.clone_target_dir,
+                self.spec.build.source_code_target_dir,
                 secrets=execution._secrets_manager,
             )
             if workdir and not workdir.startswith("/"):

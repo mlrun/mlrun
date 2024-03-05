@@ -394,9 +394,9 @@ class SystemTestPreparer:
         spark_service_name = self._get_service_name("app=spark,component=spark-master")
         self._env_config["MLRUN_IGUAZIO_API_URL"] = f"https://{api_url_host}"
         self._env_config["V3IO_FRAMESD"] = f"https://{framesd_host}"
-        self._env_config["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"] = (
-            spark_service_name
-        )
+        self._env_config[
+            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"
+        ] = spark_service_name
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
 

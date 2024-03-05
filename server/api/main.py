@@ -725,9 +725,9 @@ async def _abort_stale_runs(stale_runs: list[dict]):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
             # mark abort as internal, it doesn't have a background task
-            stale_run["new_background_task_id"] = (
-                server.api.constants.internal_abort_task_id
-            )
+            stale_run[
+                "new_background_task_id"
+            ] = server.api.constants.internal_abort_task_id
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Runs().abort_run,

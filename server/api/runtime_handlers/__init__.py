@@ -38,9 +38,9 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
         if not runtime_handler_instances_cache.setdefault(RuntimeKinds.mpijob, {}).get(
             mpijob_crd_version
         ):
-            runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version] = (
-                runtime_handler_class()
-            )
+            runtime_handler_instances_cache[RuntimeKinds.mpijob][
+                mpijob_crd_version
+            ] = runtime_handler_class()
         return runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version]
 
     kind_runtime_handler_map = {

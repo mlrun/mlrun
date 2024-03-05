@@ -350,9 +350,9 @@ def configure_kaniko_ecr_init_container(
         aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
-        init_container_env[aws_credentials_file_env_key] = (
-            aws_credentials_file_env_value
-        )
+        init_container_env[
+            aws_credentials_file_env_key
+        ] = aws_credentials_file_env_value
 
         # set the kaniko container AWS credentials location to the mount's path
         kpod.env.append(

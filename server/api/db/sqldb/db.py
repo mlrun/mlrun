@@ -405,9 +405,9 @@ class SQLDB(DBInterface):
                         notification
                     )
                     run_struct["spec"]["notifications"].append(notification_spec)
-                    run_struct["status"]["notifications"][notification.name] = (
-                        notification_status
-                    )
+                    run_struct["status"]["notifications"][
+                        notification.name
+                    ] = notification_status
             runs.append(run_struct)
 
         return runs

@@ -147,13 +147,13 @@ class GoogleCloudStorageStore(DataStore):
             if "project_id" in credentials:
                 res["spark.hadoop.fs.gs.project.id"] = credentials["project_id"]
             if "private_key_id" in credentials:
-                res["spark.hadoop.fs.gs.auth.service.account.private.key.id"] = (
-                    credentials["private_key_id"]
-                )
+                res[
+                    "spark.hadoop.fs.gs.auth.service.account.private.key.id"
+                ] = credentials["private_key_id"]
             if "private_key" in credentials:
-                res["spark.hadoop.fs.gs.auth.service.account.private.key"] = (
-                    credentials["private_key"]
-                )
+                res[
+                    "spark.hadoop.fs.gs.auth.service.account.private.key"
+                ] = credentials["private_key"]
             if "client_email" in credentials:
                 res["spark.hadoop.fs.gs.auth.service.account.email"] = credentials[
                     "client_email"

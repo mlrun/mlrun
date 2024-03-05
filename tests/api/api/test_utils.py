@@ -839,18 +839,18 @@ def test_mask_v3io_volume_credentials(
         v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
             v3io_volume["flexVolume"]
         )
-        no_access_key_v3io_volume["flexVolume"] = (
-            k8s_api_client.sanitize_for_serialization(
-                no_access_key_v3io_volume["flexVolume"]
-            )
+        no_access_key_v3io_volume[
+            "flexVolume"
+        ] = k8s_api_client.sanitize_for_serialization(
+            no_access_key_v3io_volume["flexVolume"]
         )
         no_name_v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
             no_name_v3io_volume["flexVolume"]
         )
-        no_matching_mount_v3io_volume["flexVolume"] = (
-            k8s_api_client.sanitize_for_serialization(
-                no_matching_mount_v3io_volume["flexVolume"]
-            )
+        no_matching_mount_v3io_volume[
+            "flexVolume"
+        ] = k8s_api_client.sanitize_for_serialization(
+            no_matching_mount_v3io_volume["flexVolume"]
         )
         v3io_volume_mount = k8s_api_client.sanitize_for_serialization(v3io_volume_mount)
         conflicting_v3io_volume_mount = k8s_api_client.sanitize_for_serialization(

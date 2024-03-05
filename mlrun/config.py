@@ -963,10 +963,10 @@ class Config:
             with_gpu = (
                 with_gpu_requests if requirement == "requests" else with_gpu_limits
             )
-            resources[requirement] = (
-                self.get_default_function_pod_requirement_resources(
-                    requirement, with_gpu
-                )
+            resources[
+                requirement
+            ] = self.get_default_function_pod_requirement_resources(
+                requirement, with_gpu
             )
         return resources
 

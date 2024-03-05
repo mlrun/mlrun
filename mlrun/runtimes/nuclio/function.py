@@ -431,15 +431,15 @@ class RemoteRuntime(KubeResource):
                 raise ValueError(
                     "gateway timeout must be greater than the worker timeout"
                 )
-            annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = (
-                f"{gateway_timeout}"
-            )
-            annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] = (
-                f"{gateway_timeout}"
-            )
-            annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = (
-                f"{gateway_timeout}"
-            )
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-connect-timeout"
+            ] = f"{gateway_timeout}"
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-read-timeout"
+            ] = f"{gateway_timeout}"
+            annotations[
+                "nginx.ingress.kubernetes.io/proxy-send-timeout"
+            ] = f"{gateway_timeout}"
 
         trigger = nuclio.HttpTrigger(
             workers=workers,

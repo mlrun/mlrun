@@ -559,9 +559,9 @@ class MLClientCtx:
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
             for artifact in get_in(task, ["status", run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
-                    artifact
-                )
+                self._artifacts_manager.artifacts[
+                    artifact["metadata"]["key"]
+                ] = artifact
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,

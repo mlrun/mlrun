@@ -1301,7 +1301,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
             if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
-                store, _ = mlrun.store_manager.get_or_create_store(
+                store, _, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
                 v3io = store.filesystem

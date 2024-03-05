@@ -21,9 +21,32 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 import mlrun.common.schemas.model_monitoring
+from mlrun.artifacts import PlotlyArtifact
 
 # A type for representing a drift result, a tuple of the status and the drift mean:
 DriftResultType = tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
+
+
+class _PlotlyTableArtifact(PlotlyArtifact):
+    """A custom class for plotly table artifacts"""
+
+    @staticmethod
+    def _disable_table_dragging(figure_html: str) -> str:
+        """
+        Disable the table columns dragging by adding the following
+        JavaScript code
+        """
+        start, end = figure_html.rsplit(";", 1)
+        middle = (
+            ';for (const element of document.getElementsByClassName("table")) '
+            '{element.style.pointerEvents = "none";}'
+        )
+        figure_html = start + middle + end
+        return figure_html
+
+    def get_body(self) -> str:
+        """Get the adjusted HTML representation of the figure"""
+        return self._disable_table_dragging(super().get_body())
 
 
 class FeaturesDriftTablePlot:
@@ -108,7 +131,6 @@ class FeaturesDriftTablePlot:
 
         :return: The full path to the html file of the plot.
         """
-        # Plot the drift table:
         figure = self._plot(
             features=list(inputs_statistics.keys()),
             sample_set_statistics=sample_set_statistics,
@@ -116,19 +138,7 @@ class FeaturesDriftTablePlot:
             metrics=metrics,
             drift_results=drift_results,
         )
-
-        # Get its HTML representation:
-        figure_html = figure.to_html()
-
-        # Turn off the table columns dragging by injecting the following JavaScript code:
-        start, end = figure_html.rsplit(";", 1)
-        middle = (
-            ';for (const element of document.getElementsByClassName("table")) '
-            '{element.style.pointerEvents = "none";}'
-        )
-        figure_html = start + middle + end
-
-        return figure_html
+        return _PlotlyTableArtifact(figure=figure, key="drift_table_plot").get_body()
 
     def _read_columns_names(self, statistics_dictionary: dict, drift_metrics: dict):
         """

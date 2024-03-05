@@ -1571,7 +1571,8 @@ def _init_async_objects(context, steps):
     if context.is_mock:
         source_class = storey.SyncEmitSource
     else:
-        source_class = storey.AsyncEmitSource
+        # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
+        source_class = storey.SyncEmitSource
 
     default_source = source_class(
         context=context,

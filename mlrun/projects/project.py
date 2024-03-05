@@ -36,7 +36,6 @@ import requests
 import yaml
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
@@ -1803,10 +1802,13 @@ class MlrunProject(ModelObj):
     ) -> mlrun.runtimes.BaseRuntime:
         """
         Update or add a monitoring function to the project.
+        Note: to deploy the function after linking it to the project,
+        call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
-            project.set_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.set_model_monitoring_function(
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
+            )
 
         :param func:                    Function object or spec/code url, None refers to current Notebook
         :param name:                    Name of the function (under the project), can be specified with a tag to support
@@ -1821,7 +1823,7 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            A list of python packages
         :param requirements_file:       Path to a python requirements file
-        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
@@ -1987,27 +1989,41 @@ class MlrunProject(ModelObj):
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
+        deploy_histogram_data_drift_app: bool = True,
     ) -> dict:
-        r"""
+        """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the
         databases. Note that the default scheduling policy of the controller job is to run every 10 min.
 
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         function, which is a real time nuclio function, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
         :param base_period:              The time period in minutes in which the model monitoring controller job
                                          runs. By default, the base period is 10 minutes. The schedule for the job
-                                         will be the following cron expression: "\*/{base_period} \* \* \* \*".
+                                         will be the following cron expression: "\\*/{base_period} \\* \\* \\* \\*".
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.create_model_monitoring_controller(
+        controller_job = db.create_model_monitoring_controller(
             project=self.name,
             default_controller_image=default_controller_image,
             base_period=base_period,
         )
+        if deploy_histogram_data_drift_app:
+            fn = self.set_model_monitoring_function(
+                func=str(
+                    pathlib.Path(__file__).parent.parent
+                    / "model_monitoring/applications/histogram_data_drift.py"
+                ),
+                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+                application_class="HistogramDataDriftApplication",
+                image="mlrun/mlrun",
+            )
+            fn.deploy()
+        return controller_job
 
     def disable_model_monitoring(self):
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -2853,23 +2869,19 @@ class MlrunProject(ModelObj):
 
         secrets_dict = {}
         if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key
+            secrets_dict[mm_constants.ProjectSecretKeys.ACCESS_KEY] = access_key
 
         if endpoint_store_connection:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ] = endpoint_store_connection
+            secrets_dict[mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION] = (
+                endpoint_store_connection
+            )
 
         if stream_path:
             if stream_path.startswith("kafka://") and "?topic" in stream_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Custom kafka topic is not allowed"
                 )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ] = stream_path
+            secrets_dict[mm_constants.ProjectSecretKeys.STREAM_PATH] = stream_path
 
         self.set_secrets(
             secrets=secrets_dict,

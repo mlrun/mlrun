@@ -24,7 +24,7 @@ import typing
 import uuid
 import warnings
 import zipfile
-from os import environ, makedirs, path, remove
+from os import environ, makedirs, path
 from typing import Callable, Optional, Union
 
 import dotenv
@@ -580,24 +580,36 @@ def _run_project_setup(
 
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
-    fpath = path.join(context, subpath_str, "project.yaml")
+
+    # support both .yaml and .yml file extensions
+    project_file_path = path.join(context, subpath_str, "project.y*ml")
+    function_file_path = path.join(context, subpath_str, "function.y*ml")
     setup_file_path = path.join(context, subpath_str, "project_setup.py")
-    if path.isfile(fpath):
-        with open(fpath) as fp:
+
+    if project_files := glob.glob(project_file_path):
+        # if there are multiple project files, use the first one
+        project_file_path = project_files[0]
+        with open(project_file_path) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
             project = _project_instance_from_struct(struct, name)
             project.spec.context = context
-
-    elif path.isfile(path.join(context, subpath_str, "function.yaml")):
-        func = import_function(path.join(context, subpath_str, "function.yaml"))
+    elif function_files := glob.glob(function_file_path):
+        function_path = function_files[0]
+        func = import_function(function_path)
+        function_file_name = path.basename(path.normpath(function_path))
         project = MlrunProject.from_dict(
             {
                 "metadata": {
                     "name": func.metadata.project,
                 },
                 "spec": {
-                    "functions": [{"url": "function.yaml", "name": func.metadata.name}],
+                    "functions": [
+                        {
+                            "url": function_file_name,
+                            "name": func.metadata.name,
+                        },
+                    ],
                 },
             }
         )
@@ -2436,6 +2448,16 @@ class MlrunProject(ModelObj):
             f = self.spec._function_definitions.get(name)
             if not f:
                 raise ValueError(f"function named {name} not found")
+            # If this function is already available locally, don't recreate it unless always=True
+            if (
+                isinstance(
+                    self.spec._function_objects.get(name, None),
+                    mlrun.runtimes.base.BaseRuntime,
+                )
+                and not always
+            ):
+                funcs[name] = self.spec._function_objects[name]
+                continue
             if hasattr(f, "to_dict"):
                 name, func = _init_function_from_obj(f, self, name)
             else:
@@ -2775,7 +2797,7 @@ class MlrunProject(ModelObj):
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)
 
-        By default the project object is exported to a yaml file, when the filepath suffix is '.zip'
+        By default, the project object is exported to a yaml file, when the filepath suffix is '.zip'
         the project context dir (code files) are also copied into the zip, the archive path can include
         DataItem urls (for remote object storage, e.g. s3://<bucket>/<path>).
 
@@ -2800,19 +2822,19 @@ class MlrunProject(ModelObj):
 
         if archive_code:
             files_filter = include_files or "**"
-            tmp_path = None
-            if "://" in filepath:
-                tmp_path = tempfile.mktemp(".zip")
-            zipf = zipfile.ZipFile(tmp_path or filepath, "w")
-            for file_path in glob.iglob(
-                f"{project_dir}/{files_filter}", recursive=True
-            ):
-                write_path = pathlib.Path(file_path)
-                zipf.write(write_path, arcname=write_path.relative_to(project_dir))
-            zipf.close()
-            if tmp_path:
-                mlrun.get_dataitem(filepath).upload(tmp_path)
-                remove(tmp_path)
+            with tempfile.NamedTemporaryFile(suffix=".zip") as f:
+                remote_file = "://" in filepath
+                fpath = f.name if remote_file else filepath
+                with zipfile.ZipFile(fpath, "w") as zipf:
+                    for file_path in glob.iglob(
+                        f"{project_dir}/{files_filter}", recursive=True
+                    ):
+                        write_path = pathlib.Path(file_path)
+                        zipf.write(
+                            write_path, arcname=write_path.relative_to(project_dir)
+                        )
+                if remote_file:
+                    mlrun.get_dataitem(filepath).upload(zipf.filename)
 
     def set_model_monitoring_credentials(
         self,

@@ -152,7 +152,7 @@ class HTTPRunDB(RunDBInterface):
     @staticmethod
     def get_api_path_prefix(version: str = None) -> str:
         """
-        :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+        :param version: API version to use, None (the default) will mean to use the default value from mlrun.config,
          for un-versioned api set an empty string.
         """
         if version is not None:
@@ -250,7 +250,11 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             response = self.session.request(
-                method, url, timeout=timeout, verify=False, **kw
+                method,
+                url,
+                timeout=timeout,
+                verify=config.httpdb.http.verify,
+                **kw,
             )
         except requests.RequestException as exc:
             error = f"{err_to_str(exc)}: {error}" if error else err_to_str(exc)
@@ -302,11 +306,11 @@ class HTTPRunDB(RunDBInterface):
 
     def connect(self, secrets=None):
         """Connect to the MLRun API server. Must be called prior to executing any other method.
-        The code utilizes the URL for the API server from the configuration - ``mlconf.dbpath``.
+        The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
 
         For example::
 
-            mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
+            config.dbpath = config.dbpath or 'http://mlrun-api:8080'
             db = get_run_db().connect()
         """
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
@@ -454,6 +458,10 @@ class HTTPRunDB(RunDBInterface):
                     setattr(
                         config.feature_store.data_prefixes, prefix, server_prefix_value
                     )
+            config.feature_store.default_targets = (
+                server_cfg.get("feature_store_default_targets")
+                or config.feature_store.default_targets
+            )
 
         except Exception as exc:
             logger.warning(
@@ -500,7 +508,7 @@ class HTTPRunDB(RunDBInterface):
         if offset < 0:
             raise MLRunInvalidArgumentError("Offset cannot be negative")
         if size is None:
-            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
+            size = int(config.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:
             logger.warning(
                 "Retrieving all logs. This may be inefficient and can result in a large log."
@@ -546,25 +554,23 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
+            print(text.decode(errors=config.httpdb.logs.decode.errors))
         nil_resp = 0
         while True:
             offset += len(text)
             # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
             # TODO: refactor this to use a conditional backoff mechanism
             if nil_resp < 3:
-                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
+                time.sleep(int(config.httpdb.logs.pull_logs_default_interval))
             else:
                 time.sleep(
-                    int(
-                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
-                    )
+                    int(config.httpdb.logs.pull_logs_backoff_no_logs_default_interval)
                 )
             state, text = self.get_log(uid, project, offset=offset)
             if text:
                 nil_resp = 0
                 print(
-                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                    text.decode(errors=config.httpdb.logs.decode.errors),
                     end="",
                 )
             else:
@@ -1135,17 +1141,17 @@ class HTTPRunDB(RunDBInterface):
             structured_dict = {}
             for project, job_runtime_resources_map in response.json().items():
                 for job_id, runtime_resources in job_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        job_id
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[job_id] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             structured_dict = {}
             for project, kind_runtime_resources_map in response.json().items():
                 for kind, runtime_resources in kind_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        kind
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[kind] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         else:
             raise NotImplementedError(
@@ -1173,7 +1179,8 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
+            the moment they moved to terminal state
+            (defaults to mlrun.config.config.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
@@ -1203,9 +1210,9 @@ class HTTPRunDB(RunDBInterface):
         structured_dict = {}
         for project, kind_runtime_resources_map in response.json().items():
             for kind, runtime_resources in kind_runtime_resources_map.items():
-                structured_dict.setdefault(project, {})[
-                    kind
-                ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                structured_dict.setdefault(project, {})[kind] = (
+                    mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                )
         return structured_dict
 
     def create_schedule(
@@ -1340,7 +1347,7 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(
                 "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
                 "keys. Only the permissions granted to the platform's configured secret will take affect "
-                "(see mlrun.mlconf.httpdb.builder.docker_registry_secret). "
+                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
                 "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
                 source=func.spec.build.source,
                 load_source_on_run=func.spec.build.load_source_on_run,
@@ -1495,7 +1502,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.mlconf.default_project).
+        :param project: Project name (defaults to mlrun.config.config.default_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.

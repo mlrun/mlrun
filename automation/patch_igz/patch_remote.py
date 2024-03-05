@@ -18,6 +18,7 @@ import io
 import json
 import logging
 import os
+import shlex
 import subprocess
 
 import click
@@ -458,10 +459,8 @@ class MLRunPatcher:
         return output
 
     def _exec_remote(self, cmd: list[str], live=False) -> str:
-        cmd_str = " ".join(cmd)
-
+        cmd_str = shlex.join(cmd)
         logger.debug("Exec remote: %s", cmd_str)
-
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             cmd_str
         )

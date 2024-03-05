@@ -14,8 +14,10 @@
 #
 import collections
 import copy
+import functools
 import json
 import re
+import time
 import traceback
 import typing
 import uuid
@@ -62,6 +64,40 @@ from server.api.utils.singletons.scheduler import get_scheduler
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
+
+
+def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
+    """
+    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
+    https://stackoverflow.com/a/71634221/5257501
+    """
+
+    class Result:
+        __slots__ = ("value", "death")
+
+        def __init__(self, value, death):
+            self.value = value
+            self.death = death
+
+    def decorator(func):
+        @functools.lru_cache(maxsize=maxsize, typed=typed)
+        def cached_func(*args, **kwargs):
+            value = func(*args, **kwargs)
+            death = time.monotonic() + ttl_seconds
+            return Result(value, death)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = cached_func(*args, **kwargs)
+            if result.death < time.monotonic():
+                result.value = func(*args, **kwargs)
+                result.death = time.monotonic() + ttl_seconds
+            return result.value
+
+        wrapper.cache_clear = cached_func.cache_clear
+        return wrapper
+
+    return decorator
 
 
 def log_path(project, uid) -> Path:
@@ -514,10 +550,10 @@ def _mask_v3io_volume_credentials(
                     if isinstance(
                         volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
                     ):
-                        volume[
-                            "flexVolume"
-                        ] = k8s_api_client.sanitize_for_serialization(
-                            volume["flexVolume"]
+                        volume["flexVolume"] = (
+                            k8s_api_client.sanitize_for_serialization(
+                                volume["flexVolume"]
+                            )
                         )
                     else:
                         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1069,7 +1105,7 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 def get_or_create_project_deletion_background_task(
     project_name: str, deletion_strategy: str, db_session, auth_info
-) -> tuple[typing.Callable, str]:
+) -> tuple[typing.Optional[typing.Callable], str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1116,10 +1152,11 @@ def get_or_create_project_deletion_background_task(
 
     background_task_kind = background_task_kind_format.format(project_name)
     try:
-        return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+        task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
             background_task_kind,
             raise_on_not_found=True,
         )
+        return None, task.metadata.name
     except mlrun.errors.MLRunNotFoundError:
         logger.debug(
             "Existing background task not found, creating new one",

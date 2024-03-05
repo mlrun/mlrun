@@ -188,11 +188,6 @@ class GraphServer(ModelObj):
 
     def init_object(self, namespace):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
-        return (
-            v2_serving_async_handler
-            if config.datastore.async_source_mode == "enabled"
-            else v2_serving_handler
-        )
 
     def test(
         self,
@@ -310,7 +305,7 @@ class GraphServer(ModelObj):
 
     def wait_for_completion(self):
         """wait for async operation to complete"""
-        self.graph.wait_for_completion()
+        return self.graph.wait_for_completion()
 
 
 def v2_serving_init(context, namespace=None):
@@ -334,11 +329,18 @@ def v2_serving_init(context, namespace=None):
     context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
-    server.init_states(context, namespace or get_caller_globals())
+    kwargs = {}
+    if hasattr(context, "is_mock"):
+        kwargs["is_mock"] = context.is_mock
+    server.init_states(
+        context,
+        namespace or get_caller_globals(),
+        **kwargs,
+    )
     context.logger.info("Initializing graph steps")
-    serving_handler = server.init_object(namespace or get_caller_globals())
+    server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
-    setattr(context, "mlrun_handler", serving_handler)
+    setattr(context, "mlrun_handler", v2_serving_handler)
     setattr(context, "_server", server)
     context.logger.info_with("Serving was initialized", verbose=server.verbose)
     if server.verbose:
@@ -351,9 +353,9 @@ def v2_serving_init(context, namespace=None):
             "Setting termination callback to terminate graph on worker shutdown"
         )
 
-        def termination_callback():
+        async def termination_callback():
             context.logger.info("Termination callback called")
-            server.wait_for_completion()
+            await server.wait_for_completion()
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
@@ -363,9 +365,9 @@ def v2_serving_init(context, namespace=None):
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
 
-        def drain_callback():
+        async def drain_callback():
             context.logger.info("Drain callback called")
-            server.wait_for_completion()
+            await server.wait_for_completion()
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )
@@ -384,11 +386,6 @@ def v2_serving_handler(context, event, get_body=False):
             event.body = None
 
     return context._server.run(event, context, get_body)
-
-
-async def v2_serving_async_handler(context, event, get_body=False):
-    """hook for nuclio handler()"""
-    return await context._server.run(event, context, get_body)
 
 
 def create_graph_server(

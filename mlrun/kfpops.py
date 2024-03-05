@@ -41,8 +41,8 @@ from .utils import (
 
 # default KFP artifacts and output (ui metadata, metrics etc.)
 # directories to /tmp to allow running with security context
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
-KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+KFPMETA_DIR = "/tmp"
+KFP_ARTIFACTS_DIR = "/tmp"
 
 project_annotation = "mlrun/project"
 run_annotation = "mlrun/pipeline-step-type"
@@ -71,7 +71,7 @@ def write_kfpmeta(struct):
             {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
         ],
     }
-    with open(KFPMETA_DIR + "/mlpipeline-metrics.json", "w") as f:
+    with open(os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"), "w") as f:
         json.dump(metrics, f)
 
     struct = deepcopy(struct)
@@ -91,7 +91,14 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            path = "/".join([KFP_ARTIFACTS_DIR, key])
+            # NOTE: if key has "../x", it would fail on path traversal
+            path = os.path.join(KFP_ARTIFACTS_DIR, key)
+            if not mlrun.utils.helpers.is_safe_path(KFP_ARTIFACTS_DIR, path):
+                logger.warning(
+                    "Path traversal is not allowed ignoring", path=path, key=key
+                )
+                continue
+            path = os.path.abspath(path)
             logger.info("Writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))
@@ -109,7 +116,7 @@ def write_kfpmeta(struct):
         "outputs": output_artifacts
         + [{"type": "markdown", "storage": "inline", "source": text}]
     }
-    with open(KFPMETA_DIR + "/mlpipeline-ui-metadata.json", "w") as f:
+    with open(os.path.join(KFPMETA_DIR, "mlpipeline-ui-metadata.json"), "w") as f:
         json.dump(metadata, f)
 
 
@@ -401,9 +408,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[
-            output.replace(".", "_")
-        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        file_outputs[output.replace(".", "_")] = (
+            f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        )
     if project:
         cmd += ["--project", project]
     if handler:
@@ -450,8 +457,10 @@ def mlrun_op(
         command=cmd + [command],
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
+            "mlpipeline-ui-metadata": os.path.join(
+                KFPMETA_DIR, "mlpipeline-ui-metadata.json"
+            ),
+            "mlpipeline-metrics": os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"),
         },
     )
     cop = add_default_function_resources(cop)

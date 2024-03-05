@@ -86,6 +86,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
         uploaded_data_item.upload(second_file_path)
 
+    @pytest.mark.skip(
+        reason="Skipping this test as it hangs when running against the CI system. ML-5598"
+    )
     def test_v3io_large_object_upload(self, tmp_path):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")

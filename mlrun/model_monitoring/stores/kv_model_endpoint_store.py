@@ -302,7 +302,7 @@ class KVModelEndpointStore(ModelEndpointStore):
                 )
         # Final cleanup of tsdb path
         tsdb_path.replace("://u", ":///u")
-        store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
+        store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
 
     def get_endpoint_real_time_metrics(
@@ -538,24 +538,24 @@ class KVModelEndpointStore(ModelEndpointStore):
             and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS]
             == "null"
         ):
-            endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.METRICS
-            ] = json.dumps(
-                {
-                    mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC: {
-                        mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
-                        mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS] = (
+                json.dumps(
+                    {
+                        mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC: {
+                            mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
+                            mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                        }
                     }
-                }
+                )
             )
         # Validate key `uid` instead of `endpoint_id`
         # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
         if mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID in endpoint:
-            endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.UID
-            ] = endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-            ]
+            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID] = (
+                endpoint[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
+                ]
+            )
 
     @staticmethod
     def _encode_field(field: typing.Union[str, bytes]) -> bytes:

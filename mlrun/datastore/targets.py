@@ -29,7 +29,7 @@ import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
-from mlrun.utils import now_date
+from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -43,7 +43,6 @@ from .utils import (
     filter_df_start_end_time,
     parse_kafka_url,
     select_columns_from_df,
-    store_path_to_spark,
 )
 
 
@@ -448,14 +447,11 @@ class BaseStoreTarget(DataTargetBase):
             if self.credentials_prefix
             else None
         )
-        store, resolved_store_path = mlrun.store_manager.get_or_create_store(
+        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        if self.get_target_path() and self.get_target_path().startswith("ds://"):
-            return store, store.url + resolved_store_path
-        else:
-            return store, self.get_target_path()
+        return store, url
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -925,27 +921,21 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(
-                self.get_target_path()
-            )
-            storage_spark_options = store.get_spark_options()
-            path = store.url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
+        store, path, url = mlrun.store_manager.get_or_create_store(
+            self.get_target_path()
+        )
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
                 "format": "parquet",
             }
-            result = {**result, **storage_spark_options}
-        else:
-            result = {
-                "path": store_path_to_spark(self.get_target_path()),
-                "format": "parquet",
-            }
+        )
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
-            result["partitionBy"] = partition_cols
-        return result
+            spark_options["partitionBy"] = partition_cols
+        return spark_options
 
     def get_dask_options(self):
         return {"format": "parquet"}
@@ -1067,24 +1057,18 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(
-                self.get_target_path()
-            )
-            storage_spark_options = store.get_spark_options()
-            path = store.url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
+        store, path, url = mlrun.store_manager.get_or_create_store(
+            self.get_target_path()
+        )
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
                 "format": "csv",
                 "header": "true",
             }
-            return {**result, **storage_spark_options}
-        else:
-            return {
-                "path": store_path_to_spark(self.get_target_path()),
-                "format": "csv",
-                "header": "true",
-            }
+        )
+        return spark_options
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1209,7 +1193,11 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
-            _, path_with_container = parse_path(self.get_target_path())
+            store, target_path = self._get_store_and_path()
+            storage_options = store.get_storage_options()
+            access_key = storage_options.get("v3io_access_key", access_key)
+
+            _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1227,17 +1215,31 @@ class NoSqlTarget(NoSqlBaseTarget):
     def get_table_object(self):
         from storey import Table, V3ioDriver
 
-        # TODO use options/cred
-        endpoint, uri = parse_path(self.get_target_path())
+        store, target_path = self._get_store_and_path()
+        endpoint, uri = parse_path(target_path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        store_access_key = storage_options.get("v3io_access_key")
+        env_access_key = self._secrets.get(
+            "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+        )
+        if store_access_key and env_access_key and store_access_key != env_access_key:
+            logger.warning(
+                "The Spark v3io connector does not support access_key parameterization."
+                "Spark will disregard the store-provided key."
+            )
         spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
+            "path": store.spark_url + target_path,
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1330,10 +1332,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
-
+        store, path = self._get_store_and_path()
         return {
             "key.column": "_spark_object_name",
-            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "table": "{" + store.spark_url + path,
             "format": "org.apache.spark.sql.redis",
             "host": parsed_endpoint.hostname,
             "port": parsed_endpoint.port,
@@ -1381,10 +1383,12 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        path = self.get_target_path()
+        store, path = self._get_store_and_path()
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
         endpoint, uri = parse_path(path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1395,7 +1399,9 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            storage=V3ioDriver(
+                webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
+            ),
             stream_path=uri,
             **self.attributes,
         )
@@ -1531,7 +1537,11 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_path(self.get_target_path())
+        store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key", access_key)
+
+        _, path_with_container = parse_path(target_path)
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(

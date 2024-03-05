@@ -132,6 +132,22 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         return attributes
 
 
+class DatastoreProfileV3io(DatastoreProfile):
+    type: str = pydantic.Field("v3io")
+    v3io_access_key: typing.Optional[str] = None
+    _private_attributes = "v3io_access_key"
+
+    def url(self, subpath):
+        subpath = subpath.lstrip("/")
+        return f"v3io:///{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.v3io_access_key:
+            res["V3IO_ACCESS_KEY"] = self.v3io_access_key
+        return res
+
+
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
     _private_attributes = ("access_key_id", "secret_key")
@@ -156,7 +172,7 @@ class DatastoreProfileS3(DatastoreProfile):
             res["AWS_PROFILE"] = self.profile_name
         if self.assume_role_arn:
             res["MLRUN_AWS_ROLE_ARN"] = self.assume_role_arn
-        return res if res else None
+        return res
 
     def url(self, subpath):
         return f"s3:/{subpath}"
@@ -199,7 +215,7 @@ class DatastoreProfileRedis(DatastoreProfile):
             res["REDIS_USER"] = self.username
         if self.password:
             res["REDIS_PASSWORD"] = self.password
-        return res if res else None
+        return res
 
     def url(self, subpath):
         return self.endpoint_url + subpath
@@ -220,7 +236,7 @@ class DatastoreProfileDBFS(DatastoreProfile):
             res["DATABRICKS_TOKEN"] = self.token
         if self.endpoint_url:
             res["DATABRICKS_HOST"] = self.endpoint_url
-        return res if res else None
+        return res
 
 
 class DatastoreProfileGCS(DatastoreProfile):
@@ -247,7 +263,7 @@ class DatastoreProfileGCS(DatastoreProfile):
             res["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         if self.gcp_credentials:
             res["GCP_CREDENTIALS"] = self.gcp_credentials
-        return res if res else None
+        return res
 
 
 class DatastoreProfileAzureBlob(DatastoreProfile):
@@ -292,7 +308,31 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
             res["sas_token"] = self.sas_token
         if self.credential:
             res["credential"] = self.credential
-        return res if res else None
+        return res
+
+
+class DatastoreProfileHdfs(DatastoreProfile):
+    type: str = pydantic.Field("hdfs")
+    _private_attributes = "token"
+    host: typing.Optional[str] = None
+    port: typing.Optional[int] = None
+    http_port: typing.Optional[int] = None
+    user: typing.Optional[str] = None
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.host:
+            res["HDFS_HOST"] = self.host
+        if self.port:
+            res["HDFS_PORT"] = self.port
+        if self.port:
+            res["HDFS_HTTP_PORT"] = self.http_port
+        if self.user:
+            res["HDFS_USER"] = self.user
+        return res or None
+
+    def url(self, subpath):
+        return f"hdfs://{self.host}:{self.http_port}{subpath}"
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):
@@ -346,6 +386,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
         ds_profile_factory = {
+            "v3io": DatastoreProfileV3io,
             "s3": DatastoreProfileS3,
             "redis": DatastoreProfileRedis,
             "basic": DatastoreProfileBasic,
@@ -354,6 +395,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "dbfs": DatastoreProfileDBFS,
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
+            "hdfs": DatastoreProfileHdfs,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

@@ -67,7 +67,7 @@ def test_get_stream_path():
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path
-        == f"http://nuclio-{TEST_PROJECT}-model-monitoring-stream.mlrun.svc.cluster.local:8080"
+        == f"http://nuclio-{TEST_PROJECT}-model-monitoring-stream.{mlrun.mlconf.namespace}.svc.cluster.local:8080"
     )
 
     # kafka stream path from env

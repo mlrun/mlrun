@@ -466,7 +466,7 @@ class MLRunPatcher(object):
         output = buf.getvalue()
         return output
 
-    def _exec_remote(self, cmd: List[str], live=False) -> str:
+    def _exec_remote(self, cmd: typing.List[str], live=False) -> str:
         cmd_str = shlex.join(cmd)
         logger.debug("Exec remote: %s", cmd_str)
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(

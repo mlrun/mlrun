@@ -43,8 +43,7 @@ class InvalidThresholdValueError(ValueError):
 
 
 class ValueClassifier(Protocol):
-    def value_to_status(self, value: float) -> ResultStatusApp:
-        ...
+    def value_to_status(self, value: float) -> ResultStatusApp: ...
 
 
 @dataclass

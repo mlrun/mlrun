@@ -46,7 +46,7 @@ def _get_runtime():
             "volume_mounts": [],
             "env": [],
             "description": "",
-            "build": {"commands": [], "requirements": []},
+            "build": {"commands": [], "requirements": [], "source_code_target_dir": ""},
             "affinity": None,
             "disable_auto_mount": False,
             "priority_class_name": "",

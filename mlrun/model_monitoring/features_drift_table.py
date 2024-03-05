@@ -120,7 +120,7 @@ class FeaturesDriftTablePlot:
         inputs_statistics: dict,
         metrics: dict[str, Union[dict, float]],
         drift_results: dict[str, DriftResultType],
-    ) -> str:
+    ) -> _PlotlyTableArtifact:
         """
         Produce the html code of the table plot with the given information and the stored configurations in the class.
 
@@ -129,7 +129,7 @@ class FeaturesDriftTablePlot:
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.
         :param drift_results:         The drift results per feature according to the rules of the monitor.
 
-        :return: The full path to the html file of the plot.
+        :return: The drift table as a plotly artifact.
         """
         figure = self._plot(
             features=list(inputs_statistics.keys()),
@@ -138,7 +138,7 @@ class FeaturesDriftTablePlot:
             metrics=metrics,
             drift_results=drift_results,
         )
-        return _PlotlyTableArtifact(figure=figure, key="drift_table_plot").get_body()
+        return _PlotlyTableArtifact(figure=figure, key="drift_table_plot")
 
     def _read_columns_names(self, statistics_dictionary: dict, drift_metrics: dict):
         """

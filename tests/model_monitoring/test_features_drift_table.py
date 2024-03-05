@@ -82,17 +82,13 @@ def plot_produce(context: mlrun.MLClientCtx):
         metrics_results_dictionary=metrics
     )
 
-    # Plot:
-    html_plot = FeaturesDriftTablePlot().produce(
-        sample_set_statistics=sample_data_statistics,
-        inputs_statistics=inputs_statistics,
-        metrics=metrics,
-        drift_results=drift_results,
-    )
-
-    # Log:
     context.log_artifact(
-        Artifact(body=html_plot, format="html", key="drift_table_plot")
+        FeaturesDriftTablePlot().produce(
+            sample_set_statistics=sample_data_statistics,
+            inputs_statistics=inputs_statistics,
+            metrics=metrics,
+            drift_results=drift_results,
+        )
     )
 
 

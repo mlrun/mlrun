@@ -2767,15 +2767,21 @@ class MlrunProject(ModelObj):
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-                          For using the pre-defined workflow's schedule, set `schedule=True`
+                          for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param source:    Remote source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          For other engines the source is to validate that the code is up-to-date
-        :param cleanup_ttl: Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                            workflow and all its resources are deleted)
-        :param notifications:           List of notifications to send for workflow completion
-
-        :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
+        :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          Can be a one of:
+                            1. Remote URL which is loaded dynamically to the workflow runner.
+                            2. A path to the project's context on the workflow runner's image.
+                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                          (enriched when building a project image with source, see `MlrunProject.build_image`).
+                          For other engines the source is used to validate that the code is up-to-date.
+        :param cleanup_ttl:
+                          Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          Workflow and all its resources are deleted)
+        :param notifications:
+                          List of notifications to send for workflow completion
+        :returns: Run id
         """
 
         arguments = arguments or {}
@@ -3174,6 +3180,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         builder_env: dict = None,
         extra_args: str = None,
+        source_code_target_dir: str = None,
     ):
         """specify builder configuration for the project
 
@@ -3194,6 +3201,8 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param source_code_target_dir: Path on the image where source code would be extracted
+            (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
@@ -3217,6 +3226,7 @@ class MlrunProject(ModelObj):
             overwrite=overwrite_build_params,
             builder_env=builder_env,
             extra_args=extra_args,
+            source_code_target_dir=source_code_target_dir,
         )
 
         if set_as_default and image != self.default_image:
@@ -3263,7 +3273,7 @@ class MlrunProject(ModelObj):
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
@@ -3329,6 +3339,11 @@ class MlrunProject(ModelObj):
                 builder_env=builder_env,
                 extra_args=extra_args,
                 force_build=True,
+            )
+
+            # Get the enriched target dir from the function
+            self.spec.build.source_code_target_dir = (
+                function.spec.build.source_code_target_dir
             )
 
         try:

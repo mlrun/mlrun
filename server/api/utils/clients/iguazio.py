@@ -31,6 +31,7 @@ import requests.adapters
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
@@ -615,7 +616,9 @@ class Client(
     ):
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        response = self._session.request(method, url, verify=False, **kwargs)
+        response = self._session.request(
+            method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs
+        )
         if not response.ok:
             try:
                 response_body = response.json()
@@ -724,20 +727,20 @@ class Client(
             }
         }
         if project.metadata.created:
-            body["data"]["attributes"][
-                "created_at"
-            ] = project.metadata.created.isoformat()
+            body["data"]["attributes"]["created_at"] = (
+                project.metadata.created.isoformat()
+            )
         if project.metadata.labels is not None:
-            body["data"]["attributes"][
-                "labels"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.labels
+            body["data"]["attributes"]["labels"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.labels
+                )
             )
         if project.metadata.annotations is not None:
-            body["data"]["attributes"][
-                "annotations"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.annotations
+            body["data"]["attributes"]["annotations"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.annotations
+                )
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
@@ -784,9 +787,9 @@ class Client(
             iguazio_project["attributes"].get("mlrun_project", "{}")
         )
         # name is mandatory in the mlrun schema, without adding it the schema initialization will fail
-        mlrun_project_without_common_fields.setdefault("metadata", {})[
-            "name"
-        ] = iguazio_project["attributes"]["name"]
+        mlrun_project_without_common_fields.setdefault("metadata", {})["name"] = (
+            iguazio_project["attributes"]["name"]
+        )
         mlrun_project = mlrun.common.schemas.Project(
             **mlrun_project_without_common_fields
         )

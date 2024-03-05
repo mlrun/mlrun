@@ -47,7 +47,7 @@ def test_ui_clear_cache_middleware(
 ) -> None:
     for middleware in client.app.user_middleware:
         if "UiClearCacheMiddleware" in str(middleware.cls):
-            middleware.options["backend_version"] = backend_version
+            middleware.kwargs["backend_version"] = backend_version
     client.app.middleware_stack = client.app.build_middleware_stack()
 
     with unittest.mock.patch.object(
@@ -78,8 +78,8 @@ def test_ensure_be_version_middleware(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     for middleware in client.app.user_middleware:
-        if "backend_version" in middleware.options:
-            middleware.options["backend_version"] = "dummy-version"
+        if "backend_version" in middleware.kwargs:
+            middleware.kwargs["backend_version"] = "dummy-version"
     client.app.middleware_stack = client.app.build_middleware_stack()
     response = client.get("client-spec")
     assert (

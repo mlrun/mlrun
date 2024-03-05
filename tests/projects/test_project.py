@@ -136,6 +136,26 @@ def test_sync_functions_with_names_different_than_default(rundb_mock):
     assert project.spec._function_definitions == project_function_definition
 
 
+def test_sync_functions_preserves_existing(rundb_mock):
+    project = mlrun.new_project("project-name", save=False)
+    project.set_function("hub://describe", "describe")
+    project.set_function("hub://auto-trainer", "auto-trainer")
+
+    old_trainer = project.spec._function_objects.pop("auto-trainer")
+    old_describe = project.spec._function_objects["describe"]
+
+    project.sync_functions(always=False)
+    assert old_trainer is not project.spec._function_objects["auto-trainer"]
+    assert old_trainer is not project.get_function("auto-trainer")
+    assert old_describe is project.spec._function_objects["describe"]
+    assert old_describe is project.get_function("describe")
+
+    project._initialized = False
+    project.sync_functions(always=True)
+    assert old_describe is not project.spec._function_objects["describe"]
+    assert old_describe is not project.get_function("describe")
+
+
 def test_sync_functions_unavailable_file():
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
@@ -953,7 +973,7 @@ def test_export_to_zip(rundb_mock):
     assert os.path.isfile(zip_path)
 
     zipf = zipfile.ZipFile(zip_path, "r")
-    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+    assert set(zipf.namelist()) == {"./", "f.py", "project.yaml"}
 
     # check upload to (remote) DataItem
     project.export("memory://x.zip")

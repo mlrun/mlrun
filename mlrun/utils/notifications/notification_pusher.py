@@ -303,9 +303,9 @@ class NotificationPusher(_NotificationPusherBase):
                 traceback=traceback.format_exc(),
             )
             update_notification_status_kwargs["reason"] = f"Exception error: {str(exc)}"
-            update_notification_status_kwargs[
-                "status"
-            ] = mlrun.common.schemas.NotificationStatus.ERROR
+            update_notification_status_kwargs["status"] = (
+                mlrun.common.schemas.NotificationStatus.ERROR
+            )
             raise exc
         finally:
             self._update_notification_status(
@@ -352,9 +352,9 @@ class NotificationPusher(_NotificationPusherBase):
                 traceback=traceback.format_exc(),
             )
             update_notification_status_kwargs["reason"] = f"Exception error: {str(exc)}"
-            update_notification_status_kwargs[
-                "status"
-            ] = mlrun.common.schemas.NotificationStatus.ERROR
+            update_notification_status_kwargs["status"] = (
+                mlrun.common.schemas.NotificationStatus.ERROR
+            )
             raise exc
         finally:
             await mlrun.utils.helpers.run_in_threadpool(

@@ -139,9 +139,9 @@ class _CustomRequestContext(_RequestContext):
 
                 # enrich user agent
                 # will help traceability and debugging
-                headers[
-                    aiohttp.hdrs.USER_AGENT
-                ] = f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
+                headers[aiohttp.hdrs.USER_AGENT] = (
+                    f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
+                )
 
                 response: typing.Optional[
                     aiohttp.ClientResponse

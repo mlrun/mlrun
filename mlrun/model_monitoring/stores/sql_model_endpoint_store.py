@@ -31,7 +31,6 @@ from .models import get_model_endpoints_table
 
 
 class SQLModelEndpointStore(ModelEndpointStore):
-
     """
     Handles the DB operations when the DB target is from type SQL. For the SQL operations, we use SQLAlchemy, a Python
     SQL toolkit that handles the communication with the database.  When using SQL for storing the model endpoints

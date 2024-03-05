@@ -742,20 +742,20 @@ class Client(
             }
         }
         if project.metadata.created:
-            body["data"]["attributes"][
-                "created_at"
-            ] = project.metadata.created.isoformat()
+            body["data"]["attributes"]["created_at"] = (
+                project.metadata.created.isoformat()
+            )
         if project.metadata.labels is not None:
-            body["data"]["attributes"][
-                "labels"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.labels
+            body["data"]["attributes"]["labels"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.labels
+                )
             )
         if project.metadata.annotations is not None:
-            body["data"]["attributes"][
-                "annotations"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.annotations
+            body["data"]["attributes"]["annotations"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.annotations
+                )
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
@@ -802,9 +802,9 @@ class Client(
             iguazio_project["attributes"].get("mlrun_project", "{}")
         )
         # name is mandatory in the mlrun schema, without adding it the schema initialization will fail
-        mlrun_project_without_common_fields.setdefault("metadata", {})[
-            "name"
-        ] = iguazio_project["attributes"]["name"]
+        mlrun_project_without_common_fields.setdefault("metadata", {})["name"] = (
+            iguazio_project["attributes"]["name"]
+        )
         mlrun_project = mlrun.common.schemas.Project(
             **mlrun_project_without_common_fields
         )

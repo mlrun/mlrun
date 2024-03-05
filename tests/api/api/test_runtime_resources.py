@@ -694,9 +694,9 @@ def _filter_kind_from_grouped_by_project_runtime_resources_output(
     ) in grouped_by_project_runtime_resources_output.items():
         for kind, runtime_resources in kind_runtime_resources_map.items():
             if kind == filter_kind:
-                filtered_output.setdefault(project, {})[
-                    kind
-                ] = grouped_by_project_runtime_resources_output[project][kind]
+                filtered_output.setdefault(project, {})[kind] = (
+                    grouped_by_project_runtime_resources_output[project][kind]
+                )
     return filtered_output
 
 

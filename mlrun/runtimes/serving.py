@@ -523,9 +523,9 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.tag = self.metadata.tag
 
             function_object.metadata.labels = function_object.metadata.labels or {}
-            function_object.metadata.labels[
-                "mlrun/parent-function"
-            ] = self.metadata.name
+            function_object.metadata.labels["mlrun/parent-function"] = (
+                self.metadata.name
+            )
             function_object._is_child_function = True
             if not function_object.spec.graph:
                 # copy the current graph only if the child doesnt have a graph of his own

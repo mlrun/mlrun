@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
-
 import copy
 from contextlib import contextmanager
 from datetime import datetime, timedelta

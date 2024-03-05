@@ -2363,7 +2363,8 @@ class MlrunProject(ModelObj):
         :param url: remote git url
         :param name: name for the remote (default is 'origin')
         :param branch: Git branch to use as source
-        :param overwrite: if `overwrite` is True, update the existing remote with the given name if it already exists.
+        :param overwrite: if `overwrite` is True, and a remote with the given name already exists,
+                          it will update the existing remote with the given url.
                           If set to False (default),
                           raise an error when attempting to create a remote with a name that already exists
         :raises MLRunConflictError: If a remote with the same name already exists and overwrite

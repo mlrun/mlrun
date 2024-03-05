@@ -279,8 +279,8 @@ feature_set = fstore.FeatureSet("fs-new",
                                 entities=[fstore.Entity("id")], 
                                 engine="pandas",
                                 )
-# Adding multiply step, with specific parameters
-feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
+# Adding multiply step, with specific class parameters passed as kwargs
+feature_set.graph.to(class_name="MultiplyFeature", feature="number1", value=4)
 df_pandas = feature_set.ingest(data)
 ```
 

@@ -490,8 +490,8 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
@@ -611,7 +611,7 @@ default_config = {
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
+        "timeouts": {"local": 120, "kfp": 30, "remote": 90},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -963,10 +963,10 @@ class Config:
             with_gpu = (
                 with_gpu_requests if requirement == "requests" else with_gpu_limits
             )
-            resources[
-                requirement
-            ] = self.get_default_function_pod_requirement_resources(
-                requirement, with_gpu
+            resources[requirement] = (
+                self.get_default_function_pod_requirement_resources(
+                    requirement, with_gpu
+                )
             )
         return resources
 

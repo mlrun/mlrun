@@ -543,7 +543,7 @@ class MonitoringApplicationController:
         """
         if self.parquet_directory.startswith("v3io:///"):
             # create fs with access to the user side (under projects)
-            store, _ = mlrun.store_manager.get_or_create_store(
+            store, _, _ = mlrun.store_manager.get_or_create_store(
                 self.parquet_directory,
                 {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )

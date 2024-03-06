@@ -458,6 +458,10 @@ class HTTPRunDB(RunDBInterface):
                     setattr(
                         config.feature_store.data_prefixes, prefix, server_prefix_value
                     )
+            config.feature_store.default_targets = (
+                server_cfg.get("feature_store_default_targets")
+                or config.feature_store.default_targets
+            )
 
         except Exception as exc:
             logger.warning(
@@ -1137,17 +1141,17 @@ class HTTPRunDB(RunDBInterface):
             structured_dict = {}
             for project, job_runtime_resources_map in response.json().items():
                 for job_id, runtime_resources in job_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        job_id
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[job_id] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             structured_dict = {}
             for project, kind_runtime_resources_map in response.json().items():
                 for kind, runtime_resources in kind_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        kind
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[kind] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         else:
             raise NotImplementedError(
@@ -1206,9 +1210,9 @@ class HTTPRunDB(RunDBInterface):
         structured_dict = {}
         for project, kind_runtime_resources_map in response.json().items():
             for kind, runtime_resources in kind_runtime_resources_map.items():
-                structured_dict.setdefault(project, {})[
-                    kind
-                ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                structured_dict.setdefault(project, {})[kind] = (
+                    mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                )
         return structured_dict
 
     def create_schedule(
@@ -3476,7 +3480,7 @@ class HTTPRunDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: list[mlrun.model.Notification] = None,
-    ):
+    ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
 

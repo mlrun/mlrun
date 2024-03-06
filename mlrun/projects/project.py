@@ -36,7 +36,6 @@ import requests
 import yaml
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
@@ -617,9 +616,14 @@ def _load_project_dir(context, name="", subpath=""):
         # If there is a setup script do not force having project.yaml file
         project = MlrunProject()
     else:
-        raise mlrun.errors.MLRunNotFoundError(
-            "project or function YAML not found in path"
+        message = "Project or function YAML not found in path"
+        logger.error(
+            message,
+            context=context,
+            name=name,
+            subpath=subpath,
         )
+        raise mlrun.errors.MLRunNotFoundError(message)
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name
@@ -1247,20 +1251,20 @@ class MlrunProject(ModelObj):
         self,
         name,
         workflow_path: str,
-        embed=False,
-        engine=None,
+        embed: bool = False,
+        engine: Optional[str] = None,
         args_schema: list[EntrypointParam] = None,
-        handler=None,
+        handler: Optional[str] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        ttl=None,
-        image: str = None,
+        ttl: Optional[int] = None,
+        image: Optional[str] = None,
         **args,
     ):
         """Add or update a workflow, specify a name and the code path
 
         :param name:          Name of the workflow
         :param workflow_path: URL (remote) / Path (absolute or relative to the project code path i.e.
-                <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
+            <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
         :param embed:         Add the workflow code into the project.yaml
         :param engine:        Workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   List of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
@@ -1803,10 +1807,13 @@ class MlrunProject(ModelObj):
     ) -> mlrun.runtimes.BaseRuntime:
         """
         Update or add a monitoring function to the project.
+        Note: to deploy the function after linking it to the project,
+        call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
-            project.set_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.set_model_monitoring_function(
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
+            )
 
         :param func:                    Function object or spec/code url, None refers to current Notebook
         :param name:                    Name of the function (under the project), can be specified with a tag to support
@@ -1821,7 +1828,7 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            A list of python packages
         :param requirements_file:       Path to a python requirements file
-        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """

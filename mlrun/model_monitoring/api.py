@@ -476,11 +476,11 @@ def trigger_drift_batch_job(
         db_session = mlrun.get_run_db()
 
     # Register the monitoring batch job (do nothing if already exist) and get the job function as a dictionary
-    batch_function_dict: typing.Dict[
-        str, typing.Any
-    ] = db_session.deploy_monitoring_batch_job(
-        project=project,
-        default_batch_image=default_batch_image,
+    batch_function_dict: typing.Dict[str, typing.Any] = (
+        db_session.deploy_monitoring_batch_job(
+            project=project,
+            default_batch_image=default_batch_image,
+        )
     )
 
     # Prepare current run params

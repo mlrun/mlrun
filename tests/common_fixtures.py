@@ -385,6 +385,7 @@ class RunDBMock:
         force_build=False,
     ):
         function = func.to_dict()
+        function.setdefault("status", {})
         function["status"]["state"] = "ready"
         function["status"]["nuclio_name"] = "test-nuclio-name"
         self._functions[function["metadata"]["name"]] = function

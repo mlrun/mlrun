@@ -115,31 +115,28 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
     def _compute_metrics_per_feature(
         self, sample_df_stats: DataFrame, feature_stats: DataFrame
-    ) -> dict[type[HistogramDistanceMetric], list[float]]:
+    ) -> DataFrame:
         """Compute the metrics for the different features and labels"""
-        metrics_per_feature: dict[type[HistogramDistanceMetric], list[float]] = {
-            metric_class: [] for metric_class in self.metrics
-        }
+        metrics_per_feature = DataFrame(
+            columns=[metric_class.NAME for metric_class in self.metrics]
+        )
 
         for (sample_feat, sample_hist), (reference_feat, reference_hist) in zip(
             sample_df_stats.items(), feature_stats.items()
         ):
             assert sample_feat == reference_feat, "The features do not match"
+            feature_name = sample_feat
             self.context.logger.info(
-                "Computing metrics for feature", feature_name=sample_feat
+                "Computing metrics for feature", feature_name=feature_name
             )
             sample_arr = np.asarray(sample_hist)
             reference_arr = np.asarray(reference_hist)
-            for metric in self.metrics:
-                metric_name = metric.NAME
-                self.context.logger.debug(
-                    "Computing data drift metric",
-                    metric_name=metric_name,
-                    feature_name=sample_feat,
-                )
-                metrics_per_feature[metric].append(
-                    metric(distrib_t=sample_arr, distrib_u=reference_arr).compute()
-                )
+            metrics_per_feature.loc[feature_name] = {  # pyright: ignore[reportCallIssue,reportArgumentType]
+                metric.NAME: metric(
+                    distrib_t=sample_arr, distrib_u=reference_arr
+                ).compute()
+                for metric in self.metrics
+            }
         self.context.logger.info("Finished computing the metrics")
 
         return metrics_per_feature
@@ -157,27 +154,25 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
 
     def _get_results(
-        self, metrics_per_feature: dict[type[HistogramDistanceMetric], list[float]]
+        self, metrics_per_feature: DataFrame
     ) -> list[ModelMonitoringApplicationResult]:
         """Average the metrics over the features and add the status"""
         results: list[ModelMonitoringApplicationResult] = []
-        hellinger_tvd_values: list[float] = []
-        for metric_class, metric_values in metrics_per_feature.items():
-            self.context.logger.debug(
-                "Averaging metric over the features", metric_name=metric_class.NAME
-            )
-            value = np.mean(metric_values)
-            if metric_class == KullbackLeiblerDivergence:
+
+        self.context.logger.debug("Averaging metrics over the features")
+        metrics_mean = metrics_per_feature.mean().to_dict()
+
+        self.context.logger.debug("Creating the results")
+        for name, value in metrics_mean.items():
+            if name == KullbackLeiblerDivergence.NAME:
                 # This metric is not bounded from above [0, inf).
                 # No status is currently reported for KL divergence
                 status = ResultStatusApp.irrelevant
             else:
                 status = self._value_classifier.value_to_status(value)
-            if metric_class in self._REQUIRED_METRICS:
-                hellinger_tvd_values.append(value)
             results.append(
                 ModelMonitoringApplicationResult(
-                    name=f"{metric_class.NAME}_mean",
+                    name=f"{name}_mean",
                     value=value,
                     kind=self.METRIC_KIND,
                     status=status,
@@ -185,9 +180,16 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             )
 
         self._add_general_drift_result(
-            results=results, value=np.mean(hellinger_tvd_values)
+            results=results,
+            value=np.mean(
+                [
+                    metrics_mean[HellingerDistance.NAME],
+                    metrics_mean[TotalVarianceDistance.NAME],
+                ]
+            ),
         )
 
+        self.context.logger.info("Finished with the results")
         return results
 
     def do_tracking(

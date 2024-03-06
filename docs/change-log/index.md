@@ -44,7 +44,7 @@
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
-|ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
+|ML-3618|Integrate MLflow: seamlessly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
 |ML-4343|Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
 
 ### Feature store

@@ -16,7 +16,7 @@ import dataclasses
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -126,7 +126,9 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         return results, event
 
     def _lazy_init(self, app_name: str):
-        self.context = self._create_context_for_logging(app_name=app_name)
+        self.context = cast(
+            mlrun.MLClientCtx, self._create_context_for_logging(app_name=app_name)
+        )
 
     @abstractmethod
     def do_tracking(

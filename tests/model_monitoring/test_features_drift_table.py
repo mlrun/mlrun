@@ -24,8 +24,8 @@ import mlrun.model_monitoring.applications.histogram_data_drift as histogram_dat
 import mlrun.utils
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.data_types.infer import DFDataInfer, default_num_bins
-from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
+from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 
 
 def generate_data(

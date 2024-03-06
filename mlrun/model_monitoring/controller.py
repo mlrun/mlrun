@@ -31,10 +31,10 @@ from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_his
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.errors import err_to_str
-from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     batch_dict2timedelta,
+    calculate_inputs_statistics,
     get_monitoring_parquet_path,
     get_stream_path,
 )

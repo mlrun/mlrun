@@ -107,7 +107,7 @@ class TestTSDB:
         os.getenv("V3IO_FRAMESD") is None or os.getenv("V3IO_ACCESS_KEY") is None,
         reason="Configure Framsed to access V3IO store targets",
     )
-    def test_no_extra(
+    def test_tsdb_writer(
         event: AppResultEvent,
         writer: ModelMonitoringWriter,
     ) -> None:

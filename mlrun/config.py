@@ -1059,7 +1059,7 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
-        application_name: str = None,
+        function_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1074,7 +1074,7 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:    Application name, None for model_monitoring_stream.
+        :param function_name:    Application name, None for model_monitoring_stream.
 
         :return:                Full configured path for the provided kind.
         """
@@ -1088,20 +1088,19 @@ class Config:
                 return store_prefix_dict[kind].format(project=project)
 
             if (
-                application_name
+                function_name
+                and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind
-                    if application_name is None
-                    else f"{kind}-{application_name.lower()}",
+                    if function_name is None
+                    else f"{kind}-{function_name.lower()}",
                 )
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=project,
-                kind=kind
-                if application_name is None
-                else f"{kind}-{application_name.lower()}",
+                kind=kind,
             )
 
         # Get the current offline path from the configuration

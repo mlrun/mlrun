@@ -3078,36 +3078,58 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
 
-    def create_model_monitoring_controller(
+    def update_model_monitoring_controller(
         self,
-        project: str = "",
-        default_controller_image: str = "mlrun/mlrun",
+        project: str,
         base_period: int = 10,
+        image: str = "mlrun/mlrun",
     ):
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Redeploy model monitoring application controller function.
 
         :param project:                  Project name.
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
-                  runtime object by calling ~mlrun.new_function.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image: The image of the model monitoring controller function.
+                                         By default, the image is mlrun/mlrun.
         """
 
         params = {
-            "default_controller_image": default_controller_image,
+            "image": image,
             "base_period": base_period,
         }
-        path = f"projects/{project}/jobs/model-monitoring-controller"
+        path = f"projects/{project}/model-monitoring/model-monitoring-controller"
+        self.api_call(method="POST", path=path, params=params)
 
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        """
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
+
+
+        :param project:                  Project name.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
+        """
+
+        params = {
+            "base_period": base_period,
+            "image": image,
+        }
+        path = f"projects/{project}/model-monitoring/enable-model-monitoring"
+        self.api_call(method="POST", path=path, params=params)
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]

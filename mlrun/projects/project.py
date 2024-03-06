@@ -1993,7 +1993,8 @@ class MlrunProject(ModelObj):
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ) -> dict:
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
         While the main goal of the controller function is to handle the monitoring processing and triggering
@@ -2003,12 +2004,14 @@ class MlrunProject(ModelObj):
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
 
-        :param default_controller_image: Deprecated.
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         is triggered. By default, the base period is 10 minutes.
-        :param image:                    The image of the model monitoring controller, writer & monitoring
-                                         stream functions, which are real time nuclio functions.
-                                         By default, the image is mlrun/mlrun.
+        :param default_controller_image:        Deprecated.
+        :param base_period:                     The time period in minutes in which the model monitoring controller function
+                                                is triggered. By default, the base period is 10 minutes.
+        :param image:                           The image of the model monitoring controller, writer & monitoring
+                                                stream functions, which are real time nuclio functions.
+                                                By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+
         :returns: model monitoring controller job as a dictionary.
         """
         if default_controller_image != "mlrun/mlrun":
@@ -2020,17 +2023,28 @@ class MlrunProject(ModelObj):
             )
             image = default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.enable_model_monitoring(
+        db.enable_model_monitoring(
             project=self.name,
             image=image,
             base_period=base_period,
         )
+        if deploy_histogram_data_drift_app:
+            fn = self.set_model_monitoring_function(
+                func=str(
+                    pathlib.Path(__file__).parent.parent
+                    / "model_monitoring/applications/histogram_data_drift.py"
+                ),
+                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+                application_class="HistogramDataDriftApplication",
+                image="mlrun/mlrun",
+            )
+            fn.deploy()
 
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ) -> dict:
+    ) -> None:
         """
         Redeploy model monitoring application controller functions.
 
@@ -2040,14 +2054,13 @@ class MlrunProject(ModelObj):
         :param image:                    The image of the model monitoring controller, writer & monitoring
                                          stream functions, which are real time nuclio functions.
                                          By default, the image is mlrun/mlrun.
-        :param overwrite:                If true, overwrite the existing model monitoring controller. By default, False.
         :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.update_model_monitoring_controller(
+        db.update_model_monitoring_controller(
             project=self.name,
-            image=image,
             base_period=base_period,
+            image=image,
         )
 
     def disable_model_monitoring(self):

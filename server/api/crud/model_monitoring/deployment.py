@@ -94,7 +94,7 @@ class MonitoringDeployment:
                                             stream functions, which are real time nuclio functino.
                                             By default, the image is mlrun/mlrun.
         """
-        self.deploy_model_monitoring_controller(
+        controller_dict = self.deploy_model_monitoring_controller(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
@@ -103,7 +103,7 @@ class MonitoringDeployment:
             base_period=base_period,
         )
 
-        self.deploy_model_monitoring_writer_application(
+        writer_dict = self.deploy_model_monitoring_writer_application(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
@@ -111,13 +111,19 @@ class MonitoringDeployment:
             writer_image=image,
         )
 
-        self.deploy_model_monitoring_stream_processing(
+        stream_dict = self.deploy_model_monitoring_stream_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
             stream_image=image,
         )
+
+        return {
+            k: v
+            for d in [controller_dict, writer_dict, stream_dict]
+            for k, v in d.items()
+        }
 
     def deploy_model_monitoring_stream_processing(
         self,
@@ -126,7 +132,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         stream_image: str = "mlrun/mlrun",
-    ) -> None:
+    ) -> dict[str, typing.Any]:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
         to monitor the log of the data stream. It is triggered when a new log entry is detected.
@@ -163,11 +169,15 @@ class MonitoringDeployment:
         # Adding label to the function - will be used to identify the stream pod
         fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
-        server.api.api.endpoints.functions._build_function(
+        fn, ready = server.api.api.endpoints.functions._build_function(
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
         )
+        return {
+            "stream_data": fn.to_dict(),
+            "stream_ready": ready,
+        }
 
     def deploy_model_monitoring_controller(
         self,
@@ -178,7 +188,7 @@ class MonitoringDeployment:
         base_period: int,
         controller_image: str = "mlrun/mlrun",
         overwrite: bool = False,
-    ) -> typing.Union[tuple[mlrun.runtimes.ServingRuntime, typing.Any], None]:
+    ) -> dict[str, typing.Any]:
         """
         Deploy model monitoring application controller function.
         The main goal of the controller function is to handle the monitoring processing and triggering applications.
@@ -228,11 +238,16 @@ class MonitoringDeployment:
             "cron_interval",
             spec=nuclio.CronTrigger(interval=f"{base_period}m"),
         )
-        return server.api.api.endpoints.functions._build_function(
+        fn, ready = server.api.api.endpoints.functions._build_function(
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
         )
+
+        return {
+            "controller_data": fn.to_dict(),
+            "controller_ready": ready,
+        }
 
     def deploy_model_monitoring_batch_processing(
         self,
@@ -364,7 +379,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         writer_image: str = "mlrun/mlrun",
-    ):
+    ) -> dict[str, typing.Any]:
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
         to write all the monitoring application result to the databases. It is triggered by those applications.
@@ -394,11 +409,16 @@ class MonitoringDeployment:
         # Adding label to the function - will be used to identify the writer pod
         fn.metadata.labels = {"type": "model-monitoring-writer"}
 
-        server.api.api.endpoints.functions._build_function(
+        fn, ready = server.api.api.endpoints.functions._build_function(
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
         )
+
+        return {
+            "writer_data": fn.to_dict(),
+            "writer_ready": ready,
+        }
 
     def _initial_model_monitoring_stream_processing_function(
         self,

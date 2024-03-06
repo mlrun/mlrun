@@ -676,3 +676,19 @@ class RunDBInterface(ABC):
         self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
     ):
         pass
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        pass
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        pass

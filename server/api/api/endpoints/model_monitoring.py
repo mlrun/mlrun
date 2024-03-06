@@ -72,7 +72,7 @@ async def enable_model_monitoring(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
         )
 
-    MonitoringDeployment().deploy_monitoring_functions(
+    return MonitoringDeployment().deploy_monitoring_functions(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         db_session=db_session,
@@ -89,8 +89,8 @@ async def update_model_monitoring_controller(
         deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(deps.get_db_session),
-    image: str = "mlrun/mlrun",
     base_period: int = 10,
+    image: str = "mlrun/mlrun",
 ):
     """
     Redeploy model monitoring application controller function.
@@ -99,11 +99,11 @@ async def update_model_monitoring_controller(
     :param project:                  Project name.
     :param auth_info:                The auth info of the request.
     :param db_session:               A session that manages the current dialog with the database.
+    :param base_period:              The time period in minutes in which the model monitoring controller function
+                                     triggers. By default, the base period is 10 minutes.
     :param image:                    The default image of the model monitoring controller job. Note that the writer
                                      function, which is a real time nuclio functino, will be deployed with the same
                                      image. By default, the image is mlrun/mlrun.
-    :param base_period:              The time period in minutes in which the model monitoring controller function
-                                     triggers. By default, the base period is 10 minutes.
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -137,7 +137,7 @@ async def update_model_monitoring_controller(
             f"Run `project.enable_model_monitoring()` first."
         )
 
-    MonitoringDeployment().deploy_model_monitoring_controller(
+    return MonitoringDeployment().deploy_model_monitoring_controller(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         db_session=db_session,

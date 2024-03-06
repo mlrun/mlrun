@@ -302,9 +302,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         os.environ["MLRUN_EXEC_CODE"] = b64encode(nonpy_code.encode("utf-8")).decode(
             "utf-8"
         )
-        os.environ[
-            "MLRUN_EXEC_CONFIG"
-        ] = '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "job"}}}'
+        os.environ["MLRUN_EXEC_CONFIG"] = (
+            '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "job"}}}'
+        )
 
         # --kfp flag will force the logs to print (for the assert)
         out = self._exec_run(

@@ -1459,6 +1459,7 @@ def test_init_function_from_dict_function_in_spec():
                     "base_image": "iguazio/spark-app:3.5.5-b697",
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
+                    "source_code_target_dir": "/home/mlrun_code/",
                 },
                 "description": "",
                 "disable_auto_mount": False,

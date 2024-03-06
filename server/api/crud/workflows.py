@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import uuid
 
 from sqlalchemy.orm import Session
@@ -140,7 +141,9 @@ class WorkflowRunners(
         """
         meta_uid = uuid.uuid4().hex
 
-        save = self._set_source(project, workflow_request.source)
+        source, save, is_context = self._validate_source(
+            project, workflow_request.source
+        )
         workflow_spec = workflow_request.spec
         run_object = RunObject(
             spec=RunSpec(
@@ -178,6 +181,12 @@ class WorkflowRunners(
             ),
         )
 
+        if is_context:
+            # The source is a context (local path contained in the image),
+            # load the project from the context instead of remote URL
+            run_object.spec.parameters["project_context"] = source
+            run_object.spec.parameters.pop("url", None)
+
         # Setting labels:
         return self._label_run_object(run_object, labels)
 
@@ -187,6 +196,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         load_only: bool = False,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> RunObject:
         """
         Run workflow runner.
@@ -195,6 +205,7 @@ class WorkflowRunners(
         :param project:             MLRun project
         :param workflow_request:    contains the workflow spec, that will be executed
         :param load_only:           If True, will only load the project remotely (without running workflow)
+        :param auth_info:           auth info of the request
 
         :returns: run context object (RunObject) with run metadata, results and status
         """
@@ -224,12 +235,17 @@ class WorkflowRunners(
             ]
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
+
+        # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
+        #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to
+        #  make sure it is safe for scheduling and project load endpoint.
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
             notifications=notifications,
             local=False,
             watch=False,
+            auth_info=auth_info,
         )
 
     @staticmethod
@@ -289,11 +305,11 @@ class WorkflowRunners(
         :returns: RunObject ready for execution.
         """
         source = workflow_request.source if workflow_request else ""
-        save = self._set_source(project, source, load_only)
+        source, save, is_context = self._validate_source(project, source, load_only)
         run_object = RunObject(
             spec=RunSpec(
                 parameters=dict(
-                    url=project.spec.source,
+                    url=source,
                     project_name=project.metadata.name,
                     load_only=load_only,
                     save=save,
@@ -308,6 +324,12 @@ class WorkflowRunners(
             ),
             metadata=RunMetadata(name=run_name),
         )
+
+        if is_context:
+            # The source is a context (local path contained in the image),
+            # load the project from the context instead of remote URL
+            run_object.spec.parameters["project_context"] = source
+            run_object.spec.parameters.pop("url", None)
 
         if not load_only:
             workflow_spec = workflow_request.spec
@@ -330,36 +352,63 @@ class WorkflowRunners(
         return self._label_run_object(run_object, labels)
 
     @staticmethod
-    def _set_source(
+    def _validate_source(
         project: mlrun.common.schemas.Project, source: str, load_only: bool = False
-    ) -> bool:
+    ) -> tuple[str, bool, bool]:
         """
-        Setting the project source.
         In case the user provided a source we want to load the project from the source
         (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
 
         :param project:     MLRun project
-        :param source:      the source of the project, needs to be a remote URL that contains the project yaml file.
-        :param load_only:   if we only load the project, it must be saved to ensure we are not running a pipeline
+        :param source:      The source of the project, remote URL or context on image that contains the
+                            project yaml file.
+        :param load_only:   If we only load the project, it must be saved to ensure we are not running a pipeline
                             without a project as it's not supported.
 
-        :returns: True if the project need to be saved afterward.
+        :returns: A tuple of:
+              [0] = The source string.
+              [1] = Bool if the project need to be saved afterward.
+              [2] = Bool if the source is a path.
         """
 
+        source = source or project.spec.source
         save = True
-        if source and not load_only:
-            save = False
-            project.spec.source = source
-
-        if "://" not in project.spec.source:
+        if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Remote workflows can only be performed by a project with remote source (e.g git:// or http://),"
-                f" but the specified source '{project.spec.source}' is not remote. "
-                f"Either put your code in Git, or archive it and then set a source to it."
-                f" For more details, read"
+                "Project source is required. Either specify the source in the project or provide it in the request."
+            )
+
+        if not load_only:
+            save = False
+
+            # Path like source is not supported for load_only since it uses the mlrun default image
+            if source.startswith("/"):
+                return source, save, True
+
+            if source.startswith("./") or source == ".":
+                # When the source is relative, it is relative to the project's source_code_target_dir
+                # If the project's source_code_target_dir is not set, the source is relative to the cwd
+                if project.spec.build and project.spec.build.source_code_target_dir:
+                    source = os.path.normpath(
+                        os.path.join(project.spec.build.source_code_target_dir, source)
+                    )
+                return source, save, True
+
+        if "://" not in source:
+            if load_only:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid URL '{source}' for loading project '{project.metadata.name}'. "
+                    f"Expected to be in format: <scheme>://<netloc>/<path>;<params>?<query>#<fragment>."
+                )
+
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid source '{source}' for remote workflow."
+                f"Expected to be a remote URL or a path to the project context on image."
+                f" For more details, see"
                 f" https://docs.mlrun.org/en/latest/concepts/scheduled-jobs.html#scheduling-a-workflow"
             )
-        return save
+
+        return source, save, False
 
     @staticmethod
     def _label_run_object(

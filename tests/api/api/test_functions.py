@@ -359,6 +359,7 @@ def test_tracking_on_serving(
     client: fastapi.testclient.TestClient,
     httpserver,
     monkeypatch,
+    k8s_secrets_mock,
 ):
     """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
     generated as expected when the user applies model monitoring on a serving function

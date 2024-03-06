@@ -276,11 +276,14 @@ class TestAzureBlob:
         # Create the DataFrames
         df1 = pd.DataFrame(data1)
         df2 = pd.DataFrame(data2)
-        with tempfile.NamedTemporaryFile(
-            suffix=f".{file_extension}", delete=True
-        ) as temp_file1, tempfile.NamedTemporaryFile(
-            suffix=f".{file_extension}", delete=True
-        ) as temp_file2:
+        with (
+            tempfile.NamedTemporaryFile(
+                suffix=f".{file_extension}", delete=True
+            ) as temp_file1,
+            tempfile.NamedTemporaryFile(
+                suffix=f".{file_extension}", delete=True
+            ) as temp_file2,
+        ):
             first_file_path = temp_file1.name
             second_file_path = temp_file2.name
             writer(df1, temp_file1.name, index=False)

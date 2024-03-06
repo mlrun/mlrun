@@ -427,6 +427,7 @@ class TestBumpModelEndpointLastRequest:
     def test_get_monitoring_time_window_from_controller_run(
         project: str,
         db: NopDB,
+        function: mlrun.runtimes.ServingRuntime,
     ) -> None:
         with patch.object(db, "get_function", return_value=function):
             assert _get_monitoring_time_window_from_controller_run(

@@ -33,6 +33,7 @@ import mlrun
 import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
+import mlrun.utils.v3io_clients
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
@@ -72,8 +73,9 @@ class _V3IORecordsChecker:
     def custom_setup_class(cls, project_name: str) -> None:
         cls._v3io_container = ModelMonitoringWriter.get_v3io_container(project_name)
         cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
-        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
-            cls._v3io_container
+        cls._tsdb_storage = mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
+            container=cls._v3io_container,
         )
 
     @classmethod

@@ -102,11 +102,9 @@ class ModelMonitoringWriter(StepToDict):
         self.name = project  # required for the deployment process
         self._v3io_container = self.get_v3io_container(self.name)
         self._kv_client = self._get_v3io_client().kv
-        # self._tsdb_client = self._get_v3io_frames_client(self._v3io_container)
         self._custom_notifier = CustomNotificationPusher(
             notification_types=[NotificationKind.slack]
         )
-        # self._create_tsdb_table()
         self._kv_schemas = []
 
     @staticmethod

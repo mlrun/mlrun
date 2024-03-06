@@ -11,12 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-# for backwards compatibility
 
-from .helpers import get_stream_path
-from .model_endpoint import ModelEndpoint
-from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
-from .stores.tsdb import TSDBstore, TSDBstoreType, get_tsdb_store
-from .tracking_policy import TrackingPolicy
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
+from .v3io_tsdb import V3IOTSDBstore

@@ -30,15 +30,17 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 import mlrun
+import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
+import mlrun.utils.v3io_clients
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
-from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
+from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
@@ -85,8 +87,9 @@ class _V3IORecordsChecker:
     def custom_setup_class(cls, project_name: str) -> None:
         cls._v3io_container = ModelMonitoringWriter.get_v3io_container(project_name)
         cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
-        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
-            cls._v3io_container
+        cls._tsdb_storage = mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
+            container=cls._v3io_container,
         )
 
     @classmethod
@@ -108,8 +111,8 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
         df: pd.DataFrame = cls._tsdb_storage.read(
-            backend=_TSDB_BE,
-            table=_TSDB_TABLE,
+            backend=mm_constants.TimeSeriesTarget.TSDB,
+            table=mm_constants.FileTargetKind.TSDB_APPLICATION_TABLE,
             start=f"now-{5 * cls.app_interval}m",
             end="now",
         )

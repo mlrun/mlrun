@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -19,10 +20,11 @@ import pandas as pd
 import pytest
 
 import mlrun
-from mlrun.artifacts import Artifact
+import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
+import mlrun.utils
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.data_types.infer import DFDataInfer, default_num_bins
-from mlrun.model_monitoring.batch import VirtualDrift, calculate_inputs_statistics
+from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
 
 
@@ -73,20 +75,33 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
     # Calculate drift:
-    virtual_drift = VirtualDrift(inf_capping=10)
-    metrics = virtual_drift.compute_drift_from_histograms(
-        feature_stats=sample_data_statistics,
-        current_stats=inputs_statistics,
+    application = histogram_data_drift.HistogramDataDriftApplication()
+    application.context = mlrun.MLClientCtx(
+        log_stream=mlrun.utils.Logger(name="test_data_drift_app", level=logging.DEBUG)
     )
-    drift_results = virtual_drift.check_for_drift_per_feature(
-        metrics_results_dictionary=metrics
+    metrics_per_feature = application._compute_metrics_per_feature(
+        sample_df_stats=application._dict_to_histogram(sample_data_statistics),
+        feature_stats=application._dict_to_histogram(inputs_statistics),
     )
+
+    drift_results: dict[str, tuple[histogram_data_drift.ResultStatusApp, float]] = {}
+    values = metrics_per_feature[
+        [
+            histogram_data_drift.HellingerDistance.NAME,
+            histogram_data_drift.TotalVarianceDistance.NAME,
+        ]
+    ].mean(axis=1)
+    for key, value in values.items():
+        drift_results[key] = (
+            application._value_classifier.value_to_status(value),
+            value,
+        )
 
     context.log_artifact(
         FeaturesDriftTablePlot().produce(
             sample_set_statistics=sample_data_statistics,
             inputs_statistics=inputs_statistics,
-            metrics=metrics,
+            metrics=metrics_per_feature.T.to_dict(),
             drift_results=drift_results,
         )
     )

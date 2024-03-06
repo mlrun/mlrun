@@ -2014,9 +2014,9 @@ class MlrunProject(ModelObj):
         :param default_controller_image:        Deprecated.
         :param base_period:                     The time period in minutes in which the model monitoring controller
                                                 function is triggered. By default, the base period is 10 minutes.
-        :param image:                           The image of the model monitoring controller, writer & monitoring
-                                                stream functions, which are real time nuclio functions.
-                                                By default, the image is mlrun/mlrun.
+        :param image:                           The image of the model monitoring controller, writer, monitoring
+                                                stream & histogram data drift functions, which are real time nuclio
+                                                functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
 
         :returns: model monitoring controller job as a dictionary.
@@ -2043,7 +2043,7 @@ class MlrunProject(ModelObj):
                 ),
                 name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
                 application_class="HistogramDataDriftApplication",
-                image="mlrun/mlrun",
+                image=image,
             )
             fn.deploy()
 

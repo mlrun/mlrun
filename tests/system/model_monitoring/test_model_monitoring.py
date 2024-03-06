@@ -817,9 +817,9 @@ class TestBatchDrift(TestMLRunSystem):
                 "p0": [0, 0],
             }
         )
-        infer_results_df[
-            mlrun.common.schemas.EventFieldType.TIMESTAMP
-        ] = datetime.utcnow()
+        infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
+            datetime.utcnow()
+        )
 
         # Record results and trigger the monitoring batch job
         endpoint_id = "123123123123"
@@ -983,9 +983,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.training_set = cls.x_train.join(cls.y_train)
         cls.test_set = cls.x_test.join(cls.y_test)
         cls.infer_results_df = cls.test_set
-        cls.infer_results_df[
-            mlrun.common.schemas.EventFieldType.TIMESTAMP
-        ] = datetime.utcnow()
+        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
+            datetime.utcnow()
+        )
         cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
         cls.function_name = f"{cls.name_prefix}-function"
         cls._train()
@@ -1078,9 +1078,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.model_name = "clf_model"
 
         cls.infer_results_df = cls.train_set.copy()
-        cls.infer_results_df[
-            mlrun.common.schemas.EventFieldType.TIMESTAMP
-        ] = datetime.utcnow()
+        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
+            datetime.utcnow()
+        )
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)

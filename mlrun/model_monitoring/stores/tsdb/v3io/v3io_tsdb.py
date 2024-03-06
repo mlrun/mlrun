@@ -38,7 +38,6 @@ _TSDB_RATE = "1/s"
 
 
 class V3IOTSDBstore(TSDBstore):
-
     """
     Handles the TSDB operations when the TSDB target is from type V3IO. To manage these operations we use V3IO Frames
     Client that provides API for executing commands on the V3IO TSDB table.

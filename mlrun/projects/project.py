@@ -2882,9 +2882,9 @@ class MlrunProject(ModelObj):
             secrets_dict[mm_constants.ProjectSecretKeys.ACCESS_KEY] = access_key
 
         if endpoint_store_connection:
-            secrets_dict[
-                mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ] = endpoint_store_connection
+            secrets_dict[mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION] = (
+                endpoint_store_connection
+            )
 
         if stream_path:
             if stream_path.startswith("kafka://") and "?topic" in stream_path:

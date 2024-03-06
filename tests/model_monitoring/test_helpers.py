@@ -358,53 +358,8 @@ class TestBumpModelEndpointLastRequest:
 
     @staticmethod
     @pytest.fixture
-    def runs() -> list[dict]:
-        return [
-            {
-                "kind": "run",
-                "metadata": {
-                    "name": "model-monitoring-controller",
-                    "uid": "3a88d8aef52f4a90a12b681a87d9dc51",
-                    "iteration": 0,
-                    "project": "test-mm-1",
-                    "labels": {
-                        "mlrun/schedule-name": "model-monitoring-controller",
-                        "kind": "job",
-                        "v3io_user": "pipelines",
-                        "host": "model-monitoring-controller-cbvs4",
-                    },
-                    "annotations": {},
-                },
-                "spec": {
-                    "function": "test-mm-1/model-monitoring-controller@8056f87c8e5b11408d9d990fc0381f7a0fca83cf",
-                    "log_level": "info",
-                    "parameters": {
-                        "batch_intervals_dict": {"minutes": 1, "hours": 0, "days": 0}
-                    },
-                    "handler": "handler",
-                    "outputs": [],
-                    "output_path": "v3io:///projects/test-mm-1/artifacts",
-                    "inputs": {},
-                    "notifications": [],
-                    "state_thresholds": {
-                        "pending_scheduled": "1h",
-                        "pending_not_scheduled": "-1",
-                        "image_pull_backoff": "1h",
-                        "executing": "24h",
-                    },
-                    "hyperparams": {},
-                    "hyper_param_options": {},
-                    "data_stores": [],
-                },
-                "status": {
-                    "results": {},
-                    "start_time": "2024-01-14T15:01:03.639771+00:00",
-                    "last_update": "2024-01-14T15:01:04.049320+00:00",
-                    "state": "completed",
-                    "artifacts": [],
-                },
-            }
-        ]
+    def function() -> mlrun.runtimes.ServingRuntime:
+        return TemplateFunction()
 
     @staticmethod
     def test_update_last_request(
@@ -412,11 +367,11 @@ class TestBumpModelEndpointLastRequest:
         model_endpoint: ModelEndpoint,
         db: NopDB,
         last_request: str,
-        runs: list[dict],
+        function: mlrun.runtimes.ServingRuntime,
     ) -> None:
         model_endpoint.spec.stream_path = "stream"
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "list_runs", return_value=runs):
+            with patch.object(db, "get_function", return_value=function):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -432,7 +387,7 @@ class TestBumpModelEndpointLastRequest:
         model_endpoint.spec.stream_path = ""
 
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "list_runs", return_value=runs):
+            with patch.object(db, "get_function", return_value=function):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -457,7 +412,9 @@ class TestBumpModelEndpointLastRequest:
         db: NopDB,
     ) -> None:
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "list_runs", return_value=[]):
+            with patch.object(
+                db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
+            ):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -467,26 +424,12 @@ class TestBumpModelEndpointLastRequest:
         patch_patch_model_endpoint.assert_not_called()
 
     @staticmethod
-    @pytest.mark.parametrize(
-        ("function", "expected_window"),
-        [
-            (
-                TemplateFunction(),
-                datetime.timedelta(minutes=1),
-            ),
-        ],
-    )
     def test_get_monitoring_time_window_from_controller_run(
         project: str,
         db: NopDB,
-        function: dict,
-        expected_window: Optional[datetime.timedelta],
     ) -> None:
         with patch.object(db, "get_function", return_value=function):
-            assert (
-                _get_monitoring_time_window_from_controller_run(
-                    project=project,
-                    db=db,
-                )
-                == expected_window
-            ), "The window is different than expected"
+            assert _get_monitoring_time_window_from_controller_run(
+                project=project,
+                db=db,
+            ) == datetime.timedelta(minutes=1), "The window is different than expected"

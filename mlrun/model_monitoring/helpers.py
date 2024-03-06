@@ -140,6 +140,11 @@ def _get_monitoring_time_window_from_controller_run(
         name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         project=project,
     )
+    logger.info(f"[David] controller = {controller}")
+    if isinstance(controller, dict):
+        controller = mlrun.runtimes.RemoteRuntime.from_dict(controller)
+    elif not hasattr(controller, "to_dict"):
+        raise mlrun.errors.MLRunNotFoundError()
     base_period = controller.spec.config["spec.triggers.cron_interval"]["attributes"][
         "interval"
     ]

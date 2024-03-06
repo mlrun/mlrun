@@ -389,9 +389,9 @@ class LoggingCallback(Callback):
         ):
             try:
                 self._get_hyperparameter(key_chain=learning_rate_key_chain)
-                self._dynamic_hyperparameters_keys[
-                    learning_rate_key
-                ] = learning_rate_key_chain
+                self._dynamic_hyperparameters_keys[learning_rate_key] = (
+                    learning_rate_key_chain
+                )
             except (KeyError, IndexError, ValueError):
                 pass
 

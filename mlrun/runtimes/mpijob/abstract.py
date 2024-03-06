@@ -196,13 +196,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if steps_per_sample is not None:
             horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
         if bayes_opt_max_samples is not None:
-            horovod_autotune_settings[
-                "autotune-bayes-opt-max-samples"
-            ] = bayes_opt_max_samples
+            horovod_autotune_settings["autotune-bayes-opt-max-samples"] = (
+                bayes_opt_max_samples
+            )
         if gaussian_process_noise is not None:
-            horovod_autotune_settings[
-                "autotune-gaussian-process-noise"
-            ] = gaussian_process_noise
+            horovod_autotune_settings["autotune-gaussian-process-noise"] = (
+                gaussian_process_noise
+            )
 
         self.set_envs(horovod_autotune_settings)
 

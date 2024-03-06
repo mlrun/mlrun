@@ -194,9 +194,9 @@ async def submit_workflow(
             client_version
         )
     if client_python_version is not None:
-        workflow_runner.metadata.labels[
-            "mlrun/client_python_version"
-        ] = sanitize_label_value(client_python_version)
+        workflow_runner.metadata.labels["mlrun/client_python_version"] = (
+            sanitize_label_value(client_python_version)
+        )
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(

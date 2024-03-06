@@ -1042,12 +1042,12 @@ def my_func(context):
         self.execute_function(runtime)
         run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = override_state_thresholds
-        expected_state_thresholds[
-            "image_pull_backoff"
-        ] = mlconf.function.spec.state_thresholds.default.image_pull_backoff
-        expected_state_thresholds[
-            "pending_scheduled"
-        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        expected_state_thresholds["image_pull_backoff"] = (
+            mlconf.function.spec.state_thresholds.default.image_pull_backoff
+        )
+        expected_state_thresholds["pending_scheduled"] = (
+            mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
         patch_state_thresholds = {
@@ -1061,9 +1061,9 @@ def my_func(context):
         run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = patch_state_thresholds
         expected_state_thresholds["executing"] = override_state_thresholds["executing"]
-        expected_state_thresholds[
-            "pending_scheduled"
-        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        expected_state_thresholds["pending_scheduled"] = (
+            mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
     @staticmethod

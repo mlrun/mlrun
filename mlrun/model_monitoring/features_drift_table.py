@@ -85,9 +85,9 @@ class FeaturesDriftTablePlot:
 
     # Status configurations:
     _STATUS_COLORS = {
-        mlrun.common.schemas.model_monitoring.DriftStatus.NO_DRIFT: "rgb(0,176,80)",  # Green
-        mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT: "rgb(255,192,0)",  # Orange
-        mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED: "rgb(208,0,106)",  # Magenta
+        mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.no_detection: "rgb(0,176,80)",  # Green
+        mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.potential_detection: "rgb(255,192,0)",  # Orange
+        mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.detected: "rgb(208,0,106)",  # Magenta
     }
 
     # Font configurations:

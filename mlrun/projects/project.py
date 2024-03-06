@@ -2012,8 +2012,8 @@ class MlrunProject(ModelObj):
 
 
         :param default_controller_image:        Deprecated.
-        :param base_period:                     The time period in minutes in which the model monitoring controller function
-                                                is triggered. By default, the base period is 10 minutes.
+        :param base_period:                     The time period in minutes in which the model monitoring controller
+                                                function is triggered. By default, the base period is 10 minutes.
         :param image:                           The image of the model monitoring controller, writer & monitoring
                                                 stream functions, which are real time nuclio functions.
                                                 By default, the image is mlrun/mlrun.

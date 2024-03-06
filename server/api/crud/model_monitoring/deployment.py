@@ -554,9 +554,9 @@ class MonitoringDeployment:
             tracking_offset=tracking_offset,
         )
 
-        task.spec.parameters[
-            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-        ] = batch_dict
+        task.spec.parameters[mm_constants.EventFieldType.BATCH_INTERVALS_DICT] = (
+            batch_dict
+        )
 
         data = {
             "task": task.to_dict(),

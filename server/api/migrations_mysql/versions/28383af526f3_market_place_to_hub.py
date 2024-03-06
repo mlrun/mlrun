@@ -19,6 +19,7 @@ Revises: c905d15bd91d
 Create Date: 2023-04-24 11:06:36.177314
 
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

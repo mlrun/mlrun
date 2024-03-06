@@ -359,6 +359,7 @@ class ImageBuilder(ModelObj):
         requirements: list = None,
         extra_args=None,
         builder_env=None,
+        source_code_target_dir=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -379,6 +380,7 @@ class ImageBuilder(ModelObj):
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
         self.requirements = requirements or []  #: pip requirements
+        self.source_code_target_dir = source_code_target_dir or None
 
     @property
     def source(self):
@@ -415,6 +417,7 @@ class ImageBuilder(ModelObj):
         overwrite=False,
         builder_env=None,
         extra_args=None,
+        source_code_target_dir=None,
     ):
         if image:
             self.image = image
@@ -440,6 +443,8 @@ class ImageBuilder(ModelObj):
             self.builder_env = builder_env
         if extra_args:
             self.extra_args = extra_args
+        if source_code_target_dir:
+            self.source_code_target_dir = source_code_target_dir
 
     def with_commands(
         self,

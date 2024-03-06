@@ -241,11 +241,14 @@ class TestGoogleCloudStorage:
         # Create the DataFrames
         df1 = pd.DataFrame(data1)
         df2 = pd.DataFrame(data2)
-        with tempfile.NamedTemporaryFile(
-            suffix=f".{file_format}", delete=True
-        ) as temp_file1, tempfile.NamedTemporaryFile(
-            suffix=f".{file_format}", delete=True
-        ) as temp_file2:
+        with (
+            tempfile.NamedTemporaryFile(
+                suffix=f".{file_format}", delete=True
+            ) as temp_file1,
+            tempfile.NamedTemporaryFile(
+                suffix=f".{file_format}", delete=True
+            ) as temp_file2,
+        ):
             # Save DataFrames as files
             write_method(df1, temp_file1.name, index=False)
             write_method(df2, temp_file2.name, index=False)

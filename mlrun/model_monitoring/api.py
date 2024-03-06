@@ -436,9 +436,9 @@ def _generate_model_endpoint(
         ] = possible_drift_threshold
 
     model_endpoint.spec.monitoring_mode = monitoring_mode
-    model_endpoint.status.first_request = (
-        model_endpoint.status.last_request
-    ) = datetime_now().isoformat()
+    model_endpoint.status.first_request = model_endpoint.status.last_request = (
+        datetime_now().isoformat()
+    )
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 
@@ -476,11 +476,11 @@ def trigger_drift_batch_job(
         db_session = mlrun.get_run_db()
 
     # Register the monitoring batch job (do nothing if already exist) and get the job function as a dictionary
-    batch_function_dict: typing.Dict[
-        str, typing.Any
-    ] = db_session.deploy_monitoring_batch_job(
-        project=project,
-        default_batch_image=default_batch_image,
+    batch_function_dict: typing.Dict[str, typing.Any] = (
+        db_session.deploy_monitoring_batch_job(
+            project=project,
+            default_batch_image=default_batch_image,
+        )
     )
 
     # Prepare current run params

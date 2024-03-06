@@ -46,7 +46,7 @@ def _get_runtime():
             "volume_mounts": [],
             "env": [],
             "description": "",
-            "build": {"commands": [], "requirements": []},
+            "build": {"commands": [], "requirements": [], "source_code_target_dir": ""},
             "affinity": None,
             "disable_auto_mount": False,
             "priority_class_name": "",
@@ -64,9 +64,9 @@ def test_new_function_from_runtime():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
     expected_runtime = runtime
-    expected_runtime["spec"][
-        "preemption_mode"
-    ] = mlrun.mlconf.function_defaults.preemption_mode
+    expected_runtime["spec"]["preemption_mode"] = (
+        mlrun.mlconf.function_defaults.preemption_mode
+    )
     assert (
         DeepDiff(
             function.to_dict(),
@@ -82,9 +82,9 @@ def test_new_function_args_without_command():
     runtime["spec"]["command"] = ""
     function = mlrun.new_function(runtime=runtime)
     expected_runtime = runtime
-    expected_runtime["spec"][
-        "preemption_mode"
-    ] = mlrun.mlconf.function_defaults.preemption_mode
+    expected_runtime["spec"]["preemption_mode"] = (
+        mlrun.mlconf.function_defaults.preemption_mode
+    )
     assert (
         DeepDiff(
             function.to_dict(),
@@ -137,9 +137,9 @@ def test_new_function_with_resources():
     ]:
         expected_runtime = copy.deepcopy(runtime)
         expected_runtime["spec"]["resources"] = test_case.get("expected_resources")
-        expected_runtime["spec"][
-            "preemption_mode"
-        ] = mlrun.mlconf.function_defaults.preemption_mode
+        expected_runtime["spec"]["preemption_mode"] = (
+            mlrun.mlconf.function_defaults.preemption_mode
+        )
         runtime["spec"]["resources"] = test_case.get("resources", None)
         mlrun.mlconf.default_function_pod_resources = test_case.get("default_resources")
         function = mlrun.new_function(runtime=runtime)
@@ -273,12 +273,12 @@ def test_new_function_args_with_default_image_pull_secret():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
     expected_runtime = runtime
-    expected_runtime["spec"][
-        "image_pull_secret"
-    ] = mlrun.mlconf.function.spec.image_pull_secret.default
-    expected_runtime["spec"][
-        "preemption_mode"
-    ] = mlrun.mlconf.function_defaults.preemption_mode
+    expected_runtime["spec"]["image_pull_secret"] = (
+        mlrun.mlconf.function.spec.image_pull_secret.default
+    )
+    expected_runtime["spec"]["preemption_mode"] = (
+        mlrun.mlconf.function_defaults.preemption_mode
+    )
     assert (
         DeepDiff(
             function.to_dict(),
@@ -297,9 +297,9 @@ def test_new_function_override_default_image_pull_secret():
     function = mlrun.new_function(runtime=runtime)
     expected_runtime = runtime
     expected_runtime["spec"]["image_pull_secret"] = new_secret
-    expected_runtime["spec"][
-        "preemption_mode"
-    ] = mlrun.mlconf.function_defaults.preemption_mode
+    expected_runtime["spec"]["preemption_mode"] = (
+        mlrun.mlconf.function_defaults.preemption_mode
+    )
     assert (
         DeepDiff(
             function.to_dict(),

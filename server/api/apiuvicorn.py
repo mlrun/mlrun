@@ -28,9 +28,9 @@ class UvicornMLRunLoggerMixin(
 
 def _get_uvicorn_log_config():
     base_log_config = uvicorn.config.LOGGING_CONFIG
-    base_log_config["formatters"]["default"][
-        "()"
-    ] = "server.api.apiuvicorn.UvicornMLRunLoggerMixin"
+    base_log_config["formatters"]["default"]["()"] = (
+        "server.api.apiuvicorn.UvicornMLRunLoggerMixin"
+    )
     return base_log_config
 
 

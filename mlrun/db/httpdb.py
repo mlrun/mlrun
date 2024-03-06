@@ -458,6 +458,10 @@ class HTTPRunDB(RunDBInterface):
                     setattr(
                         config.feature_store.data_prefixes, prefix, server_prefix_value
                     )
+            config.feature_store.default_targets = (
+                server_cfg.get("feature_store_default_targets")
+                or config.feature_store.default_targets
+            )
 
         except Exception as exc:
             logger.warning(
@@ -3454,7 +3458,7 @@ class HTTPRunDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: list[mlrun.model.Notification] = None,
-    ):
+    ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
 

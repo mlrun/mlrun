@@ -58,7 +58,7 @@ def upload_tarball(source_dir, target, secrets=None):
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
             tar.add(source_dir, arcname="")
         stores = mlrun.datastore.store_manager.set(secrets)
-        datastore, subpath = stores.get_or_create_store(target)
+        datastore, subpath, url = stores.get_or_create_store(target)
         datastore.upload(subpath, temp_fh.name)
 
 

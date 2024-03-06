@@ -296,3 +296,4 @@ class ControllerPolicy:
 
 RawEvent = dict[str, Any]
 AppResultEvent = NewType("AppResultEvent", RawEvent)
+MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"

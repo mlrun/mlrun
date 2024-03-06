@@ -19,6 +19,7 @@ Revises: fa3009d9787f
 Create Date: 2024-02-07 14:47:10.021608
 
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

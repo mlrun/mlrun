@@ -304,7 +304,7 @@ class KVModelEndpointStore(ModelEndpointStore):
                 )
         # Final cleanup of tsdb path
         tsdb_path.replace("://u", ":///u")
-        store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
+        store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
 
     def get_endpoint_real_time_metrics(

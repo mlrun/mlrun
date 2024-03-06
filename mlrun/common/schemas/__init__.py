@@ -43,6 +43,7 @@ from .clusterization_spec import (
     ClusterizationSpec,
     WaitForChiefToReachOnlineStateFeatureFlag,
 )
+from .common import ImageBuilder
 from .constants import (
     APIStates,
     ClusterizationRole,

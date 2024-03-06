@@ -92,7 +92,9 @@ def parse_monitoring_stream_path(
         else:
             stream_uri = (
                 mlrun.mlconf.model_endpoint_monitoring.default_http_sink_app.format(
-                    project=project, application_name=function_name, namespace=mlrun.mlconf.namespace,
+                    project=project,
+                    application_name=function_name,
+                    namespace=mlrun.mlconf.namespace,
                 )
             )
     return stream_uri

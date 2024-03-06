@@ -23,8 +23,6 @@ Applications:
 - Python 3.9
 - Recommended pip 22.x+
 
-The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
-
 For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
 
 ## MLRun client supported OS

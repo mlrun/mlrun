@@ -25,7 +25,7 @@ from mlrun.common.constants import MLRUN_CREATED_LABEL
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
-NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/{api_gateway}"
+NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
@@ -56,7 +56,7 @@ class Client:
 
         api_gateways = await self._send_request_to_api(
             method="GET",
-            path=NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=""),
+            path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=""),
             headers=headers,
         )
         parsed_api_gateways = {}
@@ -75,7 +75,7 @@ class Client:
 
         api_gateway = await self._send_request_to_api(
             method="GET",
-            path=NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=name),
+            path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=name),
             headers=headers,
         )
         return mlrun.common.schemas.APIGateway.parse_obj(api_gateway)
@@ -100,9 +100,9 @@ class Client:
         body = api_gateway.dict(exclude_unset=True, exclude_none=True)
         method = "POST" if create else "PUT"
         path = (
-            NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=api_gateway_name)
+            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=api_gateway_name)
             if method == "PUT"
-            else NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway="")
+            else NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway="")
         )
 
         return await self._send_request_to_api(

@@ -30,10 +30,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications.histogram_data_drift import (
+    HistogramDataDriftApplication,
+)
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
@@ -54,12 +58,23 @@ class _AppData:
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
-    metrics: typing.Optional[set[str]] = None  # only for testing
+    results: typing.Optional[set[str]] = None  # only for testing
+    deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
+        assert hasattr(self.class_, "NAME")
+
         path = Path(__file__).parent / self.rel_path
         assert path.exists()
         self.abs_path = str(path.absolute())
+
+
+_DefaultDataDriftAppData = _AppData(
+    class_=HistogramDataDriftApplication,
+    rel_path="",
+    deploy=False,
+    results={"hellinger_mean", "kld_mean", "tvd_mean", "general_drift"},
+)
 
 
 class _V3IORecordsChecker:
@@ -78,7 +93,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
-            app_name = app_data.class_.name
+            app_name = app_data.class_.NAME
             cls._logger.debug("Checking the KV record of app", app_name=app_name)
             resp = ModelMonitoringWriter._get_v3io_client().kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
@@ -86,9 +101,9 @@ class _V3IORecordsChecker:
             assert (
                 data := resp.output.item
             ), f"V3IO KV app data is empty for app {app_name}"
-            if app_data.metrics:
+            if app_data.results:
                 assert (
-                    data.keys() == app_data.metrics
+                    data.keys() == app_data.results
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
@@ -105,13 +120,13 @@ class _V3IORecordsChecker:
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
-            app_data.class_.name for app_data in cls.apps_data
+            app_data.class_.NAME for app_data in cls.apps_data
         }, "The application names are different than expected"
 
         tsdb_metrics = df.groupby("application_name").result_name.unique()
         for app_data in cls.apps_data:
-            if app_metrics := app_data.metrics:
-                app_name = app_data.class_.name
+            if app_metrics := app_data.results:
+                app_name = app_data.class_.NAME
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
                 assert (
                     set(tsdb_metrics[app_name]) == app_metrics
@@ -132,10 +147,12 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        cls.max_events = typing.cast(
-            int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+        assert (
+            typing.cast(
+                int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+            )
+            == EXPECTED_EVENTS_COUNT
         )
-        assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"
         cls.num_features = 4
@@ -149,10 +166,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.evidently_project_id = str(uuid.uuid4())
 
         cls.apps_data: list[_AppData] = [
+            _DefaultDataDriftAppData,
             _AppData(
                 class_=DemoMonitoringApp,
                 rel_path="assets/application.py",
-                metrics={"data_drift_test", "model_perf"},
+                results={"data_drift_test", "model_perf"},
             ),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
@@ -162,12 +180,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
                 },
-                metrics={"data_drift_test"},
+                results={"data_drift_test"},
             ),
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
-        cls.infer_input = cls._generate_infer_input()
-        cls.next_window_input = cls._generate_infer_input(num_events=1)
 
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
@@ -180,15 +196,16 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _set_and_deploy_monitoring_apps(self) -> None:
         with ThreadPoolExecutor() as executor:
             for app_data in self.apps_data:
-                fn = self.project.set_model_monitoring_function(
-                    func=app_data.abs_path,
-                    application_class=app_data.class_.__name__,
-                    name=app_data.class_.name,
-                    image="mlrun/mlrun" if self.image is None else self.image,
-                    requirements=app_data.requirements,
-                    **app_data.kwargs,
-                )
-                executor.submit(fn.deploy)
+                if app_data.deploy:
+                    fn = self.project.set_model_monitoring_function(
+                        func=app_data.abs_path,
+                        application_class=app_data.class_.__name__,
+                        name=app_data.class_.NAME,
+                        image="mlrun/mlrun" if self.image is None else self.image,
+                        requirements=app_data.requirements,
+                        **app_data.kwargs,
+                    )
+                    executor.submit(fn.deploy)
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -226,16 +243,27 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     @classmethod
+    def _infer(
+        cls,
+        serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
+        *,
+        num_events: int = 10_000,
+    ) -> None:
+        result = serving_fn.invoke(
+            cls.infer_path,
+            json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+        )
+        assert isinstance(result, dict), "Unexpected result type"
+        assert "outputs" in result, "Result should have 'outputs' key"
+        assert (
+            len(result["outputs"]) == num_events
+        ), "Outputs length does not match inputs"
+
+    @classmethod
     def _get_model_enpoint_id(cls) -> str:
         endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
-
-    @classmethod
-    def _generate_infer_input(cls, num_events: typing.Optional[int] = None) -> str:
-        if num_events is None:
-            num_events = cls.max_events
-        return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
@@ -246,17 +274,17 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving)
 
-        self.serving_fn = future.result()
+        serving_fn = future.result()
 
         time.sleep(5)
-        self.serving_fn.invoke(self.infer_path, self.infer_input)
+        self._infer(serving_fn)
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + 2
         )
-        self.serving_fn.invoke(self.infer_path, self.next_window_input)
+        self._infer(serving_fn, num_events=1)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 
@@ -300,7 +328,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         # model monitoring infra
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
-        cls.apps_data = [cls.app_data]
+        cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     @classmethod
@@ -333,7 +361,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         fn = self.project.set_model_monitoring_function(
             func=self.app_data.abs_path,
             application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.name,
+            name=self.app_data.class_.NAME,
             requirements=self.app_data.requirements,
             image="mlrun/mlrun" if self.image is None else self.image,
             **self.app_data.kwargs,
@@ -371,3 +399,54 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(2.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringInitialize(TestMLRunSystem):
+    project_name = "test-mm-initialize"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    def test_enable_model_monitoring(self) -> None:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.update_model_monitoring_controller(
+                image=self.image or "mlrun/mlrun"
+            )
+
+        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+        )
+        writer = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.WRITER
+        )
+        stream = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.STREAM
+        )
+
+        controller._wait_for_function_deployment(db=controller._get_db())
+        writer._wait_for_function_deployment(db=writer._get_db())
+        stream._wait_for_function_deployment(db=stream._get_db())
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "10m"
+        )
+
+        self.project.update_model_monitoring_controller(
+            image=self.image or "mlrun/mlrun", base_period=1
+        )
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        controller._wait_for_function_deployment(db=controller._get_db())
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "1m"
+        )

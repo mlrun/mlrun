@@ -287,6 +287,12 @@ default_config = {
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
+        # http client used by httpdb
+        "http": {
+            # when True, the client will verify the server's TLS
+            # set to False for backwards compatibility.
+            "verify": False,
+        },
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -484,8 +490,8 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
@@ -605,7 +611,7 @@ default_config = {
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
+        "timeouts": {"local": 120, "kfp": 30, "remote": 90},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -957,10 +963,10 @@ class Config:
             with_gpu = (
                 with_gpu_requests if requirement == "requests" else with_gpu_limits
             )
-            resources[
-                requirement
-            ] = self.get_default_function_pod_requirement_resources(
-                requirement, with_gpu
+            resources[requirement] = (
+                self.get_default_function_pod_requirement_resources(
+                    requirement, with_gpu
+                )
             )
         return resources
 
@@ -1053,7 +1059,7 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
-        application_name: str = None,
+        function_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1068,7 +1074,7 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:    Application name, None for model_monitoring_stream.
+        :param function_name:    Application name, None for model_monitoring_stream.
 
         :return:                Full configured path for the provided kind.
         """
@@ -1082,20 +1088,19 @@ class Config:
                 return store_prefix_dict[kind].format(project=project)
 
             if (
-                application_name
+                function_name
+                and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind
-                    if application_name is None
-                    else f"{kind}-{application_name.lower()}",
+                    if function_name is None
+                    else f"{kind}-{function_name.lower()}",
                 )
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=project,
-                kind=kind
-                if application_name is None
-                else f"{kind}-{application_name.lower()}",
+                kind=kind,
             )
 
         # Get the current offline path from the configuration

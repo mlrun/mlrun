@@ -181,7 +181,7 @@ class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
     BATCH = "model-monitoring-batch"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
-    STREAM = None
+    STREAM = "model-monitoring-stream"
 
     @staticmethod
     def all():
@@ -289,3 +289,6 @@ class ModelMonitoringAppLabel:
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"
+
+
+MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"

@@ -46,6 +46,7 @@ class TestMLRunSystem:
         "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
+    enterprise_configured = os.getenv("V3IO_API")
 
     _logger = logger
 
@@ -187,7 +188,7 @@ class TestMLRunSystem:
         )
 
     @property
-    def assets_path(self):
+    def assets_path(self) -> pathlib.Path:
         """Returns the test file directory "assets" directory."""
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent

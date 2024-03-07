@@ -132,7 +132,7 @@ if _HAS_EVIDENTLY:
 
 
 class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
-    name = "evidently-app-test"
+    NAME = "evidently-app-test"
 
     def _lazy_init(self, *args, **kwargs) -> None:
         super()._lazy_init(*args, **kwargs)

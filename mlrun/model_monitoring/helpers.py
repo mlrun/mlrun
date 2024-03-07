@@ -20,15 +20,14 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
-    MonitoringFunctionNames,
 )
-from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
 
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class _BatchDict(typing.TypedDict):
@@ -41,29 +40,32 @@ class _MLRunNoRunsFoundError(Exception):
     pass
 
 
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(
+    project: str = None,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+):
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param application_name:    Application name, None for model_monitoring_stream.
+    :param function_name:    Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
     stream_uri = mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if application_name is None
+        if function_name is mm_constants.MonitoringFunctionNames.STREAM
         else ""
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
         target="online",
-        application_name=application_name,
+        function_name=function_name,
     )
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, application_name=application_name
+        stream_uri=stream_uri, project=project, function_name=function_name
     )
 
 
@@ -125,24 +127,31 @@ def _get_monitoring_time_window_from_controller_run(
     project: str, db: "RunDBInterface"
 ) -> datetime.timedelta:
     """
-    Get timedelta for the controller to run.
+    Get the base period form the controller.
 
     :param project: Project name.
     :param db:      DB interface.
 
     :return:    Timedelta for the controller to run.
+    :raise:     MLRunNotFoundError if the controller isn't deployed yet
     """
-    run_name = MonitoringFunctionNames.APPLICATION_CONTROLLER
-    runs = db.list_runs(project=project, name=run_name, sort=True)
-    if not runs:
-        raise _MLRunNoRunsFoundError(f"No {run_name} runs were found")
-    last_run = runs[0]
-    try:
-        batch_dict = last_run["spec"]["parameters"]["batch_intervals_dict"]
-    except KeyError:
-        raise MLRunValueError(
-            f"Could not find `batch_intervals_dict` in {run_name} run"
-        )
+
+    controller = db.get_function(
+        name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        project=project,
+    )
+    if isinstance(controller, dict):
+        controller = mlrun.runtimes.RemoteRuntime.from_dict(controller)
+    elif not hasattr(controller, "to_dict"):
+        raise mlrun.errors.MLRunNotFoundError()
+    base_period = controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+        "interval"
+    ]
+    batch_dict = {
+        mm_constants.EventFieldType.MINUTES: int(base_period[:-1]),
+        mm_constants.EventFieldType.HOURS: 0,
+        mm_constants.EventFieldType.DAYS: 0,
+    }
     return batch_dict2timedelta(batch_dict)
 
 
@@ -177,9 +186,9 @@ def update_model_endpoint_last_request(
     else:
         try:
             time_window = _get_monitoring_time_window_from_controller_run(project, db)
-        except _MLRunNoRunsFoundError:
+        except mlrun.errors.MLRunNotFoundError:
             logger.debug(
-                "Not bumping model endpoint last request time - no controller runs were found"
+                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet"
             )
             return
 

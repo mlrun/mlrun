@@ -24,7 +24,7 @@ import typing
 import uuid
 import warnings
 import zipfile
-from os import environ, makedirs, path, remove
+from os import environ, makedirs, path
 from typing import Callable, Optional, Union
 
 import dotenv
@@ -36,7 +36,6 @@ import requests
 import yaml
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
@@ -617,9 +616,14 @@ def _load_project_dir(context, name="", subpath=""):
         # If there is a setup script do not force having project.yaml file
         project = MlrunProject()
     else:
-        raise mlrun.errors.MLRunNotFoundError(
-            "project or function YAML not found in path"
+        message = "Project or function YAML not found in path"
+        logger.error(
+            message,
+            context=context,
+            name=name,
+            subpath=subpath,
         )
+        raise mlrun.errors.MLRunNotFoundError(message)
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name
@@ -1247,20 +1251,20 @@ class MlrunProject(ModelObj):
         self,
         name,
         workflow_path: str,
-        embed=False,
-        engine=None,
+        embed: bool = False,
+        engine: Optional[str] = None,
         args_schema: list[EntrypointParam] = None,
-        handler=None,
+        handler: Optional[str] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        ttl=None,
-        image: str = None,
+        ttl: Optional[int] = None,
+        image: Optional[str] = None,
         **args,
     ):
         """Add or update a workflow, specify a name and the code path
 
         :param name:          Name of the workflow
         :param workflow_path: URL (remote) / Path (absolute or relative to the project code path i.e.
-                <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
+            <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
         :param embed:         Add the workflow code into the project.yaml
         :param engine:        Workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   List of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
@@ -1803,10 +1807,13 @@ class MlrunProject(ModelObj):
     ) -> mlrun.runtimes.BaseRuntime:
         """
         Update or add a monitoring function to the project.
+        Note: to deploy the function after linking it to the project,
+        call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
-            project.set_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.set_model_monitoring_function(
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
+            )
 
         :param func:                    Function object or spec/code url, None refers to current Notebook
         :param name:                    Name of the function (under the project), can be specified with a tag to support
@@ -1821,11 +1828,16 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            A list of python packages
         :param requirements_file:       Path to a python requirements file
-        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
 
+        if name in mm_constants.MonitoringFunctionNames.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Application name can not be on of the following name : "
+                f"{mm_constants.MonitoringFunctionNames.all()}"
+            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -1987,26 +1999,75 @@ class MlrunProject(ModelObj):
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
-    ) -> dict:
-        r"""
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        """
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              The time period in minutes in which the model monitoring controller job
-                                         runs. By default, the base period is 10 minutes. The schedule for the job
-                                         will be the following cron expression: "\*/{base_period} \* \* \* \*".
+
+        :param default_controller_image:        Deprecated.
+        :param base_period:                     The time period in minutes in which the model monitoring controller
+                                                function is triggered. By default, the base period is 10 minutes.
+        :param image:                           The image of the model monitoring controller, writer, monitoring
+                                                stream & histogram data drift functions, which are real time nuclio
+                                                functions. By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+
+        :returns: model monitoring controller job as a dictionary.
+        """
+        if default_controller_image != "mlrun/mlrun":
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'default_controller_image' is deprecated and will be removed in 1.9.0, "
+                "use 'image' instead",
+                FutureWarning,
+            )
+            image = default_controller_image
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.enable_model_monitoring(
+            project=self.name,
+            image=image,
+            base_period=base_period,
+        )
+        if deploy_histogram_data_drift_app:
+            fn = self.set_model_monitoring_function(
+                func=str(
+                    pathlib.Path(__file__).parent.parent
+                    / "model_monitoring/applications/histogram_data_drift.py"
+                ),
+                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+                application_class="HistogramDataDriftApplication",
+                image=image,
+            )
+            fn.deploy()
+
+    def update_model_monitoring_controller(
+        self,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ) -> None:
+        """
+        Redeploy model monitoring application controller functions.
+
+
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         is triggered. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
         :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.create_model_monitoring_controller(
+        db.update_model_monitoring_controller(
             project=self.name,
-            default_controller_image=default_controller_image,
             base_period=base_period,
+            image=image,
         )
 
     def disable_model_monitoring(self):
@@ -2014,6 +2075,14 @@ class MlrunProject(ModelObj):
         db.delete_function(
             project=self.name,
             name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.WRITER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.STREAM,
         )
 
     def set_function(
@@ -2797,7 +2866,7 @@ class MlrunProject(ModelObj):
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)
 
-        By default the project object is exported to a yaml file, when the filepath suffix is '.zip'
+        By default, the project object is exported to a yaml file, when the filepath suffix is '.zip'
         the project context dir (code files) are also copied into the zip, the archive path can include
         DataItem urls (for remote object storage, e.g. s3://<bucket>/<path>).
 
@@ -2822,19 +2891,19 @@ class MlrunProject(ModelObj):
 
         if archive_code:
             files_filter = include_files or "**"
-            tmp_path = None
-            if "://" in filepath:
-                tmp_path = tempfile.mktemp(".zip")
-            zipf = zipfile.ZipFile(tmp_path or filepath, "w")
-            for file_path in glob.iglob(
-                f"{project_dir}/{files_filter}", recursive=True
-            ):
-                write_path = pathlib.Path(file_path)
-                zipf.write(write_path, arcname=write_path.relative_to(project_dir))
-            zipf.close()
-            if tmp_path:
-                mlrun.get_dataitem(filepath).upload(tmp_path)
-                remove(tmp_path)
+            with tempfile.NamedTemporaryFile(suffix=".zip") as f:
+                remote_file = "://" in filepath
+                fpath = f.name if remote_file else filepath
+                with zipfile.ZipFile(fpath, "w") as zipf:
+                    for file_path in glob.iglob(
+                        f"{project_dir}/{files_filter}", recursive=True
+                    ):
+                        write_path = pathlib.Path(file_path)
+                        zipf.write(
+                            write_path, arcname=write_path.relative_to(project_dir)
+                        )
+                if remote_file:
+                    mlrun.get_dataitem(filepath).upload(zipf.filename)
 
     def set_model_monitoring_credentials(
         self,

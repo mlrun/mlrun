@@ -971,7 +971,7 @@ def test_export_to_zip(rundb_mock):
     assert os.path.isfile(zip_path)
 
     zipf = zipfile.ZipFile(zip_path, "r")
-    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+    assert set(zipf.namelist()) == {"./", "f.py", "project.yaml"}
 
     # check upload to (remote) DataItem
     project.export("memory://x.zip")
@@ -1459,6 +1459,7 @@ def test_init_function_from_dict_function_in_spec():
                     "base_image": "iguazio/spark-app:3.5.5-b697",
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
+                    "source_code_target_dir": "/home/mlrun_code/",
                 },
                 "description": "",
                 "disable_auto_mount": False,

@@ -17,6 +17,7 @@
 import io
 import json
 import logging
+import os
 import shlex
 import subprocess
 import typing
@@ -441,6 +442,7 @@ class MLRunPatcher:
 
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):
+        env = os.environ | (env or {})
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env
         )

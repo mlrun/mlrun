@@ -598,25 +598,13 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		make html-docs
 
-.PHONY: fmt
-fmt: ## Format the code using Ruff
-	@echo "Running ruff checks and fixes..."
-	python -m ruff check --fix-only
-	python -m ruff format
-
-.PHONY: lint-imports
-lint-imports: ## Validates import dependencies
-	@echo "Running import linter"
-	lint-imports
-
 .PHONY: lint
-lint: fmt-check lint-imports ## Run lint on the code
+lint: # Run all pre-commit hooks on all the tracked files
+	pre-commit run --all-files
 
-.PHONY: fmt-check
-fmt-check: ## Check the code (using ruff)
-	@echo "Running ruff checks..."
-	python -m ruff check --exit-non-zero-on-fix
-	python -m ruff format --check
+.PHONY: fmt
+fmt: # An alias for `make lint`
+	make lint
 
 .PHONY: lint-go
 lint-go:

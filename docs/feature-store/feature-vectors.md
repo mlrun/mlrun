@@ -1,5 +1,5 @@
 (create-use-feature-vectors)=
-# Creating and using feature vectors
+# Feature vectors
 
 You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
 Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the 

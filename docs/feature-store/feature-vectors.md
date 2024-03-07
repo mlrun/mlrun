@@ -1,5 +1,5 @@
 (create-use-feature-vectors)=
-# Creating and using feature vectors
+# Feature vectors
 
 You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
 Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the 
@@ -236,7 +236,8 @@ resp = fs.get_offline_features(
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
 First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the 
-feature vector to the service and receive the latest feature vector.
+feature vector to `get_online_feature_service` and receive the latest value of the feature vector. Note that the response contains only the features - 
+the timestamp (of the last event that updated the feature sets) is not part of the response. 
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
 
@@ -274,7 +275,7 @@ The `entities` can be a list of dictionaries as shown in the example, or a list 
 list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default. 
 If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
 frameworks and this eliminates additional glue logic. 
-    
+   
 When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
 the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
 into left joins. Consequently, the function performs joins using the latest events for each required 

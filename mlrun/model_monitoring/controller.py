@@ -20,6 +20,7 @@ import re
 from collections.abc import Iterator
 from typing import Any, NamedTuple, Optional, Union, cast
 
+import nuclio
 from v3io.dataplane.response import HttpResponseError
 
 import mlrun
@@ -29,6 +30,7 @@ import mlrun.feature_store as fstore
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.errors import err_to_str
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
@@ -282,33 +284,33 @@ class MonitoringApplicationController:
 
     def __init__(
         self,
-        context: mlrun.run.MLClientCtx,
+        mlrun_context: mlrun.run.MLClientCtx,
         project: str,
     ):
         """
         Initialize Monitoring Application Processor object.
 
-        :param context:                     An MLRun context.
+        :param mlrun_context:               An MLRun context.
         :param project:                     Project name.
         """
-        self.context = context
+        self.context = mlrun_context
         self.project = project
         self.project_obj = mlrun.get_or_create_project(project)
 
-        context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
+        mlrun_context.logger.debug(
+            f"Initializing {self.__class__.__name__}", project=project
+        )
 
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
         self._batch_window_generator = _BatchWindowGenerator(
-            batch_dict=context.parameters[
-                mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-            ]
+            batch_dict=json.loads(
+                mlrun.get_secret_or_env(
+                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
+                )
+            )
         )
 
-        # If provided, only model endpoints in that that list will be analyzed
-        self.model_endpoints = context.parameters.get(
-            mm_constants.EventFieldType.MODEL_ENDPOINTS, None
-        )
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             self.project_obj,
@@ -335,66 +337,82 @@ class MonitoringApplicationController:
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
-    def run(self):
+    def run(self, event: nuclio.Event):
         """
         Main method for run all the relevant monitoring applications on each endpoint
+
+        :param event:   trigger event
         """
+        logger.info("Start running monitoring controller")
         try:
-            endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
+            applications_names = []
+            endpoints = self.db.list_model_endpoints()
+            if not endpoints:
+                self.context.logger.info(
+                    "No model endpoints found", project=self.project
+                )
+                return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
+                # Gets only application in ready state
                 applications_names = list(
-                    {app.metadata.name for app in monitoring_functions}
+                    {
+                        app.metadata.name
+                        for app in monitoring_functions
+                        if app.status.state == "ready"
+                    }
                 )
-            else:
+            if not applications_names:
                 self.context.logger.info(
                     "No monitoring functions found", project=self.project
                 )
-                applications_names = []
+                return
 
         except Exception as e:
-            self.context.logger.error("Failed to list endpoints", exc=e)
-            return
-        if endpoints and applications_names:
-            # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
-            pool = concurrent.futures.ProcessPoolExecutor(
-                max_workers=min(len(endpoints), 10),
+            self.context.logger.error(
+                "Failed to list endpoints and monitoring applications",
+                exc=err_to_str(e),
             )
-            futures = []
-            for endpoint in endpoints:
+            return
+        # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
+        pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=min(len(endpoints), 10),
+        )
+        futures = []
+        for endpoint in endpoints:
+            if (
+                endpoint[mm_constants.EventFieldType.ACTIVE]
+                and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+                == mm_constants.ModelMonitoringMode.enabled.value
+            ):
+                # Skip router endpoint:
                 if (
-                    endpoint[mm_constants.EventFieldType.ACTIVE]
-                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
-                    == mm_constants.ModelMonitoringMode.enabled.value
+                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                    == mm_constants.EndpointType.ROUTER
                 ):
-                    # Skip router endpoint:
-                    if (
-                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                        == mm_constants.EndpointType.ROUTER
-                    ):
-                        # Router endpoint has no feature stats
-                        logger.info(
-                            f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
-                        )
-                        continue
-                    future = pool.submit(
-                        MonitoringApplicationController.model_endpoint_process,
-                        endpoint=endpoint,
-                        applications_names=applications_names,
-                        batch_window_generator=self._batch_window_generator,
-                        project=self.project,
-                        parquet_directory=self.parquet_directory,
-                        storage_options=self.storage_options,
-                        model_monitoring_access_key=self.model_monitoring_access_key,
+                    # Router endpoint has no feature stats
+                    logger.info(
+                        f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
                     )
-                    futures.append(future)
+                    continue
+                future = pool.submit(
+                    MonitoringApplicationController.model_endpoint_process,
+                    endpoint=endpoint,
+                    applications_names=applications_names,
+                    batch_window_generator=self._batch_window_generator,
+                    project=self.project,
+                    parquet_directory=self.parquet_directory,
+                    storage_options=self.storage_options,
+                    model_monitoring_access_key=self.model_monitoring_access_key,
+                )
+                futures.append(future)
 
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result:
-                    self.context.log_results(result)
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                self.context.log_results(result)
 
-            self._delete_old_parquet(endpoints=endpoints)
+        self._delete_old_parquet(endpoints=endpoints)
 
     @classmethod
     def model_endpoint_process(
@@ -601,12 +619,12 @@ class MonitoringApplicationController:
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                 project=project,
-                application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
-            stream_uri = get_stream_path(project=project, application_name=app_name)
+            stream_uri = get_stream_path(project=project, function_name=app_name)
 
             logger.info(
                 f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"

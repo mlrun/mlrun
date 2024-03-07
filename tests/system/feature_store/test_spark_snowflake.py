@@ -23,7 +23,11 @@ import snowflake.connector
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SnowflakeSource
 from mlrun.datastore.targets import SnowflakeTarget
-from tests.system.feature_store.test_spark_engine import TestFeatureStoreSparkEngine
+from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
+from tests.system.feature_store.spark_hadoop_test_base import (
+    Deployment,
+    SparkHadoopTestBase,
+)
 
 SNOWFLAKE_ENV_PARAMETERS = [
     "SNOWFLAKE_URL",
@@ -36,30 +40,82 @@ SNOWFLAKE_ENV_PARAMETERS = [
 ]
 
 
-class TestSnowFlakeSourceAndTarget(TestFeatureStoreSparkEngine):
-    project_name = "fs-system-snowflake-source-and-target"
-    run_local = False
+def get_missing_snowflake_spark_parameters():
+    snowflake_missing_keys = [
+        key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
+    ]
+    return snowflake_missing_keys
 
-    @staticmethod
-    def get_missing_snowflake_spark_parameters():
-        snowflake_missing_keys = [
-            key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
-        ]
-        return snowflake_missing_keys
 
-    @staticmethod
-    def generate_snowflake_table(
-        cursor,
-        database: str,
-        schema: str,
-        table_name: str,
-    ):
+class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
+    @classmethod
+    def teardown_class(cls):
+        super().teardown_class()
+        if cls.snowflake_connector:
+            cls.snowflake_connector.close()
+
+    @classmethod
+    def custom_setup_class(cls):
+        cls.configure_namespace("snowflake")
+        cls.env = os.environ
+        cls.configure_image_deployment(Deployment.Local)
+        snowflake_missing_keys = get_missing_snowflake_spark_parameters()
+        if snowflake_missing_keys:
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
+        url = cls.env.get("SNOWFLAKE_URL")
+        user = cls.env.get("SNOWFLAKE_USER")
+        cls.database = cls.env.get("SNOWFLAKE_DATABASE")
+        warehouse = cls.env.get("SNOWFLAKE_WAREHOUSE")
+        account = url.replace(".snowflakecomputing.com", "")
+        password = cls.env["SNOWFLAKE_PASSWORD"]
+        cls.snowflake_spark_parameters = dict(
+            url=url, user=user, database=cls.database, warehouse=warehouse
+        )
+        cls.snowflake_connector = snowflake.connector.connect(
+            account=account,
+            user=user,
+            password=password,
+            warehouse=warehouse,
+        )
+        cls.schema = cls.env.get("SNOWFLAKE_SCHEMA")
+        if cls.deployment_type == Deployment.Remote:
+            cls.spark_service = cls.spark_service_name
+            cls.run_local = False
+        else:
+            cls.spark_service = None
+            cls.run_local = True
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.cursor = self.snowflake_connector.cursor()
+        self.current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        self.source_table = f"source_{self.current_time}"
+        self.tables_to_drop = [self.source_table]
+
+    def teardown_method(self, method):
+        super().teardown_method(method)
+        for table_name in self.tables_to_drop:
+            try:
+                drop_query = (
+                    f"DROP TABLE IF EXISTS {self.database}.{self.schema}.{table_name}"
+                )
+                self.cursor.execute(drop_query)
+            except Exception as error:
+                self._logger.warning(
+                    f"{self.__class__.__name__}::{method.__name__} failed to drop table: "
+                    f"{self.database}.{self.schema}.{table_name}, error: '{error}'"
+                )
+        self.cursor.close()
+
+    def generate_snowflake_source_table(self):
         data_values = [
             (
                 i + 1,
                 f"Name{i + 1}",
                 random.randint(23, 60),
-                datetime.now()
+                datetime.utcnow()
                 - timedelta(
                     days=random.randint(0, 1000),
                     hours=random.randint(0, 23),
@@ -69,99 +125,76 @@ class TestSnowFlakeSourceAndTarget(TestFeatureStoreSparkEngine):
             for i in range(20)
         ]
         create_table_query = (
-            f"CREATE TABLE IF NOT EXISTS {database}.{schema}.{table_name} "
+            f"CREATE TABLE IF NOT EXISTS {self.database}.{self.schema}.{self.source_table} "
             f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP)"
         )
-        cursor.execute(create_table_query)
+        self.cursor.execute(create_table_query)
         insert_query = (
-            f"INSERT INTO {database}.{schema}.{table_name}"
+            f"INSERT INTO {self.database}.{self.schema}.{self.source_table}"
             f" (ID ,NAME,AGE, LICENSE_DATE) VALUES (%s, %s, %s, %s)"
         )
-        cursor.executemany(insert_query, data_values)
+        self.cursor.executemany(insert_query, data_values)
         return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE", "LICENSE_DATE"])
 
-    @staticmethod
-    def drop_snowflake_tables(
-        cursor,
-        database: str,
-        schema: str,
-        tables: list,
-    ):
-        for table_name in tables:
-            drop_query = f"DROP TABLE IF EXISTS {database}.{schema}.{table_name}"
-            cursor.execute(drop_query)
-
     def test_snowflake_source_and_target(self):
-        url = os.environ.get("SNOWFLAKE_URL")
-        user = os.environ.get("SNOWFLAKE_USER")
-        database = os.environ.get("SNOWFLAKE_DATABASE")
-        warehouse = os.environ.get("SNOWFLAKE_WAREHOUSE")
-        password = os.environ["SNOWFLAKE_PASSWORD"]
-        schema = os.environ.get("SNOWFLAKE_SCHEMA")
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        source_table = f"source_{current_time}"
-        result_table = f"result_{current_time}"
-        snowflake_spark_parameters = dict(
-            url=url, user=user, database=database, warehouse=warehouse
-        )
-        account = url.replace(".snowflakecomputing.com", "")
         number_of_rows = 10
-
-        snowflake_missing_keys = self.get_missing_snowflake_spark_parameters()
-        if snowflake_missing_keys:
-            pytest.skip(
-                f"The following snowflake keys are missing: {snowflake_missing_keys}"
-            )
-        self.project.set_secrets({"SNOWFLAKE_PASSWORD": password})
+        result_table = f"result_{self.current_time}"
         feature_set = fstore.FeatureSet(
             name="snowflake_feature_set",
             entities=[fstore.Entity("C_CUSTKEY")],
             engine="spark",
         )
         source = SnowflakeSource(
-            "snowflake_source",
-            query=f"select * from {source_table} order by ID limit {number_of_rows}",
-            schema=schema,
-            **snowflake_spark_parameters,
+            "snowflake_source_for_ingest",
+            query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
+            schema=self.schema,
+            **self.snowflake_spark_parameters,
         )
         target = SnowflakeTarget(
-            "snowflake_target",
+            "snowflake_target_for_ingest",
             table_name=result_table,
-            db_schema=schema,
-            **snowflake_spark_parameters,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
         )
-        ctx = snowflake.connector.connect(
-            account=account,
-            user=user,
-            password=password,
-            warehouse=warehouse,
+        source_df = self.generate_snowflake_source_table()
+        feature_set.ingest(
+            source,
+            targets=[target],
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=self.run_local),
         )
-        cursor = ctx.cursor()
-        try:
-            source_df = self.generate_snowflake_table(
-                cursor=cursor, database=database, schema=schema, table_name=source_table
-            )
-            feature_set.ingest(
-                source,
-                targets=[target],
-                spark_context=self.spark_service,
-                run_config=fstore.RunConfig(local=self.run_local),
-            )
-            result_data = cursor.execute(
-                f"select * from {database}.{schema}.{result_table}"
-            ).fetchall()
-            column_names = [desc[0] for desc in cursor.description]
-            result_df = pd.DataFrame(result_data, columns=column_names)
-            expected_df = source_df.sort_values(by="ID").head(number_of_rows)
-            pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
-        finally:
-            try:
-                self.drop_snowflake_tables(
-                    cursor=cursor,
-                    database=database,
-                    schema=schema,
-                    tables=[source_table, result_table],
-                )
-            finally:
-                if ctx:
-                    ctx.close()
+        result_data = self.cursor.execute(
+            f"select * from {self.database}.{self.schema}.{result_table}"
+        ).fetchall()
+        column_names = [desc[0] for desc in self.cursor.description]
+        result_df = pd.DataFrame(result_data, columns=column_names)
+        expected_df = source_df.sort_values(by="ID").head(number_of_rows)
+        pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
+
+    def test_source(self):
+        from pyspark.sql import SparkSession
+
+        # TODO fix this test where running the whole class...
+        spark = (
+            SparkSession.builder.appName("snowflake_spark")
+            .config("spark.sql.session.timeZone", "UTC")
+            .getOrCreate()
+        )
+        number_of_rows = 10
+
+        source = SnowflakeSource(
+            "snowflake_source",
+            query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
+            schema=self.schema,
+            time_field="LICENSE_DATE",
+            **self.snowflake_spark_parameters,
+        )
+        source_df = self.generate_snowflake_source_table()
+        result_spark_df = source.to_spark_df(session=spark)
+        result_df = spark_df_to_pandas(spark_df=result_spark_df)
+        sorted_source_df = source_df.sort_values(by="ID").head(number_of_rows)
+        pd.testing.assert_frame_equal(
+            sorted_source_df,
+            result_df,
+            check_dtype=False,
+        )

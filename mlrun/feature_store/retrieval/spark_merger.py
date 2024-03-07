@@ -44,7 +44,7 @@ def spark_df_to_pandas(spark_df):
                 type_conversion_dict[field.name] = "datetime64[ns]"
         df = PandasConversionMixin.toPandas(spark_df)
         if type_conversion_dict:
-            df.astype(type_conversion_dict, inplace=True)
+            df = df.astype(type_conversion_dict)
         return df
     else:
         return PandasConversionMixin.toPandas(spark_df)

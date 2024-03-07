@@ -19,7 +19,6 @@ from v3io.dataplane import Client as V3IOClient
 
 import mlrun.common.model_monitoring
 import mlrun.model_monitoring
-import mlrun.model_monitoring.stores.tsdb.v3io.v3io_tsdb
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
     AppResultEvent,

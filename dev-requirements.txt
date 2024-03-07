@@ -3,8 +3,8 @@ twine~=3.1
 build~=1.0
 
 # formatting & linting
-ruff~=0.3.0
-import-linter~=1.8
+ruff==0.3.0
+import-linter~=2.0
 
 # testing
 pytest~=7.4

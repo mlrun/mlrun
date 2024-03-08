@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import deepdiff
-
 import mlrun_pipelines.mounts
 
 import mlrun
@@ -103,9 +102,7 @@ def test_mount_s3():
     function = mlrun.new_function(
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
-    function.apply(
-        mlrun_pipelines.mounts.mount_s3(secret_name="s", endpoint_url="a.b")
-    )
+    function.apply(mlrun_pipelines.mounts.mount_s3(secret_name="s", endpoint_url="a.b"))
     env_dict = {
         var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
     }

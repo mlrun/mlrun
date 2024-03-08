@@ -31,12 +31,11 @@ setup(
         where="src/",
         include=[
             "mlrun_pipelines.helpers",
-            "mlrun_pipelines.iguazio",
+            "mlrun_pipelines.mounts",
             "mlrun_pipelines.mixins",
             "mlrun_pipelines.models",
             "mlrun_pipelines.ops",
             "mlrun_pipelines.patcher",
-            "mlrun_pipelines.platform_other",
             "mlrun_pipelines.utils",
         ],
     ),

@@ -15,7 +15,7 @@ import re
 from subprocess import run
 
 import kubernetes.client
-from mlrun_pipelines.iguazio import mount_v3io, mount_v3iod
+from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
 
 import mlrun.errors
 from mlrun.config import config

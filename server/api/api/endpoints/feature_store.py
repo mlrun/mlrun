@@ -18,7 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
-from mlrun_pipelines.iguazio import v3io_cred
+from mlrun_pipelines.mounts import v3io_cred
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas

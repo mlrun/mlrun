@@ -14,7 +14,7 @@
 #
 import os
 
-import mlrun_pipelines.iguazio
+import mlrun_pipelines.mounts
 import pytest
 from kfp import dsl
 
@@ -37,7 +37,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             project=self.project_name,
             image="mlrun/mlrun",
         )
-        kfp_with_v3io_mount.apply(mlrun_pipelines.iguazio.mount_v3io())
+        kfp_with_v3io_mount.apply(mlrun_pipelines.mounts.mount_v3io())
 
         @dsl.pipeline(name="job test", description="demonstrating mlrun usage")
         def job_pipeline(p1=9):

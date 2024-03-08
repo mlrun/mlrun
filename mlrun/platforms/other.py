@@ -16,7 +16,7 @@
 import os
 
 import kfp.dsl
-from mlrun_pipelines.iguazio import mount_v3io
+from mlrun_pipelines.mounts import mount_v3io
 
 from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError

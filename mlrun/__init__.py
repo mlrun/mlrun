@@ -27,7 +27,7 @@ __all__ = [
 from os import environ, path
 
 import dotenv
-from mlrun_pipelines.iguazio import mount_v3io, v3io_cred
+from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 
 from .config import config as mlconf
 from .datastore import DataItem, store_manager

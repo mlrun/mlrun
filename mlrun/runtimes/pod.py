@@ -20,8 +20,7 @@ from enum import Enum
 
 import dotenv
 import kubernetes.client as k8s_client
-import mlrun_pipelines.iguazio
-import mlrun_pipelines.platform_other
+import mlrun_pipelines.mounts
 from mlrun_pipelines.mixins import KfpAdapterMixin
 
 import mlrun.errors
@@ -935,11 +934,11 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun_pipelines.iguazio.v3io_cred.__name__,
-            mlrun_pipelines.iguazio.mount_v3io.__name__,
+            mlrun_pipelines.mounts.v3io_cred.__name__,
+            mlrun_pipelines.mounts.mount_v3io.__name__,
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
-            mlrun_pipelines.platform_other.mount_s3.__name__,
+            mlrun_pipelines.mounts.mount_s3.__name__,
             mlrun.platforms.set_env_variables.__name__,
         ]
 
@@ -957,7 +956,7 @@ class AutoMountType(str, Enum):
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
         if mlconf.igz_version != "":
-            return mlrun_pipelines.iguazio.v3io_cred
+            return mlrun_pipelines.mounts.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
         pvc_configured = (
             "MLRUN_PVC_MOUNT" in os.environ
@@ -968,11 +967,11 @@ class AutoMountType(str, Enum):
     def get_modifier(self):
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_credentials: mlrun_pipelines.iguazio.v3io_cred,
-            AutoMountType.v3io_fuse: mlrun_pipelines.iguazio.mount_v3io,
+            AutoMountType.v3io_credentials: mlrun_pipelines.mounts.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun_pipelines.mounts.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
-            AutoMountType.s3: mlrun_pipelines.platform_other.mount_s3,
+            AutoMountType.s3: mlrun_pipelines.mounts.mount_s3,
             AutoMountType.env: mlrun.platforms.set_env_variables,
         }[self]
 

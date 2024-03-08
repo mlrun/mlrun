@@ -14,7 +14,7 @@
 import typing
 
 import kubernetes.client
-from mlrun_pipelines.iguazio import mount_v3io, mount_v3iod
+from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
 
 import mlrun.common.schemas.function
 import mlrun.errors

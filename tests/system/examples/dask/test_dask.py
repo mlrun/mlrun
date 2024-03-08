@@ -18,7 +18,7 @@ import os
 import kfp
 import kfp.compiler
 import pytest
-from mlrun_pipelines.iguazio import mount_v3io
+from mlrun_pipelines.mounts import mount_v3io
 
 import mlrun.utils
 from mlrun import (

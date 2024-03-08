@@ -14,7 +14,7 @@
 #
 import pathlib
 
-import mlrun_pipelines.iguazio
+import mlrun_pipelines.mounts
 import pytest
 
 import mlrun
@@ -35,7 +35,7 @@ class TestHorovodTFv2(TestDemo):
             self.project_name, str(self.assets_path), init_git=True
         )
 
-        mlrun_pipelines.iguazio.mount_v3io()
+        mlrun_pipelines.mounts.mount_v3io()
 
         self._logger.debug("Uploading training file")
         trainer_src_path = str(self.assets_path / "horovod_training.py")

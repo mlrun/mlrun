@@ -23,38 +23,102 @@ function_annotation = "mlrun/function-uri"
 
 
 class FlexibleMapper(MutableMapping):
+    """
+    Custom mapper implementation that provides flexibility in handling the mapping
+    of data between class attributes and a dictionary.
+
+    This implementation includes compatibility with dictionary-like objects through
+    get, set, and delete methods. This allows the class to be handled like a native dict,
+    making it highly flexible.
+
+    Inheritors of this class encapsulate KFP data models and abstract away from MLRun their
+    differences across different versions
+
+    Attributes:
+        _external_data: The external data source in dict form.
+    """
+
     _external_data: dict
 
     def __init__(self, external_data: Any):
+        """
+        Constructs a FlexibleMapper from the given external_data source.
+
+        Args:
+            external_data: the initial data source. Can be a dict or any object
+            with a 'to_dict' method.
+        """
         if isinstance(external_data, dict):
             self._external_data = external_data
         elif hasattr(external_data, "to_dict"):
             self._external_data = external_data.to_dict()
 
-    # TODO: decide if we should kill the dict compatibility layer on get, set and del
     def __getitem__(self, key: str) -> Any:
+        """
+        Gets the value for the given key. If the key is not a class attribute,
+        it looks for it in the _external_data dict.
+
+        Args:
+            key: the key to look up.
+
+        Returns:
+            the value associated with the key.
+
+        Raises:
+            KeyError: if the key is not found
+        """
         try:
             return getattr(self, key)
         except AttributeError:
             return self._external_data[key]
 
     def __setitem__(self, key, value) -> NoReturn:
+        """
+        Sets the value for the given key. If the key isn't a class attribute,
+        it sets it in the _external_data dict.
+
+        Args:
+            key: the key to set.
+            value: the value to set for the key.
+        """
         try:
             setattr(self, key, value)
         except AttributeError:
             self._external_data[key] = value
 
     def __delitem__(self, key) -> NoReturn:
+        """
+        Deletes the item associated with the given key. If the key isn't a class attribute,
+        it deletes it in the _external_data dict.
+
+        Args:
+            key: the key to delete.
+
+        Raises:
+            KeyError: if the key is not found.
+        """
         try:
             delattr(self, key)
         except AttributeError:
             del self._external_data[key]
 
     def __len__(self) -> int:
-        # TODO: review the intrinsic responsibilities of __len__ on MutableMapping to ensure full compatibility
+        """
+        Returns the sum of the number of class attributes and items in the _external_data dict.
+
+        Returns:
+            the length of the mapping.
+        """
         return len(self._external_data) + len(vars(self)) - 1
 
     def __iter__(self) -> Iterator[str]:
+        """
+        Returns an iterator over the keys of the mapping. It yields keys from both the class
+        attributes and _external_data dict.
+
+        Returns
+            an iterator over the keys.
+        """
         yield from [
             m[0]
             for m in inspect.getmembers(self)
@@ -62,7 +126,20 @@ class FlexibleMapper(MutableMapping):
         ]
 
     def __bool__(self) -> bool:
+        """
+        Determines the boolean value of the mapping. The mapping is True if the _external_data dict is non-empty.
+
+        Returns:
+            True if the mapping is non-empty; False otherwise.
+        """
         return bool(self._external_data)
 
     def to_dict(self) -> dict:
+        """
+        Converts the mapping to a dict. This method combines both the class attributes
+        and the _external_data dict into a single dict, but it doesn't flatten _external_data
+
+        Returns:
+            a dict representation of the mapping.
+        """
         return {k: v for k, v in self}

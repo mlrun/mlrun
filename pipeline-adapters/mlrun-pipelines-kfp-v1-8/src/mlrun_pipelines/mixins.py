@@ -14,7 +14,7 @@
 #
 
 import kfp
-from mlrun_pipelines.common.helpers import project_annotation
+from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
 from mlrun_pipelines.utils import apply_kfp
 
 import mlrun
@@ -50,7 +50,7 @@ class PipelineProviderMixin:
             project_from_annotation = (
                 template.get("metadata", {})
                 .get("annotations", {})
-                .get(project_annotation)
+                .get(PROJECT_ANNOTATION)
             )
             if project_from_annotation:
                 return project_from_annotation

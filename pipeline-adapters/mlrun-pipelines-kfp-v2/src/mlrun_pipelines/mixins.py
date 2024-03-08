@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from mlrun_pipelines.common.helpers import project_annotation
+from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
 
 import mlrun
 
@@ -39,7 +39,7 @@ class PipelineProviderMixin:
             project_from_annotation = (
                 executor.get("metadata", {})
                 .get("annotations", {})
-                .get(project_annotation)
+                .get(PROJECT_ANNOTATION)
             )
             if project_from_annotation:
                 return project_from_annotation

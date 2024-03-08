@@ -22,9 +22,9 @@ import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
 from mlrun_pipelines.common.helpers import (
-    function_annotation,
-    project_annotation,
-    run_annotation,
+    FUNCTION_ANNOTATION,
+    PROJECT_ANNOTATION,
+    RUN_ANNOTATION,
 )
 from mlrun_pipelines.common.ops import KFP_ARTIFACTS_DIR, KFPMETA_DIR, PipelineRunType
 
@@ -388,9 +388,9 @@ def add_default_env(k8s_client, cop):
 def add_annotations(cop, kind, function, func_url=None, project=None):
     if func_url and func_url.startswith("db://"):
         func_url = func_url[len("db://") :]
-    cop.add_pod_annotation(run_annotation, kind)
-    cop.add_pod_annotation(project_annotation, project or function.metadata.project)
-    cop.add_pod_annotation(function_annotation, func_url or function.uri)
+    cop.add_pod_annotation(RUN_ANNOTATION, kind)
+    cop.add_pod_annotation(PROJECT_ANNOTATION, project or function.metadata.project)
+    cop.add_pod_annotation(FUNCTION_ANNOTATION, func_url or function.uri)
 
 
 def add_labels(cop, function, scrape_metrics=False):
@@ -441,15 +441,15 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     templates = {}
     for template in workflow["spec"]["templates"]:
         project = project or get_in(
-            template, ["metadata", "annotations", project_annotation], ""
+            template, ["metadata", "annotations", PROJECT_ANNOTATION], ""
         )
         name = template["name"]
         templates[name] = {
             "run_type": get_in(
-                template, ["metadata", "annotations", run_annotation], ""
+                template, ["metadata", "annotations", RUN_ANNOTATION], ""
             ),
             "function": get_in(
-                template, ["metadata", "annotations", function_annotation], ""
+                template, ["metadata", "annotations", FUNCTION_ANNOTATION], ""
             ),
         }
 

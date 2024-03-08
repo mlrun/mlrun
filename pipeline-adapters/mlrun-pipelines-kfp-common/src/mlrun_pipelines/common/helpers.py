@@ -17,9 +17,9 @@ import inspect
 from collections.abc import Iterator, MutableMapping
 from typing import Any, NoReturn
 
-project_annotation = "mlrun/project"
-run_annotation = "mlrun/pipeline-step-type"
-function_annotation = "mlrun/function-uri"
+PROJECT_ANNOTATION = "mlrun/project"
+RUN_ANNOTATION = "mlrun/pipeline-step-type"
+FUNCTION_ANNOTATION = "mlrun/function-uri"
 
 
 class FlexibleMapper(MutableMapping):

@@ -18,9 +18,9 @@ import os
 from kfp import dsl
 from kfp import kubernetes as kfp_k8s
 from mlrun_pipelines.common.helpers import (
-    function_annotation,
-    project_annotation,
-    run_annotation,
+    FUNCTION_ANNOTATION,
+    PROJECT_ANNOTATION,
+    RUN_ANNOTATION,
 )
 from mlrun_pipelines.common.ops import PipelineRunType
 
@@ -39,14 +39,14 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     templates = {}
     for name, template in workflow.get_executors():
         project = project or get_in(
-            template, ["metadata", "annotations", project_annotation], ""
+            template, ["metadata", "annotations", PROJECT_ANNOTATION], ""
         )
         templates[name] = {
             "run_type": get_in(
-                template, ["metadata", "annotations", run_annotation], ""
+                template, ["metadata", "annotations", RUN_ANNOTATION], ""
             ),
             "function": get_in(
-                template, ["metadata", "annotations", function_annotation], ""
+                template, ["metadata", "annotations", FUNCTION_ANNOTATION], ""
             ),
         }
 
@@ -131,11 +131,11 @@ def add_annotations(
 
     if func_url and func_url.startswith("db://"):
         func_url = func_url[len("db://") :]
-    kfp_k8s.add_pod_annotation(task, run_annotation, kind)
+    kfp_k8s.add_pod_annotation(task, RUN_ANNOTATION, kind)
     kfp_k8s.add_pod_annotation(
-        task, project_annotation, project or function.metadata.project
+        task, PROJECT_ANNOTATION, project or function.metadata.project
     )
-    kfp_k8s.add_pod_annotation(task, function_annotation, func_url or function.uri)
+    kfp_k8s.add_pod_annotation(task, FUNCTION_ANNOTATION, func_url or function.uri)
 
 
 def add_labels(task, function, scrape_metrics=False):

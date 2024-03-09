@@ -361,7 +361,7 @@ function:
 
 ```python
 # Mount all keys in the secret as files under /mnt/secrets
-function.apply(mlrun.platforms.mount_secret("my-secret", "/mnt/secrets/"))
+function.apply(mlrun_pipelines.mounts.mount_secret("my-secret", "/mnt/secrets/"))
 ```
 
 In our example, the two keys in `my-secret` are created as two files in the function pod, called `/mnt/secrets/secret1` and `/mnt/secrets/secret2`. Reading these

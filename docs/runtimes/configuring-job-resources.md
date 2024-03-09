@@ -331,7 +331,7 @@ In some instances, you might need to mount a file-system to your container to pe
 fn.apply(mlrun.mount_v3io())
 
 # Mount persistent storage - PVC
-fn.apply(mlrun.platforms.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
+fn.apply(mlrun_pipelines.mounts.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
 ```
 
 

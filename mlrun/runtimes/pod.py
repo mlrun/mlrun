@@ -936,10 +936,10 @@ class AutoMountType(str, Enum):
         return [
             mlrun_pipelines.mounts.v3io_cred.__name__,
             mlrun_pipelines.mounts.mount_v3io.__name__,
-            mlrun.platforms.other.mount_pvc.__name__,
-            mlrun.auto_mount.__name__,
+            mlrun_pipelines.mounts.mount_pvc.__name__,
+            mlrun_pipelines.mounts.auto_mount.__name__,
             mlrun_pipelines.mounts.mount_s3.__name__,
-            mlrun.platforms.set_env_variables.__name__,
+            mlrun_pipelines.mounts.set_env_variables.__name__,
         ]
 
     @classmethod
@@ -962,17 +962,17 @@ class AutoMountType(str, Enum):
             "MLRUN_PVC_MOUNT" in os.environ
             or "pvc_name" in mlconf.get_storage_auto_mount_params()
         )
-        return mlrun.platforms.other.mount_pvc if pvc_configured else None
+        return mlrun_pipelines.mounts.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun_pipelines.mounts.v3io_cred,
             AutoMountType.v3io_fuse: mlrun_pipelines.mounts.mount_v3io,
-            AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
+            AutoMountType.pvc: mlrun_pipelines.mounts.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun_pipelines.mounts.mount_s3,
-            AutoMountType.env: mlrun.platforms.set_env_variables,
+            AutoMountType.env: mlrun_pipelines.mounts.set_env_variables,
         }[self]
 
 

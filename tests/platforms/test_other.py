@@ -27,7 +27,7 @@ def test_mount_configmap():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun.platforms.mount_configmap(
+        mlrun_pipelines.mounts.mount_configmap(
             configmap_name="my-config-map",
             mount_path="/myConfMapPath",
             volume_name="my-volume",
@@ -60,7 +60,7 @@ def test_mount_hostpath():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun.platforms.mount_hostpath(
+        mlrun_pipelines.mounts.mount_hostpath(
             host_path="/tmp", mount_path="/myHostPath", volume_name="my-volume"
         )
     )
@@ -130,7 +130,7 @@ def test_set_env_variables():
     assert function.spec.env == []
 
     # Using a dictionary
-    function.apply(mlrun.platforms.set_env_variables(env_variables))
+    function.apply(mlrun_pipelines.mounts.set_env_variables(env_variables))
     env_dict = {var["name"]: var.get("value") for var in function.spec.env}
 
     assert env_dict == env_variables
@@ -141,7 +141,7 @@ def test_set_env_variables():
     assert function.spec.env == []
 
     # And using key=value parameters
-    function.apply(mlrun.platforms.set_env_variables(**env_variables))
+    function.apply(mlrun_pipelines.mounts.set_env_variables(**env_variables))
     env_dict = {var["name"]: var.get("value") for var in function.spec.env}
 
     assert env_dict == env_variables

@@ -30,6 +30,7 @@ import click
 import dotenv
 import pandas as pd
 import yaml
+from mlrun_pipelines.mounts import auto_mount as auto_mount_modifier
 from tabulate import tabulate
 
 import mlrun
@@ -40,7 +41,6 @@ from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
 from .model import RunTemplate
-from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
 from .run import (
     get_object,

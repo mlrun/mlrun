@@ -25,6 +25,7 @@ import requests
 import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
+from mlrun_pipelines.common.mounts import VolumeMount
 from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 from mlrun_pipelines.ops import deploy_op
 from nuclio.deploy import find_dashboard_url, get_deploy_status
@@ -41,7 +42,6 @@ from mlrun.errors import err_to_str
 from mlrun.lists import RunList
 from mlrun.model import RunObject
 from mlrun.platforms.iguazio import (
-    VolumeMount,
     parse_path,
     split_path,
 )

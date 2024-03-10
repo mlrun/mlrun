@@ -13,7 +13,11 @@
 # limitations under the License.
 #
 
+from kfp.dsl import PipelineTask
 from mlrun_pipelines.common.helpers import FlexibleMapper
+
+# class pointer for type checking on the main MLRun codebase
+PipelineNodeWrapper = PipelineTask
 
 
 class PipelineManifest(FlexibleMapper):

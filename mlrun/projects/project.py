@@ -34,6 +34,7 @@ import mlrun_pipelines.mounts
 import nuclio
 import requests
 import yaml
+from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -2851,9 +2852,7 @@ class MlrunProject(ModelObj):
         notifications: list[mlrun.model.Notification] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
-        # TODO: resolve ContainerOp situation
-        # ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
-    ) -> mlrun.model.RunObject:
+    ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
         example (use with project)::
@@ -2906,7 +2905,7 @@ class MlrunProject(ModelObj):
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :return: MLRun RunObject or KubeFlow containerOp
+        :return: MLRun RunObject or PipelineNodeWrapper
         """
         return run_function(
             function,
@@ -2949,9 +2948,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         force_build: bool = False,
-        # TODO: resolve ContainerOp situation
-        # ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
-    ) -> BuildStatus:
+    ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """deploy ML function, build container with its dependencies
 
         :param function:            name of the function (in the project) or function object
@@ -3069,9 +3066,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         target_dir: str = None,
-        # TODO: resolve ContainerOp situation
-        # ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
-    ) -> BuildStatus:
+    ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
         If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
@@ -3186,9 +3181,7 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         builder_env: dict = None,
         mock: bool = None,
-        # TODO: resolve ContainerOp situation
-        # ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
-    ) -> DeployStatus:
+    ) -> typing.Union[DeployStatus, PipelineNodeWrapper]:
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object

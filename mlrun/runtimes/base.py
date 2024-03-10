@@ -681,11 +681,11 @@ class BaseRuntime(ModelObj):
                                   "key": "the_key".
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
-        :return: KubeFlow containerOp
+        :return: mlrun_pipelines.models.PipelineNodeWrapper
         """
 
         # if the function contain KFP PipelineParams (futures) pass the full spec to the
-        # ContainerOp this way KFP will substitute the params with previous step outputs
+        # PipelineNodeWrapper this way KFP will substitute the params with previous step outputs
         if use_db and not self._has_pipeline_param():
             # if the same function is built as part of the pipeline we do not use the versioned function
             # rather the latest function w the same tag so we can pick up the updated image/status

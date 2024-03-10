@@ -16,8 +16,12 @@
 import json
 from typing import Any
 
+from kfp.dsl import ContainerOp
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 from mlrun_pipelines.common.helpers import FlexibleMapper
+
+# class pointer for type checking on the main MLRun codebase
+PipelineNodeWrapper = ContainerOp
 
 
 class PipelineManifest(FlexibleMapper):

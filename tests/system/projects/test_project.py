@@ -626,7 +626,7 @@ class TestProject(TestMLRunSystem):
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        self._logger.debug("saved project", project=project.to_yaml())
+        self._logger.debug("Saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,

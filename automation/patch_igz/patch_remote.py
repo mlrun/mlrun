@@ -17,6 +17,7 @@
 import io
 import json
 import logging
+import os
 import shlex
 import subprocess
 import typing
@@ -195,7 +196,7 @@ class MLRunPatcher(object):
                 "deployment",
                 "mlrun-api-chief",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -209,7 +210,7 @@ class MLRunPatcher(object):
                 "deployment",
                 "mlrun-api-worker",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -441,6 +442,7 @@ class MLRunPatcher(object):
 
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):
+        env = os.environ | (env or {})
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env
         )

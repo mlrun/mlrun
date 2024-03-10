@@ -27,7 +27,7 @@ from mlrun.model_monitoring.application import (
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationResult,
 )
-from mlrun.model_monitoring.batch import (
+from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
     HistogramDistanceMetric,
     KullbackLeiblerDivergence,

@@ -109,6 +109,32 @@ def add_function_node_selection_attributes(
                 task = kfp_k8s.add_node_selector(task, k, v)
 
     # TODO: is there a way to also set tolerations and affinities to a task?
+    if getattr(function.spec, "tolerations"):
+        if hasattr(kfp_k8s, "add_toleration"):
+            for t in function.spec.tolerations:
+                task = kfp_k8s.add_toleration(
+                    task,
+                    t.key,
+                    t.operator,
+                    t.value,
+                    t.effect,
+                    t.toleration_seconds,
+                )
+        else:
+            # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
+            logger.warning(
+                "Support for Pod tolerations is not yet available on the KFP 2 engine",
+                project=function.metadata.project,
+                function_name=function.metadata.name,
+            )
+
+    # TODO: remove this warning as soon as KFP SDK provides support for affinity management
+    if getattr(function.spec, "affinity"):
+        logger.warning(
+            "Support for Pod affinity is not yet available on the KFP 2 engine",
+            project=function.metadata.project,
+            function_name=function.metadata.name,
+        )
 
     return task
 

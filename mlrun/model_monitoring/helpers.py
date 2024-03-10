@@ -39,10 +39,6 @@ class _BatchDict(typing.TypedDict):
     days: int
 
 
-class _MLRunNoRunsFoundError(Exception):
-    pass
-
-
 def get_stream_path(
     project: str = None,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,

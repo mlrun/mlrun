@@ -13,11 +13,13 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Final, Optional, Protocol
+from typing import Final, Optional, Protocol, cast
 
 import numpy as np
 from pandas import DataFrame, Timestamp
 
+import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
     MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
     ResultKindApp,
@@ -192,6 +194,34 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         self.context.logger.info("Finished with the results")
         return results
 
+    def _log_drift_table_artifact(
+        self,
+        sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
+        inputs_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
+        metrics_per_feature: DataFrame,
+    ) -> None:
+        """
+        Log the Plotly drift table artifact
+        """
+        values = metrics_per_feature[
+            [HellingerDistance.NAME, TotalVarianceDistance.NAME]
+        ].mean(axis=1)
+        self.context.logger.debug("Computing drift results per feature")
+        drift_results = {
+            cast(str, key): (self._value_classifier.value_to_status(value), value)
+            for key, value in values.items()
+        }
+        self.context.logger.debug("Logging plotly artifact")
+        self.context.log_artifact(
+            mm_drift_table.FeaturesDriftTablePlot().produce(
+                sample_set_statistics=sample_set_statistics,
+                inputs_statistics=inputs_statistics,
+                metrics=metrics_per_feature.T.to_dict(),
+                drift_results=drift_results,
+            )
+        )
+        self.context.logger.debug("Logged plotly artifact successfully")
+
     def do_tracking(
         self,
         application_name: str,
@@ -214,6 +244,12 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         metrics_per_feature = self._compute_metrics_per_feature(
             sample_df_stats=self.dict_to_histogram(sample_df_stats),
             feature_stats=self.dict_to_histogram(feature_stats),
+        )
+        self.context.logger.debug("Saving artifacts")
+        self._log_drift_table_artifact(
+            inputs_statistics=feature_stats,
+            sample_set_statistics=sample_df_stats,
+            metrics_per_feature=metrics_per_feature,
         )
         self.context.logger.debug("Computing average per metric")
         results = self._get_results(metrics_per_feature)

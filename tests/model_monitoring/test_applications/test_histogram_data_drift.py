@@ -22,6 +22,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+import mlrun.artifacts.manager
 import mlrun.common.model_monitoring.helpers
 from mlrun import MLClientCtx
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -135,6 +136,9 @@ class TestApplication:
         app = HistogramDataDriftApplication()
         app.context = MLClientCtx(
             log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
+        )
+        app.context._artifacts_manager = Mock(
+            spec=mlrun.artifacts.manager.ArtifactManager
         )
         return app
 

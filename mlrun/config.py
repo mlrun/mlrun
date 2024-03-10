@@ -1346,12 +1346,21 @@ def read_env(env=None, prefix=env_prefix):
         if igz_domain:
             config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
-    if config.get("log_level"):
+    if log_level := config.get("log_level"):
         import mlrun.utils.logger
 
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
-        mlrun.utils.logger.set_logger_level(config["log_level"])
+        mlrun.utils.logger.set_logger_level(log_level)
+
+    if log_formatter_name := config.get("log_formatter"):
+        import mlrun.utils.logger
+
+        log_formatter = mlrun.utils.create_formatter_instance(
+            mlrun.utils.FormatterKinds(log_formatter_name)
+        )
+        mlrun.utils.logger.get_handler("default").setFormatter(log_formatter)
+
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)

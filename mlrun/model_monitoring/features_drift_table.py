@@ -24,7 +24,9 @@ import mlrun.common.schemas.model_monitoring
 from mlrun.artifacts import PlotlyArtifact
 
 # A type for representing a drift result, a tuple of the status and the drift mean:
-DriftResultType = tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
+DriftResultType = tuple[
+    mlrun.common.schemas.model_monitoring.constants.ResultStatusApp, float
+]
 
 
 class _PlotlyTableArtifact(PlotlyArtifact):

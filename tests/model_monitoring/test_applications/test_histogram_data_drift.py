@@ -22,6 +22,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+import mlrun.common.model_monitoring.helpers
 from mlrun import MLClientCtx
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
@@ -84,23 +85,47 @@ class TestDataDriftClassifier:
 class TestApplication:
     @staticmethod
     @pytest.fixture
-    def sample_df_stats() -> pd.DataFrame:
-        return pd.DataFrame.from_dict(
+    def sample_df_stats() -> mlrun.common.model_monitoring.helpers.FeatureStats:
+        return mlrun.common.model_monitoring.helpers.FeatureStats(
             {
-                "f1": [0.1, 0.3, 0, 0.3, 0.05, 0.25],
-                "f2": [0, 0.5, 0, 0.2, 0.05, 0.25],
-                "l": [0.9, 0, 0, 0, 0, 0.1],
+                "f1": {
+                    "count": 100,
+                    "hist": [[10, 30, 0, 30, 5, 25], [-10, -5, 0, 5, 10, 15, 20]],
+                },
+                "f2": {
+                    "count": 100,
+                    "hist": [[0, 50, 0, 20, 5, 25], [66, 67, 68, 69, 70, 71, 72]],
+                },
+                "l": {
+                    "count": 100,
+                    "hist": [
+                        [90, 0, 0, 0, 0, 10],
+                        [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
+                    ],
+                },
             }
         )
 
     @staticmethod
     @pytest.fixture
-    def feature_stats() -> pd.DataFrame:
-        return pd.DataFrame.from_dict(
+    def feature_stats() -> mlrun.common.model_monitoring.helpers.FeatureStats:
+        return mlrun.common.model_monitoring.helpers.FeatureStats(
             {
-                "f1": [0, 0, 0, 0.3, 0.7, 0],
-                "f2": [0, 0.45, 0.05, 0.15, 0.35, 0],
-                "l": [0.3, 0, 0, 0, 0, 0.7],
+                "f1": {
+                    "count": 100,
+                    "hist": [[0, 0, 0, 30, 70, 0], [-10, -5, 0, 5, 10, 15, 20]],
+                },
+                "f2": {
+                    "count": 100,
+                    "hist": [[0, 45, 5, 15, 35, 0], [66, 67, 68, 69, 70, 71, 72]],
+                },
+                "l": {
+                    "count": 100,
+                    "hist": [
+                        [30, 0, 0, 0, 0, 70],
+                        [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
+                    ],
+                },
             }
         )
 
@@ -116,8 +141,8 @@ class TestApplication:
     @staticmethod
     @pytest.fixture
     def application_kwargs(
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         application: HistogramDataDriftApplication,
     ) -> dict[str, Any]:
         kwargs = {}

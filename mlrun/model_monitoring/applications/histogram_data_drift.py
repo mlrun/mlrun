@@ -195,8 +195,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: DataFrame,
-        feature_stats: DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         sample_df: DataFrame,
         start_infer_time: Timestamp,
         end_infer_time: Timestamp,
@@ -212,7 +212,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         """
         self.context.logger.debug("Starting to run the application")
         metrics_per_feature = self._compute_metrics_per_feature(
-            sample_df_stats=sample_df_stats, feature_stats=feature_stats
+            sample_df_stats=self.dict_to_histogram(sample_df_stats),
+            feature_stats=self.dict_to_histogram(feature_stats),
         )
         self.context.logger.debug("Computing average per metric")
         results = self._get_results(metrics_per_feature)

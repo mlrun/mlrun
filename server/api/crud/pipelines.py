@@ -72,7 +72,7 @@ class Pipelines(
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
-                    sort_by=sort_by,
+                    sort_by=sort_by if page_token == "" else "",
                     filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
@@ -90,8 +90,8 @@ class Pipelines(
                 page_token=page_token,
                 page_size=page_size
                 or mlrun.common.schemas.PipelinesPagination.default_page_size,
-                sort_by=sort_by,
-                filter=filter_,
+                sort_by=sort_by if page_token == "" else "",
+                filter=filter_ if page_token == "" else "",
             )
             runs = [run.to_dict() for run in response.runs or []]
             runs = self._filter_runs_by_name(runs, name_contains)

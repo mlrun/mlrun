@@ -22,7 +22,6 @@ import numpy as np
 import pandas as pd
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher

@@ -41,6 +41,7 @@ import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
@@ -3624,6 +3625,64 @@ class MlrunProject(ModelObj):
         :raise MLRunInvalidArgumentError: In case the packager was not in the list.
         """
         self.spec.remove_custom_packager(packager=packager)
+
+    def store_api_gateway(
+        self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway
+    ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
+        """
+        Creates or updates a Nuclio API Gateway using the provided APIGateway object.
+
+        This method interacts with the MLRun service to create/update a Nuclio API Gateway based on the provided
+        APIGateway object. Once done, it returns the updated APIGateway object containing all fields propagated
+        on MLRun and Nuclio sides, such as the 'host' attribute.
+        Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+
+        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
+        of the API Gateway to be created
+
+        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
+        information retrieved from the Nuclio API
+        """
+
+        api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
+            api_gateway=api_gateway,
+            project=self.name,
+        )
+
+        if api_gateway_json:
+            # fill in all the fields in the user's api_gateway object
+            api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(
+                api_gateway_json
+            )
+        return api_gateway
+
+    def list_api_gateways(self) -> list[mlrun.runtimes.nuclio.api_gateway.APIGateway]:
+        """
+        Retrieves a list of Nuclio API gateways associated with the project.
+
+        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+        the Nuclio API gateways associated with the project.
+        """
+        gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
+        return [
+            mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(gateway_dict)
+            for gateway_dict in gateways_list.api_gateways.values()
+        ]
+
+    def get_api_gateway(
+        self,
+        name: str,
+    ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
+        """
+        Retrieves an API gateway by name instance.
+
+        :param name: The name of the API gateway to retrieve.
+
+        Returns:
+            mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
+        """
+
+        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
 
     def _run_authenticated_git_action(
         self,

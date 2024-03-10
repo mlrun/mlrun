@@ -27,9 +27,11 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -1544,6 +1546,180 @@ def test_load_project_from_yaml_with_function(context):
             )
             == {}
         )
+
+
+@pytest.mark.parametrize(
+    "kind_1 ,kind_2, canary, upstreams",
+    [
+        (
+            "nuclio",
+            "nuclio",
+            [20, 80],
+            [
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func1"}, percentage=80
+                ),
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func2"}, percentage=20
+                ),
+            ],
+        ),
+        (
+            "nuclio",
+            None,
+            None,
+            [
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func1"}, percentage=0
+                ),
+            ],
+        ),
+    ],
+)
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
+def test_create_api_gateway_valid(
+    patched_create_api_gateway,
+    context,
+    kind_1,
+    kind_2,
+    canary,
+    upstreams,
+):
+    patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(
+            name="new-gw",
+            labels={"nuclio.io/project-name": "project-name"},
+        ),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="new-gw",
+            path="/",
+            host="http://gateway-f1-f2-project-name.some-domain.com",
+            upstreams=upstreams,
+        ),
+    )
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    f1 = mlrun.code_to_function(
+        name="my-func1",
+        image="my-image",
+        kind=kind_1,
+        filename=str(assets_path() / "handler.py"),
+    )
+    f1.save()
+    functions = f1
+    project.set_function(f1)
+    if kind_2:
+        f2 = mlrun.code_to_function(
+            name="my-func2",
+            image="my-image",
+            kind=kind_2,
+            filename=str(assets_path() / "handler.py"),
+        )
+        f2.save()
+        project.set_function(f2)
+        functions = [f1, f2]
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        name="gateway-f1-f2",
+        functions=functions,
+        canary=canary,
+        project=project_name,
+    )
+
+    gateway = project.store_api_gateway(api_gateway)
+
+    assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
+
+    assert gateway.authentication_mode == "none"
+
+
+@pytest.mark.parametrize(
+    "kind_1 ,kind_2, canary",
+    [
+        ("nuclio", "nuclio", [20]),
+        ("nuclio", "nuclio", [20, 10]),
+        ("nuclio", "job", [20, 80]),
+        ("job", None, None),
+    ],
+)
+def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    f1 = mlrun.code_to_function(
+        name="my-func1",
+        image="my-image",
+        kind=kind_1,
+        filename=str(assets_path() / "handler.py"),
+    )
+    f1.save()
+    functions = f1
+    project.set_function(f1)
+    if kind_2:
+        f2 = mlrun.code_to_function(
+            name="my-func2",
+            image="my-image",
+            kind=kind_2,
+            filename=str(assets_path() / "handler.py"),
+        )
+        f2.save()
+        project.set_function(f2)
+        functions = [f1, f2]
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            name="gateway-f1-f2",
+            functions=functions,
+            canary=canary,
+            project=project_name,
+        )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
+def test_list_api_gateways(patched_list_api_gateways, context):
+    patched_list_api_gateways.return_value = mlrun.common.schemas.APIGatewaysOutput(
+        api_gateways={
+            "test": mlrun.common.schemas.APIGateway(
+                metadata=mlrun.common.schemas.APIGatewayMetadata(
+                    name="test",
+                    labels={"nuclio.io/project-name": "project-name"},
+                ),
+                spec=mlrun.common.schemas.APIGatewaySpec(
+                    name="test",
+                    path="/",
+                    host="http://gateway-f1-f2-project-name.some-domain.com",
+                    upstreams=[
+                        mlrun.common.schemas.APIGatewayUpstream(
+                            nucliofunction={"name": "my-func1"}, percentage=0
+                        ),
+                    ],
+                ),
+            ),
+            "test2": mlrun.common.schemas.APIGateway(
+                metadata=mlrun.common.schemas.APIGatewayMetadata(
+                    name="test2",
+                    labels={"nuclio.io/project-name": "project-name"},
+                ),
+                spec=mlrun.common.schemas.APIGatewaySpec(
+                    name="test2",
+                    path="/",
+                    host="http://test-basic-default.domain.com",
+                    upstreams=[
+                        mlrun.common.schemas.APIGatewayUpstream(
+                            nucliofunction={"name": "my-func1"}, percentage=0
+                        )
+                    ],
+                ),
+            ),
+        }
+    )
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    gateways = project.list_api_gateways()
+
+    assert gateways[0].name == "test"
+    assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
+    assert gateways[0].functions == ["my-func1"]
+
+    assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
+    assert gateways[1]._generate_basic_auth("test", "test") == "Basic dGVzdDp0ZXN0"
 
 
 def test_project_create_remote():

@@ -54,6 +54,37 @@ def mount_v3iod(namespace, v3io_config_configmap):
     raise NotImplementedError
 
 
+def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):
+    """
+    Modifier function to apply to a Container Op to simplify volume, volume mount addition and
+    enable better reuse of volumes, volume claims across container ops.
+
+    Usage::
+
+        train = train_op(...)
+        train.apply(mount_pvc('claim-name', 'pipeline', '/mnt/pipeline'))
+    """
+    raise NotImplementedError
+
+
+def set_env_variables(env_vars_dict: dict[str, str] = None, **kwargs):
+    """
+    Modifier function to apply a set of environment variables to a runtime. Variables may be passed
+    as either a dictionary of name-value pairs, or as arguments to the function.
+    See `KubeResource.apply` for more information on modifiers.
+
+    Usage::
+
+        function.apply(set_env_variables({"ENV1": "value1", "ENV2": "value2"}))
+        or
+        function.apply(set_env_variables(ENV1=value1, ENV2=value2))
+
+    :param env_vars_dict: dictionary of env. variables
+    :param kwargs: environment variables passed as args
+    """
+    raise NotImplementedError
+
+
 def mount_s3(
     secret_name=None,
     aws_access_key="",

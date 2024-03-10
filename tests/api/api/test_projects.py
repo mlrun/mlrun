@@ -980,17 +980,24 @@ def test_delete_project_not_found_in_leader(
     with unittest.mock.patch.object(
         mock_project_follower_iguazio_client,
         "delete_project",
-        side_effect=mlrun.errors.MLRunNotFoundError("Project not found"),
+        side_effect=mlrun.errors.MLRunNotFoundError("Project not found in Iguazio"),
     ):
         response = unversioned_client.delete(
             f"{delete_api_version}/projects/{project.metadata.name}",
         )
-        assert response.status_code == HTTPStatus.ACCEPTED.value
-
-        response = unversioned_client.get(
-            f"v1/projects/{project.metadata.name}",
-        )
-        assert response.status_code == HTTPStatus.NOT_FOUND.value
+        if delete_api_version == "v1":
+            assert response.status_code == HTTPStatus.NOT_FOUND.value
+            assert "Project not found in Iguazio" in response.json()["detail"]
+        else:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                background_task.metadata.name
+            )
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+            assert "Project not found in Iguazio" in background_task.status.error
 
 
 # Test should not run more than a few seconds because we test that if the background task fails,

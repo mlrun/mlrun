@@ -14,7 +14,7 @@
 #
 import os
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -24,6 +24,7 @@ import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SnowflakeSource
 from mlrun.datastore.targets import SnowflakeTarget
 from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
+from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
     SparkHadoopTestBase,
@@ -47,6 +48,7 @@ def get_missing_snowflake_spark_parameters():
     return snowflake_missing_keys
 
 
+@TestMLRunSystem.skip_test_if_env_not_configured
 class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     @classmethod
     def teardown_class(cls):
@@ -110,12 +112,14 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.close()
 
     def generate_snowflake_source_table(self):
+        utc_timezone = timezone.utc
+
         data_values = [
             (
                 i + 1,
                 f"Name{i + 1}",
                 random.randint(23, 60),
-                datetime.utcnow()
+                datetime.utcnow().replace(tzinfo=utc_timezone)
                 - timedelta(
                     days=random.randint(0, 1000),
                     hours=random.randint(0, 23),
@@ -126,7 +130,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         ]
         create_table_query = (
             f"CREATE TABLE IF NOT EXISTS {self.database}.{self.schema}.{self.source_table} "
-            f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP)"
+            f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP_TZ)"
         )
         self.cursor.execute(create_table_query)
         insert_query = (
@@ -157,6 +161,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             **self.snowflake_spark_parameters,
         )
         source_df = self.generate_snowflake_source_table()
+        self.tables_to_drop.append(result_table)
         feature_set.ingest(
             source,
             targets=[target],

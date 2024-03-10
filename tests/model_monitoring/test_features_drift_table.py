@@ -80,8 +80,8 @@ def plot_produce(context: mlrun.MLClientCtx):
         log_stream=mlrun.utils.Logger(name="test_data_drift_app", level=logging.DEBUG)
     )
     metrics_per_feature = application._compute_metrics_per_feature(
-        sample_df_stats=application._dict_to_histogram(sample_data_statistics),
-        feature_stats=application._dict_to_histogram(inputs_statistics),
+        sample_df_stats=application.dict_to_histogram(sample_data_statistics),
+        feature_stats=application.dict_to_histogram(inputs_statistics),
     )
 
     drift_results: dict[str, tuple[histogram_data_drift.ResultStatusApp, float]] = {}

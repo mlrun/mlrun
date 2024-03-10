@@ -199,10 +199,10 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
-            cls._dict_to_histogram(
+            cls.dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS])
             ),
-            cls._dict_to_histogram(
+            cls.dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS])
             ),
             ParquetTarget(
@@ -225,7 +225,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         return context
 
     @staticmethod
-    def _dict_to_histogram(histogram_dict: dict[str, dict[str, Any]]) -> pd.DataFrame:
+    def dict_to_histogram(histogram_dict: dict[str, dict[str, Any]]) -> pd.DataFrame:
         """
         Convert histogram dictionary to pandas DataFrame with feature histograms as columns
 

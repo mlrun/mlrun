@@ -221,7 +221,7 @@ class FormatterKinds(Enum):
     JSON = "json"
 
 
-def _create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Formatter:
+def create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Formatter:
     return {
         FormatterKinds.HUMAN: HumanReadableFormatter(),
         FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter(),
@@ -243,7 +243,7 @@ def create_logger(
     logger_instance = Logger(level, name=name, propagate=False)
 
     # resolve formatter
-    formatter_instance = _create_formatter_instance(
+    formatter_instance = create_formatter_instance(
         FormatterKinds(formatter_kind.lower())
     )
 

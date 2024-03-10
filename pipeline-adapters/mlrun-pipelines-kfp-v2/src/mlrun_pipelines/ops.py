@@ -186,9 +186,15 @@ def add_labels(task, function, scrape_metrics=False):
 
 
 def add_default_env(task):
-    # TODO: how to add an env variable that references the metadata namespace attribute?
-    #  "MLRUN_NAMESPACE" depends on it
-    task.set_env_variable(name="MLRUN_NAMESPACE", value="mlrun")
+    if hasattr(kfp_k8s, "use_field_path_as_env"):
+        kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
+    else:
+        # TODO: remove this warning as soon as "use_field_path_as_env" is available for MLRun SDK
+        logger.warning(
+            "Support for field paths as Pod environment variables is not yet available for the KFP 2 engine, "
+            'so functions will tentatively default to "MLRUN_NAMESPACE: mlrun"',
+        )
+        task.set_env_variable(name="MLRUN_NAMESPACE", value="mlrun")
 
     if config.httpdb.api_url:
         task.set_env_variable(name="MLRUN_DBPATH", value=config.httpdb.api_url)

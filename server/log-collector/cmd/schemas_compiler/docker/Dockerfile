@@ -17,7 +17,7 @@ ARG GO_VERSION=1.21
 
 FROM gcr.io/iguazio/golang:${GO_VERSION}-alpine AS golang
 
-FROM python:${PYTHON_VERSION}-alpine
+FROM gcr.io/iguazio/python:${PYTHON_VERSION}-alpine
 
 ARG PROTOC_GEN_GO_VERSION=v1.28
 ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2

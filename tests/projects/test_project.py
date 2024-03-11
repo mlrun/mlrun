@@ -1622,6 +1622,66 @@ def test_set_remote_as_update(
 
 
 @pytest.mark.parametrize(
+    "url,name,expected",
+    [
+        # Remote doesn't exist, create normally
+        (
+            "https://github.com/mlrun/some-other-git-repo.git",
+            "mlrun-remote2",
+            does_not_raise(),
+        ),
+        # Remote exists, raise MLRunConflictError
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "mlrun-remote",
+            pytest.raises(mlrun.errors.MLRunConflictError),
+        ),
+    ],
+)
+def test_create_remote(url, name, expected):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        with expected:
+            project.create_remote(
+                url=url,
+                name=name,
+            )
+            assert project.spec.repo.remote(name).url == url
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Remote exists, remove normally
+        ("mlrun-remote", does_not_raise()),
+        # Remote doesn't exist, raise MLRunNotFoundError
+        ("non-existent-remote", pytest.raises(mlrun.errors.MLRunNotFoundError)),
+    ],
+)
+def test_remove_remote(name, expected):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+        with expected:
+            project.remove_remote(name)
+            assert name not in project.spec.repo.remotes
+
+
+@pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [
         (None, None, "aaa/bbb", "ccc/ddd", None),

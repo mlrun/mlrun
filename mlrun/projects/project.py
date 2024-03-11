@@ -34,7 +34,6 @@ import kfp
 import nuclio
 import requests
 import yaml
-from deprecated import deprecated
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -2333,19 +2332,52 @@ class MlrunProject(ModelObj):
         elif url and url.endswith(".zip"):
             clone_zip(url, self.spec.context, self._secrets)
 
-    # TODO: remove in 1.9.0
-    @deprecated(
-        version="1.7.0",
-        reason="'create_remote' will be removed in version 1.9.0. Use 'set_remote' instead.",
-        category=FutureWarning,
-    )
     def create_remote(self, url, name="origin", branch=None):
-        """create remote for the project git
+        """Create remote for the project git
+
+         This method creates a new remote repository associated with the project's Git repository.
+         If a remote with the specified name already exists, it will not be overwritten.
+
+         If you wish to update the URL of an existing remote, use the `set_remote` method instead.
 
         :param url:    remote git url
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
+        self._ensure_git_repo()
+        self.set_remote(url, name=name, branch=branch, overwrite=False)
+
+    def set_remote(self, url, name="origin", branch=None, overwrite=True):
+        """Create or update a remote for the project git repository.
+
+        This method allows you to manage remote repositories associated with the project.
+        It checks if a remote with the specified name already exists.
+
+        If a remote with the same name does not exist, it will be created.
+        If a remote with the same name already exists,
+        the behavior depends on the value of the 'overwrite' flag:
+
+        - If 'overwrite' is set to True (default), the existing remote will be overwritten with the new URL.
+        - If 'overwrite' is set to False, a ConflictError will be raised, indicating that the remote already exists
+          and cannot be overwritten.
+
+        :param url: remote git url
+        :param name: name for the remote (default is 'origin')
+        :param branch: Git branch to use as source
+        :param overwrite: if True (default), updates the existing remote with the given URL if it already exists.
+                          if False, raises an error when attempting to create a remote with a name that already exists.
+        :raises MLRunConflictError: If a remote with the same name already exists and overwrite
+                                     is set to False.
+        """
+        if self._remote_exists(name):
+            if overwrite:
+                self.spec.repo.delete_remote(name)
+            else:
+                raise mlrun.errors.MLRunConflictError(
+                    f"Remote '{name}' already exists in the project, "
+                    f"Each remote in the project must have a unique name."
+                    "Use 'set_remote' with 'override=True' inorder to update the remote, or choose a different name."
+                )
         self._ensure_git_repo()
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
@@ -2359,37 +2391,22 @@ class MlrunProject(ModelObj):
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
-    def set_remote(self, url, name="origin", branch=None, overwrite=False):
-        """create or update a remote for the project git repository.
+    def remove_remote(self, name):
+        """Remove a remote from the project's Git repository.
 
-        This method allows you to manage remote repositories associated with the project.
-        It checks if a remote with the specified name already exists. If it does, you have
-        the option to overwrite it with a new URL or keep the existing remote.
-        If a remote with the same name does not exist, it will be created.
+        This method removes the remote repository associated with the specified name from the project's Git repository.
 
-        :param url: remote git url
-        :param name: name for the remote (default is 'origin')
-        :param branch: Git branch to use as source
-        :param overwrite: if `overwrite` is True, and a remote with the given name already exists,
-                          it will update the existing remote with the given url.
-                          If set to False (default),
-                          raise an error when attempting to create a remote with a name that already exists
-        :raises MLRunConflictError: If a remote with the same name already exists and overwrite
-                                     is set to False.
+        :param name: Name of the remote to remove.
         """
         if self._remote_exists(name):
-            if overwrite:
-                self.spec.repo.delete_remote(name)
-            else:
-                raise mlrun.errors.MLRunConflictError(
-                    f"Remote '{name}' already exists in the project, "
-                    f"Each remote in the project must have a unique name."
-                    "Use overwrite=True to override the remote, or choose a different name."
-                )
-        self.create_remote(url=url, name=name, branch=branch)
+            self.spec.repo.delete_remote(name)
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Remote '{name}' not found in the project's Git repository."
+            )
 
     def _remote_exists(self, name):
-        """check if a remote with the given name already exists"""
+        """Check if a remote with the given name already exists"""
         return any(remote.name == name for remote in self.spec.repo.remotes)
 
     def _ensure_git_repo(self):

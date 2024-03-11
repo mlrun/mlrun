@@ -33,7 +33,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 07-batch-infer
 ../feature-store/basic-demo
 mlflow
-MLRun demos repository <https://github.com/mlrun/demos>
+demos
 /cheat-sheet
 ```
 

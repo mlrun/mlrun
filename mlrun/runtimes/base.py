@@ -137,10 +137,10 @@ class FunctionSpec(ModelObj):
 
     @property
     def clone_target_dir(self):
-        # TODO: remove this property in 1.8.0
+        # TODO: remove this property in 1.9.0
         if self.build.source_code_target_dir:
             warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.8.0. "
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
                 "Use spec.build.source_code_target_dir instead.",
                 FutureWarning,
             )
@@ -148,10 +148,10 @@ class FunctionSpec(ModelObj):
 
     @clone_target_dir.setter
     def clone_target_dir(self, clone_target_dir):
-        # TODO: remove this property in 1.8.0
+        # TODO: remove this property in 1.9.0
         if clone_target_dir:
             warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.8.0. "
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
                 "Use spec.build.source_code_target_dir instead.",
                 FutureWarning,
             )

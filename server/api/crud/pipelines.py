@@ -66,13 +66,13 @@ class Pipelines(
         if project != "*":
             run_dicts = []
             while page_token is not None:
-                # kfp doesn't allow us to pass both a page_token and the filter. When we have a token from previous
-                # call, we will strip out the filter and use the token to continue (the token contains the details of
-                # the filter that was used to create it)
+                # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
+                # When we have a token from previous call, we will strip out the filter and use the token to continue
+                # (the token contains the details of the filter that was used to create it)
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
-                    sort_by=sort_by,
+                    sort_by=sort_by if page_token == "" else "",
                     filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
@@ -86,13 +86,22 @@ class Pipelines(
             total_size = len(runs)
             next_page_token = None
         else:
-            response = kfp_client._run_api.list_runs(
-                page_token=page_token,
-                page_size=page_size
-                or mlrun.common.schemas.PipelinesPagination.default_page_size,
-                sort_by=sort_by,
-                filter=filter_,
-            )
+            try:
+                response = kfp_client._run_api.list_runs(
+                    page_token=page_token,
+                    page_size=page_size
+                    or mlrun.common.schemas.PipelinesPagination.default_page_size,
+                    sort_by=sort_by,
+                    filter=filter_,
+                )
+            except kfp_server_api.ApiException as exc:
+                # extract the summary of the error message from the exception
+                error_message = exc.body or exc.reason or exc
+                if "message" in error_message:
+                    error_message = error_message["message"]
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, err_to_str(error_message)
+                ) from exc
             runs = [run.to_dict() for run in response.runs or []]
             runs = self._filter_runs_by_name(runs, name_contains)
             next_page_token = response.next_page_token

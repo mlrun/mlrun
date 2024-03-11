@@ -123,19 +123,15 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             columns=[metric_class.NAME for metric_class in self.metrics]
         )
 
-        for (sample_feat, sample_hist), (reference_feat, reference_hist) in zip(
-            sample_df_stats.items(), feature_stats.items()
-        ):
-            assert sample_feat == reference_feat, "The features do not match"
-            feature_name = sample_feat
+        for feature_name in feature_stats:
+            sample_hist = np.asarray(sample_df_stats[feature_name])
+            reference_hist = np.asarray(feature_stats[feature_name])
             self.context.logger.info(
                 "Computing metrics for feature", feature_name=feature_name
             )
-            sample_arr = np.asarray(sample_hist)
-            reference_arr = np.asarray(reference_hist)
             metrics_per_feature.loc[feature_name] = {  # pyright: ignore[reportCallIssue,reportArgumentType]
                 metric.NAME: metric(
-                    distrib_t=sample_arr, distrib_u=reference_arr
+                    distrib_t=sample_hist, distrib_u=reference_hist
                 ).compute()
                 for metric in self.metrics
             }

@@ -14,6 +14,7 @@
 
 import inspect
 import logging
+from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
 
@@ -36,6 +37,18 @@ from mlrun.model_monitoring.applications.histogram_data_drift import (
     InvalidThresholdValueError,
 )
 from mlrun.utils import Logger
+
+assets_folder = Path(__file__).parent / "assets"
+
+
+@pytest.fixture
+def application() -> HistogramDataDriftApplication:
+    app = HistogramDataDriftApplication()
+    app.context = MLClientCtx(
+        log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
+    )
+    app.context._artifacts_manager = Mock(spec=mlrun.artifacts.manager.ArtifactManager)
+    return app
 
 
 class TestDataDriftClassifier:
@@ -104,6 +117,15 @@ class TestApplication:
                         [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
                     ],
                 },
+                "timestamp": {
+                    "count": 1,
+                    "25%": "2024-03-11 09:31:39.152301+00:00",
+                    "50%": "2024-03-11 09:31:39.152301+00:00",
+                    "75%": "2024-03-11 09:31:39.152301+00:00",
+                    "max": "2024-03-11 09:31:39.152301+00:00",
+                    "mean": "2024-03-11 09:31:39.152301+00:00",
+                    "min": "2024-03-11 09:31:39.152301+00:00",
+                },
             }
         )
 
@@ -129,18 +151,6 @@ class TestApplication:
                 },
             }
         )
-
-    @staticmethod
-    @pytest.fixture
-    def application() -> HistogramDataDriftApplication:
-        app = HistogramDataDriftApplication()
-        app.context = MLClientCtx(
-            log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
-        )
-        app.context._artifacts_manager = Mock(
-            spec=mlrun.artifacts.manager.ArtifactManager
-        )
-        return app
 
     @staticmethod
     @pytest.fixture
@@ -185,3 +195,30 @@ class TestApplication:
             result_by_name["general_drift"]["result_status"]
             == ResultStatusApp.potential_detection
         ), "Expected potential detection in the general drift"
+
+
+@pytest.mark.parametrize(
+    ("sample_df_stats", "feature_stats"),
+    [
+        pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
+        pytest.param(
+            pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
+            pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
+            id="real-world-csv-dfs",
+        ),
+    ],
+)
+def test_compute_metrics_per_feature(
+    application: HistogramDataDriftApplication,
+    sample_df_stats: pd.DataFrame,
+    feature_stats: pd.DataFrame,
+) -> None:
+    metrics_per_feature = application._compute_metrics_per_feature(
+        sample_df_stats=sample_df_stats, feature_stats=feature_stats
+    )
+    assert set(metrics_per_feature.columns) == {
+        metric.NAME for metric in application.metrics
+    }, "Different metrics than expected"
+    assert set(metrics_per_feature.index) == set(
+        feature_stats.columns
+    ), "The features are different than expected"

@@ -34,6 +34,7 @@ import kfp
 import nuclio
 import requests
 import yaml
+from deprecated import deprecated
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -2332,6 +2333,12 @@ class MlrunProject(ModelObj):
         elif url and url.endswith(".zip"):
             clone_zip(url, self.spec.context, self._secrets)
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.7.0",
+        reason="'create_remote' will be removed in version 1.9.0. Use 'set_remote' instead.",
+        category=FutureWarning,
+    )
     def create_remote(self, url, name="origin", branch=None):
         """create remote for the project git
 

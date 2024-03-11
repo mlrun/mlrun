@@ -1616,7 +1616,7 @@ def test_set_remote_as_update(
                 overwrite=overwrite,
             )
 
-            if not name == set_name:
+            if name != set_name:
                 assert project.spec.repo.remote(name).url == url
             assert project.spec.repo.remote(set_name).url == expected_url
 

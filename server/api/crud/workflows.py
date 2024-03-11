@@ -372,16 +372,14 @@ class WorkflowRunners(
               [2] = Bool if the source is a path.
         """
 
+        save = bool(load_only or not source)
         source = source or project.spec.source
-        save = True
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Project source is required. Either specify the source in the project or provide it in the request."
             )
 
         if not load_only:
-            save = False
-
             # Path like source is not supported for load_only since it uses the mlrun default image
             if source.startswith("/"):
                 return source, save, True

@@ -22,6 +22,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
     MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+    EventFieldType,
     ResultKindApp,
     ResultStatusApp,
 )
@@ -190,6 +191,21 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         self.context.logger.info("Finished with the results")
         return results
 
+    @staticmethod
+    def _remove_timestamp_feature(
+        sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
+    ) -> mlrun.common.model_monitoring.helpers.FeatureStats:
+        """
+        Drop the 'timestamp' feature if it exists, as it is irrelevant
+        in the plotly artifact
+        """
+        sample_set_statistics = mlrun.common.model_monitoring.helpers.FeatureStats(
+            sample_set_statistics.copy()
+        )
+        if EventFieldType.TIMESTAMP in sample_set_statistics:
+            del sample_set_statistics[EventFieldType.TIMESTAMP]
+        return sample_set_statistics
+
     def _log_drift_table_artifact(
         self,
         sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
@@ -199,6 +215,14 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         """
         Log the Plotly drift table artifact
         """
+        sample_set_statistics = self._remove_timestamp_feature(sample_set_statistics)
+
+        self.context.logger.debug(
+            "Feature stats",
+            sample_set_statistics=sample_set_statistics,
+            inputs_statistics=inputs_statistics,
+        )
+
         values = metrics_per_feature[
             [HellingerDistance.NAME, TotalVarianceDistance.NAME]
         ].mean(axis=1)

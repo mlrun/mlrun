@@ -19,6 +19,7 @@ import tempfile
 import typing
 import uuid
 
+import mlrun_pipelines.common.models
 from kfp.compiler import compiler
 from mlrun_pipelines.helpers import new_pipe_metadata
 
@@ -380,7 +381,10 @@ class _PipelineRunStatus:
 
     @property
     def state(self):
-        if self._state not in mlrun.run.RunStatuses.stable_statuses():
+        if (
+            self._state
+            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+        ):
             self._state = self._engine.get_state(self.run_id, self.project)
         return self._state
 
@@ -676,7 +680,7 @@ class _LocalRunner(_PipelineRunner):
         err = None
         try:
             workflow_handler(**workflow_spec.args)
-            state = mlrun.run.RunStatuses.succeeded
+            state = mlrun_pipelines.common.models.RunStatuses.succeeded
         except Exception as exc:
             err = exc
             logger.exception("Workflow run failed")
@@ -684,7 +688,7 @@ class _LocalRunner(_PipelineRunner):
                 f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
             )
-            state = mlrun.run.RunStatuses.failed
+            state = mlrun_pipelines.common.models.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_pipeline_run_results(
             pipeline_context.runs_map.values(), state=state
@@ -816,9 +820,9 @@ class _RemoteRunner(_PipelineRunner):
                 f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
             )
-            state = mlrun.run.RunStatuses.failed
+            state = mlrun_pipelines.common.models.RunStatuses.failed
         else:
-            state = mlrun.run.RunStatuses.succeeded
+            state = mlrun_pipelines.common.models.RunStatuses.succeeded
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,
             )
@@ -1009,7 +1013,7 @@ def load_and_run(
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
-    if run.state == mlrun.run.RunStatuses.failed:
+    if run.state == mlrun_pipelines.common.models.RunStatuses.failed:
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
@@ -1024,7 +1028,7 @@ def load_and_run(
 
         pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-        if pipeline_state != mlrun.run.RunStatuses.succeeded:
+        if pipeline_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
             raise RuntimeError(
                 f"Workflow {workflow_log_message} failed, state={pipeline_state}"
             )

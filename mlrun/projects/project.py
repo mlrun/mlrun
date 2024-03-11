@@ -30,6 +30,7 @@ from typing import Callable, Optional, Union
 import dotenv
 import git
 import git.exc
+import mlrun_pipelines.common.models
 import mlrun_pipelines.mounts
 import nuclio
 import requests
@@ -2675,7 +2676,7 @@ class MlrunProject(ModelObj):
             notifications=notifications,
         )
         # run is None when scheduling
-        if run and run.state == mlrun.run.RunStatuses.failed:
+        if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
             return run
         if not workflow_spec.schedule:
             # Failure and schedule messages already logged

@@ -29,6 +29,7 @@ from typing import Optional, Union
 import nuclio
 import yaml
 from kfp import Client
+from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 from mlrun_pipelines.models import PipelineRun
 
@@ -68,43 +69,6 @@ from .utils import (
     run_keys,
     update_in,
 )
-
-
-class RunStatuses:
-    # TODO: MLRun's run states differ from 2.0 options; see V2beta1RuntimeState on the KFP codebase
-    # TODO: KFP's 1.8 and 2.0 statuses use different casing; evaluate options to address this
-    succeeded = "Succeeded"
-    failed = "Failed"
-    skipped = "Skipped"
-    error = "Error"
-    running = "Running"
-
-    @staticmethod
-    def all():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-            RunStatuses.running,
-        ]
-
-    @staticmethod
-    def stable_statuses():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-        ]
-
-    @staticmethod
-    def transient_statuses():
-        return [
-            status
-            for status in RunStatuses.all()
-            if status not in RunStatuses.stable_statuses()
-        ]
 
 
 def function_to_module(code="", workdir=None, secrets=None, silent=False):
@@ -936,7 +900,7 @@ def wait_for_pipeline_completion(
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
             show_kfp_run(pipeline, clear_output=True)
-            if pipeline_status.capitalize() not in RunStatuses.stable_statuses():
+            if pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",
                     run_id=run_id,
@@ -968,7 +932,6 @@ def wait_for_pipeline_completion(
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
-    status = status.capitalize()
     message = resp["run"].get("message", "")
     if expected_statuses:
         if status not in expected_statuses:

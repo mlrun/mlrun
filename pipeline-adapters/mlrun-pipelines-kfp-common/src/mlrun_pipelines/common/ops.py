@@ -17,6 +17,8 @@ import json
 import os
 from typing import Union
 
+import mlrun_pipelines.common.models
+
 import mlrun
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -378,9 +380,9 @@ def format_summary_from_kfp_run(
 def show_kfp_run(run, clear_output=False):
     # TODO: review graph rendering functionality with KFP 2.0 data schemas
     phase_to_color = {
-        mlrun.run.RunStatuses.failed: "red",
-        mlrun.run.RunStatuses.succeeded: "green",
-        mlrun.run.RunStatuses.skipped: "white",
+        mlrun_pipelines.common.models.RunStatuses.failed: "red",
+        mlrun_pipelines.common.models.RunStatuses.succeeded: "green",
+        mlrun_pipelines.common.models.RunStatuses.skipped: "white",
     }
     runtype_to_shape = {
         PipelineRunType.run: "ellipse",

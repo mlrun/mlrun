@@ -196,7 +196,7 @@ class MLRunPatcher:
                 "deployment",
                 "mlrun-api-chief",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -210,7 +210,7 @@ class MLRunPatcher:
                 "deployment",
                 "mlrun-api-worker",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 

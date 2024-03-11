@@ -18,3 +18,4 @@ from .function import (
     min_nuclio_versions,
     RemoteRuntime,
 )  # noqa
+from .api_gateway import APIGateway

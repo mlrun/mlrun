@@ -41,6 +41,7 @@ import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
@@ -1833,6 +1834,11 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
+        if name in mm_constants.MonitoringFunctionNames.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Application name can not be on of the following name : "
+                f"{mm_constants.MonitoringFunctionNames.all()}"
+            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -1994,27 +2000,40 @@ class MlrunProject(ModelObj):
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
+        image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-    ) -> dict:
+    ) -> None:
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio function, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              The time period in minutes in which the model monitoring controller job
-                                         runs. By default, the base period is 10 minutes. The schedule for the job
-                                         will be the following cron expression: "\\*/{base_period} \\* \\* \\* \\*".
+
+        :param default_controller_image:        Deprecated.
+        :param base_period:                     The time period in minutes in which the model monitoring controller
+                                                function is triggered. By default, the base period is 10 minutes.
+        :param image:                           The image of the model monitoring controller, writer, monitoring
+                                                stream & histogram data drift functions, which are real time nuclio
+                                                functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+
         :returns: model monitoring controller job as a dictionary.
         """
+        if default_controller_image != "mlrun/mlrun":
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'default_controller_image' is deprecated and will be removed in 1.9.0, "
+                "use 'image' instead",
+                FutureWarning,
+            )
+            image = default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        controller_job = db.create_model_monitoring_controller(
+        db.enable_model_monitoring(
             project=self.name,
-            default_controller_image=default_controller_image,
+            image=image,
             base_period=base_period,
         )
         if deploy_histogram_data_drift_app:
@@ -2025,16 +2044,46 @@ class MlrunProject(ModelObj):
                 ),
                 name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
                 application_class="HistogramDataDriftApplication",
-                image="mlrun/mlrun",
+                image=image,
             )
             fn.deploy()
-        return controller_job
+
+    def update_model_monitoring_controller(
+        self,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ) -> None:
+        """
+        Redeploy model monitoring application controller functions.
+
+
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         is triggered. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
+        :returns: model monitoring controller job as a dictionary.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.update_model_monitoring_controller(
+            project=self.name,
+            base_period=base_period,
+            image=image,
+        )
 
     def disable_model_monitoring(self):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.delete_function(
             project=self.name,
             name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.WRITER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.STREAM,
         )
 
     def set_function(
@@ -2638,45 +2687,40 @@ class MlrunProject(ModelObj):
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
-        """Run a workflow using kubeflow pipelines
+        """run a workflow using kubeflow pipelines
 
-        :param name:      Name of the workflow
+        :param name:      name of the workflow
         :param workflow_path:
-                          URL to a workflow file, if not a project workflow
+                          url to a workflow file, if not a project workflow
         :param arguments:
-                          Kubeflow pipelines arguments (parameters)
+                          kubeflow pipelines arguments (parameters)
         :param artifact_path:
-                          Target path/url for workflow artifacts, the string
+                          target path/url for workflow artifacts, the string
                           '{{workflow.uid}}' will be replaced by workflow id
         :param workflow_handler:
-                          Workflow function handler (for running workflow function directly)
-        :param namespace: Kubernetes namespace if other than default
-        :param sync:      Force functions sync before run
-        :param watch:     Wait for pipeline completion
-        :param dirty:     Allow running the workflow when the git repo is dirty
-        :param engine:    Workflow engine running the workflow.
-                          Supported values are 'kfp' (default), 'local' or 'remote'.
-                          For setting engine for remote running use 'remote:local' or 'remote:kfp'.
-        :param local:     Run local pipeline with local functions (set local=True in function.run())
+                          workflow function handler (for running workflow function directly)
+        :param namespace: kubernetes namespace if other than default
+        :param sync:      force functions sync before run
+        :param watch:     wait for pipeline completion
+        :param dirty:     allow running the workflow when the git repo is dirty
+        :param engine:    workflow engine running the workflow.
+                          supported values are 'kfp' (default), 'local' or 'remote'.
+                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
+        :param local:     run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a one of:
-                            1. Remote URL which is loaded dynamically to the workflow runner.
-                            2. A path to the project's context on the workflow runner's image.
-                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
-                          (enriched when building a project image with source, see `MlrunProject.build_image`).
-                          For other engines the source is used to validate that the code is up-to-date.
+        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          for other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
-                          Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                          Workflow and all its resources are deleted)
+                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted)
         :param notifications:
-                          List of notifications to send for workflow completion
-        :returns: Run id
+                          list of notifications to send for workflow completion
+        :returns: run id
         """
 
         arguments = arguments or {}
@@ -2879,19 +2923,23 @@ class MlrunProject(ModelObj):
 
         secrets_dict = {}
         if access_key:
-            secrets_dict[mm_constants.ProjectSecretKeys.ACCESS_KEY] = access_key
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key
 
         if endpoint_store_connection:
-            secrets_dict[mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION] = (
-                endpoint_store_connection
-            )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
 
         if stream_path:
             if stream_path.startswith("kafka://") and "?topic" in stream_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Custom kafka topic is not allowed"
                 )
-            secrets_dict[mm_constants.ProjectSecretKeys.STREAM_PATH] = stream_path
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+            ] = stream_path
 
         self.set_secrets(
             secrets=secrets_dict,
@@ -3071,7 +3119,6 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         builder_env: dict = None,
         extra_args: str = None,
-        source_code_target_dir: str = None,
     ):
         """specify builder configuration for the project
 
@@ -3092,8 +3139,6 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
-        :param source_code_target_dir: Path on the image where source code would be extracted
-            (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
@@ -3117,7 +3162,6 @@ class MlrunProject(ModelObj):
             overwrite=overwrite_build_params,
             builder_env=builder_env,
             extra_args=extra_args,
-            source_code_target_dir=source_code_target_dir,
         )
 
         if set_as_default and image != self.default_image:
@@ -3164,7 +3208,7 @@ class MlrunProject(ModelObj):
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
@@ -3230,11 +3274,6 @@ class MlrunProject(ModelObj):
                 builder_env=builder_env,
                 extra_args=extra_args,
                 force_build=True,
-            )
-
-            # Get the enriched target dir from the function
-            self.spec.build.source_code_target_dir = (
-                function.spec.build.source_code_target_dir
             )
 
         try:
@@ -3586,6 +3625,64 @@ class MlrunProject(ModelObj):
         :raise MLRunInvalidArgumentError: In case the packager was not in the list.
         """
         self.spec.remove_custom_packager(packager=packager)
+
+    def store_api_gateway(
+        self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway
+    ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
+        """
+        Creates or updates a Nuclio API Gateway using the provided APIGateway object.
+
+        This method interacts with the MLRun service to create/update a Nuclio API Gateway based on the provided
+        APIGateway object. Once done, it returns the updated APIGateway object containing all fields propagated
+        on MLRun and Nuclio sides, such as the 'host' attribute.
+        Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+
+        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
+        of the API Gateway to be created
+
+        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
+        information retrieved from the Nuclio API
+        """
+
+        api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
+            api_gateway=api_gateway,
+            project=self.name,
+        )
+
+        if api_gateway_json:
+            # fill in all the fields in the user's api_gateway object
+            api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(
+                api_gateway_json
+            )
+        return api_gateway
+
+    def list_api_gateways(self) -> list[mlrun.runtimes.nuclio.api_gateway.APIGateway]:
+        """
+        Retrieves a list of Nuclio API gateways associated with the project.
+
+        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+        the Nuclio API gateways associated with the project.
+        """
+        gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
+        return [
+            mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(gateway_dict)
+            for gateway_dict in gateways_list.api_gateways.values()
+        ]
+
+    def get_api_gateway(
+        self,
+        name: str,
+    ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
+        """
+        Retrieves an API gateway by name instance.
+
+        :param name: The name of the API gateway to retrieve.
+
+        Returns:
+            mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
+        """
+
+        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
 
     def _run_authenticated_git_action(
         self,

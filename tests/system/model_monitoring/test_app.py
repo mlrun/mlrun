@@ -30,6 +30,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
@@ -293,7 +294,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-record-results"
+    project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -398,3 +399,54 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(2.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringInitialize(TestMLRunSystem):
+    project_name = "test-mm-initialize"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    def test_enable_model_monitoring(self) -> None:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.update_model_monitoring_controller(
+                image=self.image or "mlrun/mlrun"
+            )
+
+        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+        )
+        writer = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.WRITER
+        )
+        stream = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.STREAM
+        )
+
+        controller._wait_for_function_deployment(db=controller._get_db())
+        writer._wait_for_function_deployment(db=writer._get_db())
+        stream._wait_for_function_deployment(db=stream._get_db())
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "10m"
+        )
+
+        self.project.update_model_monitoring_controller(
+            image=self.image or "mlrun/mlrun", base_period=1
+        )
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        controller._wait_for_function_deployment(db=controller._get_db())
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "1m"
+        )

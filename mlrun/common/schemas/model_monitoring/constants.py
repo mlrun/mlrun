@@ -181,7 +181,7 @@ class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
     BATCH = "model-monitoring-batch"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
-    STREAM = None
+    STREAM = "model-monitoring-stream"
 
     @staticmethod
     def all():

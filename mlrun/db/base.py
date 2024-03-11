@@ -616,6 +616,22 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        pass
+
+    @abstractmethod
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        pass
+
+    @abstractmethod
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        pass
+
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",
@@ -693,4 +709,20 @@ class RunDBInterface(ABC):
         namespace: Optional[str] = None,
         notifications: list["mlrun.model.Notification"] = None,
     ) -> "mlrun.common.schemas.WorkflowResponse":
+        pass
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        pass
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
         pass

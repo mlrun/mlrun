@@ -99,7 +99,14 @@ Use the feature store with data ingestion, model training, model serving, and au
 (e2e-demos)=
 ## End to end demos
 
-You can find the different end-to-end demos in the MLRun demos repository: [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
+See more examples in the end-to-end demos:
+- [How-To: Converting Existing ML Code to an MLRun Project](https://github.com/mlrun/demos/tree/master/howto) 
+- [Mask Detection Demo](https://github.com/mlrun/demos/tree/master/mask-detection)
+- [News Article Summarization and Keyword Extraction via NLP](https://github.com/mlrun/demos/tree/master/news-article-nlp)
+- [Fraud Prevention - Iguazio Feature Store](https://github.com/mlrun/demos/tree/master/fraud-prevention-feature-store)
+- [Stocks Prices Prediction Demo](https://github.com/mlrun/demos/tree/master/stocks-prediction)
+- [Sagemaker demo](https://github.com/mlrun/demo-sagemaker)
+- [Call center demo](https://github.com/mlrun/demo-call-center)
 
 ## Cheat sheet
 

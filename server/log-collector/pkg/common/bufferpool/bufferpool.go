@@ -22,9 +22,9 @@ type Pool interface {
 	// Put returns a buffer to the pool.
 	Put([]byte)
 
-	// NumPooled returns the number of buffers currently in the pool.
+	// NumPooled returns the number of currently available buffers in the pool.
 	NumPooled() int
 
-	// PoolSize returns the maximum number of buffers in the pool.
-	CurrentPoolSize() int
+	// PoolSize returns the number of already allocated buffers in the pool.
+	PoolSize() int
 }

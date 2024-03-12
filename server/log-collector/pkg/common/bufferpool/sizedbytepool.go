@@ -14,6 +14,8 @@
 
 package bufferpool
 
+import "sync"
+
 // SizedBytePool is a pool of byte buffers, with a max size
 // based on "github.com/oxtoacart/bpool"
 type SizedBytePool struct {
@@ -21,6 +23,7 @@ type SizedBytePool struct {
 	bufferSize  int
 	poolSize    int
 	currentSize int
+	lock        sync.Mutex
 }
 
 // NewSizedBytePool creates a new byte buffer pool
@@ -29,6 +32,7 @@ func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 		bufferChan: make(chan []byte, poolSize),
 		bufferSize: bufferSize,
 		poolSize:   poolSize,
+		lock:       sync.Mutex{},
 	}
 }
 
@@ -36,6 +40,8 @@ func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 // If the pool is not full, a new buffer is created.
 // If the pool is full, the call blocks until a buffer is available.
 func (p *SizedBytePool) Get() []byte {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	for {
 		select {
 		case buf := <-p.bufferChan:
@@ -52,6 +58,8 @@ func (p *SizedBytePool) Get() []byte {
 // Put returns a byte buffer to the pool.
 // If the buffer is too small, it is discarded.
 func (p *SizedBytePool) Put(buf []byte) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	if cap(buf) < p.bufferSize {
 		return
 	}

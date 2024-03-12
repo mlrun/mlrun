@@ -143,13 +143,18 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     def _add_general_drift_result(
         self, results: list[ModelMonitoringApplicationResult], value: float
     ) -> None:
+        """Add the general drift result to the results list and log it"""
+        status = self._value_classifier.value_to_status(value)
         results.append(
             ModelMonitoringApplicationResult(
                 name="general_drift",
                 value=value,
                 kind=self.METRIC_KIND,
-                status=self._value_classifier.value_to_status(value),
+                status=status,
             )
+        )
+        self.context.log_results(
+            results={"drift_status": status, "drift_metric": value}
         )
 
     def _get_results(

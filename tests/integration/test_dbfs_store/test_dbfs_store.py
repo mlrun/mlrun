@@ -227,10 +227,6 @@ class TestDBFSStore:
         reader: callable,
         reader_args: dict,
     ):
-        if use_datastore_profile:
-            pytest.skip(
-                "dask dataframe is not supported by datastore profile."
-            )  # TODO add support
         source = reader(local_file_path, **reader_args)
         upload_file_path = (
             f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
@@ -346,10 +342,6 @@ class TestDBFSStore:
         files_paths: list[Path],
         reader: callable,
     ):
-        if use_datastore_profile:
-            pytest.skip(
-                "dask dataframe is not supported by datastore profile."
-            )  # TODO add support
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
         df_url = self._setup_df_dir(

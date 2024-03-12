@@ -2344,7 +2344,6 @@ class MlrunProject(ModelObj):
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
-        self._ensure_git_repo()
         self.set_remote(url, name=name, branch=branch, overwrite=False)
 
     def set_remote(self, url, name="origin", branch=None, overwrite=True):
@@ -2365,6 +2364,7 @@ class MlrunProject(ModelObj):
         :raises MLRunConflictError: If a remote with the same name already exists and overwrite
                                      is set to False.
         """
+        self._ensure_git_repo()
         if self._remote_exists(name):
             if overwrite:
                 self.spec.repo.delete_remote(name)
@@ -2374,7 +2374,6 @@ class MlrunProject(ModelObj):
                     f"each remote in the project must have a unique name."
                     "Use 'set_remote' with 'override=True' inorder to update the remote, or choose a different name."
                 )
-        self._ensure_git_repo()
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:

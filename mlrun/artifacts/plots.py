@@ -211,7 +211,7 @@ class PlotlyArtifact(Artifact):
 
     def __init__(
         self,
-        figure: "Figure",
+        figure: typing.Optional["Figure"] = None,
         key: typing.Optional[str] = None,
         target_path: typing.Optional[str] = None,
     ) -> None:

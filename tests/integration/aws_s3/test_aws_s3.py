@@ -18,6 +18,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
+import dask.dataframe as dd
 import pandas as pd
 import pytest
 import yaml
@@ -203,19 +204,6 @@ class TestAwsS3:
         for param in params:
             os.environ.pop(param)
 
-    # @pytest.mark.parametrize(
-    #     "directory, file_format, file_extension, files_paths, reader",
-    #     [
-    #         (
-    #                 parquets_dir,
-    #                 "parquet",
-    #                 "parquet",
-    #                 [parquet_path, additional_parquet_path],
-    #                 dd.read_parquet,
-    #         ),
-    #         (csv_dir, "csv", "csv", [csv_path, additional_csv_path], dd.read_csv),
-    #     ],
-    # )
     @pytest.mark.parametrize(
         "file_format, writer, reset_index",
         [
@@ -263,3 +251,25 @@ class TestAwsS3:
                 tested_df = tested_df.sort_values("Column1").reset_index(drop=True)
             expected_df = pd.concat([df1, df2], ignore_index=True)
             assert_frame_equal(tested_df, expected_df)
+
+    @pytest.mark.parametrize(
+        "file_format, reader, reader_args",
+        [
+            ("parquet", dd.read_parquet, {}),
+            ("csv", dd.read_csv, {}),
+            ("json", dd.read_json, {"orient": "values"}),
+        ],
+    )
+    def test_as_df_dd(
+        self,
+        use_datastore_profile,
+        file_format: str,
+        reader: callable,
+        reader_args: dict,
+    ):
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        for p in credential_params:
+            os.environ[p] = config["env"][p]
+        filename = f"/df_{uuid.uuid4()}.{file_format}"
+        file_url = param["bucket_path"] + filename
+        # TODO continue....

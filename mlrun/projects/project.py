@@ -2355,11 +2355,7 @@ class MlrunProject(ModelObj):
 
         If a remote with the same name does not exist, it will be created.
         If a remote with the same name already exists,
-        the behavior depends on the value of the 'overwrite' flag:
-
-        - If 'overwrite' is set to True (default), the existing remote will be overwritten with the new URL.
-        - If 'overwrite' is set to False, a ConflictError will be raised, indicating that the remote already exists
-          and cannot be overwritten.
+        the behavior depends on the value of the 'overwrite' flag.
 
         :param url: remote git url
         :param name: name for the remote (default is 'origin')
@@ -2375,7 +2371,7 @@ class MlrunProject(ModelObj):
             else:
                 raise mlrun.errors.MLRunConflictError(
                     f"Remote '{name}' already exists in the project, "
-                    f"Each remote in the project must have a unique name."
+                    f"each remote in the project must have a unique name."
                     "Use 'set_remote' with 'override=True' inorder to update the remote, or choose a different name."
                 )
         self._ensure_git_repo()
@@ -2401,9 +2397,7 @@ class MlrunProject(ModelObj):
         if self._remote_exists(name):
             self.spec.repo.delete_remote(name)
         else:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Remote '{name}' not found in the project's Git repository."
-            )
+            logger.warning(f"The remote '{name}' does not exist. Nothing to remove.")
 
     def _remote_exists(self, name):
         """Check if a remote with the given name already exists"""

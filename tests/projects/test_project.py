@@ -1658,15 +1658,15 @@ def test_create_remote(url, name, expected):
 
 
 @pytest.mark.parametrize(
-    "name,expected",
+    "name",
     [
-        # Remote exists, remove normally
-        ("mlrun-remote", does_not_raise()),
-        # Remote doesn't exist, raise MLRunNotFoundError
-        ("non-existent-remote", pytest.raises(mlrun.errors.MLRunNotFoundError)),
+        # Remote exists
+        "mlrun-remote",
+        # Remote doesn't exist
+        "non-existent-remote",
     ],
 )
-def test_remove_remote(name, expected):
+def test_remove_remote(name):
     with tempfile.TemporaryDirectory() as tmp_dir:
         # create a project
         project_name = "project-name"
@@ -1676,9 +1676,8 @@ def test_remove_remote(name, expected):
             url="https://github.com/mlrun/some-git-repo.git",
             name="mlrun-remote",
         )
-        with expected:
-            project.remove_remote(name)
-            assert name not in project.spec.repo.remotes
+        project.remove_remote(name)
+        assert name not in project.spec.repo.remotes
 
 
 @pytest.mark.parametrize(

@@ -189,9 +189,10 @@ class ApplicationRuntime(RemoteRuntime):
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point
-        if (
-            self.spec.image and not self.status.application_image
-        ) or self.spec.image != self.status.container_image:
+        if self.spec.image and (
+            not self.status.application_image
+            or self.spec.image != self.status.container_image
+        ):
             self.status.application_image = self.spec.image
             self.spec.image = ""
 

@@ -16,8 +16,9 @@ from dataclasses import dataclass
 from typing import Final, Optional, Protocol, cast
 
 import numpy as np
-from pandas import DataFrame, Timestamp
+from pandas import DataFrame, Timestamp, Series
 
+import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -211,6 +212,17 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             del sample_set_statistics[EventFieldType.TIMESTAMP]
         return sample_set_statistics
 
+    def _log_json_artifact(self, drift_per_feature_values: Series) -> None:
+        self.context.logger.debug("Logging drift value per feature JSON artifact")
+        self.context.log_artifact(
+            mlrun.artifacts.Artifact(
+                body=drift_per_feature_values.to_json(),
+                format="json",
+                key="features_drift_results",
+            )
+        )
+        self.context.logger.debug("Logged JSON artifact successfully")
+
     def _log_drift_table_artifact(
         self,
         sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
@@ -231,6 +243,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         values = metrics_per_feature[
             [HellingerDistance.NAME, TotalVarianceDistance.NAME]
         ].mean(axis=1)
+
+        self._log_json_artifact(values)
+
         self.context.logger.debug("Computing drift results per feature")
         drift_results = {
             cast(str, key): (self._value_classifier.value_to_status(value), value)

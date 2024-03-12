@@ -85,7 +85,7 @@ def plot_produce(context: mlrun.MLClientCtx):
         sample_df_stats=application.dict_to_histogram(sample_data_statistics),
         feature_stats=application.dict_to_histogram(inputs_statistics),
     )
-    application._log_drift_table_artifact(
+    application._log_drift_artifacts(
         sample_set_statistics=sample_data_statistics,
         inputs_statistics=inputs_statistics,
         metrics_per_feature=metrics_per_feature,

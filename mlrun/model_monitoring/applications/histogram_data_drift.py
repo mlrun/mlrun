@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Final, Optional, Protocol, cast
 
 import numpy as np
-from pandas import DataFrame, Timestamp, Series
+from pandas import DataFrame, Series, Timestamp
 
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
@@ -213,6 +213,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         return sample_set_statistics
 
     def _log_json_artifact(self, drift_per_feature_values: Series) -> None:
+        """Log the drift values as a JSON artifact"""
         self.context.logger.debug("Logging drift value per feature JSON artifact")
         self.context.log_artifact(
             mlrun.artifacts.Artifact(
@@ -223,33 +224,24 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
         self.context.logger.debug("Logged JSON artifact successfully")
 
-    def _log_drift_table_artifact(
+    def _log_plotly_table_artifact(
         self,
         sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
         inputs_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
         metrics_per_feature: DataFrame,
+        drift_per_feature_values: Series,
     ) -> None:
-        """
-        Log the Plotly drift table artifact
-        """
-        sample_set_statistics = self._remove_timestamp_feature(sample_set_statistics)
-
+        """Log the Plotly drift table artifact"""
         self.context.logger.debug(
             "Feature stats",
             sample_set_statistics=sample_set_statistics,
             inputs_statistics=inputs_statistics,
         )
 
-        values = metrics_per_feature[
-            [HellingerDistance.NAME, TotalVarianceDistance.NAME]
-        ].mean(axis=1)
-
-        self._log_json_artifact(values)
-
         self.context.logger.debug("Computing drift results per feature")
         drift_results = {
             cast(str, key): (self._value_classifier.value_to_status(value), value)
-            for key, value in values.items()
+            for key, value in drift_per_feature_values.items()
         }
         self.context.logger.debug("Logging plotly artifact")
         self.context.log_artifact(
@@ -261,6 +253,26 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             )
         )
         self.context.logger.debug("Logged plotly artifact successfully")
+
+    def _log_drift_artifacts(
+        self,
+        sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
+        inputs_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
+        metrics_per_feature: DataFrame,
+    ) -> None:
+        """Log JSON and Plotly drift data per feature artifacts"""
+        drift_per_feature_values = metrics_per_feature[
+            [HellingerDistance.NAME, TotalVarianceDistance.NAME]
+        ].mean(axis=1)
+
+        self._log_json_artifact(drift_per_feature_values)
+
+        self._log_plotly_table_artifact(
+            sample_set_statistics=self._remove_timestamp_feature(sample_set_statistics),
+            inputs_statistics=inputs_statistics,
+            metrics_per_feature=metrics_per_feature,
+            drift_per_feature_values=drift_per_feature_values,
+        )
 
     def do_tracking(
         self,
@@ -286,7 +298,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             feature_stats=self.dict_to_histogram(feature_stats),
         )
         self.context.logger.debug("Saving artifacts")
-        self._log_drift_table_artifact(
+        self._log_drift_artifacts(
             inputs_statistics=feature_stats,
             sample_set_statistics=sample_df_stats,
             metrics_per_feature=metrics_per_feature,

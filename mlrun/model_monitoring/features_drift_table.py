@@ -378,10 +378,10 @@ class FeaturesDriftTablePlot:
             bins = np.array(bins)
             if bins[0] == -sys.float_info.max:
                 bins[0] = bins[1] - (bins[2] - bins[1])
-                hovertext[0] = f"(-∞, {bins[1]})"
+                hovertext[0] = f"(-inf, {bins[1]})"
             if bins[-1] == sys.float_info.max:
                 bins[-1] = bins[-2] + (bins[-2] - bins[-3])
-                hovertext[-1] = f"({bins[-2]}, ∞)"
+                hovertext[-1] = f"({bins[-2]}, inf)"
             # Center the bins (leave the first one):
             bins = 0.5 * (bins[:-1] + bins[1:])
             # Plot the histogram as a line with filled background below it:

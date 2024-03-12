@@ -259,13 +259,15 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
         inputs_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
         metrics_per_feature: DataFrame,
+        log_json_artifact: bool = True,
     ) -> None:
         """Log JSON and Plotly drift data per feature artifacts"""
         drift_per_feature_values = metrics_per_feature[
             [HellingerDistance.NAME, TotalVarianceDistance.NAME]
         ].mean(axis=1)
 
-        self._log_json_artifact(drift_per_feature_values)
+        if log_json_artifact:
+            self._log_json_artifact(drift_per_feature_values)
 
         self._log_plotly_table_artifact(
             sample_set_statistics=self._remove_timestamp_feature(sample_set_statistics),

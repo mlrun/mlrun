@@ -89,6 +89,7 @@ def plot_produce(context: mlrun.MLClientCtx):
         sample_set_statistics=sample_data_statistics,
         inputs_statistics=inputs_statistics,
         metrics_per_feature=metrics_per_feature,
+        log_json_artifact=False,
     )
 
 

@@ -23,7 +23,7 @@ type SizedBytePool struct {
 	bufferSize  int
 	poolSize    int
 	currentSize int
-	lock        sync.Mutex
+	sizeLock    sync.Mutex
 }
 
 // NewSizedBytePool creates a new byte buffer pool
@@ -32,7 +32,7 @@ func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 		bufferChan: make(chan []byte, poolSize),
 		bufferSize: bufferSize,
 		poolSize:   poolSize,
-		lock:       sync.Mutex{},
+		sizeLock:   sync.Mutex{},
 	}
 }
 
@@ -40,15 +40,13 @@ func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 // If the pool is not full, a new buffer is created.
 // If the pool is full, the call blocks until a buffer is available.
 func (p *SizedBytePool) Get() []byte {
-	p.lock.Lock()
-	defer p.lock.Unlock()
 	for {
 		select {
 		case buf := <-p.bufferChan:
 			return buf
 		default:
-			if p.currentSize < p.poolSize {
-				p.currentSize++
+			if p.CurrentPoolSize() < p.poolSize {
+				p.increaseCurrentSize(1)
 				p.bufferChan <- make([]byte, p.bufferSize)
 			}
 		}
@@ -58,8 +56,6 @@ func (p *SizedBytePool) Get() []byte {
 // Put returns a byte buffer to the pool.
 // If the buffer is too small, it is discarded.
 func (p *SizedBytePool) Put(buf []byte) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
 	if cap(buf) < p.bufferSize {
 		return
 	}
@@ -73,7 +69,17 @@ func (p *SizedBytePool) NumPooled() int {
 	return len(p.bufferChan)
 }
 
-// PoolSize returns the number of already allocated buffers in the pool.
-func (p *SizedBytePool) PoolSize() int {
+// CurrentPoolSize returns the number of already allocated buffers in the pool.
+func (p *SizedBytePool) CurrentPoolSize() int {
+	p.sizeLock.Lock()
+	defer p.sizeLock.Unlock()
+
 	return p.currentSize
+}
+
+func (p *SizedBytePool) increaseCurrentSize(n int) {
+	p.sizeLock.Lock()
+	defer p.sizeLock.Unlock()
+
+	p.currentSize += n
 }

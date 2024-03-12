@@ -54,7 +54,7 @@ func (suite *sizedBytePoolTestSuite) TestByteBufferPoolBlocking() {
 	}
 
 	suite.Require().Equal(0, pool.NumPooled(), "Pool should be empty")
-	suite.Require().Equal(numOfBuffers, pool.PoolSize(), "Pool size should be %d", numOfBuffers)
+	suite.Require().Equal(numOfBuffers, pool.CurrentPoolSize(), "Pool size should be %d", numOfBuffers)
 
 	// try to get another buffer in a go routine, should block
 	var newBuffer []byte
@@ -66,7 +66,7 @@ func (suite *sizedBytePoolTestSuite) TestByteBufferPoolBlocking() {
 
 	// make sure new buffer is not set yet, and the pool is still full
 	suite.Require().Nil(newBuffer, "New buffer should not be set yet")
-	suite.Require().Equal(numOfBuffers, pool.PoolSize(), "Pool should be full")
+	suite.Require().Equal(numOfBuffers, pool.CurrentPoolSize(), "Pool should be full")
 	suite.Require().Equal(0, pool.NumPooled(), "Pool should not have pooled buffers")
 
 	// put the buffers back

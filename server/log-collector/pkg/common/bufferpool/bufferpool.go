@@ -26,5 +26,5 @@ type Pool interface {
 	NumPooled() int
 
 	// PoolSize returns the maximum number of buffers in the pool.
-	PoolSize() int
+	CurrentPoolSize() int
 }

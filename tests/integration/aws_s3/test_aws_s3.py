@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import os
+from os.path import dirname, abspath, join
 import random
 import tempfile
 import uuid
@@ -78,6 +79,10 @@ class TestAwsS3:
             "parquet_url": f"{object_url}.parquet",
         }
         return res
+
+    def setup_class(self):
+        self.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
+        # TODO move setup to here from setup_method
 
     def setup_method(self, method):
         self._bucket_name = config["env"].get("bucket_name")
@@ -205,52 +210,37 @@ class TestAwsS3:
             os.environ.pop(param)
 
     @pytest.mark.parametrize(
-        "file_format, writer, reset_index",
+        "file_format, reader, reset_index",
         [
-            ("parquet", pd.DataFrame.to_parquet, False),
-            ("csv", pd.DataFrame.to_csv, True),
+            ("parquet", pd.read_parquet, False),
+            ("csv", pd.read_csv, True),
         ],
     )
-    def test_directory(self, use_datastore_profile, file_format, writer, reset_index):
+    def test_as_df_directory(self, use_datastore_profile, file_format, reader, reset_index):
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
         for p in credential_params:
             os.environ[p] = config["env"][p]
         directory = f"/{file_format}s_{uuid.uuid4()}"
         s3_directory_url = param["bucket_path"] + directory
-        #  generate dfs
-        # Define data for the first DataFrame
-        data1 = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
-
-        # Define data for the second DataFrame
-        data2 = {"Column1": [4, 5, 6], "Column2": ["X", "Y", "Z"]}
-
         # Create the DataFrames
-        df1 = pd.DataFrame(data1)
-        df2 = pd.DataFrame(data2)
-        with (
-            tempfile.NamedTemporaryFile(
-                suffix=f".{file_format}", delete=True
-            ) as temp_file1,
-            tempfile.NamedTemporaryFile(
-                suffix=f".{file_format}", delete=True
-            ) as temp_file2,
-        ):
-            # Save DataFrames as files
-            writer(df1, temp_file1.name, index=False)
-            writer(df2, temp_file2.name, index=False)
-            #  upload
-            dt1 = mlrun.run.get_dataitem(s3_directory_url + f"/df1.{file_format}")
-            dt2 = mlrun.run.get_dataitem(s3_directory_url + f"/df2.{file_format}")
-            dt1.upload(src_path=temp_file1.name)
-            dt2.upload(src_path=temp_file2.name)
-            dt1.as_df()
-            dt2.as_df()
-            dt_dir = mlrun.run.get_dataitem(s3_directory_url)
-            tested_df = dt_dir.as_df(format=file_format)
-            if reset_index:
-                tested_df = tested_df.sort_values("Column1").reset_index(drop=True)
-            expected_df = pd.concat([df1, df2], ignore_index=True)
-            assert_frame_equal(tested_df, expected_df)
+        df1_path = join(self.assets_path, f"test_data.{file_format}")
+        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+        df1 = reader(df1_path)
+        df2 = reader(df2_path)
+
+        #  upload
+        dt1 = mlrun.run.get_dataitem(s3_directory_url + f"/df1.{file_format}")
+        dt2 = mlrun.run.get_dataitem(s3_directory_url + f"/df2.{file_format}")
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        dt1.as_df()
+        dt2.as_df()
+        dt_dir = mlrun.run.get_dataitem(s3_directory_url)
+        tested_df = dt_dir.as_df(format=file_format)
+        if reset_index:
+            tested_df = tested_df.reset_index(drop=True)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
+        assert_frame_equal(tested_df, expected_df)
 
     @pytest.mark.parametrize(
         "file_format, reader, reader_args",
@@ -272,4 +262,12 @@ class TestAwsS3:
             os.environ[p] = config["env"][p]
         filename = f"/df_{uuid.uuid4()}.{file_format}"
         file_url = param["bucket_path"] + filename
-        # TODO continue....
+
+        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        source = reader(local_file_path, **reader_args)
+
+        upload_data_item = mlrun.run.get_dataitem(file_url)
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(df_module=dd, **reader_args)
+        assert dd.assert_eq(source, response)
+

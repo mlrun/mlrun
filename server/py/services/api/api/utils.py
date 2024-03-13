@@ -554,10 +554,10 @@ def _mask_v3io_volume_credentials(
                     if isinstance(
                         volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
                     ):
-                        volume[
-                            "flexVolume"
-                        ] = k8s_api_client.sanitize_for_serialization(
-                            volume["flexVolume"]
+                        volume["flexVolume"] = (
+                            k8s_api_client.sanitize_for_serialization(
+                                volume["flexVolume"]
+                            )
                         )
                     else:
                         raise mlrun.errors.MLRunInvalidArgumentError(

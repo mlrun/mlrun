@@ -21,9 +21,9 @@ import server.py.services.api.utils.projects.leader
 import server.py.services.api.utils.projects.member
 
 # TODO: something nicer
-project_member: typing.Optional[
-    server.py.services.api.utils.projects.member.Member
-] = None
+project_member: typing.Optional[server.py.services.api.utils.projects.member.Member] = (
+    None
+)
 
 
 def initialize_project_member():

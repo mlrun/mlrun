@@ -1375,7 +1375,7 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
-        project_tag = self._get_hexsha() or str(uuid.uuid4())
+        project_tag = self._get_project_tag()
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
                 import_from = artifact_dict["import_from"]
@@ -1396,11 +1396,13 @@ class MlrunProject(ModelObj):
                         self.spec.get_code_path(), artifact.src_path
                     )
                 producer = self._resolve_artifact_producer(artifact, project_tag)
-                if producer.name != self.metadata.name:
-                    if self._resolve_existing_artifact(
+                if (
+                    producer.name != self.metadata.name
+                    and self._resolve_existing_artifact(
                         artifact,
-                    ):
-                        continue
+                    )
+                ):
+                    continue
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
                 )
@@ -3769,8 +3771,8 @@ class MlrunProject(ModelObj):
 
     def _resolve_artifact_producer(
         self,
-        artifact: typing.Union[str, Artifact, DatasetArtifact, ModelArtifact],
-        project_producer_tag=None,
+        artifact: typing.Union[str, Artifact],
+        project_producer_tag: str = None,
     ) -> typing.Optional[ArtifactProducer]:
         """
         Resolve the artifact producer of the given artifact.
@@ -3800,18 +3802,20 @@ class MlrunProject(ModelObj):
 
         # do not retain the artifact's producer, replace it with the project as the producer
         project_producer_tag = (
-            project_producer_tag or self._get_hexsha() or str(uuid.uuid4())
+            project_producer_tag or self._get_project_tag()
         )
         return ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
+            kind="project",
+            name=self.metadata.name,
+            project=self.metadata.name,
             tag=project_producer_tag,
         )
 
     def _resolve_existing_artifact(
-        self, item, tag=None
-    ) -> typing.Optional[typing.Union[Artifact, DatasetArtifact, ModelArtifact]]:
+        self,
+        item: typing.Union[str, Artifact],
+        tag: str = None,
+    ) -> typing.Optional[Artifact]:
         """
         Check if there is and existing artifact with the given item and tag.
         If there is, return the existing artifact. Otherwise, return None.
@@ -3832,12 +3836,14 @@ class MlrunProject(ModelObj):
                 )
             if existing_artifact is not None:
                 return existing_artifact.from_dict(existing_artifact)
-        except mlrun.errors.MLRunNotFoundError as exc:
+        except mlrun.errors.MLRunNotFoundError:
             logger.debug(
                 "No existing artifact was found",
-                exc=exc,
             )
             return None
+
+    def _get_project_tag(self):
+        return self._get_hexsha() or str(uuid.uuid4())
 
 
 def _set_as_current_default_project(project: MlrunProject):

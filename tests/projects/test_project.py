@@ -902,11 +902,12 @@ def test_import_artifact_using_relative_path():
 
 
 def test_import_artifact_retain_producer(rundb_mock):
+    base_path = tests.conftest.results
     project_1 = mlrun.new_project(
-        name="project-1", context=f"{str(assets_path())}/project_1", save=False
+        name="project-1", context=f"{base_path}/project_1", save=False
     )
     project_2 = mlrun.new_project(
-        name="project-2", context=f"{str(assets_path())}/project_2", save=False
+        name="project-2", context=f"{base_path}/project_2", save=False
     )
 
     # create an artifact with a 'run' producer
@@ -923,7 +924,7 @@ def test_import_artifact_retain_producer(rundb_mock):
     ).get_meta()
 
     # export the artifact
-    artifact_path = f"{str(assets_path())}/my-artifact.yaml"
+    artifact_path = f"{base_path}/my-artifact.yaml"
     artifact.export(artifact_path)
 
     # import the artifact to another project
@@ -943,6 +944,49 @@ def test_import_artifact_retain_producer(rundb_mock):
     db_key = f"{run_name}_{new_key}"
     loaded_artifact = project_3.get_artifact(db_key)
     assert loaded_artifact.producer == artifact.producer
+
+
+def test_replace_exported_artifact_producer(rundb_mock):
+    base_path = tests.conftest.results
+    project_1 = mlrun.new_project(
+        name="project-1", context=f"{base_path}/project_1", save=False
+    )
+    project_2 = mlrun.new_project(
+        name="project-2", context=f"{base_path}/project_2", save=False
+    )
+
+    # create an artifact with a 'project' producer
+    key = "x"
+    artifact = mlrun.artifacts.Artifact(key=key, body="123", is_inline=True)
+
+    # we set the producer as dict so the export will work
+    artifact.producer = mlrun.artifacts.ArtifactProducer(
+        kind="project",
+        project=project_1.name,
+        name=project_1.name,
+    ).get_meta()
+
+    # export the artifact
+    artifact_path = f"{base_path}/my-artifact.yaml"
+    artifact.export(artifact_path)
+
+    # import the artifact to another project
+    new_key = "y"
+    imported_artifact = project_2.import_artifact(artifact_path, new_key)
+    assert imported_artifact.producer != artifact.producer
+    assert imported_artifact.producer["name"] == project_2.name
+
+    # set the artifact on the first project
+    project_1.set_artifact(artifact.key, artifact)
+    project_1.save()
+
+    # load a new project from the first project's context
+    project_3 = mlrun.load_project(name="project-3", context=project_1.context)
+
+    # make sure the artifact was registered with the new project producer
+    loaded_artifact = project_3.get_artifact(key)
+    assert loaded_artifact.producer != artifact.producer
+    assert loaded_artifact.producer["name"] == project_3.name
 
 
 @pytest.mark.parametrize(

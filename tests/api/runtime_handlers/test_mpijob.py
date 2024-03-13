@@ -25,7 +25,7 @@ import server.py.services.api.runtime_handlers.mpijob
 import server.py.services.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
-from server.py.services.api import get_db, get_runtime_handler
+from server.py.services.api.main import get_db, get_runtime_handler
 from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 

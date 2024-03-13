@@ -25,7 +25,8 @@ import server.py.services.api.utils.singletons.project_member
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.db.base import RunDBInterface
-from server.py.services.api import init_data, initialize_db, initialize_logs_dir
+from server.py.services.api.initial_data import init_data
+from server.py.services.api.main import initialize_db, initialize_logs_dir
 from server.py.services.api.rundb import sqldb
 from tests.conftest import new_run, run_now
 

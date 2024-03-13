@@ -31,7 +31,7 @@ from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
-from server.py.services.api import get_db
+from server.py.services.api.main import get_db
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 

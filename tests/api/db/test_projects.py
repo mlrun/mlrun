@@ -21,7 +21,8 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-from server.py.services.api import DBInterface, Project
+from server.py.services.api.db.base import DBInterface
+from server.py.services.api.db.sqldb.models import Project
 
 
 def test_get_project(

@@ -22,7 +22,7 @@ import mlrun.common.schemas
 import mlrun.model
 import server.py.services.api.db.sqldb.helpers
 import server.py.services.api.initial_data
-from server.py.services.api import DBInterface
+from server.py.services.api.db.base import DBInterface
 
 
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):

@@ -34,7 +34,7 @@ import tests.api.api.utils
 import tests.api.conftest
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
-from server.py.services.api import (
+from server.py.services.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,

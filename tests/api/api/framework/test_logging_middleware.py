@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from mlrun.utils import logger
 from mlrun.utils.logger import Logger, create_logger
-from server.py.services.api import app
+from server.py.services.api.main import app
 
 
 class HandledException1(Exception):

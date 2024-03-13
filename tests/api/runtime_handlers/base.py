@@ -30,7 +30,8 @@ import server.py.services.api.crud
 import server.py.services.api.utils.clients.chief
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
-from server.py.services.api import LogSources, get_db, get_runtime_handler
+from server.py.services.api.constants import LogSources
+from server.py.services.api.main import get_db, get_runtime_handler
 from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime-handlers")

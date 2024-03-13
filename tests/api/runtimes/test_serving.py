@@ -29,7 +29,7 @@ import server.py.services.api.crud
 import server.py.services.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
 from mlrun.runtimes.nuclio.function import NuclioStatus
-from server.py.services.api import SQLRunDB
+from server.py.services.api.rundb.sqldb import SQLRunDB
 from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 
 from .assets.serving_child_functions import *  # noqa

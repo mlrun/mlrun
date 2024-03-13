@@ -48,7 +48,8 @@ from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
-from server.py.services.api import API_PREFIX, BASE_VERSIONED_API_PREFIX, app, init_data
+from server.py.services.api.initial_data import init_data
+from server.py.services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 
 @pytest.fixture(autouse=True)

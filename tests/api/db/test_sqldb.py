@@ -26,7 +26,8 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.py.services.api.db.sqldb.models
 from mlrun.lists import ArtifactList
-from server.py.services.api import SQLDB, ArtifactV2
+from server.py.services.api.db.sqldb.db import SQLDB
+from server.py.services.api.db.sqldb.models import ArtifactV2
 from tests.conftest import new_run
 
 

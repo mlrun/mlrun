@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 import server.py.services.api.db.sqldb.models
 import server.py.services.api.initial_data
-from server.py.services.api import DBInterface
+from server.py.services.api.db.base import DBInterface
 
 
 def test_data_migration_rename_marketplace_kind_to_hub(

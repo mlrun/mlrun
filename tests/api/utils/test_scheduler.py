@@ -36,7 +36,7 @@ import tests.api.conftest
 from mlrun.config import config
 from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
-from server.py.services.api import get_db
+from server.py.services.api.main import get_db
 from server.py.services.api.utils.scheduler import Scheduler
 
 

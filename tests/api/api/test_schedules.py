@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import server.py.services.api.main
 import server.py.services.api.utils.singletons.scheduler
 import tests.api.api.utils
-from server.py.services.api import get_db
+from server.py.services.api.main import get_db
 from tests.common_fixtures import aioresponses_mock
 
 ORIGINAL_VERSIONED_API_PREFIX = server.py.services.api.main.BASE_VERSIONED_API_PREFIX

@@ -31,7 +31,7 @@ from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
-from server.py.services.api import DBInterface
+from server.py.services.api.db.base import DBInterface
 
 
 class TestArtifacts:

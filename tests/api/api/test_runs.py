@@ -31,7 +31,8 @@ import server.py.services.api.crud
 import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.background_tasks as background_tasks_handlers
 from mlrun.config import config
-from server.py.services.api import Run, get_db
+from server.py.services.api.db.sqldb.models import Run
+from server.py.services.api.utils.singletons.db import get_db
 
 RUNS_API_ENDPOINT = "/projects/{project}/runs"
 

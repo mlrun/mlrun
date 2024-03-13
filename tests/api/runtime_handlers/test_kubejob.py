@@ -31,7 +31,7 @@ from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
-from server.py.services.api import get_db, get_runtime_handler
+from server.py.services.api.main import get_db, get_runtime_handler
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 

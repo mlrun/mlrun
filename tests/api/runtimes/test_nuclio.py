@@ -39,7 +39,7 @@ from mlrun import code_to_function, mlconf
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.utils import logger
-from server.py.services.api import _build_function
+from server.py.services.api.api.endpoints.functions import _build_function
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 

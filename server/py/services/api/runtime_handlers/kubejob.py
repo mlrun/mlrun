@@ -164,11 +164,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         if workdir and os.path.isabs(workdir):
             return workdir
 
-        if runtime.spec.clone_target_dir:
+        if runtime.spec.build.source_code_target_dir:
             workdir = workdir or ""
             workdir = workdir.removeprefix("./")
 
-            return os.path.join(runtime.spec.clone_target_dir, workdir)
+            return os.path.join(runtime.spec.build.source_code_target_dir, workdir)
 
         return workdir
 

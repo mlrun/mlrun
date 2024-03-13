@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import pathlib
 import typing
 
+import nuclio
 import sqlalchemy.orm
 from fastapi import Depends
 
@@ -64,7 +65,7 @@ class MonitoringDeployment:
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
          1. model monitoring stream
          2. model monitoring batch
-         3. model monitoring batch application
+         3. model monitoring controller
          4. model monitoring writer
 
         :param parquet_batching_max_events: Maximum number of events that will be used for writing the monitoring
@@ -80,33 +81,52 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
     ):
         """
-        Invoking monitoring deploying functions.
+        Deploy model monitoring application controller, writer and stream functions.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
+        :param base_period:                 The time period in minutes in which the model monitoring controller function
+                                            triggers. By default, the base period is 10 minutes.
+        :param image:                       The image of the model monitoring controller, writer & monitoring
+                                            stream functions, which are real time nuclio functino.
+                                            By default, the image is mlrun/mlrun.
         """
-        self.deploy_model_monitoring_stream_processing(
+        controller_dict = self.deploy_model_monitoring_controller(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
-            tracking_policy=tracking_policy,
+            controller_image=image,
+            base_period=base_period,
         )
-        self.deploy_model_monitoring_batch_processing(
+
+        writer_dict = self.deploy_model_monitoring_writer_application(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
-            tracking_policy=tracking_policy,
-            tracking_offset=Seconds(self._max_parquet_save_interval),
-            function_name=mm_constants.MonitoringFunctionNames.BATCH,
+            writer_image=image,
         )
+
+        stream_dict = self.deploy_model_monitoring_stream_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            stream_image=image,
+        )
+
+        return {
+            k: v
+            for d in [controller_dict, writer_dict, stream_dict]
+            for k, v in d.items()
+        }
 
     def deploy_model_monitoring_stream_processing(
         self,
@@ -114,8 +134,8 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-    ) -> None:
+        stream_image: str = "mlrun/mlrun",
+    ) -> dict[str, typing.Any]:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
         to monitor the log of the data stream. It is triggered when a new log entry is detected.
@@ -125,31 +145,15 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
+        :param stream_image:                The image of the model monitoring stream function.
+                                            By default, the image is mlrun/mlrun.
         """
 
-        logger.info(
-            "Checking if model monitoring stream is already deployed",
+        MonitoringDeployment._check_if_already_deployed(
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
             project=project,
+            auth_info=auth_info,
         )
-        try:
-            # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                name="model-monitoring-stream",
-                project=project,
-                tag="",
-                auth_info=auth_info,
-            )
-            logger.info(
-                "Detected model monitoring stream processing function already deployed",
-                project=project,
-            )
-            return
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Deploying model monitoring stream processing function", project=project
-            )
-
         # Get parquet target value for model monitoring stream function
         parquet_target = server.py.services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
             db_session=db_session, project=project
@@ -158,19 +162,23 @@ class MonitoringDeployment:
         fn = self._initial_model_monitoring_stream_processing_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
-            tracking_policy=tracking_policy,
+            stream_image=stream_image,
             auth_info=auth_info,
             parquet_target=parquet_target,
         )
 
         # Adding label to the function - will be used to identify the stream pod
-        fn.metadata.labels = {"type": "model-monitoring-stream"}
+        fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
-        server.py.services.api.api.endpoints.functions._build_function(
+        fn, ready = server.py.services.api.api.endpoints.functions._build_function(
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
         )
+        return {
+            "stream_data": fn.to_dict(),
+            "stream_ready": ready,
+        }
 
     def deploy_model_monitoring_controller(
         self,
@@ -178,41 +186,69 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
+        base_period: int,
+        controller_image: str = "mlrun/mlrun",
+        overwrite: bool = False,
+    ) -> dict[str, typing.Any]:
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 5 min.
+        Deploy model monitoring application controller function.
+        The main goal of the controller function is to handle the monitoring processing and triggering applications.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations, including the required controller
-                                            configurations such as the base period (5 minutes by default) and
-                                            the default controller image (`mlrun/mlrun` by default).
+        :param base_period:                 The time period in minutes in which the model monitoring controller function
+                                            triggers. By default, the base period is 10 minutes.
+        :param controller_image:            The image of the model monitoring controller function.
+                                            By default, the image is mlrun/mlrun.
+        :param overwrite:                   If true, overwrite the existing model monitoring controller.
+                                            By default, False.
+
 
         :return: Model monitoring controller job as a runtime function.
         """
-
-        self.deploy_model_monitoring_writer_application(
+        MonitoringDeployment._check_if_already_deployed(
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             project=project,
-            model_monitoring_access_key=model_monitoring_access_key,
-            db_session=db_session,
             auth_info=auth_info,
-            tracking_policy=tracking_policy,
+            overwrite=overwrite,
         )
 
-        return self.deploy_model_monitoring_batch_processing(
+        fn = self._get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
-            tracking_policy=tracking_policy,
+            image=controller_image,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
+        minutes = base_period
+        hours = days = 0
+        batch_dict = {
+            mm_constants.EventFieldType.MINUTES: minutes,
+            mm_constants.EventFieldType.HOURS: hours,
+            mm_constants.EventFieldType.DAYS: days,
+        }
+        fn.set_env(
+            mm_constants.EventFieldType.BATCH_INTERVALS_DICT,
+            json.dumps(batch_dict),
+        )
+
+        fn.add_trigger(
+            "cron_interval",
+            spec=nuclio.CronTrigger(interval=f"{base_period}m"),
+        )
+        fn, ready = server.api.api.endpoints.functions._build_function(
+            db_session=db_session,
+            auth_info=auth_info,
+            function=fn,
+        )
+
+        return {
+            "controller_data": fn.to_dict(),
+            "controller_ready": ready,
+        }
 
     def deploy_model_monitoring_batch_processing(
         self,
@@ -339,12 +375,12 @@ class MonitoringDeployment:
 
     def deploy_model_monitoring_writer_application(
         self,
-        project,
-        model_monitoring_access_key,
-        db_session,
-        auth_info,
-        tracking_policy,
-    ):
+        project: str,
+        model_monitoring_access_key: str,
+        db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        writer_image: str = "mlrun/mlrun",
+    ) -> dict[str, typing.Any]:
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
         to write all the monitoring application result to the databases. It is triggered by those applications.
@@ -354,52 +390,42 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
+        :param writer_image:                The image of the model monitoring writer function.
+                                            By default, the image is mlrun/mlrun.
         """
 
-        logger.info(
-            "Checking if model monitoring writer is already deployed",
+        MonitoringDeployment._check_if_already_deployed(
+            function_name=mm_constants.MonitoringFunctionNames.WRITER,
             project=project,
+            auth_info=auth_info,
         )
-        try:
-            # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                name=mm_constants.MonitoringFunctionNames.WRITER,
-                project=project,
-                tag="",
-                auth_info=auth_info,
-            )
-            logger.info(
-                "Detected model monitoring writer processing function already deployed",
-                project=project,
-            )
-            return
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Deploying model monitoring writer processing function", project=project
-            )
 
         fn = self._initial_model_monitoring_writer_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
-            tracking_policy=tracking_policy,
+            writer_image=writer_image,
             auth_info=auth_info,
         )
 
-        # Adding label to the function - will be used to identify the stream pod
+        # Adding label to the function - will be used to identify the writer pod
         fn.metadata.labels = {"type": "model-monitoring-writer"}
 
-        server.py.services.api.api.endpoints.functions._build_function(
+        fn, ready = server.py.services.api.api.endpoints.functions._build_function(
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
         )
 
+        return {
+            "writer_data": fn.to_dict(),
+            "writer_ready": ready,
+        }
+
     def _initial_model_monitoring_stream_processing_function(
         self,
         project: str,
         model_monitoring_access_key: str,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        stream_image: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         parquet_target: str,
     ):
@@ -409,7 +435,6 @@ class MonitoringDeployment:
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE
                                             deployments this parameter will be None.
-        :param tracking_policy:             Model monitoring configurations.
         :param auth_info:                   The auth info of the request.
         :param parquet_target:              Path to model monitoring parquet file that will be generated by the
                                             monitoring stream nuclio function.
@@ -433,11 +458,11 @@ class MonitoringDeployment:
         function = typing.cast(
             mlrun.runtimes.ServingRuntime,
             mlrun.code_to_function(
-                name="model-monitoring-stream",
+                name=mm_constants.MonitoringFunctionNames.STREAM,
                 project=project,
                 filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
                 kind=mlrun.run.RuntimeKinds.serving,
-                image=tracking_policy.stream_image,
+                image=stream_image,
             ),
         )
 
@@ -448,11 +473,12 @@ class MonitoringDeployment:
         function.metadata.project = project
 
         # Add stream triggers
-        function = self._apply_stream_trigger(
+        function = self._apply_and_create_stream_trigger(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
             auth_info=auth_info,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
         )
 
         # Apply feature store run configurations on the serving function
@@ -486,15 +512,17 @@ class MonitoringDeployment:
         """
         filename = (
             str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
-            if function_name == "model-monitoring-batch"
+            if function_name == mm_constants.MonitoringFunctionNames.BATCH
             else str(_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
-        function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
+        function = mlrun.code_to_function(
             name=function_name,
             project=project,
             filename=filename,
-            kind="job",
+            kind=mlrun.run.RuntimeKinds.job
+            if function_name == mm_constants.MonitoringFunctionNames.BATCH
+            else mlrun.run.RuntimeKinds.nuclio,
             image=image,
             handler="handler",
         )
@@ -557,9 +585,9 @@ class MonitoringDeployment:
             tracking_offset=tracking_offset,
         )
 
-        task.spec.parameters[
-            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-        ] = batch_dict
+        task.spec.parameters[mm_constants.EventFieldType.BATCH_INTERVALS_DICT] = (
+            batch_dict
+        )
 
         data = {
             "task": task.to_dict(),
@@ -625,7 +653,7 @@ class MonitoringDeployment:
         }
         return schedule, batch_dict
 
-    def _apply_stream_trigger(
+    def _apply_and_create_stream_trigger(
         self,
         project: str,
         function: mlrun.runtimes.ServingRuntime,
@@ -643,7 +671,7 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring stream function when the stream is
                                             schema is V3IO.
         :param auth_info:                   The auth info of the request.
-        :param function_name:             the name of the function that be applied with the stream trigger,
+        :param function_name:               The name of the function that be applied with the stream trigger,
                                             None for model_monitoring_stream
 
         :return: ServingRuntime object with stream trigger.
@@ -652,7 +680,7 @@ class MonitoringDeployment:
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
         stream_path = server.py.services.api.crud.model_monitoring.get_stream_path(
-            project=project, application_name=function_name
+            project=project, function_name=function_name
         )
 
         if stream_path.startswith("kafka://"):
@@ -673,6 +701,13 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
             if stream_path.startswith("v3io://"):
+                server.api.api.endpoints.functions.create_model_monitoring_stream(
+                    project=project,
+                    monitoring_application=function_name
+                    != mm_constants.MonitoringFunctionNames.STREAM,
+                    stream_path=stream_path,
+                    access_key=model_monitoring_access_key,
+                )
                 kwargs = {}
                 if function_name != mm_constants.MonitoringFunctionNames.STREAM:
                     kwargs["access_key"] = model_monitoring_access_key
@@ -738,7 +773,7 @@ class MonitoringDeployment:
         return function
 
     def _initial_model_monitoring_writer_function(
-        self, project, model_monitoring_access_key, tracking_policy, auth_info
+        self, project, model_monitoring_access_key, writer_image, auth_info
     ):
         """
         Initialize model monitoring writer function.
@@ -746,7 +781,7 @@ class MonitoringDeployment:
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE
                                             deployments this parameter will be None.
-        :param tracking_policy:             Model monitoring configurations.
+        :param writer_image:                The image of the model monitoring writer function.
         :param auth_info:                   The auth info of the request.
 
         :return:                            A function object from a mlrun runtime class
@@ -758,8 +793,8 @@ class MonitoringDeployment:
             name=mm_constants.MonitoringFunctionNames.WRITER,
             project=project,
             filename=str(_MONITORING_WRITER_FUNCTION_PATH),
-            kind="serving",
-            image=tracking_policy.default_controller_image,
+            kind=mlrun.run.RuntimeKinds.serving,
+            image=writer_image,
         )
 
         # Create writer monitoring serving graph
@@ -769,20 +804,8 @@ class MonitoringDeployment:
         # Set the project to the serving function
         function.metadata.project = project
 
-        # create v3io stream for  model_monitoring_writer | model monitoring application
-        server.py.services.api.api.endpoints.functions.create_model_monitoring_stream(
-            project=project,
-            function=function,
-            monitoring_application=mm_constants.MonitoringFunctionNames.WRITER,
-            stream_path=server.py.services.api.crud.model_monitoring.get_stream_path(
-                project=project,
-                application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ),
-            access_key=model_monitoring_access_key,
-        )
-
         # Add stream triggers
-        function = self._apply_stream_trigger(
+        function = self._apply_and_create_stream_trigger(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -795,6 +818,41 @@ class MonitoringDeployment:
         function.spec.parameters = run_config.parameters
 
         return function
+
+    @staticmethod
+    def _check_if_already_deployed(
+        function_name, project, auth_info, overwrite=False
+    ) -> None:
+        """
+         If overwrite equal False the method check the desired function is all ready deployed
+
+        :param function_name:   The name of the function to check.
+        :param project:         The name of the project.
+        :param auth_info:       The auth info of the request.
+        :param overwrite:       If true, overwrite the existing model monitoring controller.
+                                By default, False.
+        """
+        if not overwrite:
+            logger.info(
+                f"Checking if {function_name} is already deployed",
+                project=project,
+            )
+            try:
+                # validate that the function has not yet been deployed
+                mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                    name=function_name,
+                    project=project,
+                    tag="",
+                    auth_info=auth_info,
+                )
+                logger.info(
+                    f"Detected {function_name} function already deployed",
+                    project=project,
+                )
+                return
+            except mlrun.errors.MLRunNotFoundError:
+                pass
+        logger.info(f"Deploying {function_name} function", project=project)
 
 
 def get_endpoint_features(

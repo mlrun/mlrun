@@ -215,7 +215,9 @@ async def _get_runtime_resources_allowed_projects(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    grouped_by_project_runtime_resources_output: (
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    )
     grouped_by_project_runtime_resources_output = await run_in_threadpool(
         server.py.services.api.crud.RuntimeResources().list_runtime_resources,
         project,

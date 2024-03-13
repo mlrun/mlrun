@@ -14,13 +14,13 @@
 #
 import http
 
-import aiohttp
 import pytest
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+import mlrun.runtimes.nuclio.api_gateway
 import server.py.services.api.utils.clients.async_nuclio
 
 
@@ -48,46 +48,64 @@ def mock_aioresponse():
 
 
 @pytest.mark.asyncio
-async def test_nuclio_list_api_gateways(
+async def test_nuclio_get_api_gateway(
     api_url,
     nuclio_client,
     mock_aioresponse,
 ):
-    response_body = {
-        "test-basic": {
-            "metadata": {
-                "name": "test-basic",
-                "namespace": "default-tenant",
-                "labels": {
-                    "iguazio.com/username": "admin",
-                    "nuclio.io/project-name": "default",
-                },
-                "creationTimestamp": "2023-11-16T12:42:48Z",
-            },
-            "spec": {
-                "host": "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com",
-                "name": "test-basic",
-                "path": "/",
-                "authenticationMode": "basicAuth",
-                "authentication": {
-                    "basicAuth": {"username": "test", "password": "test"}
-                },
-                "upstreams": [
-                    {"kind": "nucliofunction", "nucliofunction": {"name": "test"}}
-                ],
-            },
-            "status": {"name": "test-basic", "state": "ready"},
-        }
-    }
-    request_url = f"{api_url}/api/api_gateways/"
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        functions=["test"], name="test-basic", project="default-project"
+    )
+
+    request_url = f"{api_url}/api/api_gateways/test-basic"
     mock_aioresponse.get(
         request_url,
-        payload=response_body,
+        payload=api_gateway.to_scheme().dict(),
         status=http.HTTPStatus.ACCEPTED,
     )
-    r = await nuclio_client.list_api_gateways()
-    assert r == response_body
+    r = await nuclio_client.get_api_gateway("test-basic", "default")
+    received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
+    assert received_api_gateway.name == api_gateway.name
+    assert received_api_gateway.description == api_gateway.description
+    assert received_api_gateway.authentication_mode == api_gateway.authentication_mode
+    assert received_api_gateway.functions == api_gateway.functions
+    assert received_api_gateway.canary == api_gateway.canary
 
-    mock_aioresponse.get(request_url, status=http.HTTPStatus.UNAUTHORIZED)
-    with pytest.raises(aiohttp.client_exceptions.ClientResponseError):
-        await nuclio_client.list_api_gateways()
+
+@pytest.mark.asyncio
+async def test_nuclio_store_api_gateway(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    request_url = f"{api_url}/api/api_gateways/new-gw"
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        project="default",
+        name="new-gw",
+        functions=["test-func"],
+    )
+
+    mock_aioresponse.put(
+        request_url,
+        status=http.HTTPStatus.ACCEPTED,
+        payload=mlrun.common.schemas.APIGateway(
+            metadata=mlrun.common.schemas.APIGatewayMetadata(
+                name="new-gw",
+            ),
+            spec=mlrun.common.schemas.APIGatewaySpec(
+                name="new-gw",
+                path="/",
+                host="test.host",
+                upstreams=[
+                    mlrun.common.schemas.APIGatewayUpstream(
+                        nucliofunction={"name": "test-func"}
+                    )
+                ],
+            ),
+        ).dict(),
+    )
+    await nuclio_client.store_api_gateway(
+        project_name="default",
+        api_gateway_name="new-gw",
+        api_gateway=api_gateway.to_scheme(),
+    )

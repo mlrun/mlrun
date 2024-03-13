@@ -352,9 +352,9 @@ def configure_kaniko_ecr_init_container(
         aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
-        init_container_env[
-            aws_credentials_file_env_key
-        ] = aws_credentials_file_env_value
+        init_container_env[aws_credentials_file_env_key] = (
+            aws_credentials_file_env_value
+        )
 
         # set the kaniko container AWS credentials location to the mount's path
         kpod.env.append(
@@ -489,14 +489,18 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
+    source_code_target_dir = (
+        runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
+    )
     if source_to_copy and (
-        not runtime.spec.clone_target_dir
-        or not os.path.isabs(runtime.spec.clone_target_dir)
+        not source_code_target_dir or not os.path.isabs(source_code_target_dir)
     ):
-        relative_workdir = runtime.spec.clone_target_dir or ""
+        relative_workdir = source_code_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join("/home/mlrun_code", relative_workdir)
+        runtime.spec.build.source_code_target_dir = path.join(
+            "/home/mlrun_code", relative_workdir
+        )
 
     dock = make_dockerfile(
         base_image,
@@ -506,7 +510,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        target_dir=runtime.spec.clone_target_dir,
+        target_dir=runtime.spec.build.source_code_target_dir,
         builder_env=builder_env_list,
         project_secrets=project_secrets,
         extra_args=extra_args,

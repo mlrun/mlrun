@@ -346,7 +346,7 @@ def test_object_from_empty_url():
 def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
-        store, _ = mlrun.store_manager.get_or_create_store(tmpdir)
+        store, _, _ = mlrun.store_manager.get_or_create_store(tmpdir)
         file_system = store.filesystem
         with store.open(tmpdir + "/1x.txt", "w") as fp:
             fp.write("123")

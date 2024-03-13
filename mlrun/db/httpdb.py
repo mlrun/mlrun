@@ -33,6 +33,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtimes.nuclio.api_gateway
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -458,6 +459,10 @@ class HTTPRunDB(RunDBInterface):
                     setattr(
                         config.feature_store.data_prefixes, prefix, server_prefix_value
                     )
+            config.feature_store.default_targets = (
+                server_cfg.get("feature_store_default_targets")
+                or config.feature_store.default_targets
+            )
 
         except Exception as exc:
             logger.warning(
@@ -1137,17 +1142,17 @@ class HTTPRunDB(RunDBInterface):
             structured_dict = {}
             for project, job_runtime_resources_map in response.json().items():
                 for job_id, runtime_resources in job_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        job_id
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[job_id] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             structured_dict = {}
             for project, kind_runtime_resources_map in response.json().items():
                 for kind, runtime_resources in kind_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        kind
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[kind] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         else:
             raise NotImplementedError(
@@ -1206,9 +1211,9 @@ class HTTPRunDB(RunDBInterface):
         structured_dict = {}
         for project, kind_runtime_resources_map in response.json().items():
             for kind, runtime_resources in kind_runtime_resources_map.items():
-                structured_dict.setdefault(project, {})[
-                    kind
-                ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                structured_dict.setdefault(project, {})[kind] = (
+                    mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                )
         return structured_dict
 
     def create_schedule(
@@ -3074,36 +3079,58 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
 
-    def create_model_monitoring_controller(
+    def update_model_monitoring_controller(
         self,
-        project: str = "",
-        default_controller_image: str = "mlrun/mlrun",
+        project: str,
         base_period: int = 10,
+        image: str = "mlrun/mlrun",
     ):
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Redeploy model monitoring application controller function.
 
         :param project:                  Project name.
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
-                  runtime object by calling ~mlrun.new_function.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image: The image of the model monitoring controller function.
+                                         By default, the image is mlrun/mlrun.
         """
 
         params = {
-            "default_controller_image": default_controller_image,
+            "image": image,
             "base_period": base_period,
         }
-        path = f"projects/{project}/jobs/model-monitoring-controller"
+        path = f"projects/{project}/model-monitoring/model-monitoring-controller"
+        self.api_call(method="POST", path=path, params=params)
 
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        """
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
+
+
+        :param project:                  Project name.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
+        """
+
+        params = {
+            "base_period": base_period,
+            "image": image,
+        }
+        path = f"projects/{project}/model-monitoring/enable-model-monitoring"
+        self.api_call(method="POST", path=path, params=params)
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
@@ -3343,20 +3370,61 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def list_api_gateways(self, project=None):
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
         """
         Returns a list of Nuclio api gateways
-        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
-        :return: json with the list of Nuclio Api Gateways
-            (json example is here
-            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        :return: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
         project = project or config.default_project
         error = "list api gateways"
-        endpoint_path = f"projects/{project}/nuclio/api-gateways"
-        resp = self.api_call("GET", endpoint_path, error)
-        return resp.json()
+        endpoint_path = f"projects/{project}/api-gateways"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGatewaysOutput(**response.json())
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        """
+        Returns an API gateway
+        :param name: API gateway name
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+        project = project or config.default_project
+        error = "get api gateway"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGateway(**response.json())
+
+    def store_api_gateway(
+        self,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
+        project: Optional[str] = None,
+    ) -> mlrun.common.schemas.APIGateway:
+        """
+        Stores an API Gateway.
+        :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
+            or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
+
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+
+        if isinstance(api_gateway, mlrun.runtimes.nuclio.api_gateway.APIGateway):
+            api_gateway = api_gateway.to_scheme()
+        endpoint_path = f"projects/{project}/api-gateways/{api_gateway.metadata.name}"
+        error = "store api gateways"
+        response = self.api_call(
+            "PUT",
+            endpoint_path,
+            error,
+            json=api_gateway.dict(exclude_unset=True, exclude_none=True),
+        )
+        return mlrun.common.schemas.APIGateway(**response.json())
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
@@ -3454,7 +3522,7 @@ class HTTPRunDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: list[mlrun.model.Notification] = None,
-    ):
+    ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
 

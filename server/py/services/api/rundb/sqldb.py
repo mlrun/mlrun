@@ -776,6 +776,19 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        raise NotImplementedError()
+
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        raise NotImplementedError()
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        raise NotImplementedError()
+
     def list_project_secrets(
         self,
         project: str,
@@ -937,6 +950,24 @@ class SQLRunDB(RunDBInterface):
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
+        raise NotImplementedError()
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
+        ],
+        arguments: Optional[dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        notifications: list[mlrun.model.Notification] = None,
+    ) -> "mlrun.common.schemas.WorkflowResponse":
         raise NotImplementedError()
 
     def _transform_db_error(self, func, *args, **kwargs):

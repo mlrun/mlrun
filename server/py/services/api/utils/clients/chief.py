@@ -212,19 +212,6 @@ class Client(
             json,
         )
 
-    async def create_model_monitoring_controller(
-        self, project: str, request: fastapi.Request, json: dict
-    ):
-        """
-        Model monitoring controller includes a scheduled job which is handled by the chief
-        """
-        return await self._proxy_request_to_chief(
-            "POST",
-            f"projects/{project}/jobs/model-monitoring-controller",
-            request,
-            json,
-        )
-
     async def deploy_monitoring_batch_job(
         self, project: str, request: fastapi.Request, json: dict
     ):

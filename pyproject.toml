@@ -10,14 +10,6 @@ select = [
     "I",  # isort
     "UP", # pyupgrade
 ]
-extend-exclude = [
-    "server/py/proto",
-    "playground",
-]
-extend-include = ["*.ipynb"]
-target-version = "py39"
-
-[tool.ruff.lint]
 exclude = ["*.ipynb"]
 
 [tool.ruff.lint.pycodestyle]

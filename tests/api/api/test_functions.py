@@ -727,7 +727,7 @@ def test_build_clone_target_dir_backwards_compatability(
     }
 
     monkeypatch.setattr(
-        server.api.utils.builder,
+        server.py.services.api.utils.builder,
         "build_image",
         lambda *args, **kwargs: "success",
     )

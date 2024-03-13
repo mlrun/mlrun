@@ -239,7 +239,7 @@ class MonitoringDeployment:
             "cron_interval",
             spec=nuclio.CronTrigger(interval=f"{base_period}m"),
         )
-        fn, ready = server.api.api.endpoints.functions._build_function(
+        fn, ready = server.py.services.api.api.endpoints.functions._build_function(
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
@@ -701,7 +701,7 @@ class MonitoringDeployment:
                 function_name=function_name,
             )
             if stream_path.startswith("v3io://"):
-                server.api.api.endpoints.functions.create_model_monitoring_stream(
+                server.py.services.api.api.endpoints.functions.create_model_monitoring_stream(
                     project=project,
                     monitoring_application=function_name
                     != mm_constants.MonitoringFunctionNames.STREAM,

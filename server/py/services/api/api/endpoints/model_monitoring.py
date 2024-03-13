@@ -17,11 +17,13 @@ import fastapi
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-import server.api.utils.auth.verifier
-import server.api.utils.clients.chief
-from server.api.api import deps
-from server.api.api.endpoints.functions import process_model_monitoring_secret
-from server.api.crud.model_monitoring.deployment import MonitoringDeployment
+import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.clients.chief
+from server.py.services.api.api import deps
+from server.py.services.api.api.endpoints.functions import (
+    process_model_monitoring_secret,
+)
+from server.py.services.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = fastapi.APIRouter(prefix="/projects/{project}/model-monitoring")
 
@@ -55,7 +57,7 @@ async def enable_model_monitoring(
                                      By default, the image is mlrun/mlrun.
     """
 
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
         project_name=project,
         resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -106,7 +108,7 @@ async def update_model_monitoring_controller(
                                      image. By default, the image is mlrun/mlrun.
     """
 
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
         project_name=project,
         resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,

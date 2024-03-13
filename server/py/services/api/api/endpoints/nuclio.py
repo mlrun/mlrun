@@ -38,7 +38,9 @@ async def list_api_gateways(
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with server.py.services.api.utils.clients.async_nuclio.Client(
+        auth_info
+    ) as client:
         api_gateways = await client.list_api_gateways(project)
 
     allowed_api_gateways = (
@@ -68,19 +70,21 @@ async def get_api_gateway(
     gateway: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,
         gateway,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with server.py.services.api.utils.clients.async_nuclio.Client(
+        auth_info
+    ) as client:
         api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
 
     return api_gateway
@@ -97,19 +101,21 @@ async def store_api_gateway(
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,
         gateway,
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with server.py.services.api.utils.clients.async_nuclio.Client(
+        auth_info
+    ) as client:
         create = not await client.api_gateway_exists(
             name=gateway,
             project_name=project,

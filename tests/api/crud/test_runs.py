@@ -87,7 +87,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "delete_logs",
             ) as delete_logs_mock,
         ):
-            await server.api.crud.Runs().delete_run(db, "uid", 0, project)
+            await server.py.services.api.crud.Runs().delete_run(db, "uid", 0, project)
             delete_namespaced_pod_mock.assert_called_once()
             delete_logs_mock.assert_called_once()
 

@@ -82,9 +82,15 @@ def test_list_api_gateways(
     }
 
 
-@patch.object(server.api.utils.clients.async_nuclio.Client, "get_api_gateway")
-@patch.object(server.api.utils.clients.async_nuclio.Client, "api_gateway_exists")
-@patch.object(server.api.utils.clients.async_nuclio.Client, "store_api_gateway")
+@patch.object(
+    server.py.services.api.utils.clients.async_nuclio.Client, "get_api_gateway"
+)
+@patch.object(
+    server.py.services.api.utils.clients.async_nuclio.Client, "api_gateway_exists"
+)
+@patch.object(
+    server.py.services.api.utils.clients.async_nuclio.Client, "store_api_gateway"
+)
 def test_store_api_gateway(
     store_api_gateway_mocked,
     api_gateway_exists_mocked,
@@ -92,17 +98,15 @@ def test_store_api_gateway(
     client: fastapi.testclient.TestClient,
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
-        unittest.mock.AsyncMock(
-            return_value=(
-                mlrun.common.schemas.AuthInfo(
-                    username="admin",
-                    session="some-session",
-                    data_session="some-session",
-                    user_id=None,
-                    user_unix_id=0,
-                    user_group_ids=[],
-                )
+    server.py.services.api.utils.clients.iguazio.AsyncClient().verify_request_session = unittest.mock.AsyncMock(
+        return_value=(
+            mlrun.common.schemas.AuthInfo(
+                username="admin",
+                session="some-session",
+                data_session="some-session",
+                user_id=None,
+                user_unix_id=0,
+                user_group_ids=[],
             )
         )
     )

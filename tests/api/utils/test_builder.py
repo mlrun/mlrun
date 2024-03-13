@@ -1603,7 +1603,7 @@ def _get_target_image_from_create_pod_mock():
 
 def _create_pod_mock_pod_spec():
     return (
-        server.api.utils.singletons.k8s.get_k8s_helper()
+        server.py.services.api.utils.singletons.k8s.get_k8s_helper()
         .create_pod.call_args[0][0]
         .pod.spec
     )
@@ -1624,7 +1624,7 @@ def _patch_k8s_helper(monkeypatch):
         side_effect=lambda project, keys: {"KEY": "val"}
     )
     monkeypatch.setattr(
-        server.api.utils.singletons.k8s,
+        server.py.services.api.utils.singletons.k8s,
         "get_k8s_helper",
         lambda *args, **kwargs: get_k8s_helper_mock,
     )
@@ -1637,7 +1637,7 @@ def _mock_default_service_account(monkeypatch, service_account):
         service_account,
     )
     monkeypatch.setattr(
-        server.api.api.utils,
+        server.py.services.api.api.utils,
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
     )

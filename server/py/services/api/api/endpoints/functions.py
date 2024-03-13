@@ -806,9 +806,7 @@ def _deploy_nuclio_runtime(
                 model_monitoring_access_key,
             )
         if monitoring_application:
-            monitoring_deploy = (
-                server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-            )
+            monitoring_deploy = server.py.services.api.crud.model_monitoring.deployment.MonitoringDeployment()
             fn = monitoring_deploy._apply_and_create_stream_trigger(
                 project=fn.metadata.project,
                 function=fn,

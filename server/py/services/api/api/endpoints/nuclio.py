@@ -16,6 +16,7 @@
 from fastapi import APIRouter, Depends
 
 import mlrun.common.schemas
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.clients.async_nuclio
 from server.py.services.api.api import deps
 
@@ -32,7 +33,7 @@ async def list_api_gateways(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
@@ -40,14 +41,16 @@ async def list_api_gateways(
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateways = await client.list_api_gateways(project)
 
-    allowed_api_gateways = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        list(api_gateways.keys()) if api_gateways else [],
-        lambda _api_gateway: (
-            project,
-            _api_gateway,
-        ),
-        auth_info,
+    allowed_api_gateways = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+            list(api_gateways.keys()) if api_gateways else [],
+            lambda _api_gateway: (
+                project,
+                _api_gateway,
+            ),
+            auth_info,
+        )
     )
     allowed_api_gateways = {
         api_gateway: api_gateways[api_gateway] for api_gateway in allowed_api_gateways

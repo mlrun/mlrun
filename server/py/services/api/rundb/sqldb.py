@@ -68,9 +68,9 @@ class SQLRunDB(RunDBInterface):
         #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
         #  we will change it.
         raise NotImplementedError(
-            "This should be changed to async call, if you are running in the API, use `server.py.services.api.crud.get_log`"
-            " method directly instead and not through the get_db().get_log() method. "
-            "This will be removed in 1.5.0",
+            "This should be changed to async call, if you are running in the API, use "
+            "`server.py.services.api.crud.get_log` method directly instead and not through the get_db().get_log() "
+            "method. This will be removed in 1.5.0",
         )
 
     def store_run(self, struct, uid, project="", iter=0):

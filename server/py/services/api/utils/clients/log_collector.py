@@ -85,9 +85,7 @@ class LogCollectorClient(
         import server.py.proto.log_collector_v1_pb2_grpc
 
         self._log_collector_pb2 = server.py.proto.log_collector_v1_pb2
-        self._log_collector_pb2_grpc = (
-            server.py.proto.log_collector_v1_pb2_grpc
-        )
+        self._log_collector_pb2_grpc = server.py.proto.log_collector_v1_pb2_grpc
 
     async def start_logs(
         self,

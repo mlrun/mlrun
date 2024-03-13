@@ -847,9 +847,7 @@ def _deploy_serving_monitoring(
         if not mlrun.mlconf.is_ce_mode():
             _init_serving_function_stream_args(fn=fn)
         # deploy model monitoring stream, model monitoring batch job,
-        monitoring_deploy = (
-            server.py.services.api.crud.model_monitoring.deployment.MonitoringDeployment()
-        )
+        monitoring_deploy = server.py.services.api.crud.model_monitoring.deployment.MonitoringDeployment()
         monitoring_deploy.deploy_model_monitoring_batch_processing(
             project=fn.metadata.project,
             db_session=db_session,
@@ -1011,9 +1009,8 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
             allow_internal_secrets=True,
         )
         if not secret_value:
-            project_owner = server.py.services.api.utils.singletons.project_member.get_project_member().get_project_owner(
-                db_session, project_name
-            )
+            project_member = server.py.services.api.utils.singletons.project_member.get_project_member()
+            project_owner = project_member.get_project_owner(db_session, project_name)
 
             secret_value = project_owner.access_key
             if not secret_value:

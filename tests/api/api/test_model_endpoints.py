@@ -25,6 +25,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring
 import server.py.services.api.crud.model_monitoring.deployment
 import server.py.services.api.crud.model_monitoring.helpers
+import server.py.services.api.crud.model_monitoring.model_endpoints as model_endpoints
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring.stores import (  # noqa: F401
@@ -423,7 +424,7 @@ def test_sql_target_patch_endpoint():
     endpoint = endpoint_store.get_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
 
     # Convert to model endpoint object
-    endpoint = server.py.services.api.crud.model_monitoring.model_endpoints.ModelEndpoints._convert_into_model_endpoint_object(
+    endpoint = model_endpoints.ModelEndpoints._convert_into_model_endpoint_object(
         endpoint=endpoint
     )
     assert endpoint.spec.model == "test_model"

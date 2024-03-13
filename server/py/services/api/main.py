@@ -451,7 +451,8 @@ async def _start_log_for_run(
             # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler: server.py.services.api.runtime_handlers.BaseRuntimeHandler = await fastapi.concurrency.run_in_threadpool(
+            runtime_handler: server.py.services.api.runtime_handlers.BaseRuntimeHandler
+            runtime_handler = await fastapi.concurrency.run_in_threadpool(
                 get_runtime_handler, run_kind
             )
             object_id = runtime_handler.resolve_object_id(run)
@@ -731,9 +732,9 @@ async def _abort_stale_runs(stale_runs: list[dict]):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
             # mark abort as internal, it doesn't have a background task
-            stale_run["new_background_task_id"] = (
-                server.py.services.api.constants.internal_abort_task_id
-            )
+            stale_run[
+                "new_background_task_id"
+            ] = server.py.services.api.constants.internal_abort_task_id
             await fastapi.concurrency.run_in_threadpool(
                 server.py.services.api.db.session.run_function_with_new_db_session,
                 server.py.services.api.crud.Runs().abort_run,

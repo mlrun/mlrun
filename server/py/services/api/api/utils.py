@@ -42,8 +42,8 @@ import server.py.services.api.constants
 import server.py.services.api.crud
 import server.py.services.api.db.base
 import server.py.services.api.db.session
-import server.py.services.api.utils.auth.verifier
-import server.py.services.api.utils.background_tasks
+import server.py.services.api.utils.auth.verifier as auth_verifier
+import server.py.services.api.utils.background_tasks as background_tasks_handlers
 import server.py.services.api.utils.clients.iguazio
 import server.py.services.api.utils.helpers
 import server.py.services.api.utils.singletons.k8s
@@ -554,10 +554,10 @@ def _mask_v3io_volume_credentials(
                     if isinstance(
                         volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
                     ):
-                        volume["flexVolume"] = (
-                            k8s_api_client.sanitize_for_serialization(
-                                volume["flexVolume"]
-                            )
+                        volume[
+                            "flexVolume"
+                        ] = k8s_api_client.sanitize_for_serialization(
+                            volume["flexVolume"]
                         )
                     else:
                         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -700,7 +700,7 @@ def _mask_v3io_access_key_env_var(
         if v3io_username and isinstance(v3io_username, str):
             username = v3io_username
         if not username:
-            if server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+            if auth_verifier.AuthVerifier().is_jobs_auth_required():
                 # auth_info should always has username, sanity
                 if not auth_info.username:
                     raise mlrun.errors.MLRunInvalidArgumentError(
@@ -739,7 +739,7 @@ def ensure_function_has_auth_set(
     """
     if (
         not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
-        and server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+        and auth_verifier.AuthVerifier().is_jobs_auth_required()
     ):
         function: mlrun.runtimes.pod.KubeResource
         if (
@@ -747,8 +747,10 @@ def ensure_function_has_auth_set(
             == mlrun.model.Credentials.generate_access_key
         ):
             if not auth_info.access_key:
-                auth_info.access_key = server.py.services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
-                    auth_info.session
+                auth_info.access_key = (
+                    auth_verifier.AuthVerifier().get_or_create_access_key(
+                        auth_info.session
+                    )
                 )
                 # created an access key with control and data session plane, so enriching auth_info with those planes
                 auth_info.planes = [
@@ -1140,14 +1142,18 @@ def get_or_create_project_deletion_background_task(
 
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
     # project. Otherwise, we create a wrapper background task for deletion of the project.
-    background_task_kind_format = server.py.services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper
+    background_task_kind_format = (
+        background_tasks_handlers.BackgroundTaskKinds.project_deletion_wrapper
+    )
     if (
         server.py.services.api.utils.helpers.is_request_from_leader(
             auth_info.projects_role
         )
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
-        background_task_kind_format = server.py.services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
+        background_task_kind_format = (
+            background_tasks_handlers.BackgroundTaskKinds.project_deletion
+        )
     elif igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
         # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
         # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
@@ -1156,7 +1162,7 @@ def get_or_create_project_deletion_background_task(
 
     background_task_kind = background_task_kind_format.format(project_name)
     try:
-        task = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+        task = background_tasks_handlers.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
             background_task_kind,
             raise_on_not_found=True,
         )
@@ -1168,7 +1174,7 @@ def get_or_create_project_deletion_background_task(
         )
 
     background_task_name = str(uuid.uuid4())
-    return server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+    return background_tasks_handlers.InternalBackgroundTasksHandler().create_background_task(
         background_task_kind,
         mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
         _delete_project,
@@ -1226,7 +1232,7 @@ def verify_project_is_deleted(project_name, auth_info):
             if background_task_name := project_status.get(
                 "deletion_background_task_name"
             ):
-                bg_task = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                bg_task = background_tasks_handlers.InternalBackgroundTasksHandler().get_background_task(
                     name=background_task_name, raise_on_not_found=False
                 )
                 if (

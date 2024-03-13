@@ -35,7 +35,7 @@ import mlrun.utils.regex
 import server.py.services.api.common.runtime_handlers
 import server.py.services.api.crud as crud
 import server.py.services.api.utils.helpers
-import server.py.services.api.utils.singletons.k8s
+import server.py.services.api.utils.singletons.k8s as k8s_helper
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
@@ -74,9 +74,9 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support listing runtime resources in non k8s env
-        if not server.py.services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
+        if not k8s_helper.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return {}
-        namespace = server.py.services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+        namespace = k8s_helper.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
@@ -121,9 +121,9 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if not server.py.services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
+        if not k8s_helper.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return
-        namespace = server.py.services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+        namespace = k8s_helper.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -178,7 +178,7 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session) -> list[dict]:
-        namespace = server.py.services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+        namespace = k8s_helper.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
         runtime_resources, runtime_resource_is_crd = self._get_runtime_resources(
             label_selector, namespace
@@ -302,8 +302,10 @@ class BaseRuntimeHandler(ABC):
             )
         )
 
-        project_vault_secret_name = server.py.services.api.utils.singletons.k8s.get_k8s_helper().get_project_vault_secret_name(
-            project_name, service_account_name
+        project_vault_secret_name = (
+            k8s_helper.get_k8s_helper().get_project_vault_secret_name(
+                project_name, service_account_name
+            )
         )
         if project_vault_secret_name is None:
             logger.info(f"No vault secret associated with project {project_name}")
@@ -379,7 +381,7 @@ class BaseRuntimeHandler(ABC):
             mlrun.mlconf.secret_stores.kubernetes.global_function_env_secret_name
         )
         if global_secret_name:
-            global_secrets = server.py.services.api.utils.singletons.k8s.get_k8s_helper().get_secret_data(
+            global_secrets = k8s_helper.get_k8s_helper().get_secret_data(
                 global_secret_name
             )
             for key, value in global_secrets.items():
@@ -402,12 +404,10 @@ class BaseRuntimeHandler(ABC):
             logger.warning("No project provided. Cannot add k8s secrets")
             return
 
-        secret_name = server.py.services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
-            project_name
-        )
+        secret_name = k8s_helper.get_k8s_helper().get_project_secret_name(project_name)
         # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
         # in the nuclio remote-dashboard flow, which causes dependency problems.
-        existing_secret_keys = server.py.services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
+        existing_secret_keys = k8s_helper.get_k8s_helper().get_project_secret_keys(
             project_name, filter_internal=True
         )
 
@@ -568,7 +568,7 @@ class BaseRuntimeHandler(ABC):
                     object_id=run_uid,
                     class_mode=RuntimeClassMode.run,
                 )
-                namespace = server.py.services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+                namespace = k8s_helper.get_k8s_helper().resolve_namespace()
                 runtime_resources, _ = self._get_runtime_resources(
                     label_selector, namespace
                 )
@@ -586,9 +586,9 @@ class BaseRuntimeHandler(ABC):
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
-                run.setdefault("status", {})["reason"] = (
-                    "A runtime resource related to this run could not be found"
-                )
+                run.setdefault("status", {})[
+                    "reason"
+                ] = "A runtime resource related to this run could not be found"
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
@@ -763,9 +763,7 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> list:
-        pods = server.py.services.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-            namespace, selector=label_selector
-        )
+        pods = k8s_helper.get_k8s_helper().list_pods(namespace, selector=label_selector)
         # when we work with custom objects (list_namespaced_custom_object) it's always a dict, to be able to generalize
         # code working on runtime resource (either a custom object or a pod) we're transforming to dicts
         pods = [pod.to_dict() for pod in pods]
@@ -776,12 +774,14 @@ class BaseRuntimeHandler(ABC):
         crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
-                crd_objects = server.py.services.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
-                    crd_group,
-                    crd_version,
-                    namespace,
-                    crd_plural,
-                    label_selector=label_selector,
+                crd_objects = (
+                    k8s_helper.get_k8s_helper().crdapi.list_namespaced_custom_object(
+                        crd_group,
+                        crd_version,
+                        namespace,
+                        crd_plural,
+                        label_selector=label_selector,
+                    )
                 )
             except ApiException as exc:
                 # ignore error if crd is not defined
@@ -800,7 +800,7 @@ class BaseRuntimeHandler(ABC):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = server.py.services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
+            pods = k8s_helper.get_k8s_helper().v1api.list_namespaced_pod(
                 namespace, label_selector=label_selector
             )
             existing_pod_names = [pod.metadata.name for pod in pods.items]
@@ -835,7 +835,7 @@ class BaseRuntimeHandler(ABC):
                 for deleted_pod_name in deleted_pod_names:
                     # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in
                     # terminating state, so we're forcing deletion after the grace period passed in this case.
-                    server.py.services.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                    k8s_helper.get_k8s_helper().delete_pod(
                         deleted_pod_name, namespace, grace_period_seconds=0
                     )
 
@@ -926,7 +926,7 @@ class BaseRuntimeHandler(ABC):
                 for crd_object in deleted_crds:
                     # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in
                     # terminating state, so we're forcing deletion after the grace period passed in this case.
-                    server.py.services.api.utils.singletons.k8s.get_k8s_helper().delete_crd(
+                    k8s_helper.get_k8s_helper().delete_crd(
                         crd_object["metadata"]["name"],
                         crd_group,
                         crd_version,
@@ -946,7 +946,7 @@ class BaseRuntimeHandler(ABC):
     ) -> list[dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        pods = server.py.services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
+        pods = k8s_helper.get_k8s_helper().v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
         )
         deleted_pods = []
@@ -987,9 +987,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                server.py.services.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                    pod.metadata.name, namespace
-                )
+                k8s_helper.get_k8s_helper().delete_pod(pod.metadata.name, namespace)
                 deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(
@@ -1013,12 +1011,14 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
-            crd_objects = server.py.services.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
-                crd_group,
-                crd_version,
-                namespace,
-                crd_plural,
-                label_selector=label_selector,
+            crd_objects = (
+                k8s_helper.get_k8s_helper().crdapi.list_namespaced_custom_object(
+                    crd_group,
+                    crd_version,
+                    namespace,
+                    crd_plural,
+                    label_selector=label_selector,
+                )
             )
         except ApiException as exc:
             # ignore error if crd is not defined
@@ -1072,7 +1072,7 @@ class BaseRuntimeHandler(ABC):
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    server.py.services.api.utils.singletons.k8s.get_k8s_helper().delete_crd(
+                    k8s_helper.get_k8s_helper().delete_crd(
                         crd_object["metadata"]["name"],
                         crd_group,
                         crd_version,
@@ -1503,10 +1503,10 @@ class BaseRuntimeHandler(ABC):
         if first_field_value not in resources:
             resources[first_field_value] = {}
         if second_field_value not in resources[first_field_value]:
-            resources[first_field_value][second_field_value] = (
-                mlrun.common.schemas.RuntimeResources(
-                    pod_resources=[], crd_resources=[]
-                )
+            resources[first_field_value][
+                second_field_value
+            ] = mlrun.common.schemas.RuntimeResources(
+                pod_resources=[], crd_resources=[]
             )
         if not getattr(
             resources[first_field_value][second_field_value], resource_field_name
@@ -1714,7 +1714,7 @@ class BaseRuntimeHandler(ABC):
         run: mlrun.run.RunObject,
         unique: bool = False,
     ) -> k8s_client.V1ObjectMeta:
-        namespace = server.py.services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+        namespace = k8s_helper.get_k8s_helper().resolve_namespace()
 
         labels = server.py.services.api.common.runtime_handlers.get_resource_labels(
             runtime, run, run.spec.scrape_metrics

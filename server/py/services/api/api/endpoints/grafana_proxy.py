@@ -21,20 +21,20 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.model_monitoring.grafana
-import server.py.services.api.crud.model_monitoring.grafana
+import server.py.services.api.crud.model_monitoring.grafana as grafana_crud
 import server.py.services.api.crud.model_monitoring.helpers
 from server.py.services.api.api import deps
 
 router = APIRouter(prefix="/grafana-proxy/model-endpoints")
 
 NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
-    "list_projects": server.py.services.api.crud.model_monitoring.grafana.grafana_list_projects,
+    "list_projects": grafana_crud.grafana_list_projects,
 }
 NAME_TO_QUERY_FUNCTION_DICTIONARY = {
-    "list_endpoints": server.py.services.api.crud.model_monitoring.grafana.grafana_list_endpoints,
-    "individual_feature_analysis": server.py.services.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
-    "overall_feature_analysis": server.py.services.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
-    "incoming_features": server.py.services.api.crud.model_monitoring.grafana.grafana_incoming_features,
+    "list_endpoints": grafana_crud.grafana_list_endpoints,
+    "individual_feature_analysis": grafana_crud.grafana_individual_feature_analysis,
+    "overall_feature_analysis": grafana_crud.grafana_overall_feature_analysis,
+    "incoming_features": grafana_crud.grafana_incoming_features,
 }
 
 SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
@@ -76,14 +76,8 @@ async def grafana_proxy_model_endpoints_search(
     if not mlrun.mlconf.is_ce_mode():
         server.py.services.api.crud.model_monitoring.helpers.get_access_key(auth_info)
     body = await request.json()
-    query_parameters = (
-        server.py.services.api.crud.model_monitoring.grafana.parse_search_parameters(
-            body
-        )
-    )
-    server.py.services.api.crud.model_monitoring.grafana.validate_query_parameters(
-        query_parameters, SUPPORTED_SEARCH_FUNCTIONS
-    )
+    query_parameters = grafana_crud.parse_search_parameters(body)
+    grafana_crud.validate_query_parameters(query_parameters, SUPPORTED_SEARCH_FUNCTIONS)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
@@ -126,19 +120,9 @@ async def grafana_proxy_model_endpoints_query(
     """
 
     body = await request.json()
-    query_parameters = (
-        server.py.services.api.crud.model_monitoring.grafana.parse_query_parameters(
-            body
-        )
-    )
-    server.py.services.api.crud.model_monitoring.grafana.validate_query_parameters(
-        query_parameters, SUPPORTED_QUERY_FUNCTIONS
-    )
-    query_parameters = (
-        server.py.services.api.crud.model_monitoring.grafana.drop_grafana_escape_chars(
-            query_parameters
-        )
-    )
+    query_parameters = grafana_crud.parse_query_parameters(body)
+    grafana_crud.validate_query_parameters(query_parameters, SUPPORTED_QUERY_FUNCTIONS)
+    query_parameters = grafana_crud.drop_grafana_escape_chars(query_parameters)
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.

@@ -23,7 +23,7 @@ import mlrun.common.schemas
 import server.py.services.api.api.deps
 import server.py.services.api.api.utils
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.clients.chief
 import server.py.services.api.utils.helpers
 from mlrun.utils import logger
@@ -153,7 +153,7 @@ async def get_project(
     if not server.py.services.api.utils.helpers.is_request_from_leader(
         auth_info.projects_role
     ):
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await auth_verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -286,9 +286,11 @@ async def list_projects(
             auth_info.projects_role,
             auth_info.session,
         )
-        allowed_project_names = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects,
-            auth_info,
+        allowed_project_names = (
+            await auth_verifier.AuthVerifier().filter_projects_by_permissions(
+                projects_output.projects,
+                auth_info,
+            )
         )
     return await run_in_threadpool(
         get_project_member().list_projects,
@@ -332,9 +334,11 @@ async def list_project_summaries(
     if not server.py.services.api.utils.helpers.is_request_from_leader(
         auth_info.projects_role
     ):
-        allowed_project_names = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects,
-            auth_info,
+        allowed_project_names = (
+            await auth_verifier.AuthVerifier().filter_projects_by_permissions(
+                projects_output.projects,
+                auth_info,
+            )
         )
     return await get_project_member().list_project_summaries(
         db_session,
@@ -366,7 +370,7 @@ async def get_project_summary(
     if not server.py.services.api.utils.helpers.is_request_from_leader(
         auth_info.projects_role
     ):
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await auth_verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -419,7 +423,7 @@ async def load_project(
 
     # Storing secrets in project
     if secrets is not None:
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.secret,
             project.metadata.name,
             secrets.provider,

@@ -24,7 +24,7 @@ import mlrun
 import mlrun.common.schemas
 import server.py.services.api.api.deps
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 
 router = fastapi.APIRouter(prefix="/projects/{project}/runtime-resources")
 
@@ -158,7 +158,8 @@ async def _delete_runtime_resources(
         filtered_projects = copy.deepcopy(allowed_projects)
         if is_non_project_runtime_resource_exists:
             filtered_projects.append("")
-        return server.py.services.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
+        runtime_resources = server.py.services.api.crud.RuntimeResources()
+        return runtime_resources.filter_and_format_grouped_by_project_runtime_resources_output(
             grouped_by_project_runtime_resources_output,
             filtered_projects,
             mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
@@ -210,7 +211,7 @@ async def _get_runtime_resources_allowed_projects(
     bool,
 ]:
     if project != "*":
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await auth_verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -237,15 +238,17 @@ async def _get_runtime_resources_allowed_projects(
             is_non_project_runtime_resource_exists = True
             continue
         projects.append(project)
-    allowed_projects = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.runtime_resource,
-        projects,
-        lambda project: (
-            project,
-            "",
-        ),
-        auth_info,
-        action=action,
+    allowed_projects = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.runtime_resource,
+            projects,
+            lambda project: (
+                project,
+                "",
+            ),
+            auth_info,
+            action=action,
+        )
     )
     not_allowed_projects_exist = len(projects) != len(allowed_projects)
     return (

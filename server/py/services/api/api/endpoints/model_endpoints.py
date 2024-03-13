@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.py.services.api.api.deps
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 from mlrun.errors import MLRunConflictError
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
@@ -56,7 +56,7 @@ async def create_model_endpoint(
     :return: A Model endpoint object.
     """
 
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -111,7 +111,7 @@ async def patch_model_endpoint(
     :return: A Model endpoint object.
     """
 
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -151,7 +151,7 @@ async def delete_model_endpoint(
 
     """
 
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -226,7 +226,7 @@ async def list_model_endpoints(
              get a standard list of model endpoints use ModelEndpointList.endpoints.
     """
 
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
@@ -245,14 +245,16 @@ async def list_model_endpoints(
         top_level=top_level,
         uids=uids,
     )
-    allowed_endpoints = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        endpoints.endpoints,
-        lambda _endpoint: (
-            _endpoint.metadata.project,
-            _endpoint.metadata.uid,
-        ),
-        auth_info,
+    allowed_endpoints = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+            endpoints.endpoints,
+            lambda _endpoint: (
+                _endpoint.metadata.project,
+                _endpoint.metadata.uid,
+            ),
+            auth_info,
+        )
     )
 
     endpoints.endpoints = allowed_endpoints
@@ -299,7 +301,7 @@ async def get_model_endpoint(
 
     :return:  A `ModelEndpoint` object.
     """
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,

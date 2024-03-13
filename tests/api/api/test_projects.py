@@ -1056,7 +1056,8 @@ def test_delete_project_fail_fast(
         else:
             assert response.status_code == HTTPStatus.ACCEPTED.value
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_tasks_handler = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler()
+            background_task = background_tasks_handler.get_background_task(
                 background_task.metadata.name
             )
             assert (

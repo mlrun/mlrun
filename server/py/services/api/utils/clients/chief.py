@@ -301,7 +301,8 @@ class Client(
         chief_response: aiohttp.ClientResponse,
     ) -> fastapi.Response:
         # based on the way we implemented the exception handling for endpoints in MLRun we can expect the media type
-        # of the response to be of type application/json, see server.py.services.api.http_status_error_handler for reference
+        # of the response to be of type application/json, see server.py.services.api.http_status_error_handler for
+        # reference
         return fastapi.responses.Response(
             content=await chief_response.text(),
             status_code=chief_response.status,

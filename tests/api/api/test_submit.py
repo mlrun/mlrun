@@ -28,7 +28,7 @@ import mlrun
 import server.py.services.api.main
 import server.py.services.api.utils.auth.verifier
 import server.py.services.api.utils.clients.chief
-import server.py.services.api.utils.singletons.k8s
+import server.py.services.api.utils.singletons.k8s as k8s_helper
 import tests.api.api.utils
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
@@ -62,14 +62,14 @@ access_key = "12345"
 
 @pytest.fixture()
 def pod_create_mock():
-    create_pod_orig_function = (
-        server.py.services.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    create_pod_orig_function = k8s_helper.get_k8s_helper().create_pod
+    _get_project_secrets_raw_data_orig_function = (
+        k8s_helper.get_k8s_helper()._get_project_secrets_raw_data
     )
-    _get_project_secrets_raw_data_orig_function = server.py.services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
-    server.py.services.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
-        unittest.mock.Mock(return_value=("pod-name", "namespace"))
+    k8s_helper.get_k8s_helper().create_pod = unittest.mock.Mock(
+        return_value=("pod-name", "namespace")
     )
-    server.py.services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+    k8s_helper.get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
         return_value={}
     )
 
@@ -93,13 +93,13 @@ def pod_create_mock():
         unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
-    yield server.py.services.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    yield k8s_helper.get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    server.py.services.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
-        create_pod_orig_function
+    k8s_helper.get_k8s_helper().create_pod = create_pod_orig_function
+    k8s_helper.get_k8s_helper()._get_project_secrets_raw_data = (
+        _get_project_secrets_raw_data_orig_function
     )
-    server.py.services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = _get_project_secrets_raw_data_orig_function
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )

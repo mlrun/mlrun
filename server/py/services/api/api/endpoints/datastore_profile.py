@@ -23,7 +23,7 @@ import mlrun
 import mlrun.common.schemas
 import server.py.services.api.api.deps
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.singletons.db
 import server.py.services.api.utils.singletons.project_member
 from mlrun.datastore.datastore_profile import DatastoreProfile as ds
@@ -49,7 +49,7 @@ async def store_datastore_profile(
         project_name,
         auth_info.session,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
         project_name,
         info.name,
@@ -64,7 +64,7 @@ async def store_datastore_profile(
         )
     project_ds_name_private = ds.generate_secret_key(info.name, project_name)
 
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project_name,
         mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -117,7 +117,7 @@ async def list_datastore_profiles(
         project_name,
         auth_info.session,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project_name,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -129,11 +129,13 @@ async def list_datastore_profiles(
     )
     if len(profiles) == 0:
         return profiles
-    filtered_data = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        profiles,
-        lambda profile: (project_name, profile.name),
-        auth_info,
+    filtered_data = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+            profiles,
+            lambda profile: (project_name, profile.name),
+            auth_info,
+        )
     )
     return filtered_data
 
@@ -155,7 +157,7 @@ async def get_datastore_profile(
         project_name,
         auth_info.session,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
         project_name,
         profile,
@@ -187,14 +189,14 @@ async def delete_datastore_profile(
         project_name,
         auth_info.session,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
         project_name,
         profile,
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project_name,
         mlrun.common.schemas.SecretProviderName.kubernetes,

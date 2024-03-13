@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.singletons.project_member
 from mlrun.common.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
@@ -51,7 +51,7 @@ async def store_artifact(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -92,7 +92,7 @@ async def list_artifact_tags(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -104,14 +104,16 @@ async def list_artifact_tags(
         category,
     )
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_artifact_keys = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        list(artifact_key_to_tag.keys()),
-        lambda artifact_key: (
-            project,
-            artifact_key,
-        ),
-        auth_info,
+    allowed_artifact_keys = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            list(artifact_key_to_tag.keys()),
+            lambda artifact_key: (
+                project,
+                artifact_key,
+            ),
+            auth_info,
+        )
     )
     tags = [
         tag_tuple[2]
@@ -164,7 +166,7 @@ async def get_artifact(
             format_=format_,
             producer_id=tag,
         )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -185,7 +187,7 @@ async def delete_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -218,7 +220,7 @@ async def list_artifacts(
 ):
     if project is None:
         project = config.default_project
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -256,11 +258,13 @@ async def list_artifacts(
             producer_id=tag,
         )
 
-    artifacts = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        artifacts,
-        artifact_project_and_resource_name_extractor,
-        auth_info,
+    artifacts = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            artifacts,
+            artifact_project_and_resource_name_extractor,
+            auth_info,
+        )
     )
     return {
         "artifacts": artifacts,
@@ -302,7 +306,7 @@ async def _delete_artifacts(
         tag,
         labels,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+    await auth_verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         artifact_project_and_resource_name_extractor,

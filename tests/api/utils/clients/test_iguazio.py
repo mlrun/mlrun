@@ -1138,10 +1138,10 @@ def _build_project_response(
         },
     }
     if with_mlrun_project:
-        body["attributes"]["mlrun_project"] = (
-            iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
-                project
-            )
+        body["attributes"][
+            "mlrun_project"
+        ] = iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
+            project
         )
     if project.spec.description:
         body["attributes"]["description"] = project.spec.description
@@ -1150,16 +1150,16 @@ def _build_project_response(
     if owner_access_key:
         body["attributes"]["owner_access_key"] = owner_access_key
     if project.metadata.labels:
-        body["attributes"]["labels"] = (
-            iguazio_client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.labels
-            )
+        body["attributes"][
+            "labels"
+        ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
+            project.metadata.labels
         )
     if project.metadata.annotations:
-        body["attributes"]["annotations"] = (
-            iguazio_client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.annotations
-            )
+        body["attributes"][
+            "annotations"
+        ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
+            project.metadata.annotations
         )
     body["attributes"]["operational_status"] = (
         operational_status.value

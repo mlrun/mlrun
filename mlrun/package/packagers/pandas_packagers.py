@@ -838,9 +838,9 @@ class PandasDataFramePackager(DefaultPackager):
         """
         if isinstance(obj, dict):
             for key, value in obj.items():
-                obj[PandasDataFramePackager._prepare_result(obj=key)] = (
-                    PandasDataFramePackager._prepare_result(obj=value)
-                )
+                obj[
+                    PandasDataFramePackager._prepare_result(obj=key)
+                ] = PandasDataFramePackager._prepare_result(obj=value)
         elif isinstance(obj, list):
             for i, value in enumerate(obj):
                 obj[i] = PandasDataFramePackager._prepare_result(obj=value)

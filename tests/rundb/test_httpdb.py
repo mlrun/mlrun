@@ -64,9 +64,9 @@ def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
     env["MLRUN_HTTPDB__PORT"] = str(port)
-    env["MLRUN_HTTPDB__DSN"] = (
-        f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
-    )
+    env[
+        "MLRUN_HTTPDB__DSN"
+    ] = f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
     env["MLRUN_HTTPDB__LOGS_PATH"] = workdir
     env.update(env_config or {})
     cmd = [

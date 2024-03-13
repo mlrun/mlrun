@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.feature_store
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.singletons.project_member
 from mlrun import v3io_cred
 from mlrun.data_types import InferOptions
@@ -51,7 +51,7 @@ async def create_feature_set(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         project,
         feature_set.metadata.name,
@@ -95,7 +95,7 @@ async def store_feature_set(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -136,7 +136,7 @@ async def patch_feature_set(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -177,7 +177,7 @@ async def get_feature_set(
         tag,
         uid,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -196,7 +196,7 @@ async def delete_feature_set(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
@@ -242,7 +242,7 @@ async def list_feature_sets(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -262,14 +262,16 @@ async def list_feature_sets(
         partition_sort_by,
         partition_order,
     )
-    feature_sets = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
-        feature_sets.feature_sets,
-        lambda feature_set: (
-            feature_set.metadata.project,
-            feature_set.metadata.name,
-        ),
-        auth_info,
+    feature_sets = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+            feature_sets.feature_sets,
+            lambda feature_set: (
+                feature_set.metadata.project,
+                feature_set.metadata.name,
+            ),
+            auth_info,
+        )
     )
     return mlrun.common.schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
@@ -288,7 +290,7 @@ async def list_feature_sets_tags(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Listing a specific feature set tags is not supported, set name to *"
         )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -299,9 +301,8 @@ async def list_feature_sets_tags(
         project,
     )
     feature_set_name_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    auth_verifier = server.py.services.api.utils.auth.verifier.AuthVerifier()
     allowed_feature_set_names = (
-        await auth_verifier.filter_project_resources_by_permissions(
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
             list(feature_set_name_to_tag.keys()),
             lambda feature_set_name: (
@@ -364,14 +365,14 @@ async def ingest_feature_set(
     This endpoint is being called only through the UI, this is mainly for enrichment of the feature set
     that already being happen on client side
     """
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         project,
         name,
         mlrun.common.schemas.AuthorizationAction.update,
         auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         "",
@@ -382,7 +383,7 @@ async def ingest_feature_set(
     if ingest_parameters.source:
         data_source = DataSource.from_dict(ingest_parameters.source.dict())
     if data_source.schedule:
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.schedule,
             project,
             "",
@@ -401,7 +402,7 @@ async def ingest_feature_set(
     feature_set = mlrun.feature_store.FeatureSet.from_dict(feature_set_record.dict())
     if feature_set.spec.function and feature_set.spec.function.function_object:
         function = feature_set.spec.function.function_object
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.function,
             function.metadata.project,
             function.metadata.name,
@@ -468,7 +469,7 @@ async def list_features(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -482,14 +483,16 @@ async def list_features(
         entities,
         labels,
     )
-    features = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature,
-        features.features,
-        lambda feature_list_output: (
-            feature_list_output.feature_set_digest.metadata.project,
-            feature_list_output.feature.name,
-        ),
-        auth_info,
+    features = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.feature,
+            features.features,
+            lambda feature_list_output: (
+                feature_list_output.feature_set_digest.metadata.project,
+                feature_list_output.feature.name,
+            ),
+            auth_info,
+        )
     )
     return mlrun.common.schemas.FeaturesOutput(features=features)
 
@@ -503,7 +506,7 @@ async def list_entities(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -516,14 +519,16 @@ async def list_entities(
         tag,
         labels,
     )
-    entities = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.entity,
-        entities.entities,
-        lambda entity_list_output: (
-            entity_list_output.feature_set_digest.metadata.project,
-            entity_list_output.entity.name,
-        ),
-        auth_info,
+    entities = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.entity,
+            entities.entities,
+            lambda entity_list_output: (
+                entity_list_output.feature_set_digest.metadata.project,
+                entity_list_output.entity.name,
+            ),
+            auth_info,
+        )
     )
     return mlrun.common.schemas.EntitiesOutput(entities=entities)
 
@@ -545,7 +550,7 @@ async def create_feature_vector(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         feature_vector.metadata.name,
@@ -593,7 +598,7 @@ async def get_feature_vector(
         tag,
         uid,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -629,7 +634,7 @@ async def list_feature_vectors(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -647,14 +652,16 @@ async def list_feature_vectors(
         partition_sort_by,
         partition_order,
     )
-    feature_vectors = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
-        feature_vectors.feature_vectors,
-        lambda feature_vector: (
-            feature_vector.metadata.project,
-            feature_vector.metadata.name,
-        ),
-        auth_info,
+    feature_vectors = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
+            feature_vectors.feature_vectors,
+            lambda feature_vector: (
+                feature_vector.metadata.project,
+                feature_vector.metadata.name,
+            ),
+            auth_info,
+        )
     )
     await asyncio.gather(
         *[
@@ -679,7 +686,7 @@ async def list_feature_vectors_tags(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Listing a specific feature vector tags is not supported, set name to *"
         )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -692,9 +699,8 @@ async def list_feature_vectors_tags(
     feature_vector_name_to_tag = {
         tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples
     }
-    auth_verifier = server.py.services.api.utils.auth.verifier.AuthVerifier()
     allowed_feature_vector_names = (
-        await auth_verifier.filter_project_resources_by_permissions(
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
             list(feature_vector_name_to_tag.keys()),
             lambda feature_vector_name: (
@@ -731,7 +737,7 @@ async def store_feature_vector(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -776,7 +782,7 @@ async def patch_feature_vector(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -809,7 +815,7 @@ async def delete_feature_vector(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
         project,
         name,
@@ -849,7 +855,7 @@ async def _verify_feature_vector_features_permissions(
     for _project, names in feature_set_project_to_name_set_map.items():
         for name in names:
             feature_set_project_name_tuples.append((_project, name))
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+    await auth_verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
         feature_set_project_name_tuples,
         lambda feature_set_project_name_tuple: (

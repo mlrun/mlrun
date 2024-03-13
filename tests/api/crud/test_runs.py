@@ -83,7 +83,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
-                server.py.services.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+                server.py.services.api.utils.clients.log_collector.LogCollectorClient,
+                "delete_logs",
             ) as delete_logs_mock,
         ):
             await server.api.crud.Runs().delete_run(db, "uid", 0, project)
@@ -136,11 +137,16 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
-                server.py.services.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+                server.py.services.api.utils.clients.log_collector.LogCollectorClient,
+                "delete_logs",
             ) as delete_logs_mock,
         ):
-            await server.py.services.api.crud.Runs().delete_runs(db, name=run_name, project=project)
-            runs = server.py.services.api.crud.Runs().list_runs(db, run_name, project=project)
+            await server.py.services.api.crud.Runs().delete_runs(
+                db, name=run_name, project=project
+            )
+            runs = server.py.services.api.crud.Runs().list_runs(
+                db, run_name, project=project
+            )
             assert len(runs) == 0
             delete_namespaced_pod_mock.assert_not_called()
             assert delete_logs_mock.call_count == 20

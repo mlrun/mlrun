@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.errors
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.utils import logger
@@ -53,7 +53,7 @@ async def list_pipelines(
     if namespace is None:
         namespace = config.namespace
     if project != "*":
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await auth_verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -81,14 +81,16 @@ async def list_pipelines(
             computed_format,
             page_size,
         )
-    allowed_runs = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-        runs,
-        lambda run: (
-            run["project"],
-            run["id"],
-        ),
-        auth_info,
+    allowed_runs = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            runs,
+            lambda run: (
+                run["project"],
+                run["id"],
+            ),
+            auth_info,
+        )
     )
     if format_ == mlrun.common.schemas.PipelinesFormat.name_only:
         allowed_runs = [run["name"] for run in allowed_runs]
@@ -143,7 +145,7 @@ async def get_pipeline(
         # summary which is the one used inside
         await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
     else:
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
@@ -172,7 +174,7 @@ async def _get_pipeline_without_project(
         # minimal format that includes the project
         format_=mlrun.common.schemas.PipelinesFormat.summary,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
         run["run"]["project"],
         run["run"]["id"],
@@ -192,7 +194,7 @@ async def _create_pipeline(
 ):
     # If we have the project (new clients from 0.7.0 uses the new endpoint in which it's mandatory) - check auth now
     if project:
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",
@@ -216,7 +218,7 @@ async def _create_pipeline(
             " the server version"
         )
     else:
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",

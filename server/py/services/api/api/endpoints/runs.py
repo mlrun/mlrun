@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.background_tasks
 import server.py.services.api.utils.singletons.project_member
 from mlrun.utils import logger
@@ -55,7 +55,7 @@ async def store_run(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -95,7 +95,7 @@ async def update_run(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -137,7 +137,7 @@ async def get_run(
     data = await run_in_threadpool(
         server.py.services.api.crud.Runs().get_run, db_session, uid, iter, project
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -164,7 +164,7 @@ async def delete_run(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -217,7 +217,7 @@ async def list_runs(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project != "*":
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await auth_verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -266,14 +266,16 @@ async def list_runs(
         max_partitions,
         with_notifications=with_notifications,
     )
-    filtered_runs = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.run,
-        runs,
-        lambda run: (
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            run.get("metadata", {}).get("uid"),
-        ),
-        auth_info,
+    filtered_runs = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
     )
     return {
         "runs": filtered_runs,
@@ -302,7 +304,7 @@ async def delete_runs(
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
         # TODO check for every run when we will manage permission per run inside a project
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await auth_verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
             project or mlrun.mlconf.default_project,
             "",
@@ -329,7 +331,7 @@ async def delete_runs(
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO Delete only runs from projects that user has permissions to
-            await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            await auth_verifier.AuthVerifier().query_project_resource_permissions(
                 mlrun.common.schemas.AuthorizationResourceTypes.run,
                 run_project,
                 "",
@@ -369,7 +371,7 @@ async def set_run_notifications(
     )
 
     # check permission per object type
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         resource_name=uid,
@@ -403,7 +405,7 @@ async def abort_run(
     db_session: Session = Depends(deps.get_db_session),
 ):
     # check permission per object type
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         resource_name=uid,

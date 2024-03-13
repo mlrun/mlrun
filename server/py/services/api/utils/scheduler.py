@@ -31,7 +31,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import server.py.services.api.api.utils
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.clients.iguazio
 import server.py.services.api.utils.helpers
 import server.py.services.api.utils.singletons.project_member
@@ -467,14 +467,16 @@ class Scheduler:
     ):
         if (
             kind not in mlrun.common.schemas.ScheduleKinds.local_kinds()
-            and server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+            and auth_verifier.AuthVerifier().is_jobs_auth_required()
         ):
             if (
                 not auth_info.access_key
                 or auth_info.access_key == mlrun.model.Credentials.generate_access_key
             ):
-                auth_info.access_key = server.py.services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
-                    auth_info.session
+                auth_info.access_key = (
+                    auth_verifier.AuthVerifier().get_or_create_access_key(
+                        auth_info.session
+                    )
                 )
                 # created an access key with control and data session plane, so enriching auth_info with those planes
                 auth_info.planes = [
@@ -498,7 +500,7 @@ class Scheduler:
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> str:
-        if server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+        if auth_verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -526,7 +528,7 @@ class Scheduler:
         project: str,
         name: str,
     ):
-        if server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+        if auth_verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -567,7 +569,7 @@ class Scheduler:
         project: str,
         name: str,
     ):
-        if server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+        if auth_verifier.AuthVerifier().is_jobs_auth_required():
             access_key_secret_key = server.py.services.api.crud.Secrets().generate_client_project_secret_key(
                 server.py.services.api.crud.SecretsClientType.schedules,
                 name,
@@ -782,7 +784,7 @@ class Scheduler:
                 access_key = None
                 username = None
                 need_to_update_credentials = False
-                if server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+                if auth_verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
                     )
@@ -1091,7 +1093,7 @@ class Scheduler:
             # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
             if (
                 not auth_info.access_key
-                and server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+                and auth_verifier.AuthVerifier().is_jobs_auth_required()
             ):
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",
@@ -1099,7 +1101,8 @@ class Scheduler:
                     schedule_name=schedule_name,
                 )
 
-                project_owner = server.py.services.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                project_member = server.py.services.api.utils.singletons.project_member.get_project_member()
+                project_owner = project_member.get_project_owner(
                     db_session, project_name
                 )
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run

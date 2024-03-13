@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import server.py.services.api.utils.clients.chief
 import server.py.services.api.utils.singletons.project_member
 from mlrun.utils import logger
@@ -45,7 +45,7 @@ async def create_schedule(
         project,
         auth_info=auth_info,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         project,
         schedule.name,
@@ -95,7 +95,7 @@ async def update_schedule(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         project,
         name,
@@ -148,7 +148,7 @@ async def list_schedules(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project != "*":
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await auth_verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -164,14 +164,16 @@ async def list_schedules(
         include_last_run,
         include_credentials,
     )
-    filtered_schedules = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.schedule,
-        schedules.schedules,
-        lambda schedule: (
-            schedule.project,
-            schedule.name,
-        ),
-        auth_info,
+    filtered_schedules = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.schedule,
+            schedules.schedules,
+            lambda schedule: (
+                schedule.project,
+                schedule.name,
+            ),
+            auth_info,
+        )
     )
     schedules.schedules = filtered_schedules
     return schedules
@@ -197,7 +199,7 @@ async def get_schedule(
         include_last_run,
         include_credentials,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         project,
         name,
@@ -215,7 +217,7 @@ async def invoke_schedule(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         project,
         name,
@@ -248,7 +250,7 @@ async def delete_schedule(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         project,
         name,
@@ -286,7 +288,7 @@ async def delete_schedules(
         db_session,
         project,
     )
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+    await auth_verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         schedules.schedules,
         lambda schedule: (schedule.project, schedule.name),
@@ -330,7 +332,7 @@ async def set_schedule_notifications(
     )
 
     # check permission per object type
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,
         project,
         resource_name=name,

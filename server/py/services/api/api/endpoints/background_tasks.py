@@ -23,8 +23,8 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import mlrun.utils
 import server.py.services.api.api.deps
-import server.py.services.api.utils.auth.verifier
-import server.py.services.api.utils.background_tasks
+import server.py.services.api.utils.auth.verifier as auth_verifier
+import server.py.services.api.utils.background_tasks as background_tasks_handlers
 import server.py.services.api.utils.clients.chief
 from mlrun.utils import logger
 
@@ -47,7 +47,7 @@ async def get_project_background_task(
 ):
     # Since there's no not-found option on get_project_background_task - we authorize before getting (unlike other
     # get endpoint)
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await auth_verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
         project,
         name,
@@ -55,7 +55,7 @@ async def get_project_background_task(
         auth_info,
     )
     return await run_in_threadpool(
-        server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+        background_tasks_handlers.ProjectBackgroundTasksHandler().get_background_task,
         db_session,
         name=name,
         project=project,
@@ -80,7 +80,7 @@ async def list_project_background_tasks(
         server.py.services.api.api.deps.get_db_session
     ),
 ):
-    await server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await auth_verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -99,7 +99,7 @@ async def list_project_background_tasks(
         ).isoformat()
 
     background_tasks = await run_in_threadpool(
-        server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().list_background_tasks,
+        background_tasks_handlers.ProjectBackgroundTasksHandler().list_background_tasks,
         db_session,
         project=project,
         states=[state] if state is not None else None,
@@ -109,14 +109,16 @@ async def list_project_background_tasks(
         last_update_time_to=mlrun.utils.datetime_from_iso(last_update_time_to),
     )
 
-    background_tasks = await server.py.services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
-        background_tasks,
-        lambda background_task: (
-            background_task.metadata.project,
-            background_task.metadata.name,
-        ),
-        auth_info,
+    background_tasks = (
+        await auth_verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
+            background_tasks,
+            lambda background_task: (
+                background_task.metadata.project,
+                background_task.metadata.name,
+            ),
+            auth_info,
+        )
     )
 
     return mlrun.common.schemas.BackgroundTaskList(background_tasks=background_tasks)
@@ -148,7 +150,7 @@ async def get_internal_background_task(
         )
 
     return await run_in_threadpool(
-        server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
+        background_tasks_handlers.InternalBackgroundTasksHandler().get_background_task,
         name=name,
     )
 
@@ -176,7 +178,7 @@ async def list_internal_background_tasks(
         chief_client = server.py.services.api.utils.clients.chief.Client()
         return await chief_client.get_internal_background_tasks(request=request)
 
-    background_tasks = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().list_background_tasks(
+    background_tasks = background_tasks_handlers.InternalBackgroundTasksHandler().list_background_tasks(
         name=name,
         kind=kind,
     )
@@ -205,7 +207,7 @@ async def _authorize_get_background_task_request(
     # we also skip Iguazio 3.6 for now, until it will add support for it (still in development)
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
-        await server.py.services.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+        await auth_verifier.AuthVerifier().query_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.background_task,
             name,
             mlrun.common.schemas.AuthorizationAction.read,

@@ -27,7 +27,7 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import server.py.services.api.crud
-import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.auth.verifier as auth_verifier
 import tests.conftest
 
 
@@ -114,7 +114,9 @@ def test_get_pipeline_no_project_opa_validation(
     server.py.services.api.crud.Pipelines().resolve_project_from_pipeline = (
         unittest.mock.Mock(return_value=project)
     )
-    server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.AsyncMock()
+    auth_verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.AsyncMock()
+    )
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
     response = client.get(
@@ -122,9 +124,7 @@ def test_get_pipeline_no_project_opa_validation(
         params={"format": format_},
     )
     assert (
-        server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
-            0
-        ][1]
+        auth_verifier.AuthVerifier().query_project_resource_permissions.call_args[0][1]
         == project
     )
     assert response.json()["run"]["project"] == project

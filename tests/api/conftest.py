@@ -39,7 +39,7 @@ import server.py.services.api.utils.clients.iguazio
 import server.py.services.api.utils.projects.remotes.leader as project_leader
 import server.py.services.api.utils.runtimes.nuclio
 import server.py.services.api.utils.singletons.db
-import server.py.services.api.utils.singletons.k8s
+import server.py.services.api.utils.singletons.k8s as k8s_helper
 import server.py.services.api.utils.singletons.logs_dir
 import server.py.services.api.utils.singletons.project_member
 import server.py.services.api.utils.singletons.scheduler
@@ -56,7 +56,7 @@ def api_config_test():
     server.py.services.api.utils.singletons.db.db = None
     server.py.services.api.utils.singletons.project_member.project_member = None
     server.py.services.api.utils.singletons.scheduler.scheduler = None
-    server.py.services.api.utils.singletons.k8s._k8s = None
+    k8s_helper._k8s = None
     server.py.services.api.utils.singletons.logs_dir.logs_dir = None
 
     server.py.services.api.utils.runtimes.nuclio.cached_nuclio_version = None
@@ -170,8 +170,8 @@ async def async_client(db) -> Generator:
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch) -> kfp.Client:
-    server.py.services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
+    k8s_helper.get_k8s_helper().is_running_inside_kubernetes_cluster = (
+        unittest.mock.Mock(return_value=True)
     )
     kfp_client_mock = unittest.mock.Mock()
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
@@ -211,17 +211,13 @@ class MockedK8sHelper:
     def mock_k8s_helper(self, db: sqlalchemy.orm.Session, client: TestClient):
         # We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
         # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
-        server.py.services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(
+        k8s_helper.get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(
             return_value=[]
         )
-        server.py.services.api.utils.singletons.k8s.get_k8s_helper().v1api = (
-            unittest.mock.Mock()
-        )
-        server.py.services.api.utils.singletons.k8s.get_k8s_helper().crdapi = (
-            unittest.mock.Mock()
-        )
-        server.py.services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
+        k8s_helper.get_k8s_helper().v1api = unittest.mock.Mock()
+        k8s_helper.get_k8s_helper().crdapi = unittest.mock.Mock()
+        k8s_helper.get_k8s_helper().is_running_inside_kubernetes_cluster = (
+            unittest.mock.Mock(return_value=True)
         )
 
 
@@ -259,9 +255,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
                 )
                 expected_env_from_secrets[env_variable_name] = {global_secret: key}
 
-        secret_name = server.py.services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
-            project
-        )
+        secret_name = k8s_helper.get_k8s_helper().get_project_secret_name(project)
         for key in self.project_secrets_map.get(project, {}):
             if key.startswith("mlrun.") and not include_internal:
                 continue
@@ -340,9 +334,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
-    k8s_secrets_mock.mock_functions(
-        server.py.services.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch
-    )
+    k8s_secrets_mock.mock_functions(k8s_helper.get_k8s_helper(), monkeypatch)
     yield k8s_secrets_mock
 
 

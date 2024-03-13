@@ -302,7 +302,8 @@ def enrich_dask_cluster(
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
     from kubernetes import client
 
-    runtime_handler: server.py.services.api.runtime_handlers.daskjob.DaskRuntimeHandler = server.py.services.api.runtime_handlers.DaskRuntimeHandler()
+    runtime_handler: server.py.services.api.runtime_handlers.daskjob.DaskRuntimeHandler
+    runtime_handler = server.py.services.api.runtime_handlers.DaskRuntimeHandler()
     runtime_handler.add_secrets_to_spec_before_running(
         runtime=function, project_name=function.metadata.project
     )

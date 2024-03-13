@@ -25,6 +25,7 @@ import mlrun.common.schemas
 import server.py.services.api.crud
 import server.py.services.api.utils.helpers
 import server.py.services.api.utils.runtimes
+import server.py.services.api.utils.singletons.db as db_singleton
 import tests.conftest
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -286,8 +287,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
                 # using freeze enables us to set the now attribute when calling the sub-function
                 # _update_run_updated_time without the need to call the function directly
-                original_update_run_updated_time = server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time
-                server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time = tests.conftest.freeze(
+                original_update_run_updated_time = (
+                    db_singleton.get_db()._update_run_updated_time
+                )
+                db_singleton.get_db()._update_run_updated_time = tests.conftest.freeze(
                     original_update_run_updated_time,
                     now=now_date()
                     + timedelta(
@@ -297,7 +300,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 server.py.services.api.crud.Runs().store_run(
                     db, self.run, self.run_uid, project=self.project
                 )
-                server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time = original_update_run_updated_time
+                db_singleton.get_db()._update_run_updated_time = (
+                    original_update_run_updated_time
+                )
                 # Mocking pod that is still in non-terminal state
                 self._mock_list_namespaced_pods(list_namespaced_pods_calls)
 
@@ -455,15 +460,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
         original_update_run_updated_time = (
-            server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time
+            db_singleton.get_db()._update_run_updated_time
         )
-        server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-            tests.conftest.freeze(original_update_run_updated_time, now=now_date())
+        db_singleton.get_db()._update_run_updated_time = tests.conftest.freeze(
+            original_update_run_updated_time, now=now_date()
         )
         server.py.services.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
-        server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        db_singleton.get_db()._update_run_updated_time = (
             original_update_run_updated_time
         )
 
@@ -480,16 +485,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # Mocking that update occurred before debounced period
         debounce_period = config.monitoring.runs.interval
-        server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-            tests.conftest.freeze(
-                original_update_run_updated_time,
-                now=now_date() - timedelta(seconds=float(2 * debounce_period)),
-            )
+        db_singleton.get_db()._update_run_updated_time = tests.conftest.freeze(
+            original_update_run_updated_time,
+            now=now_date() - timedelta(seconds=float(2 * debounce_period)),
         )
         server.py.services.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
-        server.py.services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        db_singleton.get_db()._update_run_updated_time = (
             original_update_run_updated_time
         )
 

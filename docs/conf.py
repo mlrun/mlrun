@@ -169,7 +169,11 @@ autodoc_mock_imports = [
     "onnx",
 ]
 
-redirects = {"functions-architecture": "functions.html"}
+redirects = {
+    "runtimes/functions-architecture": "runtimes/functions.html",
+    "monitoring/initial-setup-configuration": "monitoring/model-monitoring-deployment.html",
+}
+
 smartquotes = False
 
 # -- Autosummary -------------------------------------------------------------

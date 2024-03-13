@@ -13,10 +13,9 @@
 # limitations under the License.
 #
 import os
-from os.path import dirname, abspath, join
 import random
-import tempfile
 import uuid
+from os.path import abspath, dirname, join
 from pathlib import Path
 
 import dask.dataframe as dd
@@ -106,6 +105,24 @@ class TestAwsS3:
             secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(profile)
+
+    def _setup_df_dir(self, use_datastore_profile, file_format, reader):
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        directory = f"/{file_format}s_{uuid.uuid4()}"
+        s3_directory_url = param["bucket_path"] + directory
+        df1_path = join(self.assets_path, f"test_data.{file_format}")
+        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+
+        #  upload
+        dt1 = mlrun.run.get_dataitem(s3_directory_url + f"/df1.{file_format}")
+        dt2 = mlrun.run.get_dataitem(s3_directory_url + f"/df2.{file_format}")
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        return (
+            mlrun.run.get_dataitem(s3_directory_url),
+            reader(df1_path),
+            reader(df2_path),
+        )
 
     def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
@@ -210,37 +227,34 @@ class TestAwsS3:
             os.environ.pop(param)
 
     @pytest.mark.parametrize(
-        "file_format, reader, reset_index",
+        "file_format, reader, reader_args",
         [
-            ("parquet", pd.read_parquet, False),
-            ("csv", pd.read_csv, True),
+            ("parquet", pd.read_parquet, {}),
+            ("csv", pd.read_csv, {}),
+            ("json", pd.read_json, {"orient": "values"}),
         ],
     )
-    def test_as_df_directory(self, use_datastore_profile, file_format, reader, reset_index):
+    def test_as_df(
+        self,
+        use_datastore_profile,
+        file_format: str,
+        reader: callable,
+        reader_args: dict,
+    ):
+        # A more advanced test of the as_df function that includes Parquet, CSV, and JSON files.
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
         for p in credential_params:
             os.environ[p] = config["env"][p]
-        directory = f"/{file_format}s_{uuid.uuid4()}"
-        s3_directory_url = param["bucket_path"] + directory
-        # Create the DataFrames
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
-        df1 = reader(df1_path)
-        df2 = reader(df2_path)
+        filename = f"/df_{uuid.uuid4()}.{file_format}"
+        file_url = param["bucket_path"] + filename
 
-        #  upload
-        dt1 = mlrun.run.get_dataitem(s3_directory_url + f"/df1.{file_format}")
-        dt2 = mlrun.run.get_dataitem(s3_directory_url + f"/df2.{file_format}")
-        dt1.upload(src_path=df1_path)
-        dt2.upload(src_path=df2_path)
-        dt1.as_df()
-        dt2.as_df()
-        dt_dir = mlrun.run.get_dataitem(s3_directory_url)
-        tested_df = dt_dir.as_df(format=file_format)
-        if reset_index:
-            tested_df = tested_df.reset_index(drop=True)
-        expected_df = pd.concat([df1, df2], ignore_index=True)
-        assert_frame_equal(tested_df, expected_df)
+        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        source = reader(local_file_path, **reader_args)
+
+        upload_data_item = mlrun.run.get_dataitem(file_url)
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(**reader_args)
+        pd.testing.assert_frame_equal(source, response)
 
     @pytest.mark.parametrize(
         "file_format, reader, reader_args",
@@ -269,5 +283,50 @@ class TestAwsS3:
         upload_data_item = mlrun.run.get_dataitem(file_url)
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(df_module=dd, **reader_args)
-        assert dd.assert_eq(source, response)
+        dd.assert_eq(source, response)
 
+    @pytest.mark.parametrize(
+        "file_format, reader, reset_index",
+        [
+            ("parquet", pd.read_parquet, False),
+            ("csv", pd.read_csv, True),
+        ],
+    )
+    def test_as_df_directory(
+        self, use_datastore_profile, file_format, reader, reset_index
+    ):
+        for p in credential_params:
+            os.environ[p] = config["env"][p]
+        dt_dir, df1, df2 = self._setup_df_dir(
+            use_datastore_profile=use_datastore_profile,
+            file_format=file_format,
+            reader=reader,
+        )
+        tested_df = dt_dir.as_df(format=file_format)
+        if reset_index:
+            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
+        assert_frame_equal(tested_df, expected_df)
+
+    @pytest.mark.parametrize(
+        "file_format, reader, reset_index",
+        [
+            ("parquet", dd.read_parquet, False),
+            ("csv", dd.read_csv, True),
+        ],
+    )
+    def test_as_df_directory_dd(
+        self, use_datastore_profile, file_format, reader, reset_index
+    ):
+        for p in credential_params:
+            os.environ[p] = config["env"][p]
+        dt_dir, df1, df2 = self._setup_df_dir(
+            use_datastore_profile=use_datastore_profile,
+            file_format=file_format,
+            reader=reader,
+        )
+        tested_df = dt_dir.as_df(format=file_format, df_module=dd)
+        if reset_index:
+            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
+        expected_df = dd.concat([df1, df2], axis=0)
+        dd.assert_eq(tested_df, expected_df)

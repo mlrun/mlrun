@@ -3774,9 +3774,8 @@ class MlrunProject(ModelObj):
     ) -> typing.Optional[ArtifactProducer]:
         """
         Resolve the artifact producer of the given artifact.
-        If the artifact producer is a project, the artifact is registered with the current project as the producer.
-        If not, the artifact is registered with the original producer. If the artifact is already registered, the
-        artifact is not registered again.
+        If the artifact's producer is a run, the artifact is registered with the original producer.
+        Otherwise, the artifact is registered with the current project as the producer.
 
         :param artifact:                The artifact to resolve its producer.
         :param project_producer_tag:    The tag to use for the project as the producer. If not provided, a tag will be
@@ -3791,7 +3790,7 @@ class MlrunProject(ModelObj):
             else:
                 producer_dict = artifact.spec.producer
 
-            if "project" != producer_dict.get("kind", ""):
+            if producer_dict.get("kind", "") == "run":
                 return ArtifactProducer(
                     name=producer_dict.get("name", ""),
                     kind=producer_dict.get("kind", ""),
@@ -3799,7 +3798,7 @@ class MlrunProject(ModelObj):
                     tag=producer_dict.get("tag", ""),
                 )
 
-        # the artifact is not registered, register it with the project as the producer
+        # do not retain the artifact's producer, replace it with the project as the producer
         project_producer_tag = (
             project_producer_tag or self._get_hexsha() or str(uuid.uuid4())
         )

@@ -28,7 +28,7 @@ class PackageTester:
         self._logger = logger
 
         basic_import = "import mlrun"
-        api_import = "import server.api.main"
+        api_import = "import server.py.api.main"
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         azure_key_vault_import = "import mlrun.utils.azure_vault"

@@ -347,8 +347,12 @@ compile-schemas: ## Compile schemas over docker
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
-	cd server/log-collector && \
+	rm -rf server/go/mlrun-go/pkg/proto
+	rm -rf server/py/proto/*pb2*.py
+	cd server/common && \
 	  make compile-schemas
+	cp -r server/common/proto/build/go server/go/mlrun-go/pkg/proto
+	cp -r server/common/proto/build/py/* server/py/proto/
 endif
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
@@ -493,7 +497,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 		--durations=100 \
 		-rf \
 		--test-alembic \
-		server/api/migrations_sqlite/tests/*
+		server/py/services/api/migrations_sqlite/tests/*
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

@@ -21,10 +21,10 @@ from kubernetes import client as k8s_client
 
 import mlrun.common.schemas
 import mlrun.errors
-import server.api.crud
-import server.api.runtime_handlers
-import server.api.utils.clients.log_collector
-import server.api.utils.singletons.k8s
+import server.py.services.api.crud
+import server.py.services.api.runtime_handlers
+import server.py.services.api.utils.clients.log_collector
+import server.py.services.api.utils.singletons.k8s
 import tests.api.conftest
 
 
@@ -34,7 +34,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
         project = "project-name"
-        server.api.crud.Runs().store_run(
+        server.py.services.api.crud.Runs().store_run(
             db,
             {
                 "metadata": {
@@ -47,10 +47,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             "uid",
             project=project,
         )
-        run = server.api.crud.Runs().get_run(db, "uid", 0, project)
+        run = server.py.services.api.crud.Runs().get_run(db, "uid", 0, project)
         assert run["metadata"]["name"] == "run-name"
 
-        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = server.py.services.api.utils.singletons.k8s.get_k8s_helper()
         with unittest.mock.patch.object(
             k8s_helper.v1api, "delete_namespaced_pod"
         ) as delete_namespaced_pod_mock, unittest.mock.patch.object(
@@ -76,16 +76,18 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 k8s_client.V1PodList(items=[]),
             ],
         ), unittest.mock.patch.object(
-            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
+            server.py.services.api.runtime_handlers.BaseRuntimeHandler,
+            "_ensure_run_logs_collected",
         ), unittest.mock.patch.object(
-            server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient,
+            "delete_logs",
         ) as delete_logs_mock:
-            await server.api.crud.Runs().delete_run(db, "uid", 0, project)
+            await server.py.services.api.crud.Runs().delete_run(db, "uid", 0, project)
             delete_namespaced_pod_mock.assert_called_once()
             delete_logs_mock.assert_called_once()
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            server.api.crud.Runs().get_run(db, "uid", 0, project)
+            server.py.services.api.crud.Runs().get_run(db, "uid", 0, project)
 
     @pytest.mark.asyncio
     async def test_delete_runs(self, db: sqlalchemy.orm.Session):
@@ -94,7 +96,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         project = "project-name"
         run_name = "run-name"
         for uid in range(20):
-            server.api.crud.Runs().store_run(
+            server.py.services.api.crud.Runs().store_run(
                 db,
                 {
                     "metadata": {
@@ -110,10 +112,12 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 project=project,
             )
 
-        runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+        runs = server.py.services.api.crud.Runs().list_runs(
+            db, run_name, project=project
+        )
         assert len(runs) == 20
 
-        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = server.py.services.api.utils.singletons.k8s.get_k8s_helper()
         with unittest.mock.patch.object(
             k8s_helper.v1api, "delete_namespaced_pod"
         ) as delete_namespaced_pod_mock, unittest.mock.patch.object(
@@ -121,12 +125,18 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             "list_namespaced_pod",
             return_value=k8s_client.V1PodList(items=[]),
         ), unittest.mock.patch.object(
-            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
+            server.py.services.api.runtime_handlers.BaseRuntimeHandler,
+            "_ensure_run_logs_collected",
         ), unittest.mock.patch.object(
-            server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient,
+            "delete_logs",
         ) as delete_logs_mock:
-            await server.api.crud.Runs().delete_runs(db, name=run_name, project=project)
-            runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+            await server.py.services.api.crud.Runs().delete_runs(
+                db, name=run_name, project=project
+            )
+            runs = server.py.services.api.crud.Runs().list_runs(
+                db, run_name, project=project
+            )
             assert len(runs) == 0
             delete_namespaced_pod_mock.assert_not_called()
             assert delete_logs_mock.call_count == 20
@@ -140,7 +150,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         project = "project-name"
         run_name = "run-name"
         for uid in range(3):
-            server.api.crud.Runs().store_run(
+            server.py.services.api.crud.Runs().store_run(
                 db,
                 {
                     "metadata": {
@@ -156,10 +166,12 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 project=project,
             )
 
-        runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+        runs = server.py.services.api.crud.Runs().list_runs(
+            db, run_name, project=project
+        )
         assert len(runs) == 3
 
-        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = server.py.services.api.utils.singletons.k8s.get_k8s_helper()
         with unittest.mock.patch.object(
             k8s_helper.v1api, "delete_namespaced_pod"
         ), unittest.mock.patch.object(
@@ -171,15 +183,18 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 k8s_client.V1PodList(items=[]),
             ],
         ), unittest.mock.patch.object(
-            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
+            server.py.services.api.runtime_handlers.BaseRuntimeHandler,
+            "_ensure_run_logs_collected",
         ):
             with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
-                await server.api.crud.Runs().delete_runs(
+                await server.py.services.api.crud.Runs().delete_runs(
                     db, name=run_name, project=project
                 )
             assert "Failed to delete 1 run(s). Error: Boom!" in str(exc.value)
 
-            runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+            runs = server.py.services.api.crud.Runs().list_runs(
+                db, run_name, project=project
+            )
             assert len(runs) == 1
 
     @pytest.mark.asyncio
@@ -192,7 +207,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     )
     async def test_delete_run_failure(self, db: sqlalchemy.orm.Session, run_state):
         project = "project-name"
-        server.api.crud.Runs().store_run(
+        server.py.services.api.crud.Runs().store_run(
             db,
             {
                 "metadata": {
@@ -207,7 +222,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-            await server.api.crud.Runs().delete_run(db, "uid", 0, project)
+            await server.py.services.api.crud.Runs().delete_run(db, "uid", 0, project)
 
         assert (
             f"Can not delete run in {run_state} state, consider aborting the run first"
@@ -217,7 +232,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     def test_run_abortion_failure(self, db: sqlalchemy.orm.Session):
         project = "project-name"
         run_uid = str(uuid.uuid4())
-        server.api.crud.Runs().store_run(
+        server.py.services.api.crud.Runs().store_run(
             db,
             {
                 "metadata": {
@@ -231,13 +246,13 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
         with unittest.mock.patch.object(
-            server.api.crud.RuntimeResources(),
+            server.py.services.api.crud.RuntimeResources(),
             "delete_runtime_resources",
             side_effect=mlrun.errors.MLRunInternalServerError("BOOM"),
         ), pytest.raises(mlrun.errors.MLRunInternalServerError) as exc:
-            server.api.crud.Runs().abort_run(db, project, run_uid, 0)
+            server.py.services.api.crud.Runs().abort_run(db, project, run_uid, 0)
         assert "BOOM" == str(exc.value)
 
-        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        run = server.py.services.api.crud.Runs().get_run(db, run_uid, 0, project)
         assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"

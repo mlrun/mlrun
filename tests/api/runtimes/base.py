@@ -33,8 +33,8 @@ from kubernetes.client import V1EnvVar
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
-import server.api.api.endpoints.functions
-import server.api.crud
+import server.py.services.api.api.endpoints.functions
+import server.py.services.api.crud
 import tests.api.api.utils
 import tests.api.conftest
 from mlrun.config import config as mlconf
@@ -42,7 +42,7 @@ from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
-from server.api.utils.singletons.k8s import get_k8s_helper
+from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -394,7 +394,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     @staticmethod
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
-        server.api.api.endpoints.functions._build_function(
+        server.py.services.api.api.endpoints.functions._build_function(
             db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 
@@ -404,7 +404,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         get_k8s_helper().v1api.read_namespaced_pod_log.reset_mock()
 
     def _reset_custom_object_mocks(self):
-        server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
+        server.py.services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
         get_k8s_helper().v1api.list_namespaced_pod.reset_mock()
 
     def _execute_run(self, runtime, **kwargs):
@@ -551,14 +551,14 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         (
             _,
             kwargs,
-        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
+        ) = server.py.services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["body"]
 
     def _get_create_custom_object_namespace_arg(self):
         (
             _,
             kwargs,
-        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
+        ) = server.py.services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["namespace"]
 
     def _get_create_pod_namespace_arg(self):

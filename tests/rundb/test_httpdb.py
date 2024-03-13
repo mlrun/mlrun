@@ -72,7 +72,7 @@ def start_server(workdir, env_config: dict):
     cmd = [
         executable,
         "-m",
-        "server.api.main",
+        "server.py.services.api.main",
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)

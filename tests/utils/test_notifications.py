@@ -26,9 +26,9 @@ import tabulate
 
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
-import server.api.api.utils
-import server.api.constants
-import server.api.crud
+import server.py.services.api.api.utils
+import server.py.services.api.constants
+import server.py.services.api.crud
 
 
 @pytest.mark.parametrize(
@@ -471,7 +471,9 @@ def test_notification_params_masking_on_run(monkeypatch):
         pass
 
     monkeypatch.setattr(
-        server.api.crud.Secrets, "store_project_secrets", _store_project_secrets
+        server.py.services.api.crud.Secrets,
+        "store_project_secrets",
+        _store_project_secrets,
     )
     params = {"sensitive": "sensitive-value"}
     params_hash = hashlib.sha224(
@@ -482,8 +484,8 @@ def test_notification_params_masking_on_run(monkeypatch):
         "metadata": {"uid": run_uid, "project": "test-project"},
         "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
     }
-    server.api.api.utils.mask_notification_params_on_task(
-        run, server.api.constants.MaskOperations.CONCEAL
+    server.py.services.api.api.utils.mask_notification_params_on_task(
+        run, server.py.services.api.constants.MaskOperations.CONCEAL
     )
     assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
     assert "secret" in run["spec"]["notifications"][0]["secret_params"]
@@ -518,21 +520,29 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     db_session_mock = unittest.mock.Mock()
 
     monkeypatch.setattr(
-        server.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
+        server.py.services.api.crud.Secrets,
+        "get_project_secret",
+        _get_valid_project_secret,
     )
 
-    unmasked_run = server.api.api.utils.unmask_notification_params_secret_on_task(
-        db_mock, db_session_mock, copy.deepcopy(run)
+    unmasked_run = (
+        server.py.services.api.api.utils.unmask_notification_params_secret_on_task(
+            db_mock, db_session_mock, copy.deepcopy(run)
+        )
     )
     assert "sensitive" in unmasked_run.spec.notifications[0].secret_params
     assert "secret" not in unmasked_run.spec.notifications[0].secret_params
     assert unmasked_run.spec.notifications[0].secret_params == secret_value
 
     monkeypatch.setattr(
-        server.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
+        server.py.services.api.crud.Secrets,
+        "get_project_secret",
+        _get_invalid_project_secret,
     )
-    unmasked_run = server.api.api.utils.unmask_notification_params_secret_on_task(
-        db_mock, db_session_mock, copy.deepcopy(run)
+    unmasked_run = (
+        server.py.services.api.api.utils.unmask_notification_params_secret_on_task(
+            db_mock, db_session_mock, copy.deepcopy(run)
+        )
     )
     assert len(unmasked_run.spec.notifications) == 0
     db_mock.store_run_notifications.assert_called_once()

@@ -21,7 +21,7 @@ import alembic
 import alembic.config
 import pytest
 
-import server.api.utils.db.alembic
+import server.py.services.api.utils.db.alembic
 from mlrun import mlconf
 
 
@@ -34,7 +34,7 @@ class Constants:
 
 def test_no_database_exists(mock_alembic, mock_database):
     mock_database(db_file_exists=False)
-    alembic_util = server.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = server.py.services.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
@@ -42,7 +42,7 @@ def test_no_database_exists(mock_alembic, mock_database):
 
 def test_database_exists_no_revision(mock_alembic, mock_database):
     mock_database()
-    alembic_util = server.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = server.py.services.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic()
 
     assert mock_alembic.upgrade_calls == ["head"]
@@ -50,7 +50,7 @@ def test_database_exists_no_revision(mock_alembic, mock_database):
 
 def test_database_exists_known_revision(mock_alembic, mock_database):
     mock_database(current_revision=Constants.initial_revision)
-    alembic_util = server.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = server.py.services.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
@@ -58,7 +58,7 @@ def test_database_exists_known_revision(mock_alembic, mock_database):
 
 def test_database_exists_unknown(mock_alembic, mock_database):
     mock_database(current_revision=Constants.unknown_revision)
-    alembic_util = server.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
+    alembic_util = server.py.services.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
     alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]

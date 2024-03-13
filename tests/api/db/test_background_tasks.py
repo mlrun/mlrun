@@ -21,8 +21,10 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.errors
-from server.api.db.base import DBInterface
-from server.api.utils.background_tasks.common import background_task_exceeded_timeout
+from server.py.services.api import DBInterface
+from server.py.services.api.utils.background_tasks import (
+    background_task_exceeded_timeout,
+)
 
 
 def test_store_project_background_task(db: DBInterface, db_session: Session):

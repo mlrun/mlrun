@@ -27,12 +27,11 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.constants
-import server.api.crud
-import server.api.utils.auth.verifier
-import server.api.utils.background_tasks
+import server.py.services.api.crud
+import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.background_tasks
 from mlrun.config import config
-from server.api.db.sqldb.models import Run
-from server.api.utils.singletons.db import get_db
+from server.py.services.api import Run, get_db
 
 RUNS_API_ENDPOINT = "/projects/{project}/runs"
 
@@ -49,7 +48,9 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     }
     uid = "some-uid"
     project = "some-project"
-    server.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
+    server.py.services.api.crud.Runs().store_run(
+        db, run_with_nan_float, uid, project=project
+    )
     resp = client.get(f"run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -94,9 +95,9 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
         (run_aborted, run_aborted_uid),
         (run_dask, run_dask_uid),
     ]:
-        server.api.crud.Runs().store_run(db, run, run_uid, project=project)
+        server.py.services.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
-    runtime_resources = server.api.crud.RuntimeResources()
+    runtime_resources = server.py.services.api.crud.RuntimeResources()
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
     abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
@@ -154,13 +155,13 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         (run_aborted, run_aborted_uid),
         (run_dask, run_dask_uid),
     ]:
-        server.api.crud.Runs().store_run(db, run, run_uid, project=project)
+        server.py.services.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
     abort_body = {
         "status.state": mlrun.runtimes.constants.RunStates.aborted,
         "status.error": "Run was aborted by user",
     }
-    runtime_resources = server.api.crud.RuntimeResources()
+    runtime_resources = server.py.services.api.crud.RuntimeResources()
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
     # completed is terminal state - should fail
     response = client.post(
@@ -168,7 +169,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -184,7 +185,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -200,7 +201,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -213,7 +214,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -223,7 +224,9 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     assert background_task.status.error is None
     runtime_resources.delete_runtime_resources.assert_called_once()
 
-    run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
+    run = server.py.services.api.crud.Runs().get_run(
+        db, run_in_progress_uid, 0, project
+    )
     assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
     assert run["status"]["error"] == "Run was aborted by user"
 
@@ -361,7 +364,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                             "iter": iteration,
                         },
                     }
-                    server.api.crud.Runs().store_run(db, run, uid, iteration, project)
+                    server.py.services.api.crud.Runs().store_run(
+                        db, run, uid, iteration, project
+                    )
 
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
     _list_and_assert_objects(
@@ -495,7 +500,7 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
                 "project": project,
             },
         }
-        server.api.crud.Runs().store_run(db, run, uid, project=project)
+        server.py.services.api.crud.Runs().store_run(db, run, uid, project=project)
 
     runs = _list_and_assert_objects(
         client,
@@ -525,57 +530,55 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
 
 
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
-    server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.AsyncMock()
-    )
+    server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.AsyncMock()
 
     # delete runs from specific project
     project = "some-project"
     _store_run(db, uid="some-uid", project=project)
-    runs = server.api.crud.Runs().list_runs(db, project=project)
+    runs = server.py.services.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
     response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
-    runs = server.api.crud.Runs().list_runs(db, project=project)
+    runs = server.py.services.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
 
     # delete runs from all projects
     second_project = "some-project2"
     _store_run(db, uid=None, project=project)
     _store_run(db, uid=None, project=second_project)
-    all_runs = server.api.crud.Runs().list_runs(db, project="*")
+    all_runs = server.py.services.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
     response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
-    runs = server.api.crud.Runs().list_runs(db, project="*")
+    runs = server.py.services.api.crud.Runs().list_runs(db, project="*")
     assert len(runs) == 0
 
 
 def test_delete_runs_without_permissions(db: Session, client: TestClient):
-    server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError())
+    server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunUnauthorizedError()
     )
 
     # try delete runs with no permission to project (project doesn't contain any runs)
     project = "some-project"
-    runs = server.api.crud.Runs().list_runs(db, project=project)
+    runs = server.py.services.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
     response = client.delete(RUNS_API_ENDPOINT.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
 
     # try delete runs with no permission to project (project contains runs)
     _store_run(db, uid="some-uid", project=project)
-    runs = server.api.crud.Runs().list_runs(db, project=project)
+    runs = server.py.services.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
     response = client.delete(RUNS_API_ENDPOINT.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
-    runs = server.api.crud.Runs().list_runs(db, project=project)
+    runs = server.py.services.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
     # try delete runs from all projects with no permissions
     response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
-    runs = server.api.crud.Runs().list_runs(db, project=project)
+    runs = server.py.services.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
 
@@ -628,7 +631,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
         },
     }
 
-    server.api.crud.Runs().store_run(db, run, uid, project=project)
+    server.py.services.api.crud.Runs().store_run(db, run, uid, project=project)
     resp = client.get(f"run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -652,12 +655,12 @@ def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
         },
     }
     run_in_progress_uid = "in-progress-uid"
-    server.api.crud.Runs().store_run(
+    server.py.services.api.crud.Runs().store_run(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
     # mock abortion already in progress
-    server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+    server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db,
         project,
         fastapi.BackgroundTasks(),
@@ -691,26 +694,28 @@ def test_abort_aborted_run_with_background_task(
         "status": {"state": mlrun.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
-    server.api.crud.Runs().store_run(
+    server.py.services.api.crud.Runs().store_run(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
     with unittest.mock.patch.object(
-        server.api.crud.RuntimeResources, "delete_runtime_resources"
+        server.py.services.api.crud.RuntimeResources, "delete_runtime_resources"
     ):
         response = client.post(
             f"projects/{project}/runs/{run_in_progress_uid}/abort", json={}
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_1 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_1 = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_1.metadata.name, project
         )
         assert (
             background_task_1.status.state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
-        run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
+        run = server.py.services.api.crud.Runs().get_run(
+            db, run_in_progress_uid, 0, project
+        )
         assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
@@ -720,7 +725,7 @@ def test_abort_aborted_run_with_background_task(
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_2 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_2 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_2 = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_2.metadata.name, project
         )
         assert (
@@ -741,12 +746,12 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
         "status": {"state": mlrun.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
-    server.api.crud.Runs().store_run(
+    server.py.services.api.crud.Runs().store_run(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
     with unittest.mock.patch.object(
-        server.api.crud.RuntimeResources, "delete_runtime_resources"
+        server.py.services.api.crud.RuntimeResources, "delete_runtime_resources"
     ):
         # abort once
         response = client.post(
@@ -754,14 +759,16 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_1 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_1 = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_1.metadata.name, project
         )
         assert (
             background_task_1.status.state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
-        run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
+        run = server.py.services.api.crud.Runs().get_run(
+            db, run_in_progress_uid, 0, project
+        )
         assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
@@ -771,7 +778,7 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_2 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_2 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_2 = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_2.metadata.name, project
         )
         assert (
@@ -799,26 +806,28 @@ def test_abort_run_background_task_not_found(db: Session, client: TestClient) ->
         },
     }
     run_in_progress_uid = "in-progress-uid"
-    server.api.crud.Runs().store_run(
+    server.py.services.api.crud.Runs().store_run(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
     with unittest.mock.patch.object(
-        server.api.crud.RuntimeResources, "delete_runtime_resources"
+        server.py.services.api.crud.RuntimeResources, "delete_runtime_resources"
     ):
         response = client.post(
             f"projects/{project}/runs/{run_in_progress_uid}/abort", json={}
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_1 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_1 = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_1.metadata.name, project
         )
         assert (
             background_task_1.status.state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
-        run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
+        run = server.py.services.api.crud.Runs().get_run(
+            db, run_in_progress_uid, 0, project
+        )
         assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
@@ -833,12 +842,12 @@ def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
         "status": {"state": mlrun.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
-    server.api.crud.Runs().store_run(
+    server.py.services.api.crud.Runs().store_run(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
     with unittest.mock.patch.object(
-        server.api.crud.RuntimeResources,
+        server.py.services.api.crud.RuntimeResources,
         "delete_runtime_resources",
         side_effect=Exception("some error"),
     ):
@@ -847,7 +856,7 @@ def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task = server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task.metadata.name, project
         )
         assert (
@@ -864,7 +873,7 @@ def _store_run(db, uid, project="some-project"):
     }
     if not uid:
         uid = str(uuid.uuid4())
-    return server.api.crud.Runs().store_run(
+    return server.py.services.api.crud.Runs().store_run(
         db, run_with_nan_float, uid, project=project
     )
 

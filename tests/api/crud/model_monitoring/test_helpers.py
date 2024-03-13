@@ -16,7 +16,7 @@ import typing
 
 import pytest
 
-from server.api.crud.model_monitoring.helpers import (
+from server.py.services.api.crud.model_monitoring.helpers import (
     Minutes,
     Seconds,
     add_minutes_offset,

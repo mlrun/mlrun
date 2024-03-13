@@ -24,11 +24,11 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
-import server.api.api.endpoints.operations
-import server.api.crud
-import server.api.initial_data
-import server.api.utils.background_tasks
-import server.api.utils.singletons.scheduler
+import server.py.services.api.api.endpoints.operations
+import server.py.services.api.crud
+import server.py.services.api.initial_data
+import server.py.services.api.utils.background_tasks
+import server.py.services.api.utils.singletons.scheduler
 from mlrun.utils import logger
 
 
@@ -36,15 +36,15 @@ def test_migrations_already_in_progress(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ) -> None:
     background_task_name = "some-name"
-    server.api.api.endpoints.operations.current_migration_background_task_name = (
-        background_task_name
+    server.py.services.api.api.endpoints.operations.current_migration_background_task_name = background_task_name
+    handler_mock = (
+        server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler()
     )
-    handler_mock = server.api.utils.background_tasks.InternalBackgroundTasksHandler()
     handler_mock.get_background_task = unittest.mock.Mock(
         return_value=(_generate_background_task_schema(background_task_name))
     )
     monkeypatch.setattr(
-        server.api.utils.background_tasks,
+        server.py.services.api.utils.background_tasks,
         "InternalBackgroundTasksHandler",
         lambda *args, **kwargs: handler_mock,
     )
@@ -53,7 +53,7 @@ def test_migrations_already_in_progress(
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert background_task_name == background_task.metadata.name
-    server.api.api.endpoints.operations.current_migration_background_task_name = None
+    server.py.services.api.api.endpoints.operations.current_migration_background_task_name = None
 
 
 def test_migrations_failed(
@@ -80,13 +80,13 @@ def _mock_migration_process(*args, **kwargs):
 
 @pytest.fixture
 def _mock_waiting_for_migration():
-    original_init_data = server.api.initial_data.init_data
-    server.api.initial_data.init_data = unittest.mock.MagicMock()
+    original_init_data = server.py.services.api.initial_data.init_data
+    server.py.services.api.initial_data.init_data = unittest.mock.MagicMock()
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_migrations
     try:
         yield
     finally:
-        server.api.initial_data.init_data = original_init_data
+        server.py.services.api.initial_data.init_data = original_init_data
 
 
 def test_migrations_success(
@@ -102,9 +102,9 @@ def test_migrations_success(
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert "API is waiting for migrations to be triggered" in response.text
     # not initialized until we're not doing migrations
-    assert server.api.utils.singletons.scheduler.get_scheduler() is None
+    assert server.py.services.api.utils.singletons.scheduler.get_scheduler() is None
     # trigger migrations
-    server.api.initial_data.init_data = _mock_migration_process
+    server.py.services.api.initial_data.init_data = _mock_migration_process
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
@@ -123,7 +123,7 @@ def test_migrations_success(
     response = client.get("projects")
     assert response.status_code == http.HTTPStatus.OK.value
     # should be initialized
-    assert server.api.utils.singletons.scheduler.get_scheduler() is not None
+    assert server.py.services.api.utils.singletons.scheduler.get_scheduler() is not None
 
 
 def _generate_background_task_schema(

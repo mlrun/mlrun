@@ -19,8 +19,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases
-from server.api.runtime_handlers import get_runtime_handler
-from server.api.utils.singletons.db import get_db
+from server.py.services.api import get_db, get_runtime_handler
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 

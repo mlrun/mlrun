@@ -26,8 +26,8 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import server.api.crud
-import server.api.utils.auth.verifier
+import server.py.services.api.crud
+import server.py.services.api.utils.auth.verifier
 import tests.conftest
 
 
@@ -67,7 +67,7 @@ def test_list_pipelines_formats(
     ]:
         runs = _generate_list_runs_mocks()
         expected_runs = [run.to_dict() for run in runs]
-        expected_runs = server.api.crud.Pipelines()._format_runs(
+        expected_runs = server.py.services.api.crud.Pipelines()._format_runs(
             db, expected_runs, format_
         )
         _mock_list_runs(kfp_client_mock, runs)
@@ -98,7 +98,7 @@ def test_get_pipeline_formats(
             f"projects/*/pipelines/{api_run_detail.run.id}",
             params={"format": format_},
         )
-        expected_run = server.api.crud.Pipelines()._format_run(
+        expected_run = server.py.services.api.crud.Pipelines()._format_run(
             db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
@@ -111,12 +111,10 @@ def test_get_pipeline_no_project_opa_validation(
 ) -> None:
     format_ = (mlrun.common.schemas.PipelinesFormat.summary,)
     project = "project-name"
-    server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value=project
+    server.py.services.api.crud.Pipelines().resolve_project_from_pipeline = (
+        unittest.mock.Mock(return_value=project)
     )
-    server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.AsyncMock()
-    )
+    server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.AsyncMock()
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
     response = client.get(
@@ -124,7 +122,7 @@ def test_get_pipeline_no_project_opa_validation(
         params={"format": format_},
     )
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
+        server.py.services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
             0
         ][1]
         == project
@@ -146,20 +144,20 @@ def test_get_pipeline_specific_project(
         project = "project-name"
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
-        server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-            return_value=project
+        server.py.services.api.crud.Pipelines().resolve_project_from_pipeline = (
+            unittest.mock.Mock(return_value=project)
         )
         response = client.get(
             f"projects/{project}/pipelines/{api_run_detail.run.id}",
             params={"format": format_},
         )
-        expected_run = server.api.crud.Pipelines()._format_run(
+        expected_run = server.py.services.api.crud.Pipelines()._format_run(
             db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
 
         # revert mock setting (it's global function, without reloading it the mock will persist to following tests)
-        importlib.reload(server.api.crud)
+        importlib.reload(server.py.services.api.crud)
 
 
 def test_list_pipelines_time_fields_default(
@@ -222,8 +220,8 @@ def test_list_pipelines_name_contains(
     run_name_filter: str,
     expected_runs_ids: list,
 ) -> None:
-    server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value="test-project"
+    server.py.services.api.crud.Pipelines().resolve_project_from_pipeline = (
+        unittest.mock.Mock(return_value="test-project")
     )
     runs = _generate_list_runs_project_name_mocks()
     expected_page_size = (
@@ -243,7 +241,7 @@ def test_list_pipelines_name_contains(
         },
     )
 
-    expected_runs = server.api.crud.Pipelines()._format_runs(
+    expected_runs = server.py.services.api.crud.Pipelines()._format_runs(
         db, [run.to_dict() for run in runs if run.id in expected_runs_ids]
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
@@ -261,8 +259,8 @@ def test_list_pipelines_specific_project(
     runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
-    server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value=project
+    server.py.services.api.crud.Pipelines().resolve_project_from_pipeline = (
+        unittest.mock.Mock(return_value=project)
     )
     response = client.get(
         f"projects/{project}/pipelines",
@@ -274,7 +272,7 @@ def test_list_pipelines_specific_project(
     _assert_list_pipelines_response(expected_response, response)
 
     # revert mock setting (it's global function, without reloading it the mock will persist to following tests)
-    importlib.reload(server.api.crud)
+    importlib.reload(server.py.services.api.crud)
 
 
 def test_create_pipeline(

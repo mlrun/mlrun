@@ -22,12 +22,11 @@ from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-import server.api.utils.helpers
+import server.py.services.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
-from server.api.runtime_handlers import get_runtime_handler
-from server.api.utils.singletons.db import get_db
-from server.api.utils.singletons.k8s import get_k8s_helper
+from server.py.services.api import get_db, get_runtime_handler
+from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -384,10 +383,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         stale_run_name = "my-spark-stale"
         new_run_name = "my-spark-new"
 
-        threshold_in_seconds = server.api.utils.helpers.time_string_to_seconds(
-            getattr(
-                mlrun.mlconf.function.spec.state_thresholds.default,
-                threshold_state,
+        threshold_in_seconds = (
+            server.py.services.api.utils.helpers.time_string_to_seconds(
+                getattr(
+                    mlrun.mlconf.function.spec.state_thresholds.default,
+                    threshold_state,
+                )
             )
         )
         # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle

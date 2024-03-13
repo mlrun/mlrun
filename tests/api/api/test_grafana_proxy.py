@@ -30,12 +30,12 @@ from v3io_frames import frames_pb2 as fpb2
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants
 import mlrun.model_monitoring.stores
-import server.api.utils.clients.iguazio
+import server.py.services.api.utils.clients.iguazio
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-from server.api.crud.model_monitoring.grafana import (
+from server.py.services.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
 )
@@ -57,17 +57,15 @@ def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
-        unittest.mock.AsyncMock(
-            return_value=(
-                mlrun.common.schemas.AuthInfo(
-                    username=None,
-                    session="some-session",
-                    data_session="some-session",
-                    user_id=None,
-                    user_unix_id=0,
-                    user_group_ids=[],
-                )
+    server.py.services.api.utils.clients.iguazio.AsyncClient().verify_request_session = unittest.mock.AsyncMock(
+        return_value=(
+            mlrun.common.schemas.AuthInfo(
+                username=None,
+                session="some-session",
+                data_session="some-session",
+                user_id=None,
+                user_unix_id=0,
+                user_group_ids=[],
             )
         )
     )

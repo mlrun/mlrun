@@ -26,14 +26,12 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.constants
-import server.api.crud
-import server.api.utils.clients.chief
+import server.py.services.api.crud
+import server.py.services.api.utils.clients.chief
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
-from server.api.constants import LogSources
-from server.api.runtime_handlers import get_runtime_handler
-from server.api.utils.singletons.db import get_db
-from server.api.utils.singletons.k8s import get_k8s_helper
+from server.py.services.api import LogSources, get_db, get_runtime_handler
+from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
 
@@ -86,7 +84,7 @@ class TestRuntimeHandlerBase:
         }
         if start_time:
             self.run["status"]["start_time"] = start_time.isoformat()
-        server.api.crud.Runs().store_run(
+        server.py.services.api.crud.Runs().store_run(
             db, self.run, self.run["metadata"]["uid"], project=self.project
         )
 
@@ -545,7 +543,7 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s_helper().resolve_namespace(),
             )
-        _, logs = await server.api.crud.Logs().get_logs(
+        _, logs = await server.py.services.api.crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY
         )
         async for log_line in logs:

@@ -28,9 +28,9 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.version
-import server.api.api.utils
-import server.api.utils.builder
-import server.api.utils.singletons.k8s
+import server.py.services.api.api.utils
+import server.py.services.api.utils.builder
+import server.py.services.api.utils.singletons.k8s
 from mlrun.config import config
 
 
@@ -39,7 +39,7 @@ def test_build_runtime_use_base_image_when_no_build():
     base_image = "mlrun/mlrun"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
-    ready = server.api.utils.builder.build_runtime(
+    ready = server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         fn,
     )
@@ -50,7 +50,8 @@ def test_build_runtime_use_base_image_when_no_build():
 def test_build_runtime_enrich_base_image(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
-        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+        "server.py.services.api.utils.builder.make_kaniko_pod",
+        new=unittest.mock.MagicMock(),
     ):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
@@ -61,17 +62,21 @@ def test_build_runtime_enrich_base_image(monkeypatch):
             base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"
         )
         assert fn.spec.image == ""
-        server.api.utils.builder.build_runtime(
+        server.py.services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             fn,
         )
 
-        dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile = server.py.services.api.utils.builder.make_kaniko_pod.call_args[1][
+            "dockertext"
+        ]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
 
         # verify that the target image is populated properly
-        target_image = server.api.utils.builder.make_kaniko_pod.call_args[0][2]
+        target_image = server.py.services.api.utils.builder.make_kaniko_pod.call_args[
+            0
+        ][2]
         assert (
             target_image
             == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
@@ -84,7 +89,7 @@ def test_build_runtime_use_image_when_no_build():
         "some-function", "some-project", "some-tag", image=image, kind="job"
     )
     assert fn.spec.image == image
-    ready = server.api.utils.builder.build_runtime(
+    ready = server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         fn,
         with_mlrun=False,
@@ -122,14 +127,14 @@ def test_build_runtime_insecure_registries(
     mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = pull_mode
     mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = push_mode
     mlrun.mlconf.httpdb.builder.docker_registry_secret = secret
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
         insecure_flags.issubset(
             set(
-                server.api.utils.singletons.k8s.get_k8s_helper()
+                server.py.services.api.utils.singletons.k8s.get_k8s_helper()
                 .create_pod.call_args[0][0]
                 .pod.spec.containers[0]
                 .args
@@ -162,7 +167,7 @@ def test_build_runtime_target_image(monkeypatch):
         )
     )
 
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -179,7 +184,7 @@ def test_build_runtime_target_image(monkeypatch):
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     function.spec.build.secret = docker_registry_secret + "-other"
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -195,7 +200,7 @@ def test_build_runtime_target_image(monkeypatch):
         f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username"
         f"/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -212,7 +217,7 @@ def test_build_runtime_target_image(monkeypatch):
     ]:
         function.spec.build.image = invalid_image
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            server.api.utils.builder.build_runtime(
+            server.py.services.api.utils.builder.build_runtime(
                 mlrun.common.schemas.AuthInfo(),
                 function,
             )
@@ -222,7 +227,7 @@ def test_build_runtime_target_image(monkeypatch):
         f"registry.hub.docker.com/some-other-username/image-not-by-prefix"
         f":{function.metadata.tag}"
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -248,7 +253,7 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         kind="job",
         requirements=["some-package"],
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -281,7 +286,7 @@ def test_function_build_with_attributes_from_spec(monkeypatch):
     function.spec.node_name = node_name
     function.spec.node_selector = node_selector
     function.spec.priority_class_name = priority_class_name
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -318,7 +323,7 @@ def test_function_build_with_default_requests(monkeypatch):
         kind="job",
         requirements=["some-package"],
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -339,7 +344,7 @@ def test_function_build_with_default_requests(monkeypatch):
     }
     expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
 
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -366,7 +371,7 @@ def test_function_build_with_default_requests(monkeypatch):
     }
     expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
 
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -451,8 +456,10 @@ def test_resolve_mlrun_install_command_version():
         client_version = case.get("client_version")
         expected_result = case.get("expected_mlrun_install_command_version")
 
-        result = server.api.utils.builder.resolve_mlrun_install_command_version(
-            mlrun_version_specifier, client_version
+        result = (
+            server.py.services.api.utils.builder.resolve_mlrun_install_command_version(
+                mlrun_version_specifier, client_version
+            )
         )
         assert (
             result == expected_result
@@ -477,7 +484,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
         kind="job",
     )
     function = project.set_function(function)
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
         force_build=True,
@@ -541,7 +548,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         if case.get("tag"):
             image += f":{case.get('tag')}"
         function.spec.build.image = image
-        server.api.utils.builder.build_runtime(
+        server.py.services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
             force_build=True,
@@ -574,7 +581,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         kind="job",
         requirements=["some-package"],
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -632,7 +639,7 @@ def test_build_runtime_ecr_with_repository(monkeypatch):
         kind="job",
         requirements=["some-package"],
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
@@ -695,7 +702,9 @@ def test_resolve_image_dest(image_target, registry, default_repository, expected
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    image_target = server.api.utils.builder.resolve_image_target(image_target, registry)
+    image_target = server.py.services.api.utils.builder.resolve_image_target(
+        image_target, registry
+    )
     assert image_target == expected_dest
 
 
@@ -714,7 +723,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
         image="mlrun/mlrun",
         kind="job",
     )
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
         force_build=True,
@@ -739,7 +748,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     )
     service_account = "my-actual-sa"
     function.spec.service_account = service_account
-    server.api.utils.builder.build_runtime(
+    server.py.services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
         force_build=True,
@@ -761,7 +770,8 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
-        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+        "server.py.services.api.utils.builder.make_kaniko_pod",
+        new=unittest.mock.MagicMock(),
     ):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
@@ -776,11 +786,13 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
         if clone_target_dir is not None:
             function.spec.clone_target_dir = clone_target_dir
         function.spec.build.source = "/path/some-source.tgz"
-        server.api.utils.builder.build_runtime(
+        server.py.services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
         )
-        dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile = server.py.services.api.utils.builder.make_kaniko_pod.call_args[1][
+            "dockertext"
+        ]
         dockerfile_lines = dockerfile.splitlines()
         dockerfile_lines = [
             line
@@ -807,7 +819,8 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
 def test_builder_source(monkeypatch, source, expectation):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
-        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+        "server.py.services.api.utils.builder.make_kaniko_pod",
+        new=unittest.mock.MagicMock(),
     ):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
@@ -822,14 +835,14 @@ def test_builder_source(monkeypatch, source, expectation):
 
         with expectation:
             function.spec.build.source = source
-            server.api.utils.builder.build_runtime(
+            server.py.services.api.utils.builder.build_runtime(
                 mlrun.common.schemas.AuthInfo(),
                 function,
             )
 
-            dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1][
-                "dockertext"
-            ]
+            dockerfile = server.py.services.api.utils.builder.make_kaniko_pod.call_args[
+                1
+            ]["dockertext"]
             dockerfile_lines = dockerfile.splitlines()
             dockerfile_lines = [
                 line
@@ -929,7 +942,7 @@ def test_resolve_build_requirements(
         commands,
         requirements_list,
         requirements_path,
-    ) = server.api.utils.builder._resolve_build_requirements(
+    ) = server.py.services.api.utils.builder._resolve_build_requirements(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
     assert commands == expected_commands
@@ -1068,7 +1081,8 @@ def test_mlrun_base_image_with_requirements(
     _patch_k8s_helper(monkeypatch)
 
     with unittest.mock.patch(
-        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+        "server.py.services.api.utils.builder.make_kaniko_pod",
+        new=unittest.mock.MagicMock(),
     ):
         function = mlrun.new_function(
             "some-function",
@@ -1079,16 +1093,16 @@ def test_mlrun_base_image_with_requirements(
         )
         function.spec.build.base_image = base_image
 
-        server.api.utils.builder.build_runtime(
+        server.py.services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
             client_version=client_version,
             mlrun_version_specifier=mlrun_version_specifier,
         )
 
-        requirements = server.api.utils.builder.make_kaniko_pod.call_args[1][
-            "requirements"
-        ]
+        requirements = server.py.services.api.utils.builder.make_kaniko_pod.call_args[
+            1
+        ]["requirements"]
         if expected_mlrun_version is None:
             assert requirements == [
                 "some-package",
@@ -1107,7 +1121,8 @@ def test_mlrun_base_image_with_requirements(
 
 def test_mlrun_base_image_no_requirements():
     with unittest.mock.patch(
-        "server.api.utils.builder.build_image", new=unittest.mock.MagicMock()
+        "server.py.services.api.utils.builder.build_image",
+        new=unittest.mock.MagicMock(),
     ):
         function = mlrun.new_function(
             "some-function",
@@ -1118,13 +1133,17 @@ def test_mlrun_base_image_no_requirements():
         )
         function.spec.build.base_image = "mlrun/mlrun:1.6.0"
 
-        server.api.utils.builder.build_runtime(
+        server.py.services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
         )
 
-        requirements = server.api.utils.builder.build_image.call_args[1]["requirements"]
-        with_mlrun = server.api.utils.builder.build_image.call_args[1]["with_mlrun"]
+        requirements = server.py.services.api.utils.builder.build_image.call_args[1][
+            "requirements"
+        ]
+        with_mlrun = server.py.services.api.utils.builder.build_image.call_args[1][
+            "with_mlrun"
+        ]
         assert requirements == []
         assert with_mlrun is False
 
@@ -1135,7 +1154,7 @@ def _get_target_image_from_create_pod_mock():
 
 def _create_pod_mock_pod_spec():
     return (
-        server.api.utils.singletons.k8s.get_k8s_helper()
+        server.py.services.api.utils.singletons.k8s.get_k8s_helper()
         .create_pod.call_args[0][0]
         .pod.spec
     )
@@ -1156,7 +1175,7 @@ def _patch_k8s_helper(monkeypatch):
         side_effect=lambda project, keys: {"KEY": "val"}
     )
     monkeypatch.setattr(
-        server.api.utils.singletons.k8s,
+        server.py.services.api.utils.singletons.k8s,
         "get_k8s_helper",
         lambda *args, **kwargs: get_k8s_helper_mock,
     )
@@ -1169,7 +1188,7 @@ def _mock_default_service_account(monkeypatch, service_account):
         service_account,
     )
     monkeypatch.setattr(
-        server.api.api.utils,
+        server.py.services.api.api.utils,
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
     )
@@ -1221,7 +1240,7 @@ def test_make_dockerfile_with_build_and_extra_args(
     extra_args,
     expected_in_stage,
 ):
-    dock = server.api.utils.builder.make_dockerfile(
+    dock = server.py.services.api.utils.builder.make_dockerfile(
         base_image="mlrun/mlrun",
         builder_env=builder_env,
         source=source,
@@ -1271,10 +1290,10 @@ def test_make_kaniko_pod_command_using_build_args(
     builder_env, extra_args, parsed_extra_args
 ):
     with unittest.mock.patch(
-        "server.api.api.utils.resolve_project_default_service_account",
+        "server.py.services.api.api.utils.resolve_project_default_service_account",
         return_value=(None, None),
     ):
-        kpod = server.api.utils.builder.make_kaniko_pod(
+        kpod = server.py.services.api.utils.builder.make_kaniko_pod(
             project="test",
             context="/context",
             dest="docker-hub/",
@@ -1313,7 +1332,10 @@ def test_make_kaniko_pod_command_using_build_args(
     ],
 )
 def test_parse_extra_args(extra_args, expected_result):
-    assert server.api.utils.builder._parse_extra_args(extra_args) == expected_result
+    assert (
+        server.py.services.api.utils.builder._parse_extra_args(extra_args)
+        == expected_result
+    )
 
 
 @pytest.mark.parametrize(
@@ -1356,7 +1378,7 @@ def test_parse_extra_args(extra_args, expected_result):
 )
 def test_validate_extra_args(extra_args, expected):
     with expected:
-        server.api.utils.builder._validate_extra_args(extra_args)
+        server.py.services.api.utils.builder._validate_extra_args(extra_args)
 
 
 @pytest.mark.parametrize(
@@ -1431,7 +1453,7 @@ def test_validate_extra_args(extra_args, expected):
 )
 def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_result):
     assert (
-        server.api.utils.builder._validate_and_merge_args_with_extra_args(
+        server.py.services.api.utils.builder._validate_and_merge_args_with_extra_args(
             args, extra_args
         )
         == expected_result
@@ -1486,12 +1508,16 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
 def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
     if isinstance(expected_result, dict):
         assert (
-            server.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
+            server.py.services.api.utils.builder._parse_extra_args_for_dockerfile(
+                extra_args
+            )
             == expected_result
         )
     else:
         with expected_result:
-            server.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
+            server.py.services.api.utils.builder._parse_extra_args_for_dockerfile(
+                extra_args
+            )
 
 
 @pytest.mark.parametrize(
@@ -1513,7 +1539,7 @@ def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
     ],
 )
 def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
-    dock = server.api.utils.builder.make_dockerfile(
+    dock = server.py.services.api.utils.builder.make_dockerfile(
         base_image="mlrun/mlrun",
         builder_env=builder_env,
         source=source,
@@ -1521,10 +1547,10 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
         extra_args=extra_args,
     )
     with unittest.mock.patch(
-        "server.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
+        "server.py.services.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
         return_value=[],
     ):
-        kpod = server.api.utils.builder.make_kaniko_pod(
+        kpod = server.py.services.api.utils.builder.make_kaniko_pod(
             project="test",
             context="/context",
             dest="docker-hub/",
@@ -1611,7 +1637,7 @@ def test_resolve_function_image_secret(
     config.httpdb.builder.docker_registry_secret = default_secret_name
     assert (
         expected_secret_name
-        == server.api.utils.builder._resolve_function_image_secret(
+        == server.py.services.api.utils.builder._resolve_function_image_secret(
             resolved_image_target, secret_name
         )
     )

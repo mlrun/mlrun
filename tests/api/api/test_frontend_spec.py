@@ -22,18 +22,16 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
-import server.api.api.utils
-import server.api.utils.builder
-import server.api.utils.clients.iguazio
-import server.api.utils.runtimes.nuclio
+import server.py.services.api.api.utils
+import server.py.services.api.utils.builder
+import server.py.services.api.utils.clients.iguazio
+import server.py.services.api.utils.runtimes.nuclio
 
 
 def test_get_frontend_spec(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
-        unittest.mock.Mock()
-    )
+    server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock()
     default_function_pod_resources = {
         "requests": {"cpu": "25m", "memory": "1Mi", "gpu": ""},
         "limits": {"cpu": "2", "memory": "20Gi", "gpu": ""},
@@ -99,58 +97,54 @@ def test_get_frontend_spec(
     )
     assert (
         frontend_spec.allowed_artifact_path_prefixes_list
-        == server.api.api.utils.get_allowed_path_prefixes_list()
+        == server.py.services.api.api.utils.get_allowed_path_prefixes_list()
     )
     assert (
         frontend_spec.function_deployment_mlrun_requirement
-        == server.api.utils.builder.resolve_mlrun_install_command_version()
+        == server.py.services.api.utils.builder.resolve_mlrun_install_command_version()
     )
 
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
-        unittest.mock.Mock()
-    )
+    server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock()
     # no cookie so no url
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_not_called()
+    server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_not_called()
 
     # no grafana (None returned) so no url
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
-        unittest.mock.AsyncMock(
-            return_value=(
-                mlrun.common.schemas.AuthInfo(
-                    username=None,
-                    session="946b0749-5c40-4837-a4ac-341d295bfaf7",
-                    user_id=None,
-                    user_unix_id=0,
-                    user_group_ids=[],
-                )
+    server.py.services.api.utils.clients.iguazio.AsyncClient().verify_request_session = unittest.mock.AsyncMock(
+        return_value=(
+            mlrun.common.schemas.AuthInfo(
+                username=None,
+                session="946b0749-5c40-4837-a4ac-341d295bfaf7",
+                user_id=None,
+                user_unix_id=0,
+                user_group_ids=[],
             )
         )
     )
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
-        unittest.mock.Mock(return_value=None)
+    server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
+        return_value=None
     )
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
     assert (
-        server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
         == 2
     )
 
     # happy scenario - grafana url found, verify returned correctly
     grafana_url = "some-url.com"
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
-        unittest.mock.Mock(return_value=grafana_url)
+    server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url = unittest.mock.Mock(
+        return_value=grafana_url
     )
 
     response = client.get("frontend-spec")
@@ -167,7 +161,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
         + "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}&var-MODELENDPOINT={model_endpoint}"
     )
     assert (
-        server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        server.py.services.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
         == 2
     )
 
@@ -198,7 +192,7 @@ def test_get_frontend_spec_nuclio_streams(
         },
     ]:
         # init cached value to None in the beginning of each test case
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = None
+        server.py.services.api.utils.runtimes.nuclio.cached_nuclio_version = None
         mlrun.mlconf.igz_version = test_case.get("iguazio_version")
         mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
 

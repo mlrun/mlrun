@@ -28,16 +28,16 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
-import server.api.crud
-import server.api.utils.auth
-import server.api.utils.auth.verifier
-import server.api.utils.singletons.project_member
+import server.py.services.api.crud
+import server.py.services.api.utils.auth
+import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.singletons.project_member
 import tests.api.conftest
 from mlrun.config import config
 from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
-from server.api.utils.scheduler import Scheduler
-from server.api.utils.singletons.db import get_db
+from server.py.services.api import get_db
+from server.py.services.api.utils.scheduler import Scheduler
 
 
 @pytest.fixture()
@@ -52,7 +52,7 @@ async def scheduler(db: Session) -> typing.Generator:
 
     scheduler = Scheduler()
     await scheduler.start(db)
-    server.api.utils.singletons.project_member.initialize_project_member()
+    server.py.services.api.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()
@@ -90,7 +90,7 @@ def create_project(
             name=project_name or config.default_project
         )
     )
-    server.api.crud.Projects().create_project(db, project)
+    server.py.services.api.crud.Projects().create_project(db, project)
     return project
 
 
@@ -398,7 +398,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     )
     # stop scheduler, reconfigure to store credentials and start again (upgrade)
     await scheduler.stop()
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     await scheduler.start(db)
@@ -407,7 +407,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     # auth info, mock the functions for this
     username = "some-username"
     access_key = "some-access_key"
-    server.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
+    server.py.services.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
         return_value=mlrun.common.schemas.ProjectOwner(
             username=username, access_key=access_key
         )
@@ -420,7 +420,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 3
     assert (
-        server.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
+        server.py.services.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
         == 1
     )
 
@@ -839,7 +839,7 @@ async def test_rescheduling_secrets_storing(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     name = "schedule-name"
@@ -884,7 +884,7 @@ async def test_schedule_crud_secrets_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     for schedule_name in ["valid-secret-key", "invalid/secret/key"]:
@@ -947,7 +947,7 @@ async def test_schedule_access_key_generation(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     project = config.default_project
@@ -956,9 +956,7 @@ async def test_schedule_access_key_generation(
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     access_key = "generated-access-key"
     get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
-    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
-        get_or_create_access_key_mock
-    )
+    server.py.services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = get_or_create_access_key_mock
     scheduler.create_schedule(
         db,
         mlrun.common.schemas.AuthInfo(),
@@ -975,9 +973,7 @@ async def test_schedule_access_key_generation(
 
     access_key = "generated-access-key-2"
     get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
-    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
-        get_or_create_access_key_mock
-    )
+    server.py.services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = get_or_create_access_key_mock
     scheduler.update_schedule(
         db,
         mlrun.common.schemas.AuthInfo(
@@ -999,7 +995,7 @@ async def test_schedule_access_key_reference_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     project = config.default_project
@@ -1059,7 +1055,7 @@ async def test_schedule_convert_from_old_credentials_to_new(
     )
 
     auth_info = mlrun.common.schemas.AuthInfo(username=username, access_key=access_key)
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     scheduler._store_schedule_secrets(auth_info, project, schedule_name)
@@ -1566,7 +1562,7 @@ def _assert_schedule_auth_secrets(
     expected_username: str,
     expected_access_key: str,
 ):
-    auth_data = server.api.crud.Secrets().read_auth_secret(secret_name)
+    auth_data = server.py.services.api.crud.Secrets().read_auth_secret(secret_name)
     assert expected_username == auth_data.username
     assert expected_access_key == auth_data.access_key
 
@@ -1579,23 +1575,23 @@ def _assert_schedule_secrets(
     expected_access_key: str,
 ):
     access_key_secret_key = (
-        server.api.crud.Secrets().generate_client_project_secret_key(
-            server.api.crud.SecretsClientType.schedules,
+        server.py.services.api.crud.Secrets().generate_client_project_secret_key(
+            server.py.services.api.crud.SecretsClientType.schedules,
             schedule_name,
             scheduler._secret_access_key_subtype,
         )
     )
-    username_secret_key = server.api.crud.Secrets().generate_client_project_secret_key(
-        server.api.crud.SecretsClientType.schedules,
-        schedule_name,
-        scheduler._secret_username_subtype,
-    )
-    key_map_secret_key = (
-        server.api.crud.Secrets().generate_client_key_map_project_secret_key(
-            server.api.crud.SecretsClientType.schedules
+    username_secret_key = (
+        server.py.services.api.crud.Secrets().generate_client_project_secret_key(
+            server.py.services.api.crud.SecretsClientType.schedules,
+            schedule_name,
+            scheduler._secret_username_subtype,
         )
     )
-    secret_value = server.api.crud.Secrets().get_project_secret(
+    key_map_secret_key = server.py.services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+        server.py.services.api.crud.SecretsClientType.schedules
+    )
+    secret_value = server.py.services.api.crud.Secrets().get_project_secret(
         project,
         scheduler._secrets_provider,
         access_key_secret_key,
@@ -1604,7 +1600,7 @@ def _assert_schedule_secrets(
         key_map_secret_key=key_map_secret_key,
     )
     assert secret_value == expected_access_key
-    secret_value = server.api.crud.Secrets().get_project_secret(
+    secret_value = server.py.services.api.crud.Secrets().get_project_secret(
         project,
         scheduler._secrets_provider,
         username_secret_key,

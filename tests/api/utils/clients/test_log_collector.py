@@ -22,25 +22,21 @@ import sqlalchemy.orm.session
 
 import mlrun
 import mlrun.common.schemas
-import server.api.utils.clients.log_collector
+import server.py.services.api.utils.clients.log_collector
 
 
 class BaseLogCollectorResponse:
     def __init__(self, success, error):
         self.success = success
         self.errorMessage = error
-        self.errorCode = (
-            server.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
-        )
+        self.errorCode = server.py.services.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
 
 
 class GetLogsResponse:
     def __init__(self, success, error, logs, total_calls):
         self.success = success
         self.errorMessage = error
-        self.errorCode = (
-            server.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
-        )
+        self.errorCode = server.py.services.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
         self.logs = logs
         self.total_calls = total_calls
         self.current_calls = 0
@@ -60,9 +56,7 @@ class GetLogSizeResponse:
     def __init__(self, success, error, log_size=None):
         self.success = success
         self.errorMessage = error
-        self.errorCode = (
-            server.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
-        )
+        self.errorCode = server.py.services.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
         self.logSize = log_size
 
 
@@ -81,7 +75,9 @@ class TestLogCollector:
         run_uid = "123"
         project_name = "some-project"
         selector = f"mlrun/project={project_name},mlrun/uid={run_uid}"
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -113,7 +109,9 @@ class TestLogCollector:
     ):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         log_byte_string = b"some log"
 
@@ -156,7 +154,9 @@ class TestLogCollector:
     ):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         # mock responses for GetLogSize to return a retryable error
         log_collector._call = unittest.mock.AsyncMock(
@@ -191,7 +191,9 @@ class TestLogCollector:
     ):
         run_uids = ["123"]
         project_name = "some-project"
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         # test successful stop logs
         log_collector._call = unittest.mock.AsyncMock(
@@ -218,7 +220,9 @@ class TestLogCollector:
     ):
         run_uids = None
         project_name = "some-project"
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         # test successful stop logs
         log_collector._call = unittest.mock.AsyncMock(
@@ -258,7 +262,7 @@ class TestLogCollector:
     def test_log_collector_error_mapping(self, error_code, expected_mlrun_error):
         failure_message = "some failure message"
         error_message = "some error message"
-        error = server.api.utils.clients.log_collector.LogCollectorErrorCode.map_error_code_to_mlrun_error(
+        error = server.py.services.api.utils.clients.log_collector.LogCollectorErrorCode.map_error_code_to_mlrun_error(
             error_code, error_message, failure_message
         )
 

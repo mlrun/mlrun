@@ -30,7 +30,7 @@ from mlrun.common.schemas.feature_store import (
     ObjectStatus,
 )
 from mlrun.common.schemas.object import ObjectStatusState
-from server.api.crud.feature_store import FeatureStore
+from server.py.services.api import FeatureStore
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,

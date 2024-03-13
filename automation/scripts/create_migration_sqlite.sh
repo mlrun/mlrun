@@ -25,15 +25,15 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 export ROOT_DIR="${SCRIPT_DIR}/../.."
 
 function cleanup {
-	rm -f "${ROOT_DIR}/server/api/migrations_sqlite/mlrun.db"
+	rm -f "${ROOT_DIR}/server/py/services/api/migrations_sqlite/mlrun.db"
 }
 trap cleanup SIGHUP SIGINT SIGTERM EXIT
 
-export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/server/api/migrations_sqlite/mlrun.db?check_same_thread=false"
+export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/server/py/services/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 
 cleanup
 
 export PYTHONPATH=$ROOT_DIR
 
-alembic -c "${ROOT_DIR}/server/api/alembic.ini" upgrade head
-alembic -c "${ROOT_DIR}/server/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
+alembic -c "${ROOT_DIR}/server/py/services/api/alembic.ini" upgrade head
+alembic -c "${ROOT_DIR}/server/py/services/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

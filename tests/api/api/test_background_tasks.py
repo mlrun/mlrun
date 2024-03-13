@@ -28,12 +28,12 @@ import requests
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import server.api.api.deps
-import server.api.utils.auth.verifier
-import server.api.utils.background_tasks
-import server.api.utils.clients.chief
+import server.py.services.api.api.deps
+import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.background_tasks
+import server.py.services.api.utils.clients.chief
 from mlrun.utils import logger
-from server.api import main
+from server.py.services.api import main
 
 test_router = fastapi.APIRouter()
 
@@ -50,7 +50,7 @@ async def create_project_background_task(
     failed_task: bool = False,
     timeout: int = None,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        server.api.api.deps.get_db_session
+        server.py.services.api.api.deps.get_db_session
     ),
 ):
     function = bump_counter
@@ -63,7 +63,7 @@ async def create_project_background_task(
         # adds some time to make sure that it sleeps longer than the timeout
         args = [timeout + 3]
     return await fastapi.concurrency.run_in_threadpool(
-        server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        server.py.services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
         project,
         background_tasks,
@@ -88,13 +88,13 @@ def create_internal_background_task(
     (
         task,
         task_name,
-    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+    ) = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "bump_counter",
         None,
         function,
     )
     background_tasks.add_task(task)
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+    return server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
         task_name
     )
 
@@ -110,11 +110,11 @@ def create_long_internal_background_task(
     (
         task,
         task_name,
-    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+    ) = server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "long_bump_counter", None, long_function, sleep_time=timeout
     )
     background_tasks.add_task(task)
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+    return server.py.services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
         task_name
     )
 
@@ -294,9 +294,7 @@ def test_get_project_background_task_not_exists(
 def test_get_background_task_auth_skip(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
-    server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = (
-        unittest.mock.AsyncMock()
-    )
+    server.py.services.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = unittest.mock.AsyncMock()
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
     response = client.post("/test/internal-background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -306,7 +304,7 @@ def test_get_background_task_auth_skip(
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        server.py.services.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
         == 0
     )
 
@@ -316,7 +314,7 @@ def test_get_background_task_auth_skip(
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        server.py.services.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
         == 1
     )
 
@@ -327,12 +325,12 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
     expected_background_task = _generate_background_task(name)
-    handler_mock = server.api.utils.clients.chief.Client()
+    handler_mock = server.py.services.api.utils.clients.chief.Client()
     handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         return_value=expected_background_task
     )
     monkeypatch.setattr(
-        server.api.utils.clients.chief,
+        server.py.services.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -347,12 +345,12 @@ def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exist
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
-    handler_mock = server.api.utils.clients.chief.Client()
+    handler_mock = server.py.services.api.utils.clients.chief.Client()
     handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         side_effect=mlrun.errors.MLRunHTTPError()
     )
     monkeypatch.setattr(
-        server.api.utils.clients.chief,
+        server.py.services.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -439,12 +437,12 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
         expected_response = fastapi.Response(
             status_code=test_case.get("status_code"), content=test_case.get("content")
         )
-        handler_mock = server.api.utils.clients.chief.Client()
+        handler_mock = server.py.services.api.utils.clients.chief.Client()
         handler_mock.trigger_migrations = unittest.mock.AsyncMock(
             return_value=expected_response
         )
         monkeypatch.setattr(
-            server.api.utils.clients.chief,
+            server.py.services.api.utils.clients.chief,
             "Client",
             lambda *args, **kwargs: handler_mock,
         )

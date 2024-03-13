@@ -22,8 +22,8 @@ from fastapi.testclient import TestClient
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
-import server.api.launcher
-import server.api.utils.clients.iguazio
+import server.py.services.api.launcher
+import server.py.services.api.utils.clients.iguazio
 import tests.api.api.utils
 
 
@@ -44,7 +44,7 @@ def test_create_server_side_launcher(is_remote, local, expectation):
             is_remote,
             local=local,
         )
-        assert isinstance(launcher, server.api.launcher.ServerSideLauncher)
+        assert isinstance(launcher, server.py.services.api.launcher.ServerSideLauncher)
 
 
 def test_enrich_runtime_with_auth_info(
@@ -52,7 +52,7 @@ def test_enrich_runtime_with_auth_info(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
-        server.api.utils.clients.iguazio,
+        server.py.services.api.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -85,7 +85,7 @@ def test_enrich_runtime_with_auth_info(
 
 
 def test_validate_state_thresholds_success():
-    server.api.launcher.ServerSideLauncher._validate_state_thresholds(
+    server.py.services.api.launcher.ServerSideLauncher._validate_state_thresholds(
         state_thresholds={
             "pending_scheduled": "-1",
             "executing": "1000s",
@@ -130,7 +130,7 @@ def test_validate_state_thresholds_success():
 )
 def test_validate_state_thresholds_failure(state_thresholds, expected_error):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-        server.api.launcher.ServerSideLauncher._validate_state_thresholds(
+        server.py.services.api.launcher.ServerSideLauncher._validate_state_thresholds(
             state_thresholds=state_thresholds
         )
     assert expected_error in str(exc.value)

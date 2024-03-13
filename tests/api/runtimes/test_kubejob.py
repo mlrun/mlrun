@@ -26,12 +26,12 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
-import server.api.utils.builder
+import server.py.services.api.utils.builder
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
-from server.api.utils.singletons.db import get_db
+from server.py.services.api.main import get_db
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -749,15 +749,16 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "server.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "server.py.services.api.utils.builder.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1][
-                "dockertext"
-            ]
+            dockerfile = server.py.services.api.utils.builder.make_kaniko_pod.call_args[
+                1
+            ]["dockertext"]
             if expected_to_upgrade:
                 expected_str = ""
                 if commands:
@@ -775,9 +776,9 @@ def my_func(context):
                         "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
                     kaniko_pod_requirements = (
-                        server.api.utils.builder.make_kaniko_pod.call_args[1][
-                            "requirements"
-                        ]
+                        server.py.services.api.utils.builder.make_kaniko_pod.call_args[
+                            1
+                        ]["requirements"]
                     )
                     assert kaniko_pod_requirements == [
                         "mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"
@@ -868,7 +869,8 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "server.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "server.py.services.api.utils.builder.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
@@ -881,16 +883,18 @@ def my_func(context):
             )
 
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1][
-                "dockertext"
-            ]
+            dockerfile = server.py.services.api.utils.builder.make_kaniko_pod.call_args[
+                1
+            ]["dockertext"]
 
             install_requirements_commands = (
                 "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
                 "\nRUN python -m pip install -r /empty/requirements.txt"
             )
             kaniko_pod_requirements = (
-                server.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+                server.py.services.api.utils.builder.make_kaniko_pod.call_args[1][
+                    "requirements"
+                ]
             )
             if with_mlrun:
                 expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"

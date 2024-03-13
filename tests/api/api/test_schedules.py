@@ -21,13 +21,13 @@ import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.schemas
-import server.api.main
-import server.api.utils.singletons.scheduler
+import server.py.services.api.main
+import server.py.services.api.utils.singletons.scheduler
 import tests.api.api.utils
-from server.api.utils.singletons.db import get_db
+from server.py.services.api.main import get_db
 from tests.common_fixtures import aioresponses_mock
 
-ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.py.services.api.main.BASE_VERSIONED_API_PREFIX
 
 
 async def do_nothing():
@@ -256,7 +256,7 @@ async def test_redirection_from_worker_to_chief_delete_schedules(
     expected_body: dict,
 ):
     # so get_scheduler().list_schedules, which is called in the delete_schedules endpoint, will return something
-    await server.api.utils.singletons.scheduler.initialize_scheduler()
+    await server.py.services.api.utils.singletons.scheduler.initialize_scheduler()
     endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
         project="test-project",
     )

@@ -14,7 +14,7 @@
 #
 
 import mlrun.model_monitoring.tracking_policy
-import server.api.crud.model_monitoring.helpers
+import server.py.services.api.crud.model_monitoring.helpers
 
 
 def test_batch_intervals():
@@ -26,15 +26,11 @@ def test_batch_intervals():
     assert tracking_policy.default_batch_intervals.hour == "*/2"
 
     # Check get batching interval param function
-    interval_list = (
-        server.api.crud.model_monitoring.helpers.get_batching_interval_param(
-            [0, "*/1", None]
-        )
+    interval_list = server.py.services.api.crud.model_monitoring.helpers.get_batching_interval_param(
+        [0, "*/1", None]
     )
     assert interval_list == (0.0, 1.0, 0.0)
-    interval_list = (
-        server.api.crud.model_monitoring.helpers.get_batching_interval_param(
-            ["3/2", "*/1", 1]
-        )
+    interval_list = server.py.services.api.crud.model_monitoring.helpers.get_batching_interval_param(
+        ["3/2", "*/1", 1]
     )
     assert interval_list == (2.0, 1.0, 0.0)

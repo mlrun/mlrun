@@ -19,11 +19,16 @@ import pytest
 
 from mlrun.common.db.sql_session import _init_engine
 from mlrun.config import config
-from server.api.db.session import close_session, create_session
-from server.api.db.sqldb.db import SQLDB
-from server.api.initial_data import init_data
-from server.api.utils.singletons.db import initialize_db
-from server.api.utils.singletons.project_member import initialize_project_member
+from server.py.services.api.db.sqldb.db import SQLDB
+from server.py.services.api.initial_data import (
+    close_session,
+    create_session,
+    init_data,
+)
+from server.py.services.api.utils.singletons.db import initialize_db
+from server.py.services.api.utils.singletons.project_member import (
+    initialize_project_member,
+)
 
 
 @pytest.fixture()

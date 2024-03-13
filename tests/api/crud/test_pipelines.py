@@ -18,7 +18,7 @@ import mlrun.errors
 import mlrun.kfpops
 import mlrun.run
 import mlrun.utils.helpers
-import server.api.crud
+import server.py.services.api.crud
 
 
 def test_resolve_pipeline_project():
@@ -259,5 +259,7 @@ def test_resolve_pipeline_project():
         pipeline = {
             "pipeline_spec": {"workflow_manifest": json.dumps(workflow_manifest)}
         }
-        project = server.api.crud.Pipelines().resolve_project_from_pipeline(pipeline)
+        project = server.py.services.api.crud.Pipelines().resolve_project_from_pipeline(
+            pipeline
+        )
         assert project == case["expected_project"]

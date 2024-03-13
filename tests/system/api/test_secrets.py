@@ -29,7 +29,7 @@ import mlrun.errors
 from mlrun.config import config
 from tests.system.base import TestMLRunSystem
 
-# This is a copy from server/api/utils/events/iguazio.py because the system tests simulate user env
+# This is a copy from server/py/services/api/utils/events/iguazio.py because the system tests simulate user env
 # where this module is not available
 PROJECT_SECRET_CREATED = "Security.Project.Secret.Created"
 PROJECT_SECRET_UPDATED = "Security.Project.Secret.Updated"

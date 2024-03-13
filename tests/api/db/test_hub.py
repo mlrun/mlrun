@@ -14,9 +14,9 @@
 #
 from sqlalchemy.orm import Session
 
-import server.api.db.sqldb.models
-import server.api.initial_data
-from server.api.db.base import DBInterface
+import server.py.services.api.db.sqldb.models
+import server.py.services.api.initial_data
+from server.py.services.api.db.base import DBInterface
 
 
 def test_data_migration_rename_marketplace_kind_to_hub(
@@ -35,7 +35,7 @@ def test_data_migration_rename_marketplace_kind_to_hub(
             "kind": "MarketplaceSource",
         }
         # id and index are multiplied by 2 to avoid sqlalchemy unique constraint error
-        source = server.api.db.sqldb.models.HubSource(
+        source = server.py.services.api.db.sqldb.models.HubSource(
             id=i * 2,
             name=source_name,
             index=i * 2,
@@ -45,7 +45,7 @@ def test_data_migration_rename_marketplace_kind_to_hub(
         db_session.commit()
 
     # run migration
-    server.api.initial_data._rename_marketplace_kind_to_hub(db, db_session)
+    server.py.services.api.initial_data._rename_marketplace_kind_to_hub(db, db_session)
 
     # check that all hub sources are now of kind 'HubSource'
     hubs = db._list_hub_sources_without_transform(db_session)

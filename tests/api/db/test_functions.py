@@ -16,8 +16,8 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.errors
-from server.api.db.base import DBInterface
-from server.api.db.sqldb.models import Function
+from server.py.services.api.db.base import DBInterface
+from server.py.services.api.db.sqldb.models import Function
 
 
 def test_store_function_default_to_latest(db: DBInterface, db_session: Session):

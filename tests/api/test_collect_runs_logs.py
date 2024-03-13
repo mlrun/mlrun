@@ -21,10 +21,10 @@ import pytest
 import sqlalchemy.orm.session
 
 import mlrun.config
-import server.api.crud
-import server.api.main
-import server.api.utils.clients.log_collector
-import server.api.utils.singletons.db
+import server.py.services.api.crud
+import server.py.services.api.main
+import server.py.services.api.utils.clients.log_collector
+import server.py.services.api.utils.singletons.db
 from tests.api.utils.clients.test_log_collector import BaseLogCollectorResponse
 
 
@@ -39,7 +39,9 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -49,29 +51,31 @@ class TestCollectRunSLogs:
                     db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job"
                 )
 
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[False],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[False],
+                only_uids=False,
+            )
         )
         assert len(runs) == 3
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
-        server.api.utils.singletons.db.get_db().update_runs_requested_logs = (
-            unittest.mock.Mock()
+        server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
+
+        await server.py.services.api.main._initiate_logs_collection(
+            self.start_log_limit
         )
 
-        await server.api.main._initiate_logs_collection(self.start_log_limit)
-
         assert (
-            server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 1
         )
         assert (
             deepdiff.DeepDiff(
-                server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
                     1
                 ]["uids"],
                 run_uids,
@@ -86,26 +90,30 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[False],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[False],
+                only_uids=False,
+            )
         )
         assert len(runs) == 0
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
-        server.api.utils.singletons.db.get_db().update_runs_requested_logs = (
-            unittest.mock.Mock()
+        server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
+
+        await server.py.services.api.main._initiate_logs_collection(
+            self.start_log_limit
         )
 
-        await server.api.main._initiate_logs_collection(self.start_log_limit)
-
         assert (
-            server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 0
         )
 
@@ -115,7 +123,9 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -131,31 +141,31 @@ class TestCollectRunSLogs:
                     state=mlrun.runtimes.constants.RunStates.completed,
                 )
 
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[False],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[False],
+                only_uids=False,
+            )
         )
         assert len(runs) == 3
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
-        server.api.utils.singletons.db.get_db().update_runs_requested_logs = (
-            unittest.mock.Mock()
-        )
+        server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
 
-        await server.api.main._verify_log_collection_started_on_startup(
+        await server.py.services.api.main._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
         assert (
-            server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 1
         )
         assert (
             deepdiff.DeepDiff(
-                server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
                     1
                 ]["uids"],
                 run_uids,
@@ -171,7 +181,9 @@ class TestCollectRunSLogs:
         client: fastapi.testclient.TestClient,
         monkeypatch,
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         project_name = "some-project"
         new_uid = "new_uid"
@@ -201,10 +213,12 @@ class TestCollectRunSLogs:
         )
 
         # verify that we have 2 runs
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[False],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[False],
+                only_uids=False,
+            )
         )
         assert len(runs) == 2
 
@@ -217,12 +231,12 @@ class TestCollectRunSLogs:
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
-            server.api.utils.singletons.db.get_db(),
+            server.py.services.api.utils.singletons.db.get_db(),
             "update_runs_requested_logs",
             update_runs_requested_logs_mock,
         )
 
-        await server.api.main._verify_log_collection_started_on_startup(
+        await server.py.services.api.main._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -237,7 +251,9 @@ class TestCollectRunSLogs:
         client: fastapi.testclient.TestClient,
         monkeypatch,
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         project_name = "some-project"
         success_uid = "success_uid"
@@ -254,10 +270,12 @@ class TestCollectRunSLogs:
             )
 
         # verify that we have 2 runs
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[False],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[False],
+                only_uids=False,
+            )
         )
         assert len(runs) == 2
 
@@ -283,13 +301,15 @@ class TestCollectRunSLogs:
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
-            server.api.utils.singletons.db.get_db(),
+            server.py.services.api.utils.singletons.db.get_db(),
             "update_runs_requested_logs",
             update_runs_requested_logs_mock,
         )
 
         for i in range(3):
-            await server.api.main._initiate_logs_collection(self.start_log_limit)
+            await server.py.services.api.main._initiate_logs_collection(
+                self.start_log_limit
+            )
 
         assert update_runs_requested_logs_mock.call_count == 2
         # verify that `failure_uid` is also updated in the second call
@@ -299,7 +319,9 @@ class TestCollectRunSLogs:
     async def test_collect_logs_with_runs_fails(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -309,24 +331,26 @@ class TestCollectRunSLogs:
                     db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job"
                 )
 
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[False],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[False],
+                only_uids=False,
+            )
         )
         assert len(runs) == 3
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "some error")
         )
-        server.api.utils.singletons.db.get_db().update_runs_requested_logs = (
-            unittest.mock.Mock()
+        server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
+
+        await server.py.services.api.main._initiate_logs_collection(
+            self.start_log_limit
         )
 
-        await server.api.main._initiate_logs_collection(self.start_log_limit)
-
         assert (
-            server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 0
         )
 
@@ -334,12 +358,14 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_local_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project")
-        run_uid = await server.api.main._start_log_for_run(
+        run_uid = await server.py.services.api.main._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
@@ -349,12 +375,14 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_job_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await server.api.main._start_log_for_run(
+        run_uid = await server.py.services.api.main._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
@@ -364,7 +392,9 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_dask_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -376,7 +406,7 @@ class TestCollectRunSLogs:
         _, _, uid, _, run = _create_new_run(
             db, "some-project", kind="dask", function=function
         )
-        run_uid = await server.api.main._start_log_for_run(
+        run_uid = await server.py.services.api.main._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
@@ -387,12 +417,14 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_failure(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "some error")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await server.api.main._start_log_for_run(
+        run_uid = await server.py.services.api.main._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid is None
@@ -402,7 +434,9 @@ class TestCollectRunSLogs:
     async def test_stop_logs(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -427,7 +461,7 @@ class TestCollectRunSLogs:
                 if run_uid not in run_uids:
                     run_uids.append(run_uid)
 
-        await server.api.main._stop_logs_for_runs(
+        await server.py.services.api.main._stop_logs_for_runs(
             runs, chunk_size=stop_logs_run_uids_chunk_size
         )
 
@@ -457,7 +491,9 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
 
         project_name = "some-project"
 
@@ -483,20 +519,22 @@ class TestCollectRunSLogs:
         run_uids = [run_uid for run_uid, _ in run_uids_to_state]
 
         # update requested logs field to True
-        server.api.utils.singletons.db.get_db().update_runs_requested_logs(
+        server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs(
             db, run_uids, True
         )
 
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[True],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[True],
+                only_uids=False,
+            )
         )
         assert len(runs) == 5
 
         log_collector._call = unittest.mock.AsyncMock(return_value=None)
 
-        await server.api.main._verify_log_collection_stopped_on_startup()
+        await server.py.services.api.main._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call.call_count == 1
         assert log_collector._call.call_args[0][0] == "StopLogs"
@@ -516,18 +554,20 @@ class TestCollectRunSLogs:
         )
 
         # update requested logs field to False for one run
-        server.api.utils.singletons.db.get_db().update_runs_requested_logs(
+        server.py.services.api.utils.singletons.db.get_db().update_runs_requested_logs(
             db, [run_uids[0]], False
         )
 
-        runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            db,
-            requested_logs_modes=[True],
-            only_uids=False,
+        runs = (
+            server.py.services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+                db,
+                requested_logs_modes=[True],
+                only_uids=False,
+            )
         )
         assert len(runs) == 4
 
-        await server.api.main._verify_log_collection_stopped_on_startup()
+        await server.py.services.api.main._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call.call_count == 2
         assert log_collector._call.call_args[0][0] == "StopLogs"
@@ -569,7 +609,7 @@ def _create_new_run(
     if function:
         run["spec"] = {"function": function}
     if store:
-        server.api.crud.Runs().store_run(
+        server.py.services.api.crud.Runs().store_run(
             db_session, run, uid, iter=iteration, project=project
         )
     return project, name, uid, iteration, run

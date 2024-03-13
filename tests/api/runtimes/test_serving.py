@@ -24,13 +24,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import server.api.api.utils
-import server.api.crud
-import server.api.crud.runtimes.nuclio.function
+import server.py.services.api.api.utils
+import server.py.services.api.crud
+import server.py.services.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
 from mlrun.runtimes.nuclio.function import NuclioStatus
-from server.api.rundb.sqldb import SQLRunDB
-from server.api.utils.singletons.k8s import get_k8s_helper
+from server.py.services.api.rundb.sqldb import SQLRunDB
+from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -75,7 +75,9 @@ class TestServingRuntime(TestNuclioRuntime):
         def _remote_db_mock_function(
             func, with_mlrun, builder_env=None, force_build=False
         ):
-            server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(func)
+            server.py.services.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+                func
+            )
             return {
                 "data": {
                     "status": NuclioStatus(
@@ -258,7 +260,9 @@ class TestServingRuntime(TestNuclioRuntime):
         get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
             return_value={}
         )
-        server.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
+        server.py.services.api.api.utils.mask_function_sensitive_data = (
+            unittest.mock.Mock()
+        )
 
         function = self._create_serving_function()
 
@@ -330,7 +334,9 @@ class TestServingRuntime(TestNuclioRuntime):
             _,
             _,
             config,
-        ) = server.api.crud.runtimes.nuclio.function._compile_function_config(function)
+        ) = server.py.services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
         # verify the code is filled with the mlrun serving wrapper
         assert config["spec"]["build"]["functionSourceCode"]
 
@@ -349,7 +355,7 @@ class TestServingRuntime(TestNuclioRuntime):
             _,
             _,
             config,
-        ) = server.api.crud.runtimes.nuclio.function._compile_function_config(
+        ) = server.py.services.api.crud.runtimes.nuclio.function._compile_function_config(
             function, builder_env={}
         )
         get_k8s_helper()._get_project_secrets_raw_data = orig_function

@@ -321,7 +321,7 @@ log-collector: update-version-file
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/server/log-collector log-collector
+		make --no-print-directory -C $(shell pwd)/server/go log-collector
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
@@ -330,7 +330,7 @@ push-log-collector: log-collector
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/server/log-collector push-log-collector
+		make --no-print-directory -C $(shell pwd)/server/go push-log-collector
 
 .PHONY: pull-log-collector
 pull-log-collector:
@@ -339,7 +339,7 @@ pull-log-collector:
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/server/log-collector pull-log-collector
+		make --no-print-directory -C $(shell pwd)/server/go pull-log-collector
 
 
 .PHONY: compile-schemas
@@ -347,8 +347,12 @@ compile-schemas: ## Compile schemas over docker
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
-	cd server/log-collector && \
+	rm -rf server/go/mlrun-go/pkg/proto
+	rm -rf server/py/proto/*pb2*.py
+	cd server/common && \
 	  make compile-schemas
+	cp -r server/common/proto/build/go server/go/mlrun-go/pkg/proto
+	cp -r server/common/proto/build/py/* server/py/proto/
 endif
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
@@ -493,7 +497,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 		--durations=100 \
 		-rf \
 		--test-alembic \
-		server/api/migrations_sqlite/tests/*
+		server/py/services/api/migrations_sqlite/tests/*
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -532,22 +536,22 @@ test-package: ## Run mlrun package tests
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests
-	cd server/log-collector && \
+	cd server/go && \
 		make test-unit-local
 
 .PHONY: test-go-dockerized
 test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
-	cd server/log-collector && \
+	cd server/go && \
 		make test-unit-dockerized
 
 .PHONY: test-go
 test-go-integration: ## Run mlrun go unit tests
-	cd server/log-collector && \
+	cd server/go && \
 		make test-integration-local
 
 .PHONY: test-go-dockerized
 test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
-	cd server/log-collector && \
+	cd server/go && \
 		make test-integration-dockerized
 
 .PHONY: run-api-undockerized
@@ -620,12 +624,12 @@ fmt-check: ## Check the code (using ruff)
 
 .PHONY: lint-go
 lint-go:
-	cd server/log-collector && \
+	cd server/go && \
 		make lint
 
 .PHONY: fmt-go
 fmt-go:
-	cd server/log-collector && \
+	cd server/go && \
 		make fmt
 
 .PHONY: release

@@ -20,10 +20,10 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import server.api.initial_data
-import server.api.utils.auth.verifier
-import server.api.utils.db.alembic
-import server.api.utils.db.backup
+import server.py.services.api.initial_data
+import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.db.alembic
+import server.py.services.api.utils.db.backup
 from mlrun.utils import logger
 
 
@@ -98,22 +98,28 @@ def test_init_data_migration_required_recognition(
         from_scratch=from_scratch,
     )
     alembic_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
+    monkeypatch.setattr(
+        server.py.services.api.utils.db.alembic, "AlembicUtil", alembic_util_mock
+    )
     is_latest_data_version_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        server.api.initial_data, "_is_latest_data_version", is_latest_data_version_mock
+        server.py.services.api.initial_data,
+        "_is_latest_data_version",
+        is_latest_data_version_mock,
     )
     db_backup_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(server.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock)
+    monkeypatch.setattr(
+        server.py.services.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock
+    )
     perform_schema_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        server.api.initial_data,
+        server.py.services.api.initial_data,
         "_perform_schema_migrations",
         perform_schema_migrations_mock,
     )
     perform_data_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        server.api.initial_data,
+        server.py.services.api.initial_data,
         "_perform_data_migrations",
         perform_data_migrations_mock,
     )
@@ -128,7 +134,7 @@ def test_init_data_migration_required_recognition(
     is_latest_data_version_mock.return_value = not data_migration
 
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
-    server.api.initial_data.init_data()
+    server.py.services.api.initial_data.init_data()
 
     expected_state = (
         mlrun.common.schemas.APIStates.online

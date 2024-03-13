@@ -32,20 +32,20 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model_monitoring.tracking_policy
-import server.api.api.endpoints.functions
-import server.api.api.utils
-import server.api.crud
-import server.api.main
-import server.api.utils.builder
-import server.api.utils.clients.chief
-import server.api.utils.clients.iguazio
-import server.api.utils.singletons.db
-import server.api.utils.singletons.k8s
+import server.py.services.api.api.endpoints.functions
+import server.py.services.api.api.utils
+import server.py.services.api.crud
+import server.py.services.api.main
+import server.py.services.api.utils.builder
+import server.py.services.api.utils.clients.chief
+import server.py.services.api.utils.clients.iguazio
+import server.py.services.api.utils.singletons.db
+import server.py.services.api.utils.singletons.k8s
 import tests.api.api.utils
 import tests.conftest
 
 PROJECT = "project-name"
-ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.py.services.api.main.BASE_VERSIONED_API_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 
@@ -70,12 +70,12 @@ def test_build_status_pod_not_found(
     )
     assert response.status_code == HTTPStatus.OK.value
 
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_pod = (
-        unittest.mock.Mock(
-            side_effect=kubernetes.client.rest.ApiException(
-                status=HTTPStatus.NOT_FOUND.value
-            )
+    server.py.services.api.utils.singletons.k8s.get_k8s_helper().v1api = (
+        unittest.mock.Mock()
+    )
+    server.py.services.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_pod = unittest.mock.Mock(
+        side_effect=kubernetes.client.rest.ApiException(
+            status=HTTPStatus.NOT_FOUND.value
         )
     )
     response = client.get(
@@ -229,9 +229,11 @@ async def test_multiple_store_function_race_condition(
     await tests.api.api.utils.create_project_async(async_client, PROJECT)
     # Make the get function method to return None on the first two calls, and then use the original function
     get_function_mock = tests.conftest.MockSpecificCalls(
-        server.api.utils.singletons.db.get_db()._get_class_instance_by_uid, [1, 2], None
+        server.py.services.api.utils.singletons.db.get_db()._get_class_instance_by_uid,
+        [1, 2],
+        None,
     ).mock_function
-    server.api.utils.singletons.db.get_db()._get_class_instance_by_uid = (
+    server.py.services.api.utils.singletons.db.get_db()._get_class_instance_by_uid = (
         unittest.mock.Mock(side_effect=get_function_mock)
     )
     function = {
@@ -272,7 +274,7 @@ async def test_multiple_store_function_race_condition(
     # but no more than 5 times, as retry should not be that excessive
     assert (
         3
-        <= server.api.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count
+        <= server.py.services.api.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count
         < 5
     )
 
@@ -290,12 +292,12 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     function_name = "test-function"
     function = _generate_function(function_name)
 
-    handler_mock = server.api.utils.clients.chief.Client()
+    handler_mock = server.py.services.api.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        server.api.utils.clients.chief,
+        server.py.services.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -374,20 +376,22 @@ def test_tracking_on_serving(
     function.set_tracking()
 
     # Mock the client and unnecessary functions for this test
-    handler_mock = server.api.utils.clients.chief.Client()
+    handler_mock = server.py.services.api.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
 
     functions_to_monkeypatch = {
-        server.api.api.utils: ["apply_enrichment_and_validation_on_function"],
-        server.api.api.endpoints.functions: [
+        server.py.services.api.api.utils: [
+            "apply_enrichment_and_validation_on_function"
+        ],
+        server.py.services.api.api.endpoints.functions: [
             "process_model_monitoring_secret",
             "create_model_monitoring_stream",
         ],
-        server.api.crud: ["ModelEndpoints"],
+        server.py.services.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
-        server.api.crud.model_monitoring: ["get_stream_path"],
+        server.py.services.api.crud.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:
@@ -405,7 +409,7 @@ def test_tracking_on_serving(
     assert response.status_code == 200
 
     # Validate that the default configurations were set as expected
-    function_from_db = server.api.crud.Functions().get_function(
+    function_from_db = server.py.services.api.crud.Functions().get_function(
         db_session=db, project=PROJECT, name=function_name, tag="latest"
     )
 
@@ -447,15 +451,17 @@ def test_build_function_with_mlrun_bool(
             "tag": "latest",
         },
     }
-    original_build_function = server.api.api.endpoints.functions._build_function
+    original_build_function = (
+        server.py.services.api.api.endpoints.functions._build_function
+    )
     for with_mlrun in [True, False]:
         request_body = {
             "function": function_dict,
             "with_mlrun": with_mlrun,
         }
         function = mlrun.new_function(runtime=function_dict)
-        server.api.api.endpoints.functions._build_function = unittest.mock.Mock(
-            return_value=(function, True)
+        server.py.services.api.api.endpoints.functions._build_function = (
+            unittest.mock.Mock(return_value=(function, True))
         )
         response = client.post(
             "build/function",
@@ -463,10 +469,14 @@ def test_build_function_with_mlrun_bool(
         )
         assert response.status_code == HTTPStatus.OK.value
         assert (
-            server.api.api.endpoints.functions._build_function.call_args[0][3]
+            server.py.services.api.api.endpoints.functions._build_function.call_args[0][
+                3
+            ]
             == with_mlrun
         )
-    server.api.api.endpoints.functions._build_function = original_build_function
+    server.py.services.api.api.endpoints.functions._build_function = (
+        original_build_function
+    )
 
 
 @pytest.mark.parametrize(
@@ -501,8 +511,10 @@ def test_build_function_with_project_repo(
             },
         },
     }
-    original_build_runtime = server.api.utils.builder.build_image
-    server.api.utils.builder.build_image = unittest.mock.Mock(return_value="success")
+    original_build_runtime = server.py.services.api.utils.builder.build_image
+    server.py.services.api.utils.builder.build_image = unittest.mock.Mock(
+        return_value="success"
+    )
     response = client.post(
         "build/function",
         json={"function": function_dict},
@@ -512,7 +524,7 @@ def test_build_function_with_project_repo(
     assert function.spec.build.source == git_repo
     assert function.spec.build.load_source_on_run == load_source_on_run
 
-    server.api.utils.builder.build_image = original_build_runtime
+    server.py.services.api.utils.builder.build_image = original_build_runtime
 
 
 @pytest.mark.parametrize("force_build, expected", [(True, 1), (False, 0)])
@@ -535,22 +547,22 @@ def test_build_function_force_build(
 
     # Mock the functions responsible for the image building
     with unittest.mock.patch(
-        "server.api.utils.builder.make_dockerfile", return_value=""
+        "server.py.services.api.utils.builder.make_dockerfile", return_value=""
     ):
         with unittest.mock.patch(
-            "server.api.utils.builder.make_kaniko_pod",
-            return_value=server.api.utils.singletons.k8s.BasePod(),
+            "server.py.services.api.utils.builder.make_kaniko_pod",
+            return_value=server.py.services.api.utils.singletons.k8s.BasePod(),
         ):
             with unittest.mock.patch(
-                "server.api.utils.builder.resolve_image_target",
+                "server.py.services.api.utils.builder.resolve_image_target",
                 return_value=(".test/my-beautiful-image",),
             ):
                 with unittest.mock.patch(
-                    "server.api.utils.builder._resolve_build_requirements",
+                    "server.py.services.api.utils.builder._resolve_build_requirements",
                     return_value=([], [], "/empty/requirements.txt"),
                 ):
                     with unittest.mock.patch(
-                        "server.api.utils.singletons.k8s.get_k8s_helper"
+                        "server.py.services.api.utils.singletons.k8s.get_k8s_helper"
                     ) as mock_get_k8s_helper:
                         mock_get_k8s_helper.return_value.create_pod.return_value = (
                             "pod-name",
@@ -569,15 +581,15 @@ def test_build_function_force_build(
                         assert response.status_code == HTTPStatus.OK.value
 
                         assert (
-                            server.api.utils.builder.make_kaniko_pod.call_count
+                            server.py.services.api.utils.builder.make_kaniko_pod.call_count
                             == expected
                         )
                         assert (
-                            server.api.utils.builder.make_dockerfile.call_count
+                            server.py.services.api.utils.builder.make_dockerfile.call_count
                             == expected
                         )
                         assert (
-                            server.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
+                            server.py.services.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
                             == expected
                         )
 
@@ -592,7 +604,7 @@ def test_build_function_masks_access_key(
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
     monkeypatch.setattr(
-        server.api.utils.clients.iguazio,
+        server.py.services.api.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -618,7 +630,7 @@ def test_build_function_masks_access_key(
         },
     }
     monkeypatch.setattr(
-        server.api.utils.builder,
+        server.py.services.api.utils.builder,
         "build_image",
         lambda *args, **kwargs: "success",
     )
@@ -661,7 +673,7 @@ def test_build_no_access_key(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
-        server.api.utils.clients.iguazio,
+        server.py.services.api.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -680,7 +692,7 @@ def test_build_no_access_key(
     }
 
     monkeypatch.setattr(
-        server.api.utils.builder,
+        server.py.services.api.utils.builder,
         "build_image",
         lambda *args, **kwargs: "success",
     )
@@ -715,7 +727,7 @@ def test_build_clone_target_dir_backwards_compatability(
     }
 
     monkeypatch.setattr(
-        server.api.utils.builder,
+        server.py.services.api.utils.builder,
         "build_image",
         lambda *args, **kwargs: "success",
     )
@@ -734,12 +746,12 @@ def test_start_function_succeeded(
     project = "test-dask"
     dask_cluster = mlrun.new_function(name, project=project, kind="dask")
     monkeypatch.setattr(
-        server.api.api.endpoints.functions,
+        server.py.services.api.api.endpoints.functions,
         "_parse_start_function_body",
         lambda *args, **kwargs: dask_cluster,
     )
     monkeypatch.setattr(
-        server.api.api.endpoints.functions,
+        server.py.services.api.api.endpoints.functions,
         "_start_function",
         lambda *args, **kwargs: unittest.mock.Mock(),
     )
@@ -777,12 +789,12 @@ def test_start_function_fails(
     project = "test-dask"
     dask_cluster = mlrun.new_function(name, project=project, kind="dask")
     monkeypatch.setattr(
-        server.api.api.endpoints.functions,
+        server.py.services.api.api.endpoints.functions,
         "_parse_start_function_body",
         lambda *args, **kwargs: dask_cluster,
     )
     monkeypatch.setattr(
-        server.api.api.endpoints.functions,
+        server.py.services.api.api.endpoints.functions,
         "_start_function",
         lambda *args, **kwargs: failing_func(),
     )
@@ -849,12 +861,12 @@ def test_start_function(
 
         dask_cluster = mlrun.new_function(name, project=project, kind="dask")
         monkeypatch.setattr(
-            server.api.api.endpoints.functions,
+            server.py.services.api.api.endpoints.functions,
             "_parse_start_function_body",
             lambda *args, **kwargs: dask_cluster,
         )
         monkeypatch.setattr(
-            server.api.api.endpoints.functions,
+            server.py.services.api.api.endpoints.functions,
             "_start_function",
             lambda *args, **kwargs: _start_function_mock(),
         )

@@ -18,7 +18,7 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import server.api.crud
+import server.py.services.api.crud
 import tests.api.conftest
 
 
@@ -54,10 +54,10 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
                 source_code_target_dir=source_code_target_dir
             )
 
-        server.api.crud.Projects().create_project(db, project)
+        server.py.services.api.crud.Projects().create_project(db, project)
 
         run_name = "run-name"
-        runner = server.api.crud.WorkflowRunners().create_runner(
+        runner = server.py.services.api.crud.WorkflowRunners().create_runner(
             run_name=run_name,
             project=project.metadata.name,
             db_session=db,
@@ -65,7 +65,7 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
             image="mlrun/mlrun",
         )
 
-        run = server.api.crud.WorkflowRunners().run(
+        run = server.py.services.api.crud.WorkflowRunners().run(
             runner=runner,
             project=project,
             workflow_request=mlrun.common.schemas.WorkflowRequest(
@@ -120,10 +120,10 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
             spec=mlrun.common.schemas.ProjectSpec(source="s3://some-source"),
         )
-        server.api.crud.Projects().create_project(db, project)
+        server.py.services.api.crud.Projects().create_project(db, project)
 
         run_name = "run-name"
-        runner = server.api.crud.WorkflowRunners().create_runner(
+        runner = server.py.services.api.crud.WorkflowRunners().create_runner(
             run_name=run_name,
             project=project.metadata.name,
             db_session=db,
@@ -131,7 +131,7 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
             image="mlrun/mlrun",
         )
 
-        run = server.api.crud.WorkflowRunners().run(
+        run = server.py.services.api.crud.WorkflowRunners().run(
             runner=runner,
             project=project,
             workflow_request=mlrun.common.schemas.WorkflowRequest(

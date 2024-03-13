@@ -279,7 +279,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     ):
         feature_name = resolve_feature_name(git_branch)
         if not mlrun_version.endswith(feature_name):
-            mlrun_version = f"{mlrun_version}+{feature_name}"
+            mlrun_version = f"{mlrun_version}-{feature_name}"
 
     # Check if the provided version is a semver and followed by a "-"
     semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"  # e.g. 0.6.0-

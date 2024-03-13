@@ -23,8 +23,9 @@ import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import server.api.crud.model_monitoring.deployment
-import server.api.crud.model_monitoring.helpers
+import server.py.services.api.crud.model_monitoring.deployment
+import server.py.services.api.crud.model_monitoring.helpers
+import server.py.services.api.crud.model_monitoring.model_endpoints as model_endpoints
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring.stores import (  # noqa: F401
@@ -85,13 +86,13 @@ def test_build_kv_cursor_filter_expression():
 
 
 def test_get_access_key():
-    key = server.api.crud.model_monitoring.helpers.get_access_key(
+    key = server.py.services.api.crud.model_monitoring.helpers.get_access_key(
         mlrun.common.schemas.AuthInfo(data_session="asd")
     )
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        server.api.crud.model_monitoring.helpers.get_access_key(
+        server.py.services.api.crud.model_monitoring.helpers.get_access_key(
             mlrun.common.schemas.AuthInfo()
         )
 
@@ -233,8 +234,10 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    features = server.api.crud.model_monitoring.deployment.get_endpoint_features(
-        feature_names, stats, stats
+    features = (
+        server.py.services.api.crud.model_monitoring.deployment.get_endpoint_features(
+            feature_names, stats, stats
+        )
     )
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
@@ -248,8 +251,10 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = server.api.crud.model_monitoring.deployment.get_endpoint_features(
-        feature_names, stats, None
+    features = (
+        server.py.services.api.crud.model_monitoring.deployment.get_endpoint_features(
+            feature_names, stats, None
+        )
     )
     assert len(features) == 4
     for feature in features:
@@ -259,8 +264,10 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = server.api.crud.model_monitoring.deployment.get_endpoint_features(
-        feature_names, None, stats
+    features = (
+        server.py.services.api.crud.model_monitoring.deployment.get_endpoint_features(
+            feature_names, None, stats
+        )
     )
     assert len(features) == 4
     for feature in features:
@@ -270,8 +277,10 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = server.api.crud.model_monitoring.deployment.get_endpoint_features(
-        feature_names[1:], None, stats
+    features = (
+        server.py.services.api.crud.model_monitoring.deployment.get_endpoint_features(
+            feature_names[1:], None, stats
+        )
     )
     assert len(features) == 3
 
@@ -415,7 +424,7 @@ def test_sql_target_patch_endpoint():
     endpoint = endpoint_store.get_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
 
     # Convert to model endpoint object
-    endpoint = server.api.crud.model_monitoring.model_endpoints.ModelEndpoints._convert_into_model_endpoint_object(
+    endpoint = model_endpoints.ModelEndpoints._convert_into_model_endpoint_object(
         endpoint=endpoint
     )
     assert endpoint.spec.model == "test_model"

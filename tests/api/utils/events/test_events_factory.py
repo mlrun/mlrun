@@ -15,10 +15,10 @@
 import pytest
 
 import mlrun.common.schemas
-import server.api.utils.events.base
-import server.api.utils.events.events_factory
-import server.api.utils.events.iguazio
-import server.api.utils.events.nop
+import server.py.services.api.utils.events.base
+import server.py.services.api.utils.events.events_factory
+import server.py.services.api.utils.events.iguazio
+import server.py.services.api.utils.events.nop
 
 
 @pytest.mark.parametrize(
@@ -29,14 +29,14 @@ import server.api.utils.events.nop
             None,
             None,
             None,
-            server.api.utils.events.nop.NopClient,
+            server.py.services.api.utils.events.nop.NopClient,
         ),
         (
             mlrun.common.schemas.EventsModes.enabled,
             None,
             None,
             None,
-            server.api.utils.events.nop.NopClient,
+            server.py.services.api.utils.events.nop.NopClient,
         ),
         (
             mlrun.common.schemas.EventsModes.enabled,
@@ -50,7 +50,7 @@ import server.api.utils.events.nop
             mlrun.common.schemas.EventClientKinds.iguazio,
             "3.5.3",
             None,
-            server.api.utils.events.iguazio.Client,
+            server.py.services.api.utils.events.iguazio.Client,
         ),
     ],
 )
@@ -59,15 +59,17 @@ def test_get_events_client(
     kind: mlrun.common.schemas.EventClientKinds,
     igz_version: str,
     expected_error: mlrun.errors.MLRunBaseError,
-    expected_instance: server.api.utils.events.base.BaseEventClient,
+    expected_instance: server.py.services.api.utils.events.base.BaseEventClient,
 ):
     mlrun.mlconf.events.mode = events_mode.value
     mlrun.mlconf.igz_version = igz_version
     if expected_error:
         with pytest.raises(expected_error):
-            server.api.utils.events.events_factory.EventsFactory.get_events_client(kind)
+            server.py.services.api.utils.events.events_factory.EventsFactory.get_events_client(
+                kind
+            )
     else:
-        instance = (
-            server.api.utils.events.events_factory.EventsFactory.get_events_client(kind)
+        instance = server.py.services.api.utils.events.events_factory.EventsFactory.get_events_client(
+            kind
         )
         assert isinstance(instance, expected_instance)

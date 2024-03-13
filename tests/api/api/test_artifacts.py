@@ -418,7 +418,8 @@ def test_store_artifact_calculate_size(db: Session, client: TestClient):
 
     # mock the get_allowed_path_prefixes_list function since we use a local path here for the testing
     with unittest.mock.patch(
-        "server.api.api.utils.get_allowed_path_prefixes_list", return_value="/"
+        "server.py.services.api.api.utils.get_allowed_path_prefixes_list",
+        return_value="/",
     ):
         # create the artifact
         artifact = mlrun.artifacts.Artifact(key=KEY, target_path=file_path)

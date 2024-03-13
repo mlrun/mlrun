@@ -57,6 +57,6 @@ done
 
 export PYTHONPATH=$ROOT_DIR
 
-alembic -c "${ROOT_DIR}/server/api/alembic_mysql.ini" upgrade head
-alembic -c "${ROOT_DIR}/server/api/alembic_mysql.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
+alembic -c "${ROOT_DIR}/server/py/services/api/alembic_mysql.ini" upgrade head
+alembic -c "${ROOT_DIR}/server/py/services/api/alembic_mysql.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
 

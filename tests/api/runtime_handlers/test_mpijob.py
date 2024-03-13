@@ -21,13 +21,12 @@ from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-import server.api.runtime_handlers.mpijob
-import server.api.utils.helpers
+import server.py.services.api.runtime_handlers.mpijob
+import server.py.services.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
-from server.api.runtime_handlers import get_runtime_handler
-from server.api.utils.singletons.db import get_db
-from server.api.utils.singletons.k8s import get_k8s_helper
+from server.py.services.api.main import get_db, get_runtime_handler
+from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -370,10 +369,10 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # override the container
         mlrun.runtimes.MpiRuntimeContainer.override(
-            server.api.runtime_handlers.MpiRuntimeHandlerContainer
+            server.py.services.api.runtime_handlers.MpiRuntimeHandlerContainer
         )
         mlrun.mlconf.mpijob_crd_version = None
-        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
+        server.py.services.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
             mlrun.runtimes.MPIJobCRDVersions.v1alpha1
         )
 
@@ -383,11 +382,11 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         v1alpha1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
         assert (
             v1alpha1_runtime_handler
-            == server.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
+            == server.py.services.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
         )
 
         mlrun.mlconf.mpijob_crd_version = None
-        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
+        server.py.services.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
             mlrun.runtimes.MPIJobCRDVersions.v1
         )
 
@@ -396,7 +395,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         assert v1_runtime == mlrun.runtimes.MpiRuntimeV1
         v1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
         assert (
-            v1_runtime_handler == server.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
+            v1_runtime_handler
+            == server.py.services.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
         )
 
     def test_state_thresholds(self, db: Session, client: TestClient):
@@ -410,7 +410,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         """
         # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
         mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
-            server.api.utils.helpers.time_string_to_seconds(
+            server.py.services.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
             * 2
@@ -426,7 +426,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 image_pull_backoff_job_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=server.api.utils.helpers.time_string_to_seconds(
+                    seconds=server.py.services.api.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
                     )
                 ),
@@ -435,7 +435,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 running_long_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=server.api.utils.helpers.time_string_to_seconds(
+                    seconds=server.py.services.api.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.executing
                     )
                 ),
@@ -584,7 +584,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_state_thresholds_pending_states(self, db: Session, client: TestClient):
         # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
         mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
-            server.api.utils.helpers.time_string_to_seconds(
+            server.py.services.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
             * 2
@@ -601,7 +601,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 pending_scheduled_stale_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=server.api.utils.helpers.time_string_to_seconds(
+                    seconds=server.py.services.api.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
                     )
                 ),

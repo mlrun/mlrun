@@ -27,14 +27,14 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
-import server.api.crud
-import server.api.utils.auth.verifier
-import server.api.utils.clients.iguazio
+import server.py.services.api.crud
+import server.py.services.api.utils.auth.verifier
+import server.py.services.api.utils.clients.iguazio
 import tests.api.api.utils
 import tests.api.conftest
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
-from server.api.api.utils import (
+from server.py.services.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
@@ -67,14 +67,14 @@ def test_submit_run_sync(db: Session, client: TestClient):
             "metadata": {"credentials": {"access_key": "some-access-key-override"}},
         },
     }
-    _, _, _, response_data = server.api.api.utils.submit_run_sync(
+    _, _, _, response_data = server.py.services.api.api.utils.submit_run_sync(
         db, auth_info, submit_job_body
     )
     assert response_data["data"]["action"] == "created"
 
     # submit again, make sure it was modified
     submit_job_body["schedule"] = "0 1 * * *"  # change schedule
-    _, _, _, response_data = server.api.api.utils.submit_run_sync(
+    _, _, _, response_data = server.py.services.api.api.utils.submit_run_sync(
         db, auth_info, submit_job_body
     )
     assert response_data["data"]["action"] == "modified"
@@ -119,7 +119,7 @@ def test_submit_run_sync_schedule_with_function_overrides(
             },
         },
     }
-    _, _, _, response_data = server.api.api.utils.submit_run_sync(
+    _, _, _, response_data = server.py.services.api.api.utils.submit_run_sync(
         db, auth_info, submit_job_body
     )
     assert response_data["data"]["action"] == "created"
@@ -508,7 +508,7 @@ def test_ensure_function_has_auth_set(
 ):
     tests.api.api.utils.create_project(client, PROJECT)
 
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
 
@@ -537,8 +537,8 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
-        unittest.mock.Mock(return_value=access_key)
+    server.py.services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = unittest.mock.Mock(
+        return_value=access_key
     )
     ensure_function_has_auth_set(
         function, mlrun.common.schemas.AuthInfo(username=username)
@@ -685,7 +685,7 @@ def test_mask_v3io_access_key_env_var(
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     function = mlrun.new_function(runtime=original_function_dict)
@@ -701,7 +701,7 @@ def test_mask_v3io_access_key_env_var(
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
-    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.py.services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=False)
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
@@ -753,7 +753,7 @@ def test_mask_v3io_access_key_env_var(
     )
     original_function = mlrun.new_function(runtime=function)
     _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
-    server.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
+    server.py.services.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -762,7 +762,7 @@ def test_mask_v3io_access_key_env_var(
         == {}
     )
     # assert we're not trying to store unneeded-ly
-    assert server.api.crud.Secrets().store_auth_secret.call_count == 0
+    assert server.py.services.api.crud.Secrets().store_auth_secret.call_count == 0
 
     logger.info(
         "mask same function again, access key is already a reference, but this time a dict - nothing "
@@ -773,7 +773,7 @@ def test_mask_v3io_access_key_env_var(
     _mask_v3io_access_key_env_var(
         function, mlrun.common.schemas.AuthInfo(username=username)
     )
-    server.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
+    server.py.services.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -782,7 +782,7 @@ def test_mask_v3io_access_key_env_var(
         == {}
     )
     # assert we're not trying to store unneeded-ly
-    assert server.api.crud.Secrets().store_auth_secret.call_count == 0
+    assert server.py.services.api.crud.Secrets().store_auth_secret.call_count == 0
 
 
 @pytest.mark.parametrize("use_structs", [True, False])
@@ -1060,7 +1060,9 @@ def test_ensure_function_security_context_override_enrichment_mode(
     )
 
     logger.info("Enrichment mode is override, security context should be enriched")
-    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id = (
+        unittest.mock.Mock()
+    )
     auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
@@ -1071,7 +1073,9 @@ def test_ensure_function_security_context_override_enrichment_mode(
     ensure_function_security_context(function, auth_info)
 
     # assert user unix id was not fetched from iguazio
-    assert server.api.utils.clients.iguazio.Client.get_user_unix_id.called == 0
+    assert (
+        server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id.called == 0
+    )
 
     # assert function was changed
     assert (
@@ -1183,14 +1187,14 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
         SecurityContextEnrichmentModes.override
     )
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[server.api.utils.clients.iguazio.SessionPlanes.data]
+        planes=[server.py.services.api.utils.clients.iguazio.SessionPlanes.data]
     )
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunHTTPError()
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunHTTPError())
     )
     logger.info(
         "Session missing control plane, and it is actually only a data plane session, expected to fail"
@@ -1199,11 +1203,11 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)
     assert "Were unable to enrich user unix id" in str(exc.value)
-    server.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
 
     user_unix_id = 1000
-    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
-        return_value=user_unix_id
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id = (
+        unittest.mock.Mock(return_value=user_unix_id)
     )
     auth_info = mlrun.common.schemas.AuthInfo(planes=[])
     logger.info(
@@ -1211,8 +1215,10 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
-    server.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
-    assert auth_info.planes == [server.api.utils.clients.iguazio.SessionPlanes.control]
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert auth_info.planes == [
+        server.py.services.api.utils.clients.iguazio.SessionPlanes.control
+    ]
 
 
 def test_ensure_function_security_context_get_user_unix_id(
@@ -1227,10 +1233,10 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     # set auth info with control plane and without user unix id so that it will be fetched
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[server.api.utils.clients.iguazio.SessionPlanes.control]
+        planes=[server.py.services.api.utils.clients.iguazio.SessionPlanes.control]
     )
-    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
-        return_value=user_unix_id
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id = (
+        unittest.mock.Mock(return_value=user_unix_id)
     )
 
     logger.info("No user unix id in headers, should fetch from iguazio")
@@ -1245,7 +1251,7 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
-    server.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    server.py.services.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -1370,11 +1376,11 @@ def test_get_obj_path(db: Session, client: TestClient):
             with pytest.raises(
                 mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
             ):
-                server.api.api.utils.get_obj_path(
+                server.py.services.api.api.utils.get_obj_path(
                     case.get("schema"), case.get("path"), case.get("user")
                 )
         else:
-            result_path = server.api.api.utils.get_obj_path(
+            result_path = server.py.services.api.api.utils.get_obj_path(
                 case.get("schema"), case.get("path"), case.get("user")
             )
             assert result_path == case["expected_path"]

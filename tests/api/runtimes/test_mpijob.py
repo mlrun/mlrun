@@ -23,7 +23,7 @@ import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.runtimes.constants import MPIJobCRDVersions
-from server.api.utils.singletons.k8s import get_k8s_helper
+from server.py.services.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -37,7 +37,8 @@ class TestMpiV1Runtime(TestRuntimeBase):
     def test_run_v1_sanity(self, db: Session, client: TestClient, k8s_secrets_mock):
         mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "server.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "server.py.services.api.utils.builder.make_kaniko_pod",
+            unittest.mock.MagicMock(),
         ):
             self._mock_list_pods()
             self._mock_create_namespaced_custom_object()

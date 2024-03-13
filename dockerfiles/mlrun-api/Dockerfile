@@ -84,8 +84,8 @@ ENTRYPOINT ["tini", "--"]
 
 CMD [ \
     "uvicorn", \
-    "server.api.main:app", \
+    "server.py.services.api.main:app", \
     "--proxy-headers", \
     "--host", "0.0.0.0", \
-    "--log-config", "server/api/uvicorn_log_config.yaml" \
+    "--log-config", "server/py/services/api/uvicorn_log_config.yaml" \
 ]

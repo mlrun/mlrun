@@ -34,7 +34,9 @@ tests/system/env.yml
 .python-version
 *.bak
 docs/contributing.md
-server/api/proto/*pb2*.py
+server/py/services/api/proto/*pb2*.py
+server/py/proto/*pb2*.py
+server/go/mlrun-go/pkg/proto
 automation/patch_igz/patch_env.yml
 kubeconfig
 

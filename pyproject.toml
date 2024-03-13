@@ -85,7 +85,7 @@ layers = [
 name = "MLRun should not import mlrun.api"
 type = "forbidden"
 source_modules = [
-    "server.api",
+    "server.py",
     "mlrun.common",
     "mlrun.artifacts",
     "mlrun.data_types",

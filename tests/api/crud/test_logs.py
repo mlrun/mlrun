@@ -20,8 +20,8 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
-import server.api.crud
-import server.api.utils.clients.log_collector
+import server.py.services.api.crud
+import server.py.services.api.utils.clients.log_collector
 from tests.api.utils.clients.test_log_collector import GetLogSizeResponse
 
 
@@ -33,22 +33,28 @@ class TestLogs:
         project = "project-name"
         uid = "m33"
         data1, data2 = b"ab", b"cd"
-        server.api.crud.Runs().store_run(
+        server.py.services.api.crud.Runs().store_run(
             db,
             {"metadata": {"name": "run-name"}, "some-run-data": "blabla"},
             uid,
             project=project,
         )
-        server.api.crud.Logs().store_log(data1, project, uid)
-        log = server.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
+        server.py.services.api.crud.Logs().store_log(data1, project, uid)
+        log = server.py.services.api.crud.Logs()._get_logs_legacy_method(
+            db, project, uid
+        )
         assert data1 == log, "get log 1"
 
-        server.api.crud.Logs().store_log(data2, project, uid, append=True)
-        log = server.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
+        server.py.services.api.crud.Logs().store_log(data2, project, uid, append=True)
+        log = server.py.services.api.crud.Logs()._get_logs_legacy_method(
+            db, project, uid
+        )
         assert data1 + data2 == log, "get log 2"
 
-        server.api.crud.Logs().store_log(data1, project, uid, append=False)
-        log = server.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
+        server.py.services.api.crud.Logs().store_log(data1, project, uid, append=False)
+        log = server.py.services.api.crud.Logs()._get_logs_legacy_method(
+            db, project, uid
+        )
         assert data1 == log, "get log append=False"
 
     @pytest.mark.parametrize(
@@ -64,7 +70,9 @@ class TestLogs:
         self, db: sqlalchemy.orm.Session, return_value, expected_error
     ):
         mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
-        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = (
+            server.py.services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_collector._call = unittest.mock.AsyncMock(
             return_value=GetLogSizeResponse(True, None, return_value)
         )
@@ -73,7 +81,9 @@ class TestLogs:
         uid = "m33"
         if expected_error:
             with pytest.raises(mlrun.errors.MLRunNotFoundError):
-                await server.api.crud.Logs().get_log_size(project, uid)
+                await server.py.services.api.crud.Logs().get_log_size(project, uid)
         else:
-            log_size = await server.api.crud.Logs().get_log_size(project, uid)
+            log_size = await server.py.services.api.crud.Logs().get_log_size(
+                project, uid
+            )
             assert return_value == log_size

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent
+import concurrent.futures
 import json
 import pickle
 import time
@@ -32,7 +34,9 @@ from sklearn.svm import SVC
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
+import mlrun.feature_store as fstore
 import mlrun.model_monitoring.api
+from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.applications.histogram_data_drift import (
@@ -377,7 +381,8 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
+            # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
 
@@ -450,3 +455,156 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             ]
             == "1m"
         )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestAllKindOfServing(TestMLRunSystem):
+    project_name = "test-mm-serving-v8"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        cls.models = {
+            "int_one_to_one": {
+                "name": "serving_1",
+                "model_name": "int_one_to_one",
+                "class_name": "OneToOne",
+                "data_point":  [1, 2, 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+            # "int_one_to_many": {
+            #     "name": "serving_2",
+            #     "model_name": "int_one_to_many",
+            #     "class_name": "OneToMany",
+            #     "data_point": [1, 2, 3],
+            #     "schema": ["f0", "f1", "f2", "p0", "p1", "p2", "p3", "p4"],
+            # },
+            # "str_one_to_one": {
+            #     "name": "serving_3",
+            #     "model_name": "str_one_to_one",
+            #     "class_name": "OneToOne",
+            #     "data_point": "input_str",
+            #     "schema": ["f0", "p0"],
+            # },
+            # "str_one_to_many": {
+            #     "name": "serving_3",
+            #     "model_name": "str_one_to_many",
+            #     "class_name": "OneToMany",
+            #     "data_point": "input_str",
+            #     "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
+            # },
+        }
+
+    def _log_model(self, model_name, train_set: pd.DataFrame = None) -> None:
+        # dataset = load_iris()
+        # train_set = pd.DataFrame(
+        #     dataset.data,
+        #     columns=dataset.feature_names,
+        # )
+        self.project.log_model(
+            model_name,
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+            training_set=train_set,
+        )
+
+    @classmethod
+    def _deploy_model_serving(
+        cls, name: str, model_name: str, class_name: str, **kwargs
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = mlrun.code_to_function(
+            project=cls.project_name,
+            name=name,
+            filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
+            kind="serving",
+        )
+        serving_fn.add_model(
+            model_name,
+            model_path=f"store://models/{cls.project_name}/{model_name}:latest",
+            class_name=class_name,
+        )
+        serving_fn.set_tracking()
+        if cls.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+
+        serving_fn.deploy()
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+
+    def test_all(self) -> None:
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            base_period=1,
+            deploy_histogram_data_drift_app=False,
+        )
+        futures = []
+        with ThreadPoolExecutor() as executor:
+            for model_name, model_dict in self.models.items():
+                self._log_model(model_name)
+                future = executor.submit(self._deploy_model_serving, **model_dict)
+                futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+        self.db = mlrun.model_monitoring.get_model_endpoint_store(
+            project=self.project_name
+        )
+        endpoints = self.db.list_model_endpoints()
+        for endpoint in endpoints:
+            model_name = endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+            model_dict = self.models[model_name]
+            serving_fn = self.project.get_function(model_dict.get("name"))
+            data_point = model_dict.get("data_point")
+
+            serving_fn.invoke(
+                f"v2/models/{model_name}/infer",
+                json.dumps(
+                    {"inputs": [data_point]},
+                ),
+            )
+            serving_fn.invoke(
+                f"v2/models/{model_name}/infer",
+                json.dumps({"inputs": [data_point, data_point]}),
+            )
+            time.sleep(70)
+
+            offline_response_df = ParquetTarget(
+                name="temp",
+                path=fstore.get_feature_set(
+                    endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
+                )
+                .spec.targets[0]
+                .path,
+            ).as_df()
+            print(f"{model_name} df result")
+            print(offline_response_df)
+
+            is_output_saved = set(model_dict.get("schema")).issubset(
+                offline_response_df.columns
+            )
+            assert (
+                is_output_saved
+            ), f"For {model_name} the schema of parquet is not as we desired"
+
+            assert offline_response_df.shape[0] == 3, "Not all the events were saved"
+
+    def test_a(self):
+        self.db = mlrun.model_monitoring.get_model_endpoint_store(
+            project=self.project_name
+        )
+        endpoints = self.db.list_model_endpoints()
+
+        print(endpoints[0][mm_constants.EventFieldType.FEATURE_SET_URI])
+        offline_response_df = ParquetTarget(
+            path=fstore.get_feature_set(
+                endpoints[0][mm_constants.EventFieldType.FEATURE_SET_URI]
+            )
+            .spec.targets[0]
+            .path,
+        ).as_df()
+        print(offline_response_df)
+        # target =
+        # # offline_response_df = m_fs.to_dataframe()
+        # a=0

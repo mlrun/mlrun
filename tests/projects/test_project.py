@@ -27,6 +27,7 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
@@ -898,6 +899,50 @@ def test_import_artifact_using_relative_path():
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
     assert artifact.spec.db_key == "y"
+
+
+def test_import_artifact_retain_producer(rundb_mock):
+    project_1 = mlrun.new_project(
+        name="project-1", context=f"{str(assets_path())}/project_1", save=False
+    )
+    project_2 = mlrun.new_project(
+        name="project-2", context=f"{str(assets_path())}/project_2", save=False
+    )
+
+    # create an artifact with a 'run' producer
+    artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
+    run_name = "my-run"
+    run_tag = "some-tag"
+
+    # we set the producer as dict so the export will work
+    artifact.producer = mlrun.artifacts.ArtifactProducer(
+        kind="run",
+        project=project_1.name,
+        name=run_name,
+        tag=run_tag,
+    ).get_meta()
+
+    # export the artifact
+    artifact_path = f"{str(assets_path())}/my-artifact.yaml"
+    artifact.export(artifact_path)
+
+    # import the artifact to another project
+    new_key = "y"
+    imported_artifact = project_2.import_artifact(artifact_path, new_key)
+    assert imported_artifact.producer == artifact.producer
+
+    # set the artifact on the first project
+    project_1.set_artifact(artifact.key, artifact)
+    project_1.save()
+
+    # load a new project from the first project's context
+    project_3 = mlrun.load_project(name="project-3", context=project_1.context)
+
+    # make sure the artifact was registered with the original producer
+    # the db key should include the run since it's a run artifact
+    db_key = f"{run_name}_{new_key}"
+    loaded_artifact = project_3.get_artifact(db_key)
+    assert loaded_artifact.producer == artifact.producer
 
 
 @pytest.mark.parametrize(

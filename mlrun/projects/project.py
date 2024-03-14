@@ -3801,9 +3801,7 @@ class MlrunProject(ModelObj):
                 )
 
         # do not retain the artifact's producer, replace it with the project as the producer
-        project_producer_tag = (
-            project_producer_tag or self._get_project_tag()
-        )
+        project_producer_tag = project_producer_tag or self._get_project_tag()
         return ArtifactProducer(
             kind="project",
             name=self.metadata.name,

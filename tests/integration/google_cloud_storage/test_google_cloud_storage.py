@@ -62,18 +62,18 @@ def google_cloud_storage_configured():
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
-    #  must be static, in order to get access from setup_class or teardown_class.
-    @staticmethod
-    def clean_test_directory(bucket_name, object_dir, gcs_fs):
-        test_dir = f"{bucket_name}/{object_dir}/"
-        if gcs_fs.exists(test_dir):
-            gcs_fs.delete(test_dir, recursive=True)
+    @classmethod
+    def clean_test_directory(cls):
+        full_test_dir = f"{cls._bucket_name}/{cls.test_dir}/"
+        if cls._gcs_fs.exists(full_test_dir):
+            cls._gcs_fs.delete(full_test_dir, recursive=True)
 
     @classmethod
     def setup_class(cls):
         cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
         cls._bucket_name = config["env"].get("bucket_name")
-        cls.object_dir = "test_mlrun_gcs_objects"
+        cls.test_dir = "test_mlrun_gcs_objects"
+        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
         cls.profile_name = "gcs_profile"
         cls.credentials_path = config["env"].get("credentials_json_file")
         cls.setup_mapping = {
@@ -91,11 +91,7 @@ class TestGoogleCloudStorage:
                 cls.credentials = gcs_credentials_path.read()
 
         cls._gcs_fs = fsspec.filesystem("gcs", token=token)
-        cls.clean_test_directory(
-            bucket_name=cls._bucket_name,
-            object_dir=cls.object_dir,
-            gcs_fs=cls._gcs_fs,
-        )
+        cls.clean_test_directory()
 
     def _setup_profile(self, profile_auth_by):
         if profile_auth_by:
@@ -110,7 +106,7 @@ class TestGoogleCloudStorage:
     def setup_before_each_test(self, use_datastore_profile):
         store_manager.reset_secrets()
         object_file = f"file_{uuid.uuid4()}.txt"
-        self._object_path = self.object_dir + "/" + object_file
+        self._object_path = self.run_dir + "/" + object_file
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         os.environ.pop("GCP_CREDENTIALS", None)
         self._bucket_path = (
@@ -118,16 +114,13 @@ class TestGoogleCloudStorage:
             if use_datastore_profile
             else "gcs://" + self._bucket_name
         )
-        self._object_url = self._bucket_path + "/" + self._object_path
+        self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
+        self._object_url = self.run_dir_url + "/" + object_file
         logger.info(f"Object URL: {self._object_url}")
 
     @classmethod
     def teardown_class(cls):
-        cls.clean_test_directory(
-            bucket_name=cls._bucket_name,
-            object_dir=cls.object_dir,
-            gcs_fs=cls._gcs_fs,
-        )
+        cls.clean_test_directory()
 
     def _setup_by_google_credentials_file(
         self, use_datastore_profile, use_secrets
@@ -171,7 +164,7 @@ class TestGoogleCloudStorage:
         else:
             secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
-        dataframes_url = f"{self._bucket_path}/{self.object_dir}{dataframes_dir}"
+        dataframes_url = f"{self._bucket_path}/{self.run_dir}{dataframes_dir}"
         df1_path = join(self.assets_path, f"test_data.{file_format}")
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
@@ -268,11 +261,11 @@ class TestGoogleCloudStorage:
     ):
         secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
-        dataframes_url = f"{self._bucket_path}/{filename}"
+        dataframe_url = f"{self._bucket_path}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 
-        upload_data_item = mlrun.run.get_dataitem(dataframes_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=secrets)
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)

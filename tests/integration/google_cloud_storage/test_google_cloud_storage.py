@@ -69,7 +69,7 @@ class TestGoogleCloudStorage:
         if gcs_fs.exists(test_dir):
             gcs_fs.delete(test_dir, recursive=True)
 
-    @staticmethod
+    @classmethod
     def setup_class(cls):
         cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
         cls._bucket_name = config["env"].get("bucket_name")
@@ -121,7 +121,7 @@ class TestGoogleCloudStorage:
         self._object_url = self._bucket_path + "/" + self._object_path
         logger.info(f"Object URL: {self._object_url}")
 
-    @staticmethod
+    @classmethod
     def teardown_class(cls):
         cls.clean_test_directory(
             bucket_name=cls._bucket_name,

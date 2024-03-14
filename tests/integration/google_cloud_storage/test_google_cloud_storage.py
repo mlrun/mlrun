@@ -261,7 +261,7 @@ class TestGoogleCloudStorage:
     ):
         secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
-        dataframe_url = f"{self._bucket_path}/{filename}"
+        dataframe_url = f"{self.run_dir}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 
@@ -298,11 +298,11 @@ class TestGoogleCloudStorage:
     ):
         secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
-        dataframes_url = f"{self._bucket_path}/{filename}"
+        dataframe_url = f"{self.run_dir}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 
-        upload_data_item = mlrun.run.get_dataitem(dataframes_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=secrets)
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args, df_module=dd)
         dd.assert_eq(source, response)

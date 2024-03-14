@@ -20,12 +20,16 @@ class OneToOne(mlrun.serving.V2ModelServer):
 
     def predict(self, body: dict):
         inputs = body.get("inputs")
-        if isinstance(inputs[0], list):
+        if isinstance(inputs[0], list) and len(inputs) == 600:  # single image
+            outputs = 3
+        elif isinstance(inputs[0], list) and len(inputs) == 2 and len(inputs[0]) == 600:
+            outputs = [2, 2]
+        elif isinstance(inputs[0], list) or (
+            isinstance(inputs[0], str) and isinstance(inputs, list)
+        ):
             outputs = [inp[0] for inp in inputs]
-            # outputs = [5, 5]
         else:
             outputs = inputs[0]
-            # outputs = [5]
         return outputs
 
 
@@ -35,7 +39,9 @@ class OneToMany(mlrun.serving.V2ModelServer):
 
     def predict(self, body: dict):
         inputs = body.get("inputs")
-        if isinstance(inputs[0], list):
+        if isinstance(inputs[0], list) or (
+            isinstance(inputs[0], str) and isinstance(inputs, list)
+        ):
             outputs = [[inp[0], inp[0], 3.0, "a", 5] for inp in inputs]
         else:
             outputs = [inputs[0], inputs[0], 3.0, "a", 5]

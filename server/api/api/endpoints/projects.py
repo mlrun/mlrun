@@ -260,6 +260,7 @@ async def delete_project(
 
         logger.warning(
             "Project not found in leader, ensuring project deleted in mlrun",
+            project_name=name,
             err=mlrun.errors.err_to_str(exc),
         )
         force_delete = True

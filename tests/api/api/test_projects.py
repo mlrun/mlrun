@@ -968,14 +968,26 @@ def test_delete_project_not_found_in_leader(
     mock_project_follower_iguazio_client,
     delete_api_version: str,
 ) -> None:
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+    archived_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="archived-project"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+        status=mlrun.common.schemas.ProjectStatus(
+            state=mlrun.common.schemas.ProjectState.archived
+        ),
+    )
+
+    online_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="online-project"),
         spec=mlrun.common.schemas.ProjectSpec(),
     )
 
-    response = unversioned_client.post("v1/projects", json=project.dict())
+    response = unversioned_client.post("v1/projects", json=archived_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project, response)
+    _assert_project_response(archived_project, response)
+
+    response = unversioned_client.post("v1/projects", json=online_project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(online_project, response)
 
     with unittest.mock.patch.object(
         mock_project_follower_iguazio_client,
@@ -983,14 +995,40 @@ def test_delete_project_not_found_in_leader(
         side_effect=mlrun.errors.MLRunNotFoundError("Project not found"),
     ):
         response = unversioned_client.delete(
-            f"{delete_api_version}/projects/{project.metadata.name}",
+            f"{delete_api_version}/projects/{archived_project.metadata.name}",
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
 
         response = unversioned_client.get(
-            f"v1/projects/{project.metadata.name}",
+            f"v1/projects/{archived_project.metadata.name}",
         )
         assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{online_project.metadata.name}",
+        )
+        if response.status_code == HTTPStatus.ACCEPTED.value:
+            assert delete_api_version == "v2"
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                background_task.metadata.name
+            )
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+            assert (
+                "Failed to delete project online-project. Project not found in leader, but it is not in archived state."
+                in background_task.status.error
+            )
+
+        else:
+            assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+        response = unversioned_client.get(
+            f"v1/projects/{online_project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.OK.value
 
 
 # Test should not run more than a few seconds because we test that if the background task fails,

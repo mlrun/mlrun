@@ -1169,7 +1169,8 @@ async def _delete_project(
 
         if project.status.state != mlrun.common.schemas.ProjectState.archived:
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"Project {project_name} not found in leader, but it is not in archived state"
+                f"Failed to delete project {project_name}. "
+                "Project not found in leader, but it is not in archived state."
             )
 
         logger.warning(

@@ -58,21 +58,12 @@ async def delete_project(
 ):
     # check if project exists
     try:
-        await run_in_threadpool(
+        project = await run_in_threadpool(
             get_project_member().get_project, db_session, name, auth_info.session
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
-
-    # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
-    # task, we need to check permissions here. skip permission check if the request is from the leader.
-    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name,
-            mlrun.common.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
@@ -90,6 +81,32 @@ async def delete_project(
             name=name, request=request, api_version="v2"
         )
 
+    # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
+    # task, we need to check permissions here. skip permission check if the request is from the leader.
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        skip_permission_check = False
+        # If the project is archived, and does not exist in the leader, the permission check is skipped.
+        if project.status.state == mlrun.common.schemas.ProjectState.archived:
+            try:
+                await run_in_threadpool(
+                    get_project_member().get_project,
+                    db_session,
+                    name,
+                    auth_info.session,
+                    from_leader=True,
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                skip_permission_check = True
+
+        if not skip_permission_check:
+            await (
+                server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    name,
+                    mlrun.common.schemas.AuthorizationAction.delete,
+                    auth_info,
+                )
+            )
+
     # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response
     if deletion_strategy.strategy_to_check():
@@ -105,7 +122,7 @@ async def delete_project(
 
     task, task_name = await run_in_threadpool(
         server.api.api.utils.get_or_create_project_deletion_background_task,
-        name,
+        project,
         deletion_strategy,
         db_session,
         auth_info,

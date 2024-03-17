@@ -264,7 +264,11 @@ jobs:
       - uses: actions/checkout@v3
       - name: Create tutorials tar
         run: |
-          tar -cvf mlrun-tutorials.tar docs/tutorials
+          mkdir jupyter-welcome
+          wget -c https://github.com/v3io/tutorials/blob/development/welcome.ipynb -o jupyter-welcome/welcome.ipynb
+          wget -c https://github.com/v3io/tutorials/blob/development/README.md -o jupyter-welcome/README.md
+          tar -cvf mlrun-tutorials.tar docs/tutorials jupyter-welcome
+          rm -rf jupyter-welcome
       - name: Add tutorials tar to release
         uses: ncipollo/release-action@v1
         with:

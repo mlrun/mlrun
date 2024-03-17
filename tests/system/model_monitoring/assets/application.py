@@ -30,7 +30,7 @@ EXPECTED_EVENTS_COUNT = (
 
 
 class DemoMonitoringApp(ModelMonitoringApplicationBase):
-    name = "monitoring-test"
+    NAME = "monitoring-test"
     check_num_events = True
 
     # noinspection PyMethodOverriding

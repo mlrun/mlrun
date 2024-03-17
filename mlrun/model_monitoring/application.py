@@ -267,7 +267,7 @@ class PushToMonitoringWriter(StepToDict):
         self.project = project
         self.application_name_to_push = writer_application_name
         self.stream_uri = stream_uri or get_stream_path(
-            project=self.project, application_name=self.application_name_to_push
+            project=self.project, function_name=self.application_name_to_push
         )
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"

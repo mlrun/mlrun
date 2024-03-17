@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import os
 import pickle
@@ -235,7 +235,6 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
 
 
-@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestBasicModelMonitoring(TestMLRunSystem):
@@ -275,7 +274,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
             model_name,
-            model_dir=os.path.relpath(self.assets_path),
+            model_dir=str(self.assets_path),
             model_file="model.pkl",
             training_set=train_set,
             artifact_path=f"v3io:///projects/{project.metadata.name}",
@@ -294,7 +293,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Simulating valid requests
         iris_data = iris["data"].tolist()
 
-        for i in range(102):
+        for _ in range(102):
             data_point = choice(iris_data)
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
@@ -302,13 +301,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             sleep(choice([0.01, 0.04]))
 
         # Test metrics
-        mlrun.utils.helpers.retry_until_successful(
-            3,
-            10,
-            self._logger,
-            False,
-            self._assert_model_endpoint_metrics,
-        )
+        sleep(5)
+        self._assert_model_endpoint_metrics()
 
     def _assert_model_endpoint_metrics(self):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
@@ -321,7 +315,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         assert len(endpoint.status.metrics) > 0
         self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 
-        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
+        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 102
 
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"
@@ -824,9 +818,9 @@ class TestBatchDrift(TestMLRunSystem):
                 "p0": [0, 0],
             }
         )
-        infer_results_df[
-            mlrun.common.schemas.EventFieldType.TIMESTAMP
-        ] = datetime.utcnow()
+        infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
+            datetime.utcnow()
+        )
 
         # Record results and trigger the monitoring batch job
         endpoint_id = "123123123123"
@@ -990,9 +984,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.training_set = cls.x_train.join(cls.y_train)
         cls.test_set = cls.x_test.join(cls.y_test)
         cls.infer_results_df = cls.test_set
-        cls.infer_results_df[
-            mlrun.common.schemas.EventFieldType.TIMESTAMP
-        ] = datetime.utcnow()
+        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
+            datetime.utcnow()
+        )
         cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
         cls.function_name = f"{cls.name_prefix}-function"
         cls._train()
@@ -1085,9 +1079,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.model_name = "clf_model"
 
         cls.infer_results_df = cls.train_set.copy()
-        cls.infer_results_df[
-            mlrun.common.schemas.EventFieldType.TIMESTAMP
-        ] = datetime.utcnow()
+        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
+            datetime.utcnow()
+        )
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)

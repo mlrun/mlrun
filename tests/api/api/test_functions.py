@@ -284,7 +284,7 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     monkeypatch,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    endpoint = "/build/function"
     tests.api.api.utils.create_project(client, PROJECT)
 
     function_name = "test-function"
@@ -316,7 +316,7 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    endpoint = "/build/function"
     tests.api.api.utils.create_project(client, PROJECT)
 
     function_name = "test-function"
@@ -344,9 +344,9 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
         expected_response = test_case.get("expected_body")
         body = test_case.get("body")
 
-        httpserver.expect_ordered_request(endpoint, method="POST").respond_with_json(
-            expected_response, status=expected_status
-        )
+        httpserver.expect_ordered_request(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}{endpoint}", method="POST"
+        ).respond_with_json(expected_response, status=expected_status)
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
         response = client.post(endpoint, data=body)
@@ -359,6 +359,7 @@ def test_tracking_on_serving(
     client: fastapi.testclient.TestClient,
     httpserver,
     monkeypatch,
+    k8s_secrets_mock,
 ):
     """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
     generated as expected when the user applies model monitoring on a serving function
@@ -397,7 +398,7 @@ def test_tracking_on_serving(
         )
 
     # Adjust the required request endpoint and body
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    endpoint = "build/function"
     json_body = _generate_build_function_request(function)
     response = client.post(endpoint, data=json_body)
 
@@ -693,6 +694,39 @@ def test_build_no_access_key(
         assert response.json()["detail"]["reason"] == expected_reason
 
 
+def test_build_clone_target_dir_backwards_compatability(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    clone_target_dir = "/some/path"
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "clone_target_dir": clone_target_dir,
+        },
+    }
+
+    monkeypatch.setattr(
+        server.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.json()["data"]["spec"]["clone_target_dir"] == clone_target_dir
+
+
 def test_start_function_succeeded(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ):
@@ -846,15 +880,21 @@ def test_start_function(
 
 
 def _generate_function(
-    function_name: str, project: str = PROJECT, function_tag: str = "latest"
+    function_name: str,
+    project: str = PROJECT,
+    function_tag: str = "latest",
+    track_models: bool = False,
 ):
-    return mlrun.new_function(
+    fn = mlrun.new_function(
         name=function_name,
         project=project,
         tag=function_tag,
         kind="serving",
         image="mlrun/mlrun",
     )
+    if track_models:
+        fn.set_tracking()
+    return fn
 
 
 def _generate_build_function_request(

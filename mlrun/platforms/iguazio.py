@@ -16,19 +16,15 @@ import json
 import os
 import urllib
 from collections import namedtuple
-from datetime import datetime
-from http import HTTPStatus
 from urllib.parse import urlparse
 
 import kfp.dsl
 import requests
 import semver
-import urllib3
 import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
-from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json
 
 _cached_control_session = None
@@ -488,25 +484,6 @@ class V3ioStreamClient:
         return response.output.records
 
 
-def create_control_session(url, username, password):
-    # for systems without production cert - silence no cert verification WARN
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    if not username or not password:
-        raise ValueError("cannot create session key, missing username or password")
-
-    session = requests.Session()
-    session.auth = (username, password)
-    try:
-        auth = session.post(f"{url}/api/sessions", verify=False)
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
-
-    if not auth.ok:
-        raise OSError(f"failed to create session: {url}, {auth.text}")
-
-    return auth.json()["data"]["id"]
-
-
 def is_iguazio_endpoint(endpoint_url: str) -> bool:
     # TODO: find a better heuristic
     return ".default-tenant." in endpoint_url
@@ -531,21 +508,6 @@ def is_iguazio_session_cookie(session_cookie: str) -> bool:
         return json.loads(unqouted_cookie[2:])["sid"] is not None
     except Exception:
         return False
-
-
-def is_iguazio_system_2_10_or_above(dashboard_url):
-    # for systems without production cert - silence no cert verification WARN
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    response = requests.get(f"{dashboard_url}/api/external_versions", verify=False)
-
-    if not response.ok:
-        if response.status_code == HTTPStatus.NOT_FOUND.value:
-            # in iguazio systems prior to 2.10 this endpoint didn't exist, so the api returns 404 cause endpoint not
-            # found
-            return False
-        response.raise_for_status()
-
-    return True
 
 
 # we assign the control session or access key to the password since this is iguazio auth scheme
@@ -577,33 +539,12 @@ def add_or_refresh_credentials(
     # (ideally if we could identify we're in enterprise we would have verify here that token and username have value)
     if not is_iguazio_endpoint(api_url):
         return "", "", token
-    iguazio_dashboard_url = "https://dashboard" + api_url[api_url.find(".") :]
 
-    # in 2.8 mlrun api is protected with control session, from 2.10 it's protected with access key
-    is_access_key_auth = is_iguazio_system_2_10_or_above(iguazio_dashboard_url)
-    if is_access_key_auth:
-        if not username or not token:
-            raise ValueError(
-                "username and access key required to authenticate against iguazio system"
-            )
-        return username, token, ""
-
-    if not username or not password:
-        raise ValueError("username and password needed to create session")
-
-    global _cached_control_session
-    now = datetime.now()
-    if _cached_control_session:
-        if (
-            _cached_control_session[2] == username
-            and _cached_control_session[3] == password
-            and (now - _cached_control_session[1]).seconds < 20 * 60 * 60
-        ):
-            return _cached_control_session[2], _cached_control_session[0], ""
-
-    control_session = create_control_session(iguazio_dashboard_url, username, password)
-    _cached_control_session = (control_session, now, username, password)
-    return username, control_session, ""
+    if not username or not token:
+        raise ValueError(
+            "username and access key required to authenticate against iguazio system"
+        )
+    return username, token, ""
 
 
 def parse_path(url, suffix="/"):
@@ -611,7 +552,9 @@ def parse_path(url, suffix="/"):
     parsed_url = urlparse(url)
     if parsed_url.netloc:
         scheme = parsed_url.scheme.lower()
-        if scheme == "v3ios":
+        if scheme == "s3":
+            prefix = "s3"
+        elif scheme == "v3ios":
             prefix = "https"
         elif scheme == "v3io":
             prefix = "http"

@@ -144,7 +144,6 @@ class ModelEndpoints:
         # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
         # system
         logger.info("Creating model endpoint", endpoint_id=model_endpoint.metadata.uid)
-
         # Write the new model endpoint
         model_endpoint_store = get_model_endpoint_store(
             project=model_endpoint.metadata.project,

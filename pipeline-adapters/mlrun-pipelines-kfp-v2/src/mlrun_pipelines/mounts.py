@@ -15,6 +15,7 @@
 import os
 
 import mlrun
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -159,3 +160,81 @@ def mount_s3(
         return runtime
 
     return _use_s3_cred
+
+
+def mount_spark_conf():
+    raise NotImplementedError
+
+
+def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
+    """Modifier function to mount kubernetes secret as files(s)
+
+    :param secret_name:  k8s secret name
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    :param items:        If unspecified, each key-value pair in the Data field
+                         of the referenced Secret will be projected into the
+                         volume as a file whose name is the key and content is
+                         the value.
+                         If specified, the listed keys will be projected into
+                         the specified paths, and unlisted keys will not be
+                         present.
+    """
+    raise NotImplementedError
+
+
+def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=None):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param configmap_name:  k8s configmap name
+    :param mount_path:      path to mount inside the container
+    :param volume_name:     unique volume name
+    :param items:           If unspecified, each key-value pair in the Data field
+                            of the referenced Configmap will be projected into the
+                            volume as a file whose name is the key and content is
+                            the value.
+                            If specified, the listed keys will be projected into
+                            the specified paths, and unlisted keys will not be
+                            present.
+    """
+    raise NotImplementedError
+
+
+def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param host_path:  host path
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    """
+    raise NotImplementedError
+
+
+# auto_mount has to be moved to the mlrun_pipelines.common
+def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
+    """choose the mount based on env variables and params
+
+    volume will be selected by the following order:
+    - k8s PVC volume when both pvc_name and volume_mount_path are set
+    - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
+    - k8s PVC volume if it's configured as the auto mount type
+    - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
+    """
+    if pvc_name and volume_mount_path:
+        return mount_pvc(
+            pvc_name=pvc_name,
+            volume_mount_path=volume_mount_path,
+            volume_name=volume_name or "shared-persistency",
+        )
+    if "MLRUN_PVC_MOUNT" in os.environ:
+        return mount_pvc(
+            volume_name=volume_name or "shared-persistency",
+        )
+    # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
+    # parameters may still be declared - use them in that case.
+    if config.storage.auto_mount_type == "pvc":
+        return mount_pvc(**config.get_storage_auto_mount_params())
+    if "V3IO_ACCESS_KEY" in os.environ:
+        return mount_v3io(name=volume_name or "v3io")
+
+    raise ValueError("failed to auto mount, need to set env vars")

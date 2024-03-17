@@ -1501,11 +1501,17 @@ class MlrunProject(ModelObj):
         )
         producer = self._resolve_artifact_producer(item)
         if producer.name != self.metadata.name:
-            # the artifact producer is retained, so log it only if it doesn't already exist
+            # the artifact producer is retained, log it only if it doesn't already exist
             if existing_artifact := self._resolve_existing_artifact(
                 item,
                 tag,
             ):
+                artifact_key = item if isinstance(item, str) else item.key
+                logger.info(
+                    "Artifact already exists, skipping logging",
+                    key=artifact_key,
+                    tag=tag,
+                )
                 return existing_artifact
         item = am.log_artifact(
             producer,
@@ -3837,6 +3843,9 @@ class MlrunProject(ModelObj):
         except mlrun.errors.MLRunNotFoundError:
             logger.debug(
                 "No existing artifact was found",
+                key=item if isinstance(item, str) else item.key,
+                tag=tag if isinstance(item, str) else item.tag,
+                tree=None if isinstance(item, str) else item.tree,
             )
             return None
 

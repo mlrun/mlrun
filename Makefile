@@ -610,10 +610,10 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: fmt-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports ## Run lint on the code
 
-.PHONY: fmt-check
-fmt-check: ## Check the code (using ruff)
+.PHONY: lint-check
+lint-check: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
 	python -m ruff check --exit-non-zero-on-fix
 	python -m ruff format --check

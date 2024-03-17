@@ -15,6 +15,7 @@
 
 import json
 import os
+from copy import deepcopy
 from typing import Union
 
 import mlrun_pipelines.common.models
@@ -23,7 +24,18 @@ import mlrun
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
-from mlrun.utils import get_in, get_workflow_url, is_ipython, logger, version
+from mlrun.utils import (
+    dict_to_yaml,
+    gen_md_table,
+    get_artifact_target,
+    get_in,
+    get_workflow_url,
+    is_ipython,
+    is_legacy_artifact,
+    logger,
+    run_keys,
+    version,
+)
 
 # default KFP artifacts and output (ui metadata, metrics etc.)
 # directories to /tmp to allow running with security context
@@ -199,6 +211,7 @@ def mlrun_op(
             image = image or function.spec.kfp_image or config.dask_kfp_image
 
     image = image or config.kfp_image
+    image = "laury/mlrun:kfp2"
 
     if runobj:
         handler = handler or runobj.spec.handler_name
@@ -436,3 +449,118 @@ def show_kfp_run(run, clear_output=False):
             IPython.display.display(html, dag)
         except Exception as exc:
             logger.warning(f"failed to plot graph, {err_to_str(exc)}")
+
+
+def is_num(v):
+    return isinstance(v, (int, float, complex))
+
+
+def write_kfpmeta(struct):
+    if "status" not in struct:
+        return
+
+    results = struct["status"].get("results", {})
+    metrics = {
+        "metrics": [
+            {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
+        ],
+    }
+    with open(KFPMETA_DIR + "/mlpipeline-metrics.json", "w") as f:
+        json.dump(metrics, f)
+
+    struct = deepcopy(struct)
+    uid = struct["metadata"].get("uid")
+    project = struct["metadata"].get("project", config.default_project)
+    output_artifacts, out_dict = get_kfp_outputs(
+        struct["status"].get(run_keys.artifacts, []),
+        struct["metadata"].get("labels", {}),
+        project,
+    )
+
+    # /tmp/run_id
+    results["run_id"] = results.get("run_id", "/".join([project, uid]))
+    for key in struct["spec"].get(run_keys.outputs, []):
+        val = "None"
+        if key in out_dict:
+            val = out_dict[key]
+        elif key in results:
+            val = results[key]
+        try:
+            path = "/".join([KFP_ARTIFACTS_DIR, key])
+            logger.info("Writing artifact output", path=path, val=val)
+            with open(path, "w") as fp:
+                fp.write(str(val))
+        except Exception as exc:
+            logger.warning("Failed writing to temp file. Ignoring", exc=repr(exc))
+            pass
+
+    text = "# Run Report\n"
+    if "iterations" in struct["status"]:
+        del struct["status"]["iterations"]
+
+    text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
+
+    metadata = {
+        "outputs": output_artifacts
+        + [{"type": "markdown", "storage": "inline", "source": text}]
+    }
+
+    # saar is working on removing this
+    with open(KFPMETA_DIR + "/mlpipeline-ui-metadata.json", "w") as f:
+        json.dump(metadata, f)
+
+
+def get_kfp_outputs(artifacts, labels, project):
+    outputs = []
+    out_dict = {}
+    for output in artifacts:
+        if is_legacy_artifact(output):
+            key = output["key"]
+            # The spec in a legacy artifact is contained in the main object, so using this assignment saves us a lot
+            # of if/else in the rest of this function.
+            output_spec = output
+        else:
+            key = output.get("metadata")["key"]
+            output_spec = output.get("spec", {})
+
+        target = output_spec.get("target_path", "")
+        target = output_spec.get("inline", target)
+
+        out_dict[key] = get_artifact_target(output, project=project)
+
+        if target.startswith("v3io:///"):
+            target = target.replace("v3io:///", "http://v3io-webapi:8081/")
+
+        user = labels.get("v3io_user", "") or os.environ.get("V3IO_USERNAME", "")
+        if target.startswith("/User/"):
+            user = user or "admin"
+            target = "http://v3io-webapi:8081/users/" + user + target[5:]
+
+        viewer = output_spec.get("viewer", "")
+        if viewer in ["web-app", "chart"]:
+            meta = {"type": "web-app", "source": target}
+            outputs += [meta]
+
+        elif viewer == "table":
+            header = output_spec.get("header", None)
+            if header and target.endswith(".csv"):
+                meta = {
+                    "type": "table",
+                    "format": "csv",
+                    "header": header,
+                    "source": target,
+                }
+                outputs += [meta]
+
+        elif output.get("kind") == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
+            if preview:
+                tbl_md = gen_md_table(header, preview)
+                text = f"## Dataset: {key}  \n\n" + tbl_md
+                del output_spec["preview"]
+
+                meta = {"type": "markdown", "storage": "inline", "source": text}
+                outputs += [meta]
+
+    return outputs, out_dict

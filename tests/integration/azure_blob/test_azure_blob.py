@@ -15,8 +15,10 @@
 import os
 import tempfile
 import uuid
+from os.path import abspath, dirname, join
 from pathlib import Path
 
+import dask.dataframe as dd
 import pandas as pd
 import pytest
 import yaml
@@ -76,32 +78,74 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
 class TestAzureBlob:
     @classmethod
     def setup_class(cls):
+        cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
         cls.profile_name = "azure_blob_ds_profile"
         cls.test_dir = "test_mlrun_azure_blob"
+        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
         cls._bucket_name = config["env"].get("AZURE_CONTAINER", None)
         cls.test_file = here / "test.txt"
         with open(cls.test_file) as f:
             cls.test_string = f.read()
+        cls._azure_fs = None
 
-    def teardown_method(self):
-        test_dir = f"{self._bucket_name}/{self.test_dir}"
-        if not self._azure_fs:
+    @classmethod
+    def teardown_class(cls):
+        test_dir = f"{cls._bucket_name}/{cls.test_dir}"
+        if not cls._azure_fs:
             return
-        if self._azure_fs.exists(test_dir):
-            self._azure_fs.delete(test_dir, recursive=True)
+        if cls._azure_fs.exists(test_dir):
+            cls._azure_fs.delete(test_dir, recursive=True)
             logger.debug("test directory has been cleaned.")
+
+    @classmethod
+    def create_fs(cls, storage_options):
+        #  Create filesystem object only once - for teardown_class method.
+        if not cls._azure_fs:
+            azure_fs = AzureBlobFileSystem(storage_options)
+            try:
+                azure_fs.info(cls._bucket_name)  # in order to check connection ...
+                cls._azure_fs = azure_fs
+            except Exception:
+                pass
+
+    def _setup_df_dir(self, use_datastore_profile, file_format, reader):
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
+        df1_path = join(self.assets_path, f"test_data.{file_format}")
+        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+
+        #  upload
+        dt1 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
+        )
+        dt2 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df2.{file_format}", secrets=self.storage_options
+        )
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        return (
+            mlrun.run.get_dataitem(dataframes_url),
+            reader(df1_path),
+            reader(df2_path),
+        )
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile, auth_method):
-        self.blob_file = f"file_{uuid.uuid4()}.txt"
+        self.object_file = f"file_{uuid.uuid4()}.txt"
         store_manager.reset_secrets()
-        self._azure_fs = None
         self.storage_options = {}
         for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
             for env_var in env_vars:
                 os.environ.pop(env_var, None)
 
         test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
+        if use_datastore_profile:
+            self._bucket_url = f"ds://{self.profile_name}/{self._bucket_name}"
+        else:
+            self._bucket_url = "az://" + self._bucket_name
+        self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
+        self.object_url = self.run_dir_url + "/" + self.object_file
+
         if not test_params:
             pytest.skip(f"Auth method {auth_method} not configured.")
 
@@ -117,14 +161,12 @@ class TestAzureBlob:
                 os.environ[env_var] = env_value
 
             logger.info(f"Testing auth method {auth_method}")
-            self._azure_fs = AzureBlobFileSystem()
         elif auth_method.startswith("fsspec"):
             for var in test_params:
                 value = config["env"].get(var)
                 if not value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 self.storage_options[var] = value
-            self._azure_fs = AzureBlobFileSystem(**self.storage_options)
             logger.info(f"Testing auth method {auth_method}")
             if use_datastore_profile:
                 self.profile = DatastoreProfileAzureBlob(
@@ -133,16 +175,12 @@ class TestAzureBlob:
                 register_temporary_client_datastore_profile(self.profile)
         else:
             raise ValueError("auth_method not known")
-
-    def get_blob_container_path(self, use_datastore_profile):
-        if use_datastore_profile:
-            return f"ds://{self.profile_name}/{self._bucket_name}"
-        return "az://" + self._bucket_name
+        self.create_fs(storage_options=self.storage_options)
 
     def test_azure_blob(self, use_datastore_profile, auth_method):
-        blob_container_path = self.get_blob_container_path(use_datastore_profile)
-        blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
-        data_item = mlrun.run.get_dataitem(blob_url, secrets=self.storage_options)
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
         data_item.put(self.test_string)
 
         # Validate append is properly blocked (currently not supported for Azure blobs)
@@ -167,32 +205,24 @@ class TestAzureBlob:
         assert stat.size == len(self.test_string), "Stat size different than expected"
 
     def test_list_dir(self, use_datastore_profile, auth_method):
-        blob_container_path = self.get_blob_container_path(use_datastore_profile)
-        blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
-
-        file_dataitem = mlrun.run.get_dataitem(blob_url, self.storage_options)
+        file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
         # Check dir list for container
-        blob_item = mlrun.run.get_dataitem(blob_container_path, self.storage_options)
+        blob_item = mlrun.run.get_dataitem(self._bucket_url, self.storage_options)
         dir_list = blob_item.listdir()  # can take a lot of time to big buckets.
         assert (
-            self.test_dir + "/" + self.blob_file in dir_list
+            self.run_dir + "/" + self.object_file in dir_list
         ), "File not in container dir-list"
 
         # Check dir list for folder in container
-        dir_dataitem = mlrun.run.get_dataitem(
-            blob_container_path + "/" + self.test_dir, self.storage_options
-        )
-        assert self.blob_file in dir_dataitem.listdir(), "File not in folder dir-list"
+        dir_dataitem = mlrun.run.get_dataitem(self.run_dir_url, self.storage_options)
+        assert self.object_file in dir_dataitem.listdir(), "File not in folder dir-list"
         file_dataitem.delete()
-        assert self.blob_file not in dir_dataitem.listdir()
+        assert self.object_file not in dir_dataitem.listdir()
 
     def test_blob_upload(self, use_datastore_profile, auth_method):
-        blob_container_path = self.get_blob_container_path(use_datastore_profile)
-        blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
-
-        upload_data_item = mlrun.run.get_dataitem(blob_url, self.storage_options)
+        upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         upload_data_item.upload(self.test_file)
 
         response = upload_data_item.get()
@@ -201,16 +231,11 @@ class TestAzureBlob:
         ), "Result differs from original test"
 
     @pytest.mark.parametrize(
-        "file_format, file_extension, ,writer, reader",
+        "file_format, reader, reader_args",
         [
-            (
-                "parquet",
-                "parquet",
-                pd.DataFrame.to_parquet,
-                pd.read_parquet,
-            ),
-            ("csv", "csv", pd.DataFrame.to_csv, pd.read_csv),
-            ("json", "json", pd.DataFrame.to_json, pd.read_json),
+            ("parquet", pd.read_parquet, {}),
+            ("csv", pd.read_csv, {}),
+            ("json", pd.read_json, {"orient": "values"}),
         ],
     )
     def test_as_df(
@@ -218,102 +243,87 @@ class TestAzureBlob:
         use_datastore_profile,
         auth_method,
         file_format: str,
-        file_extension: str,
-        writer: callable,
         reader: callable,
+        reader_args: dict,
     ):
-        data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
-        df = pd.DataFrame(data)
-        with tempfile.NamedTemporaryFile(
-            suffix=f".{file_extension}", delete=True
-        ) as temp_file:
-            writer_kwargs = {"index": False} if file_format != "json" else {}
-            writer(df, temp_file.name, **writer_kwargs)
-            blob_container_path = self.get_blob_container_path(use_datastore_profile)
-            blob_url = (
-                blob_container_path
-                + "/"
-                + self.test_dir
-                + "/"
-                + f"file{uuid.uuid4()}.{file_extension}"
-            )
-            upload_data_item = mlrun.run.get_dataitem(blob_url, self.storage_options)
-            upload_data_item.upload(temp_file.name)
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
+        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        source = reader(local_file_path, **reader_args)
 
-            result_df = upload_data_item.as_df()
-            assert result_df.equals(df)
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(**reader_args)
+        pd.testing.assert_frame_equal(source, response)
 
     @pytest.mark.parametrize(
-        "directory, file_format, file_extension, ,writer, reader",
+        "file_format, reader, reader_args",
         [
-            (
-                parquets_dir,
-                "parquet",
-                "parquet",
-                pd.DataFrame.to_parquet,
-                pd.read_parquet,
-            ),
-            (csv_dir, "csv", "csv", pd.DataFrame.to_csv, pd.read_csv),
+            ("parquet", dd.read_parquet, {}),
+            ("csv", dd.read_csv, {}),
+            ("json", dd.read_json, {"orient": "values"}),
         ],
     )
-    def test_read_df_dir(
+    def test_as_df_dd(
         self,
         use_datastore_profile,
         auth_method,
-        directory: str,
-        file_format: str,
-        file_extension: str,
-        writer: callable,
-        reader: callable,
+        file_format,
+        reader,
+        reader_args,
     ):
-        #  generate dfs
-        # Define data for the first DataFrame
-        data1 = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
+        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        source = reader(local_file_path, **reader_args)
 
-        # Define data for the second DataFrame
-        data2 = {"Column1": [4, 5, 6], "Column2": ["X", "Y", "Z"]}
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(**reader_args, df_module=dd)
+        dd.assert_eq(source, response)
 
-        # Create the DataFrames
-        df1 = pd.DataFrame(data1)
-        df2 = pd.DataFrame(data2)
-        with (
-            tempfile.NamedTemporaryFile(
-                suffix=f".{file_extension}", delete=True
-            ) as temp_file1,
-            tempfile.NamedTemporaryFile(
-                suffix=f".{file_extension}", delete=True
-            ) as temp_file2,
-        ):
-            first_file_path = temp_file1.name
-            second_file_path = temp_file2.name
-            writer(df1, temp_file1.name, index=False)
-            writer(df2, temp_file2.name, index=False)
+    @pytest.mark.parametrize(
+        "file_format, reader, reset_index",
+        [
+            ("parquet", pd.read_parquet, False),
+            ("csv", pd.read_csv, True),
+        ],
+    )
+    def test_as_df_directory(
+        self, use_datastore_profile, auth_method, file_format, reader, reset_index
+    ):
+        dt_dir, df1, df2 = self._setup_df_dir(
+            use_datastore_profile=use_datastore_profile,
+            file_format=file_format,
+            reader=reader,
+        )
+        tested_df = dt_dir.as_df(format=file_format)
+        if reset_index:
+            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
+        pd.testing.assert_frame_equal(tested_df, expected_df)
 
-            blob_container_path = self.get_blob_container_path(use_datastore_profile)
-            dir_url = (
-                f"{blob_container_path}/{self.test_dir}/{directory}/{uuid.uuid4()}"
-            )
-            first_file_url = f"{dir_url}/first_file.{file_extension}"
-            second_file_url = f"{dir_url}/second_file.{file_extension}"
-            first_file_data_item = mlrun.run.get_dataitem(
-                first_file_url, self.storage_options
-            )
-            second_file_data_item = mlrun.run.get_dataitem(
-                second_file_url, self.storage_options
-            )
-            first_file_data_item.upload(first_file_path)
-            second_file_data_item.upload(second_file_path)
-
-            #  start the test:
-            dir_data_item = mlrun.run.get_dataitem(dir_url, self.storage_options)
-            response_df = (
-                dir_data_item.as_df(format=file_format)
-                .sort_values("Column1")
-                .reset_index(drop=True)
-            )
-            appended_df = (
-                pd.concat([df1, df2], axis=0)
-                .sort_values("Column1")
-                .reset_index(drop=True)
-            )
-            assert response_df.equals(appended_df)
+    @pytest.mark.parametrize(
+        "file_format, reader, reset_index",
+        [
+            ("parquet", dd.read_parquet, False),
+            ("csv", dd.read_csv, True),
+        ],
+    )
+    def test_as_df_directory_dd(
+        self, use_datastore_profile, file_format, reader, reset_index
+    ):
+        dt_dir, df1, df2 = self._setup_df_dir(
+            use_datastore_profile=use_datastore_profile,
+            file_format=file_format,
+            reader=reader,
+        )
+        tested_df = dt_dir.as_df(format=file_format, df_module=dd)
+        if reset_index:
+            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
+        expected_df = dd.concat([df1, df2], axis=0)
+        dd.assert_eq(tested_df, expected_df)

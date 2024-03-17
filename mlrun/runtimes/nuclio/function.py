@@ -957,7 +957,7 @@ class RemoteRuntime(KubeResource):
             data = json.loads(data)
         return data
 
-    def _with_sidecar(self, name: str, image: str, port: int = None):
+    def with_sidecar(self, name: str = None, image: str = None, port: int = None):
         """
         Add a sidecar container to the function pod
         :param name:    Sidecar container name

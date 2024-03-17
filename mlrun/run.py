@@ -34,7 +34,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
-from mlrun.runtimes.nuclio.serving import serving_subkind
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -720,18 +719,6 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels
 
-    def resolve_nuclio_sub_kind(_kind):
-        _is_nuclio = _kind.startswith("nuclio")
-        _sub_kind = (
-            _kind[_kind.find(":") + 1 :] if _is_nuclio and ":" in _kind else None
-        )
-        if _kind == RuntimeKinds.serving:
-            _is_nuclio = True
-            _sub_kind = serving_subkind
-        elif _kind == RuntimeKinds.application:
-            _is_nuclio = True
-        return _is_nuclio, _sub_kind
-
     if (
         not embed_code
         and not code_output
@@ -748,10 +735,9 @@ def code_to_function(
     if kind == RuntimeKinds.application:
         if handler:
             raise ValueError("Handler is not supported for application runtime")
-        filename = str(ApplicationRuntime.reverse_proxy_file_path)
-        handler = "Handler"
+        filename, handler = ApplicationRuntime.get_filename_and_handler()
 
-    is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)
+    is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = nuclio.build_file(
@@ -772,7 +758,7 @@ def code_to_function(
         kind = spec_kind.lower()
 
         # if its a nuclio sub kind, redo nb parsing
-        is_nuclio, sub_kind = resolve_nuclio_sub_kind(kind)
+        is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
         if is_nuclio:
             name, spec, code = nuclio.build_file(
                 filename,

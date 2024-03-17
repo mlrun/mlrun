@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,6 +112,17 @@ class ApplicationSpec(NuclioSpec):
         )
         self.internal_application_port = internal_application_port or 8080
 
+    @property
+    def internal_application_port(self):
+        return self._internal_application_port
+
+    @internal_application_port.setter
+    def internal_application_port(self, port):
+        port = int(port)
+        if port < 0 or port > 65535:
+            raise ValueError("Port must be in the range 0-65535")
+        self._internal_application_port = port
+
 
 class ApplicationStatus(NuclioStatus):
     def __init__(
@@ -139,11 +150,10 @@ class ApplicationStatus(NuclioStatus):
 
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
-    reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
 
     @min_nuclio_versions("1.12.7")
     def __init__(self, spec=None, metadata=None):
-        super().__init__(metadata, spec)
+        super().__init__(spec=spec, metadata=metadata)
 
     @property
     def spec(self) -> ApplicationSpec:
@@ -162,10 +172,6 @@ class ApplicationRuntime(RemoteRuntime):
         self._status = self._verify_dict(status, "status", ApplicationStatus)
 
     def set_internal_application_port(self, port: int):
-        port = int(port)
-        if port < 0 or port > 65535:
-            raise ValueError("Port must be in the range 0-65535")
-
         self.spec.internal_application_port = port
 
     def deploy(
@@ -200,10 +206,15 @@ class ApplicationRuntime(RemoteRuntime):
             self.from_image(self.status.container_image)
             self.spec.build.functionSourceCode = ""
 
-        self._with_sidecar(
+        self.with_sidecar(
             name=f"{self.metadata.name}-sidecar",
             image=self.status.application_image,
             port=self.spec.internal_application_port,
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
+
+    @classmethod
+    def get_filename_and_handler(cls) -> (str, str):
+        reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
+        return str(reverse_proxy_file_path), "Handler"

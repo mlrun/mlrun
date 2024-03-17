@@ -218,6 +218,11 @@ class RuntimeKinds:
 
     @staticmethod
     def resolve_nuclio_runtime(kind: str, sub_kind: str):
+        if kind not in RuntimeKinds.nuclio_runtimes():
+            raise ValueError(
+                f"Kind {kind} is not a nuclio runtime, available runtimes are {RuntimeKinds.nuclio_runtimes()}"
+            )
+
         if sub_kind == serving_subkind:
             return ServingRuntime()
 
@@ -227,6 +232,17 @@ class RuntimeKinds:
         runtime = RemoteRuntime()
         runtime.spec.function_kind = sub_kind
         return runtime
+
+    @staticmethod
+    def resolve_nuclio_sub_kind(kind):
+        is_nuclio = kind.startswith("nuclio")
+        sub_kind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        if kind == RuntimeKinds.serving:
+            is_nuclio = True
+            sub_kind = serving_subkind
+        elif kind == RuntimeKinds.application:
+            is_nuclio = True
+        return is_nuclio, sub_kind
 
 
 def get_runtime_class(kind: str):

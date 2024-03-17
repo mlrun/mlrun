@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pathlib
+
 import mlrun
 
 
@@ -24,10 +26,16 @@ def test_create_application_runtime():
     assert fn.metadata.name == "application-test"
     # base64 prefix of the reverse proxy code
     assert (
-        "Ly8gQ29weXJpZ2h0IDIwMjMgSWd1YXppbwovLwovLyBMaWN"
+        "Ly8gQ29weXJpZ2h0IDIwMjQgSWd1YXppbwovLwovLyBMaWN"
         in fn.spec.build.functionSourceCode
     )
-    assert fn.spec.function_handler == "reverse_proxy:Handler"
+
+    filepath, expected_handler = (
+        mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
+    )
+    expected_filename = pathlib.Path(filepath).name
+    expected_function_handler = f"{expected_filename.split('.')[0]}:{expected_handler}"
+    assert fn.spec.function_handler == expected_function_handler
 
 
 def test_deploy_application_runtime(rundb_mock):

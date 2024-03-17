@@ -164,7 +164,7 @@ class TestGoogleCloudStorage:
         else:
             secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
-        dataframes_url = f"{self._bucket_path}/{self.run_dir}{dataframes_dir}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = join(self.assets_path, f"test_data.{file_format}")
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
@@ -261,7 +261,7 @@ class TestGoogleCloudStorage:
     ):
         secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
-        dataframe_url = f"{self.run_dir}/{filename}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 
@@ -298,7 +298,7 @@ class TestGoogleCloudStorage:
     ):
         secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
-        dataframe_url = f"{self.run_dir}/{filename}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 

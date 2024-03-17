@@ -3,7 +3,7 @@ extend-include = ["*.ipynb"]
 target-version = "py39"
 
 [tool.ruff.lint]
-select = [
+extend-select = [
     "F",  # pyflakes
     "W",  # pycodestyle
     "E",  # pycodestyle
@@ -15,7 +15,7 @@ exclude = ["*.ipynb"]
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
 
-[tool.ruff.lint.per-file-ignores]
+[tool.ruff.lint.extend-per-file-ignores]
 "__init__.py" = ["F401"]
 
 [tool.pytest.ini_options]

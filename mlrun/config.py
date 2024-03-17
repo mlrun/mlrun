@@ -611,7 +611,7 @@ default_config = {
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
+        "timeouts": {"local": 120, "kfp": 30, "remote": 90},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -1059,7 +1059,7 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
-        application_name: str = None,
+        function_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1074,7 +1074,7 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:    Application name, None for model_monitoring_stream.
+        :param function_name:    Application name, None for model_monitoring_stream.
 
         :return:                Full configured path for the provided kind.
         """
@@ -1088,20 +1088,19 @@ class Config:
                 return store_prefix_dict[kind].format(project=project)
 
             if (
-                application_name
+                function_name
+                and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind
-                    if application_name is None
-                    else f"{kind}-{application_name.lower()}",
+                    if function_name is None
+                    else f"{kind}-{function_name.lower()}",
                 )
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=project,
-                kind=kind
-                if application_name is None
-                else f"{kind}-{application_name.lower()}",
+                kind=kind,
             )
 
         # Get the current offline path from the configuration
@@ -1349,12 +1348,21 @@ def read_env(env=None, prefix=env_prefix):
         if igz_domain:
             config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
-    if config.get("log_level"):
+    if log_level := config.get("log_level"):
         import mlrun.utils.logger
 
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
-        mlrun.utils.logger.set_logger_level(config["log_level"])
+        mlrun.utils.logger.set_logger_level(log_level)
+
+    if log_formatter_name := config.get("log_formatter"):
+        import mlrun.utils.logger
+
+        log_formatter = mlrun.utils.create_formatter_instance(
+            mlrun.utils.FormatterKinds(log_formatter_name)
+        )
+        mlrun.utils.logger.get_handler("default").setFormatter(log_formatter)
+
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)

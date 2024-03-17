@@ -633,7 +633,7 @@ csv_df = csv_source.to_dataframe()
 from pyspark.sql import SparkSession
 
 session = SparkSession.builder.master("local").getOrCreate()
-parquet_source = ParquetSource(name="read", path="v3io://users/admin/getting_started/examples/userdata1.parquet")
+parquet_source = ParquetSource(name="read", path="v3io:///users/admin/getting_started/examples/userdata1.parquet")
 spark_df = parquet_source.to_spark_df(session=session)
 
 # BigQuery

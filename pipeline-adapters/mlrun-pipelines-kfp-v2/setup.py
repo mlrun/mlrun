@@ -46,6 +46,6 @@ setup(
     ],
     python_requires=">=3.9, <3.12",
     install_requires=[
-        "kfp~=2.5",
+        "kfp[kubernetes]~=2.5",
     ],
 )

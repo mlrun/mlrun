@@ -1068,8 +1068,8 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 
 def get_or_create_project_deletion_background_task(
-    project_name: str, deletion_strategy: str, db_session, auth_info
-) -> typing.Tuple[typing.Callable, str]:
+    project: mlrun.common.schemas.Project, deletion_strategy: str, db_session, auth_info
+) -> typing.Tuple[typing.Optional[typing.Callable], str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1114,7 +1114,7 @@ def get_or_create_project_deletion_background_task(
         # therefore doesn't wait for the project deletion to complete.
         wait_for_project_deletion = True
 
-    background_task_kind = background_task_kind_format.format(project_name)
+    background_task_kind = background_task_kind_format.format(project.metadata.name)
     try:
         task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
             background_task_kind,
@@ -1134,7 +1134,7 @@ def get_or_create_project_deletion_background_task(
         _delete_project,
         background_task_name,
         db_session=db_session,
-        project_name=project_name,
+        project=project,
         deletion_strategy=deletion_strategy,
         auth_info=auth_info,
         wait_for_project_deletion=wait_for_project_deletion,
@@ -1144,24 +1144,54 @@ def get_or_create_project_deletion_background_task(
 
 async def _delete_project(
     db_session: sqlalchemy.orm.Session,
-    project_name: str,
+    project: mlrun.common.schemas.Project,
     deletion_strategy: mlrun.common.schemas.DeletionStrategy,
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
     background_task_name: str,
 ):
-    await run_in_threadpool(
-        get_project_member().delete_project,
-        db_session,
-        project_name,
-        deletion_strategy,
-        auth_info.projects_role,
-        auth_info,
-        wait_for_completion=True,
-        background_task_name=background_task_name,
-    )
+    force_delete = False
+    project_name = project.metadata.name
+    try:
+        await run_in_threadpool(
+            get_project_member().delete_project,
+            db_session,
+            project_name,
+            deletion_strategy,
+            auth_info.projects_role,
+            auth_info,
+            wait_for_completion=True,
+            background_task_name=background_task_name,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
+        if server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+            raise exc
 
-    if wait_for_project_deletion:
+        if project.status.state != mlrun.common.schemas.ProjectState.archived:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Failed to delete project {project_name}. "
+                "Project not found in leader, but it is not in archived state."
+            )
+
+        logger.warning(
+            "Project not found in leader, ensuring project is deleted in mlrun",
+            project_name=project_name,
+            exc=err_to_str(exc),
+        )
+        force_delete = True
+
+    if force_delete:
+        # In this case the wrapper delete project job is the one deleting the project because it
+        # doesn't exist in the leader.
+        await run_in_threadpool(
+            server.api.crud.Projects().delete_project,
+            db_session,
+            project_name,
+            deletion_strategy,
+            auth_info,
+        )
+
+    elif wait_for_project_deletion:
         await run_in_threadpool(
             verify_project_is_deleted,
             project_name,

@@ -212,7 +212,10 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
     ) -> mlrun.common.schemas.Project:
+        if from_leader:
+            return self._leader_client.get_project(leader_session, name)
         return server.api.crud.Projects().get_project(db_session, name)
 
     def get_project_owner(

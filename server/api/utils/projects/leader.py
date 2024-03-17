@@ -125,6 +125,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
     ) -> mlrun.common.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 

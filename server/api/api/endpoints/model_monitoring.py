@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-import fastapi
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -23,16 +22,14 @@ from server.api.api import deps
 from server.api.api.endpoints.functions import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
 
-router = fastapi.APIRouter(prefix="/projects/{project}/model-monitoring")
+router = APIRouter(prefix="/projects/{project}/model-monitoring")
 
 
 @router.post("/enable-model-monitoring")
 async def enable_model_monitoring(
     project: str,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        deps.authenticate_request
-    ),
-    db_session: Session = fastapi.Depends(deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
     base_period: int = 10,
     image: str = "mlrun/mlrun",
 ):
@@ -85,10 +82,8 @@ async def enable_model_monitoring(
 @router.post("/model-monitoring-controller")
 async def update_model_monitoring_controller(
     project: str,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        deps.authenticate_request
-    ),
-    db_session: Session = fastapi.Depends(deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
     base_period: int = 10,
     image: str = "mlrun/mlrun",
 ):

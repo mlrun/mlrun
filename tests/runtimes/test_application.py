@@ -22,6 +22,7 @@ def test_create_application_runtime():
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.spec.image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
+    # base64 prefix of the reverse proxy code
     assert (
         "Ly8gQ29weXJpZ2h0IDIwMjMgSWd1YXppbwovLwovLyBMaWN"
         in fn.spec.build.functionSourceCode

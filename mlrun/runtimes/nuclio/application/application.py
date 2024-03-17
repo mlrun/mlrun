@@ -198,6 +198,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         if self.status.container_image:
             self.from_image(self.status.container_image)
+            self.spec.build.functionSourceCode = ""
 
         self._with_sidecar(
             name=f"{self.metadata.name}-sidecar",

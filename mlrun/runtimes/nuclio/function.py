@@ -965,9 +965,7 @@ class RemoteRuntime(KubeResource):
         :param port:    Sidecar container port
         """
         # TODO: validate image on server side
-        if not name:
-            raise ValueError("Sidecar name must be specified")
-
+        name = name or f"{self.metadata.name}-sidecar"
         sidecar = self._set_sidecar(name)
         if image:
             sidecar["image"] = image

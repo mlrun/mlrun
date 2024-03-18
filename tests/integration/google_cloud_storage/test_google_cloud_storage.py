@@ -117,52 +117,49 @@ class TestGoogleCloudStorage:
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
         self._object_url = self.run_dir_url + "/" + object_file
         logger.info(f"Object URL: {self._object_url}")
+        self.storage_options = {}
 
     @classmethod
     def teardown_class(cls):
         cls.clean_test_directory()
 
-    def _setup_by_google_credentials_file(
-        self, use_datastore_profile, use_secrets
-    ) -> dict:
+    def _setup_by_google_credentials_file(self, use_datastore_profile, use_secrets):
         # We give priority to profiles, then to secrets, and finally to environment variables.
-        secrets = {}
+        self.storage_options = {}
         if use_datastore_profile:
             self._setup_profile(profile_auth_by="credentials_json_file")
             if use_secrets:
-                secrets = {"GOOGLE_APPLICATION_CREDENTIALS": "wrong path"}
+                self.storage_options = {"GOOGLE_APPLICATION_CREDENTIALS": "wrong path"}
             else:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
         else:
             if use_secrets:
-                secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
+                self.storage_options = {
+                    "GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path
+                }
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
             else:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
-        return secrets
 
     def _setup_by_serialized_json_content(self, use_datastore_profile, use_secrets):
-        secrets = {}
+        self.storage_options = {}
         if use_datastore_profile:
             self._setup_profile(profile_auth_by="gcp_credentials")
             if use_secrets:
-                secrets = {"GCP_CREDENTIALS": "wrong credentials"}
+                self.storage_options = {"GCP_CREDENTIALS": "wrong credentials"}
             else:
                 os.environ["GCP_CREDENTIALS"] = "wrong credentials"
         else:
             if use_secrets:
-                secrets = {"GCP_CREDENTIALS": self.credentials}
+                self.storage_options = {"GCP_CREDENTIALS": self.credentials}
                 os.environ["GCP_CREDENTIALS"] = "wrong credentials"
             else:
                 os.environ["GCP_CREDENTIALS"] = self.credentials
-        return secrets
 
     def _setup_df_dir(self, use_datastore_profile, file_format, reader):
-        secrets = {}
-        if use_datastore_profile:
-            self._setup_profile(profile_auth_by="credentials_json_file")
-        else:
-            secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = join(self.assets_path, f"test_data.{file_format}")
@@ -170,10 +167,10 @@ class TestGoogleCloudStorage:
 
         #  upload
         dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}", secrets=secrets
+            dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
         )
         dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}", secrets=secrets
+            dataframes_url + f"/df2.{file_format}", secrets=self.storage_options
         )
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)
@@ -196,8 +193,10 @@ class TestGoogleCloudStorage:
         self, use_datastore_profile, setup_by, use_secrets
     ):
         #  TODO split to smaller tests by datastore conventions.
-        secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
+        data_item = mlrun.run.get_dataitem(
+            self._object_url, secrets=self.storage_options
+        )
         data_item.put(test_string)
 
         response = data_item.get()
@@ -214,10 +213,12 @@ class TestGoogleCloudStorage:
             content = temp_file.read()
             assert content == test_string
 
-        dir_list = mlrun.run.get_dataitem(self._bucket_path, secrets=secrets).listdir()
+        dir_list = mlrun.run.get_dataitem(
+            self._bucket_path, secrets=self.storage_options
+        ).listdir()
         assert self._object_path in dir_list, "File not in container dir-list"
         listdir_dataitem_parent = mlrun.run.get_dataitem(
-            os.path.dirname(self._object_url), secrets=secrets
+            os.path.dirname(self._object_url), secrets=self.storage_options
         )
         listdir_parent = listdir_dataitem_parent.listdir()
         assert (
@@ -228,7 +229,9 @@ class TestGoogleCloudStorage:
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) not in listdir_parent
 
-        upload_data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(
+            self._object_url, secrets=self.storage_options
+        )
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
@@ -259,13 +262,15 @@ class TestGoogleCloudStorage:
         reader,
         reader_args,
     ):
-        secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 
-        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
@@ -296,13 +301,15 @@ class TestGoogleCloudStorage:
         reader,
         reader_args,
     ):
-        secrets = self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
 
-        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args, df_module=dd)
         dd.assert_eq(source, response)

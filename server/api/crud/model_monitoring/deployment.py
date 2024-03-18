@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import pathlib
 import typing
 
 import nuclio
@@ -21,8 +20,11 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.batch
+import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
+import mlrun.model_monitoring.writer
 import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -35,19 +37,12 @@ from mlrun.utils import logger
 from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
-_MODEL_MONITORING_COMMON_PATH = (
-    pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
-)
-_STREAM_PROCESSING_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
-)
-_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "batch.py"
-
+_STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
+_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = mlrun.model_monitoring.batch.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "controller_handler.py"
+    mlrun.model_monitoring.controller_handler.__file__
 )
-
-_MONITORING_WRITER_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "writer.py"
+_MONITORING_WRITER_FUNCTION_PATH = mlrun.model_monitoring.writer.__file__
 
 
 class MonitoringDeployment:
@@ -380,7 +375,7 @@ class MonitoringDeployment:
             mlrun.code_to_function(
                 name=mm_constants.MonitoringFunctionNames.STREAM,
                 project=self.project,
-                filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
+                filename=_STREAM_PROCESSING_FUNCTION_PATH,
                 kind=mlrun.run.RuntimeKinds.serving,
                 image=stream_image,
             ),
@@ -415,9 +410,9 @@ class MonitoringDeployment:
         :return:                            A function object from a mlrun runtime class
         """
         filename = (
-            str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
+            _MONITORING_ORIGINAL_BATCH_FUNCTION_PATH
             if function_name == mm_constants.MonitoringFunctionNames.BATCH
-            else str(_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH)
+            else _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH
         )
         # Create job function runtime for the model monitoring batch
         function = mlrun.code_to_function(
@@ -656,7 +651,7 @@ class MonitoringDeployment:
         function = mlrun.code_to_function(
             name=mm_constants.MonitoringFunctionNames.WRITER,
             project=self.project,
-            filename=str(_MONITORING_WRITER_FUNCTION_PATH),
+            filename=_MONITORING_WRITER_FUNCTION_PATH,
             kind=mlrun.run.RuntimeKinds.serving,
             image=writer_image,
         )

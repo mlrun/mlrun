@@ -13,6 +13,8 @@
 # limitations under the License.
 import pathlib
 
+import nuclio
+
 import mlrun.errors
 from mlrun.common.schemas import AuthInfo
 from mlrun.runtimes import RemoteRuntime
@@ -208,6 +210,11 @@ class ApplicationRuntime(RemoteRuntime):
                         "Application sidecar port spec must include a name"
                     )
 
+            if not sidecar.get("command") and sidecar.get("args"):
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Application sidecar spec must include a command if args are provided"
+                )
+
     def deploy(
         self,
         project="",
@@ -217,6 +224,7 @@ class ApplicationRuntime(RemoteRuntime):
         builder_env: dict = None,
         force_build: bool = False,
     ):
+        self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
         super().deploy(
             project,
@@ -226,6 +234,22 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env,
             force_build,
         )
+
+    def _ensure_reverse_proxy_configurations(self):
+        if self.spec.build.functionSourceCode or self.status.container_image:
+            return
+
+        filename, handler = ApplicationRuntime.get_filename_and_handler()
+        name, spec, code = nuclio.build_file(
+            filename,
+            name=self.metadata.name,
+            handler=handler,
+        )
+        self.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
+        self.spec.build.functionSourceCode = mlrun.utils.get_in(
+            spec, "spec.build.functionSourceCode"
+        )
+        self.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point
@@ -245,6 +269,8 @@ class ApplicationRuntime(RemoteRuntime):
             name=self.status.sidecar_name,
             image=self.status.application_image,
             ports=self.spec.internal_application_port,
+            command=self.spec.command,
+            args=self.spec.args,
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")

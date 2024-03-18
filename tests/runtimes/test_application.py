@@ -40,6 +40,29 @@ def test_create_application_runtime():
     assert fn.spec.function_handler == expected_function_handler
 
 
+def test_create_application_runtime_with_command(rundb_mock):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun", command="echo"
+    )
+    fn.deploy()
+    assert fn.spec.config["spec.sidecars"][0]["command"] == "echo"
+    assert fn.kind == mlrun.runtimes.RuntimeKinds.application
+    assert fn.status.application_image == "mlrun/mlrun"
+    assert fn.metadata.name == "application-test"
+    # base64 prefix of the reverse proxy code
+    assert (
+        "Ly8gQ29weXJpZ2h0IDIwMjQgSWd1YXppbwovLwovLyBMaWN"
+        in fn.spec.build.functionSourceCode
+    )
+
+    filepath, expected_handler = (
+        mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
+    )
+    expected_filename = pathlib.Path(filepath).name
+    expected_function_handler = f"{expected_filename.split('.')[0]}:{expected_handler}"
+    assert fn.spec.function_handler == expected_function_handler
+
+
 def test_deploy_application_runtime(rundb_mock):
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
@@ -102,37 +125,73 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
     assert not fn.spec.image
 
 
-def test_pre_deploy_validation():
+@pytest.mark.parametrize(
+    "sidecars, expected_error_message",
+    [
+        ([], "Application spec must include a sidecar configuration"),
+        ([{}], "Application sidecar spec must include an image"),
+        (
+            [{"image": "my/web-app:latest"}],
+            "Application sidecar spec must include at least one port",
+        ),
+        (
+            [{"image": "my/web-app:latest", "ports": [{}]}],
+            "Application sidecar port spec must include a containerPort",
+        ),
+        (
+            [{"image": "my/web-app:latest", "ports": [{"containerPort": 8080}]}],
+            "Application sidecar port spec must include a name",
+        ),
+        (
+            [
+                {
+                    "image": "my/web-app:latest",
+                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "args": ["--help"],
+                }
+            ],
+            "Application sidecar spec must include a command if args are provided",
+        ),
+        (
+            [
+                {
+                    "image": "my/web-app:latest",
+                    "ports": [{"containerPort": 8080, "name": "http"}],
+                }
+            ],
+            None,
+        ),
+        (
+            [
+                {
+                    "image": "my/web-app:latest",
+                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "command": ["echo"],
+                }
+            ],
+            None,
+        ),
+        (
+            [
+                {
+                    "image": "my/web-app:latest",
+                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "command": ["echo"],
+                    "args": ["--help"],
+                }
+            ],
+            None,
+        ),
+    ],
+)
+def test_pre_deploy_validation(sidecars, expected_error_message):
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test", kind="application", image="my/web-app:latest"
     )
-    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+    fn.spec.config["spec.sidecars"] = sidecars
+    if expected_error_message:
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+            fn.pre_deploy_validation()
+        assert expected_error_message in str(exc.value)
+    else:
         fn.pre_deploy_validation()
-    assert "Application spec must include a sidecar configuration" in str(exc.value)
-
-    fn.spec.config["spec.sidecars"] = [{"image": "my/web-app:latest"}]
-    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
-        fn.pre_deploy_validation()
-    assert "Application sidecar spec must include at least one port" in str(exc.value)
-
-    fn.spec.config["spec.sidecars"] = [{"image": "my/web-app:latest", "ports": [{}]}]
-    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
-        fn.pre_deploy_validation()
-    assert "Application sidecar port spec must include a containerPort" in str(
-        exc.value
-    )
-
-    fn.spec.config["spec.sidecars"] = [
-        {"image": "my/web-app:latest", "ports": [{"containerPort": 8080}]}
-    ]
-    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
-        fn.pre_deploy_validation()
-    assert "Application sidecar port spec must include a name" in str(exc.value)
-
-    fn.spec.config["spec.sidecars"] = [
-        {
-            "image": "my/web-app:latest",
-            "ports": [{"containerPort": 8080, "name": "http"}],
-        }
-    ]
-    fn.pre_deploy_validation()

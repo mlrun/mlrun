@@ -965,12 +965,16 @@ class RemoteRuntime(KubeResource):
         name: str = None,
         image: str = None,
         ports: typing.Optional[typing.Union[int, list[int]]] = None,
+        command: typing.Optional[str] = None,
+        args: typing.Optional[list[str]] = None,
     ):
         """
         Add a sidecar container to the function pod
         :param name:    Sidecar container name.
         :param image:   Sidecar container image.
         :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
+        :param command: Sidecar container command instead of the image entrypoint.
+        :param args:    Sidecar container command args (requires command to be set).
         """
         name = name or f"{self.metadata.name}-sidecar"
         sidecar = self._set_sidecar(name)
@@ -986,6 +990,12 @@ class RemoteRuntime(KubeResource):
             }
             for port in ports
         ]
+
+        if command:
+            sidecar["command"] = command
+
+        if args:
+            sidecar["args"] = args
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

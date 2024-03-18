@@ -535,9 +535,9 @@ def new_function(
     if source:
         runner.spec.build.source = source
     if handler:
-        if kind == RuntimeKinds.serving:
+        if kind in [RuntimeKinds.serving, RuntimeKinds.application]:
             raise MLRunInvalidArgumentError(
-                "cannot set the handler for serving runtime"
+                f"Handler is not supported for {kind} runtime"
             )
         elif kind in RuntimeKinds.nuclio_runtimes():
             runner.spec.function_handler = handler
@@ -734,7 +734,9 @@ def code_to_function(
 
     if kind == RuntimeKinds.application:
         if handler:
-            raise ValueError("Handler is not supported for application runtime")
+            raise MLRunInvalidArgumentError(
+                "Handler is not supported for application runtime"
+            )
         filename, handler = ApplicationRuntime.get_filename_and_handler()
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)

@@ -28,6 +28,7 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.parametrize("use_datastore_profile", [False])
 class TestV3ioDataStore(TestMLRunSystem):
     @classmethod
     def setup_class(cls):
@@ -51,42 +52,56 @@ class TestV3ioDataStore(TestMLRunSystem):
         }
         with open(cls.test_file_path) as f:
             cls.test_string = f.read()
-        cls.test_dir_path = "/bigdata/v3io_tests"
-        cls.v3io_test_dir_url = "v3io://" + cls.test_dir_path
+        cls.test_dir = "/bigdata/v3io_tomer_tests"  # TODO delete Tomer...
+        cls.test_dir_url = "v3io://" + cls.test_dir
+        cls.run_dir = f"/bigdata/v3io_tomer_tests/run_{uuid.uuid4()}"
+        cls.profile_name = "v3io_ds_profile"
 
     @classmethod
     def teardown_class(cls):
-        dir_data_item = mlrun.get_dataitem(cls.v3io_test_dir_url)
+        dir_data_item = mlrun.get_dataitem(cls.test_dir_url)
         try:
             dir_data_item.delete(recursive=True)
         except Exception:
             pass
         super().teardown_class()
 
-    def setup_method(self, method):
-        self.object_dir_url = f"{self.v3io_test_dir_url}/directory-{uuid.uuid4()}"
-        super().setup_method(method)
+    @pytest.fixture(autouse=True)
+    def setup_before_each_test(self, use_datastore_profile):
+        prefix_path = (
+            f"ds://{self.profile_name}" if use_datastore_profile else "v3io://"
+        )
+        mlrun.datastore.store_manager.reset_secrets()
+        self.run_dir_url = f"{prefix_path}/{self.run_dir}"
+        object_file = f"file_{uuid.uuid4()}.txt"
+        self._object_url = self.run_dir_url + "/" + object_file
+        self.storage_options = {}
 
     @staticmethod
     def _skip_set_environment():
         return True
 
-    def _get_data_item(self, secrets={}, file_extension="txt"):
-        object_url = f"{self.object_dir_url}/file_{uuid.uuid4()}.{file_extension}"
+    def _get_data_item(self, secrets={}, file_extension="txt", sub_dir=None):
+        if not sub_dir:
+            object_url = f"{self.run_dir_url}/file_{uuid.uuid4()}.{file_extension}"
+        else:
+            object_url = (
+                f"{self.run_dir_url}/{sub_dir}/file_{uuid.uuid4()}.{file_extension}"
+            )
         return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
 
     def _setup_df_dir(self, first_file_path, second_file_path, file_extension):
-        dataitem_url = f"{self.object_dir_url}/df_{uuid.uuid4()}.{file_extension}"
+        dataitem_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.{file_extension}"
 
         uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
         uploaded_data_item.upload(first_file_path)
 
-        dataitem_url = f"{self.object_dir_url}/df_{uuid.uuid4()}.{file_extension}"
+        dataitem_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.{file_extension}"
 
         uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
         uploaded_data_item.upload(second_file_path)
 
-    def test_v3io_large_object_upload(self, tmp_path):
+    def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
@@ -153,7 +168,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"total time of test_v3io_large_object_upload {time.time() - first_start_time}"
         )
 
-    def test_v3io_large_object_put(self):
+    def test_v3io_large_object_put(self, use_datastore_profile):
         file_size = 20 * 1024 * 1024  # 20MB
         generated_buffer = bytearray(os.urandom(file_size))
         data_item, object_url = self._get_data_item()
@@ -185,7 +200,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"test_v3io_large_object_put: total time: {time.time() - first_start_time} seconds"
         )
 
-    def test_put_get_and_download(self):
+    def test_put_get_and_download(self, use_datastore_profile):
         data_item, _ = self._get_data_item()
         data_item.put(self.test_string)
         response = data_item.get()
@@ -209,35 +224,31 @@ class TestV3ioDataStore(TestMLRunSystem):
         response = data_item.get()
         assert response.decode() == self.test_string + self.test_string
 
-    def test_stat(self):
+    def test_stat(self, use_datastore_profile):
         data_item, _ = self._get_data_item()
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
-    def test_list_dir(self):
-        dir_base_item = mlrun.datastore.store_manager.object(self.object_dir_url)
-        file_item = mlrun.datastore.store_manager.object(
-            self.object_dir_url + "/test_file.txt"
-        )
+    def test_list_dir(self, use_datastore_profile):
+        dir_base_item = mlrun.datastore.store_manager.object(self.run_dir_url)
+        filename = f"/test_file_{uuid.uuid4()}.txt"
+        file_item = mlrun.datastore.store_manager.object(self.run_dir_url + filename)
         file_item_deep = mlrun.datastore.store_manager.object(
-            self.object_dir_url + "/test_dir/test_file.txt"
+            self.run_dir_url + f"/test_file_{uuid.uuid4()}.txt"
         )
-        try:
-            file_item.put("test")
-            file_item_deep.put("test")
-            actual_dir_content = dir_base_item.listdir()
-            assert actual_dir_content == ["test_dir/", "test_file.txt"]
-        finally:
-            dir_base_item.delete()
+        file_item.put("test")
+        file_item_deep.put("test")
+        actual_dir_content = dir_base_item.listdir()
+        assert actual_dir_content == ["test_dir/", filename]
 
-    def test_upload(self):
+    def test_upload(self, use_datastore_profile):
         data_item, _ = self._get_data_item()
         data_item.upload(self.test_file_path)
         response = data_item.get()
         assert response.decode() == self.test_string
 
-    def test_rm(self):
+    def test_rm(self, use_datastore_profile):
         data_item, _ = self._get_data_item()
         data_item.upload(self.test_file_path)
         data_item.stat()
@@ -261,6 +272,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     )
     def test_as_df(
         self,
+        use_datastore_profile: bool,
         file_extension: str,
         kwargs: dict,
         reader: callable,
@@ -285,6 +297,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     )
     def test_check_read_df_dir(
         self,
+        use_datastore_profile: bool,
         file_extension: str,
         reader: callable,
     ):
@@ -296,7 +309,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             file_extension=file_extension,
         )
 
-        dir_data_item = mlrun.run.get_dataitem(self.object_dir_url)
+        dir_data_item = mlrun.run.get_dataitem(self.run_dir_url)
         response_df = (
             dir_data_item.as_df(format=file_extension, time_column="date_of_birth")
             .sort_values("id")

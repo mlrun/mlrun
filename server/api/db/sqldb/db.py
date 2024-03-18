@@ -2036,6 +2036,7 @@ class SQLDB(DBInterface):
             state=project.status.state,
             created=created,
             owner=project.spec.owner,
+            default_function_node_selector=project.spec.default_function_node_selector,
             full_object=project.dict(),
         )
         labels = project.metadata.labels or {}

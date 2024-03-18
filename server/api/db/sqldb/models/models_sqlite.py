@@ -398,7 +398,9 @@ with warnings.catch_warnings():
         _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
+        default_function_node_selector = Column("default_function_node_selector", JSON)
         users = relationship(User, secondary=project_users)
+
 
         Label = make_label(__tablename__)
 

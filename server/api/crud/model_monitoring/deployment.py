@@ -80,7 +80,7 @@ class MonitoringDeployment:
         auth_info: mlrun.common.schemas.AuthInfo,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
+    ) -> dict[str, typing.Any]:
         """
         Deploy model monitoring application controller, writer and stream functions.
 
@@ -119,11 +119,7 @@ class MonitoringDeployment:
             stream_image=image,
         )
 
-        return {
-            k: v
-            for d in [controller_dict, writer_dict, stream_dict]
-            for k, v in d.items()
-        }
+        return controller_dict | writer_dict | stream_dict
 
     def deploy_model_monitoring_stream_processing(
         self,

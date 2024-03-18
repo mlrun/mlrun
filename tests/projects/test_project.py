@@ -1740,6 +1740,124 @@ def test_project_create_remote():
 
 
 @pytest.mark.parametrize(
+    "url,set_url,name,set_name,overwrite,expected_url,expected",
+    [
+        # Remote doesn't exist, create normally
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "https://github.com/mlrun/some-other-git-repo.git",
+            "mlrun-remote",
+            "mlrun-another-remote",
+            False,
+            "https://github.com/mlrun/some-other-git-repo.git",
+            does_not_raise(),
+        ),
+        # Remote exists, overwrite False, raise MLRunConflictError
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "https://github.com/mlrun/some-git-other-repo.git",
+            "mlrun-remote",
+            "mlrun-remote",
+            False,
+            "https://github.com/mlrun/some-git-repo.git",
+            pytest.raises(mlrun.errors.MLRunConflictError),
+        ),
+        # Remote exists, overwrite True, update remote
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "https://github.com/mlrun/some-git-other-repo.git",
+            "mlrun-remote",
+            "mlrun-remote",
+            True,
+            "https://github.com/mlrun/some-git-other-repo.git",
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_remote_as_update(
+    url, set_url, name, set_name, overwrite, expected_url, expected
+):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url=url,
+            name=name,
+        )
+        with expected:
+            project.set_remote(
+                url=set_url,
+                name=set_name,
+                overwrite=overwrite,
+            )
+
+            if name != set_name:
+                assert project.spec.repo.remote(name).url == url
+            assert project.spec.repo.remote(set_name).url == expected_url
+
+
+@pytest.mark.parametrize(
+    "url,name,expected",
+    [
+        # Remote doesn't exist, create normally
+        (
+            "https://github.com/mlrun/some-other-git-repo.git",
+            "mlrun-remote2",
+            does_not_raise(),
+        ),
+        # Remote exists, raise MLRunConflictError
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "mlrun-remote",
+            pytest.raises(mlrun.errors.MLRunConflictError),
+        ),
+    ],
+)
+def test_create_remote(url, name, expected):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        with expected:
+            project.create_remote(
+                url=url,
+                name=name,
+            )
+            assert project.spec.repo.remote(name).url == url
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        # Remote exists
+        "mlrun-remote",
+        # Remote doesn't exist
+        "non-existent-remote",
+    ],
+)
+def test_remove_remote(name):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+        project.remove_remote(name)
+        assert name not in project.spec.repo.remotes
+
+
+@pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [
         (None, None, "aaa/bbb", "ccc/ddd", None),

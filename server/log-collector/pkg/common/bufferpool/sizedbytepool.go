@@ -14,21 +14,25 @@
 
 package bufferpool
 
+import "sync"
+
 // SizedBytePool is a pool of byte buffers, with a max size
 // based on "github.com/oxtoacart/bpool"
 type SizedBytePool struct {
 	bufferChan  chan []byte
 	bufferSize  int
-	poolSize    int
+	maxPoolSize int
 	currentSize int
+	sizeLock    sync.Mutex
 }
 
 // NewSizedBytePool creates a new byte buffer pool
 func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 	return &SizedBytePool{
-		bufferChan: make(chan []byte, poolSize),
-		bufferSize: bufferSize,
-		poolSize:   poolSize,
+		bufferChan:  make(chan []byte, poolSize),
+		bufferSize:  bufferSize,
+		maxPoolSize: poolSize,
+		sizeLock:    sync.Mutex{},
 	}
 }
 
@@ -41,8 +45,8 @@ func (p *SizedBytePool) Get() []byte {
 		case buf := <-p.bufferChan:
 			return buf
 		default:
-			if p.currentSize < p.poolSize {
-				p.currentSize++
+			if p.PoolSize() < p.maxPoolSize {
+				p.increaseCurrentSize(1)
 				p.bufferChan <- make([]byte, p.bufferSize)
 			}
 		}
@@ -60,12 +64,22 @@ func (p *SizedBytePool) Put(buf []byte) {
 	p.bufferChan <- buf[:p.bufferSize]
 }
 
-// NumPooled returns the number of currently queued buffers in the pool.
+// NumPooled returns the number of currently available buffers in the pool.
 func (p *SizedBytePool) NumPooled() int {
 	return len(p.bufferChan)
 }
 
 // PoolSize returns the number of already allocated buffers in the pool.
 func (p *SizedBytePool) PoolSize() int {
+	p.sizeLock.Lock()
+	defer p.sizeLock.Unlock()
+
 	return p.currentSize
+}
+
+func (p *SizedBytePool) increaseCurrentSize(n int) {
+	p.sizeLock.Lock()
+	defer p.sizeLock.Unlock()
+
+	p.currentSize += n
 }

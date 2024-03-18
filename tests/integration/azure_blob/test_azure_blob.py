@@ -67,7 +67,6 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
 
 
 # Apply parametrization to all tests in this file. Skip test if auth method is not configured.
-# @pytest.mark.parametrize("auth_method", list(AUTH_METHODS_AND_REQUIRED_PARAMS.keys()))
 @pytest.mark.parametrize(
     "auth_method ,use_datastore_profile", generated_pytest_parameters
 )

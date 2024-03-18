@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from typing import Any
 
 import fastapi
@@ -92,11 +92,12 @@ async def deploy_monitoring_batch_job(
         )
 
     tracking_policy = TrackingPolicy(default_batch_image=default_batch_image)
-    batch_function = MonitoringDeployment().deploy_model_monitoring_batch_processing(
+    batch_function = MonitoringDeployment(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
         db_session=db_session,
         auth_info=auth_info,
+    ).deploy_model_monitoring_batch_processing(
         tracking_policy=tracking_policy,
         with_schedule=with_schedule,
     )

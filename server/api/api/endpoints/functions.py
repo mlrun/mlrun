@@ -798,14 +798,16 @@ def _deploy_nuclio_runtime(
             )
         if monitoring_application:
             monitoring_deploy = (
-                server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+                server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                    project=fn.metadata.project,
+                    auth_info=auth_info,
+                    model_monitoring_access_key=model_monitoring_access_key,
+                    db_session=db_session,
+                )
             )
             fn = monitoring_deploy._apply_and_create_stream_trigger(
-                project=fn.metadata.project,
                 function=fn,
-                model_monitoring_access_key=model_monitoring_access_key,
                 function_name=fn.metadata.name,
-                auth_info=auth_info,
             )
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
@@ -839,15 +841,16 @@ def _deploy_serving_monitoring(
             _init_serving_function_stream_args(fn=fn)
         # deploy model monitoring stream, model monitoring batch job,
         monitoring_deploy = (
-            server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=fn.metadata.project,
+                db_session=db_session,
+                auth_info=auth_info,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         )
         monitoring_deploy.deploy_model_monitoring_batch_processing(
-            project=fn.metadata.project,
-            db_session=db_session,
-            auth_info=auth_info,
             tracking_policy=fn.spec.tracking_policy,
             tracking_offset=Seconds(monitoring_deploy._max_parquet_save_interval),
-            model_monitoring_access_key=model_monitoring_access_key,
         )
 
     except Exception as exc:

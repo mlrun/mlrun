@@ -957,12 +957,17 @@ class RemoteRuntime(KubeResource):
             data = json.loads(data)
         return data
 
-    def with_sidecar(self, name: str = None, image: str = None, port: int = None):
+    def with_sidecar(
+        self,
+        name: str = None,
+        image: str = None,
+        ports: typing.Optional[typing.Union[int, list[int]]] = None,
+    ):
         """
         Add a sidecar container to the function pod
-        :param name:    Sidecar container name
-        :param image:   Sidecar container image
-        :param port:    Sidecar container port
+        :param name:    Sidecar container name.
+        :param image:   Sidecar container image.
+        :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
         """
         # TODO: validate image on server side
         name = name or f"{self.metadata.name}-sidecar"
@@ -970,14 +975,15 @@ class RemoteRuntime(KubeResource):
         if image:
             sidecar["image"] = image
 
-        if port:
-            sidecar["ports"] = [
-                {
-                    "name": "http",
-                    "containerPort": port,
-                    "protocol": "TCP",
-                }
-            ]
+        ports = mlrun.utils.helpers.as_list(ports)
+        sidecar["ports"] = [
+            {
+                "name": "http",
+                "containerPort": port,
+                "protocol": "TCP",
+            }
+            for port in ports
+        ]
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

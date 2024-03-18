@@ -218,6 +218,7 @@ class RuntimeKinds:
 
     @staticmethod
     def resolve_nuclio_runtime(kind: str, sub_kind: str):
+        kind = kind.split(":")[0]
         if kind not in RuntimeKinds.nuclio_runtimes():
             raise ValueError(
                 f"Kind {kind} is not a nuclio runtime, available runtimes are {RuntimeKinds.nuclio_runtimes()}"

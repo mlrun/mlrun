@@ -14,6 +14,8 @@
 #
 import pathlib
 
+import pytest
+
 import mlrun
 
 
@@ -98,3 +100,39 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
     ]
     assert fn.status.application_image == image
     assert not fn.spec.image
+
+
+def test_pre_deploy_validation():
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test", kind="application", image="my/web-app:latest"
+    )
+    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+        fn.pre_deploy_validation()
+    assert "Application spec must include a sidecar configuration" in str(exc.value)
+
+    fn.spec.config["spec.sidecars"] = [{"image": "my/web-app:latest"}]
+    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+        fn.pre_deploy_validation()
+    assert "Application sidecar spec must include at least one port" in str(exc.value)
+
+    fn.spec.config["spec.sidecars"] = [{"image": "my/web-app:latest", "ports": [{}]}]
+    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+        fn.pre_deploy_validation()
+    assert "Application sidecar port spec must include a containerPort" in str(
+        exc.value
+    )
+
+    fn.spec.config["spec.sidecars"] = [
+        {"image": "my/web-app:latest", "ports": [{"containerPort": 8080}]}
+    ]
+    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+        fn.pre_deploy_validation()
+    assert "Application sidecar port spec must include a name" in str(exc.value)
+
+    fn.spec.config["spec.sidecars"] = [
+        {
+            "image": "my/web-app:latest",
+            "ports": [{"containerPort": 8080, "name": "http"}],
+        }
+    ]
+    fn.pre_deploy_validation()

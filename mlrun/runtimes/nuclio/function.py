@@ -291,6 +291,9 @@ class RemoteRuntime(KubeResource):
     def status(self, status):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
+    def pre_deploy_validation(self):
+        pass
+
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
@@ -969,7 +972,6 @@ class RemoteRuntime(KubeResource):
         :param image:   Sidecar container image.
         :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
         """
-        # TODO: validate image on server side
         name = name or f"{self.metadata.name}-sidecar"
         sidecar = self._set_sidecar(name)
         if image:

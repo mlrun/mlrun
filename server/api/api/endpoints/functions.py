@@ -730,6 +730,8 @@ def _build_function(
 
         fn.save(versioned=False)
         if is_nuclio_runtime:
+            fn: mlrun.runtimes.RemoteRuntime
+            fn.pre_deploy_validation()
             fn = _deploy_nuclio_runtime(
                 auth_info,
                 builder_env,

@@ -13,6 +13,7 @@
 # limitations under the License.
 import pathlib
 
+import mlrun.errors
 from mlrun.common.schemas import AuthInfo
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
@@ -135,6 +136,7 @@ class ApplicationStatus(NuclioStatus):
         build_pod=None,
         container_image=None,
         application_image=None,
+        sidecar_name=None,
     ):
         super().__init__(
             state=state,
@@ -146,6 +148,7 @@ class ApplicationStatus(NuclioStatus):
             container_image=container_image,
         )
         self.application_image = application_image or None
+        self.sidecar_name = sidecar_name or None
 
 
 class ApplicationRuntime(RemoteRuntime):
@@ -173,6 +176,37 @@ class ApplicationRuntime(RemoteRuntime):
 
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
+
+    def pre_deploy_validation(self):
+        super().pre_deploy_validation()
+        if not self.spec.config.get("spec.sidecars"):
+            raise mlrun.errors.MLRunBadRequestError(
+                "Application spec must include a sidecar configuration"
+            )
+
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if not sidecar.get("image"):
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Application sidecar spec must include an image"
+                )
+
+            if not sidecar.get("ports"):
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Application sidecar spec must include at least one port"
+                )
+
+            ports = sidecar["ports"]
+            for port in ports:
+                if not port.get("containerPort"):
+                    raise mlrun.errors.MLRunBadRequestError(
+                        "Application sidecar port spec must include a containerPort"
+                    )
+
+                if not port.get("name"):
+                    raise mlrun.errors.MLRunBadRequestError(
+                        "Application sidecar port spec must include a name"
+                    )
 
     def deploy(
         self,
@@ -206,10 +240,11 @@ class ApplicationRuntime(RemoteRuntime):
             self.from_image(self.status.container_image)
             self.spec.build.functionSourceCode = ""
 
+        self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(
-            name=f"{self.metadata.name}-sidecar",
+            name=self.status.sidecar_name,
             image=self.status.application_image,
-            port=self.spec.internal_application_port,
+            ports=self.spec.internal_application_port,
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")

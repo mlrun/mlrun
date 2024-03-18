@@ -822,7 +822,9 @@ class Client(
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
 
         if iguazio_project["attributes"].get("default_function_node_selector"):
-            mlrun_project.spec.default_function_node_selector = iguazio_project["attributes"]["default_function_node_selector"]
+            mlrun_project.spec.default_function_node_selector = iguazio_project[
+                "attributes"
+            ]["default_function_node_selector"]
         return mlrun_project
 
     def _prepare_request_kwargs(self, session, path, *, kwargs):

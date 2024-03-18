@@ -401,7 +401,6 @@ with warnings.catch_warnings():
         default_function_node_selector = Column("default_function_node_selector", JSON)
         users = relationship(User, secondary=project_users)
 
-
         Label = make_label(__tablename__)
 
         labels = relationship(Label, cascade="all, delete-orphan")

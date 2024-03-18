@@ -13,4 +13,5 @@
 # limitations under the License.
 #
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."  # prefix for image name to enrich with registry
+MLRUN_CREATED_LABEL = "mlrun-created"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024

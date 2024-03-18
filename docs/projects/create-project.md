@@ -32,7 +32,10 @@ To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`
 The `context` dir holds the configuration, code, and workflow files. Its default value is "./", which is the directory 
 the MLRun client runs from. File paths in the project are relative to the context root.
 There are additional, optional parameters.
-The `user_project` flag indicates that the project name is unique per user, and the `init_git` flag is used to initialize git in the context dir.
+The `user_project=True` add the current username to the provided project name (making it unique per user). 
+(When the username is an email, it is trimmed after the '@'.)
+ The `init_git` flag is used to initialize git in the context dir.
+
 
 ```python
 import mlrun
@@ -51,6 +54,8 @@ project = mlrun.new_project("myproj", "./", init_git=True, user_project=True,
                             remote="git://github.com/myorg/some-project.git",
                             from_template="http://mysite/proj.zip")
 ```
+
+
 
 <a id="add-elements"></a>
 ## Adding functions, artifacts, workflow, and config

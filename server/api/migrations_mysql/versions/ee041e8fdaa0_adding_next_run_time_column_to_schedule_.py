@@ -19,6 +19,7 @@ Revises: 5f1351c88a19
 Create Date: 2022-08-16 17:56:47.826661
 
 """
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql

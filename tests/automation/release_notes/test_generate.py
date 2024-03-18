@@ -192,13 +192,15 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
     ]
     automation.release_notes.generate.tempfile = unittest.mock.MagicMock()
     for case in cases:
-        with unittest.mock.patch(
-            "automation.release_notes.generate.ReleaseNotesGenerator._run_command"
-        ) as _run_command_mock, unittest.mock.patch(
-            "automation.release_notes.generate.ReleaseNotesGenerator._resolve_github_username"
-        ) as _resolve_github_user_mock, unittest.mock.patch(
-            "sys.stdout", new=io.StringIO()
-        ) as stdout_mock:
+        with (
+            unittest.mock.patch(
+                "automation.release_notes.generate.ReleaseNotesGenerator._run_command"
+            ) as _run_command_mock,
+            unittest.mock.patch(
+                "automation.release_notes.generate.ReleaseNotesGenerator._resolve_github_username"
+            ) as _resolve_github_user_mock,
+            unittest.mock.patch("sys.stdout", new=io.StringIO()) as stdout_mock,
+        ):
             _run_command_mock.side_effect = case["_run_command"]
             _resolve_github_user_mock.side_effect = case["_resolve_github_username"]
             try:

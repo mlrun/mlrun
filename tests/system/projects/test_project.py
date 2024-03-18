@@ -626,7 +626,7 @@ class TestProject(TestMLRunSystem):
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        self._logger.debug("saved project", project=project.to_yaml())
+        self._logger.debug("Saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,
@@ -1351,3 +1351,38 @@ class TestProject(TestMLRunSystem):
         assert state == "error"
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_project(name)
+
+    def test_remote_workflow_source_on_image(self):
+        name = "source-project"
+        self.custom_project_names_to_delete.append(name)
+
+        project_dir = f"{projects_dir}/{name}"
+        source = "git://github.com/mlrun/project-demo.git"
+        source_code_target_dir = (
+            "./project"  # Optional, results to /home/mlrun_code/project
+        )
+        artifact_path = f"v3io:///projects/{name}"
+
+        project = mlrun.load_project(
+            project_dir,
+            source,
+            name=name,
+        )
+        project.set_source(source)
+
+        # Build the image, load the source to the target dir and save the project
+        project.build_image(target_dir=source_code_target_dir)
+        project.save()
+
+        run = project.run(
+            "main",
+            engine="remote",
+            source="./",  # Relative to project.spec.build.source_code_target_dir
+            artifact_path=artifact_path,
+            dirty=True,
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded
+
+        # Ensuring that the project's source has not changed in the db:
+        project_from_db = self._run_db.get_project(name)
+        assert project_from_db.source == source

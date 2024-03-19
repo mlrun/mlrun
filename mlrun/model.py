@@ -174,8 +174,7 @@ class ModelObj:
         #     return True
 
         return field_value is not None and not (
-            (isinstance(field_value, dict) or isinstance(field_value, list))
-            and not field_value
+            isinstance(field_value, dict) and not field_value
         )
 
     def _resolve_field_value_by_method(

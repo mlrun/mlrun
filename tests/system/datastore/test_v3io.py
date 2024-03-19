@@ -23,12 +23,16 @@ import pandas as pd
 import pytest
 
 import mlrun.datastore
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileV3io,
+    register_temporary_client_datastore_profile,
+)
 from tests.system.base import TestMLRunSystem
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-@pytest.mark.parametrize("use_datastore_profile", [False])
+@pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestV3ioDataStore(TestMLRunSystem):
     @classmethod
     def setup_class(cls):
@@ -54,8 +58,11 @@ class TestV3ioDataStore(TestMLRunSystem):
             cls.test_string = f.read()
         cls.test_dir = "/bigdata/v3io_tomer_tests"  # TODO delete Tomer...
         cls.test_dir_url = "v3io://" + cls.test_dir
-        cls.run_dir = f"/bigdata/v3io_tomer_tests/run_{uuid.uuid4()}"
+        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.profile_name = "v3io_ds_profile"
+        cls.profile = DatastoreProfileV3io(
+            name=cls.profile_name, v3io_access_key=os.environ.get("V3IO_ACCESS_KEY")
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -72,9 +79,10 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"ds://{self.profile_name}" if use_datastore_profile else "v3io://"
         )
         mlrun.datastore.store_manager.reset_secrets()
-        self.run_dir_url = f"{prefix_path}/{self.run_dir}"
-        object_file = f"file_{uuid.uuid4()}.txt"
-        self._object_url = self.run_dir_url + "/" + object_file
+        self.run_dir_url = f"{prefix_path}{self.run_dir}"
+        object_file = f"/file_{uuid.uuid4()}.txt"
+        self._object_url = self.run_dir_url + object_file  # TODO use or delete
+        register_temporary_client_datastore_profile(self.profile)
         self.storage_options = {}
 
     @staticmethod
@@ -232,15 +240,17 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     def test_list_dir(self, use_datastore_profile):
         dir_base_item = mlrun.datastore.store_manager.object(self.run_dir_url)
-        filename = f"/test_file_{uuid.uuid4()}.txt"
-        file_item = mlrun.datastore.store_manager.object(self.run_dir_url + filename)
+        filename = f"test_file_{uuid.uuid4()}.txt"
+        file_item = mlrun.datastore.store_manager.object(
+            self.run_dir_url + "/" + filename
+        )
         file_item_deep = mlrun.datastore.store_manager.object(
-            self.run_dir_url + f"/test_file_{uuid.uuid4()}.txt"
+            self.run_dir_url + f"/test_dir/test_file_{uuid.uuid4()}.txt"
         )
         file_item.put("test")
         file_item_deep.put("test")
         actual_dir_content = dir_base_item.listdir()
-        assert actual_dir_content == ["test_dir/", filename]
+        assert all(item in actual_dir_content for item in ["test_dir/", filename])
 
     def test_upload(self, use_datastore_profile):
         data_item, _ = self._get_data_item()

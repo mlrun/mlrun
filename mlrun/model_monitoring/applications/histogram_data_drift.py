@@ -154,9 +154,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
                 status=status,
             )
         )
-        self.context.log_results(
-            results={"drift_status": status, "drift_metric": value}
-        )
 
     def _get_results(
         self, metrics_per_feature: DataFrame

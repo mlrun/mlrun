@@ -15,29 +15,31 @@
 
 import json
 import typing
+import uuid
 from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as db
+from sqlalchemy.sql import text
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.model_monitoring.db
+import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
 from mlrun.utils import logger
 
-from .model_endpoint_store import ModelEndpointStore
-from .models import get_model_endpoints_table
 
-
-class SQLModelEndpointStore(ModelEndpointStore):
+class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     """
     Handles the DB operations when the DB target is from type SQL. For the SQL operations, we use SQLAlchemy, a Python
-    SQL toolkit that handles the communication with the database.  When using SQL for storing the model endpoints
-    record, the user needs to provide a valid connection string for the database.
+    SQL toolkit that handles the communication with the database.  When using SQL for storing the model monitoring
+    data, the user needs to provide a valid connection string for the database.
     """
 
     _engine = None
+    _tables = {}
 
     def __init__(
         self,
@@ -49,7 +51,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         Initialize SQL store target object.
 
         :param project:               The name of the project.
-        :param sql_connection_string: Valid connection string or a path to SQL database with model endpoints table.
+        :param sql_connection_string: Valid connection string or a path to SQL database with model monitoring tables.
         :param secret_provider:       An optional secret provider to get the connection string secret.
         """
 
@@ -62,22 +64,114 @@ class SQLModelEndpointStore(ModelEndpointStore):
             )
         )
 
-        self.table_name = (
-            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS
-        )
-
         self._engine = get_engine(dsn=self.sql_connection_string)
-        self.ModelEndpointsTable = get_model_endpoints_table(
+
+    def _init_tables(self):
+        self._init_model_endpoints_table()
+        self._init_application_results_table()
+        self._init_monitoring_schedules_table()
+
+    def _init_model_endpoints_table(self):
+        self.ModelEndpointsTable = (
+            mlrun.model_monitoring.db.stores.sqldb.models.get_model_endpoints_table(
+                connection_string=self.sql_connection_string
+            )
+        )
+        self._tables[
+            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS
+        ] = self.ModelEndpointsTable
+
+    def _init_application_results_table(self):
+        self.ApplicationResultsTable = (
+            mlrun.model_monitoring.db.stores.sqldb.models.get_application_result_table(
+                connection_string=self.sql_connection_string
+            )
+        )
+        self._tables[
+            mlrun.common.schemas.model_monitoring.FileTargetKind.APP_RESULTS
+        ] = self.ApplicationResultsTable
+
+    def _init_monitoring_schedules_table(self):
+        self.MonitoringSchedulesTable = mlrun.model_monitoring.db.stores.sqldb.models.get_monitoring_schedules_table(
             connection_string=self.sql_connection_string
         )
-        # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
-        if not self._engine.has_table(self.table_name):
-            self.ModelEndpointsTable.metadata.create_all(  # pyright: ignore[reportGeneralTypeIssues]
-                bind=self._engine
+        self._tables[
+            mlrun.common.schemas.model_monitoring.FileTargetKind.MONITORING_SCHEDULES
+        ] = self.MonitoringSchedulesTable
+
+    def _write(self, table: str, event: dict[str, typing.Any]):
+        """
+        Create a new record in the SQL table.
+
+        :param table: Target table name.
+        :param event: Event dictionary that will be written into the DB.
+        """
+
+        with self._engine.connect() as connection:
+            # Convert the result into a pandas Dataframe and write it into the database
+            event_df = pd.DataFrame([event])
+
+            event_df.to_sql(table, con=connection, index=False, if_exists="append")
+
+    def _update(
+        self,
+        attributes: dict[str, typing.Any],
+        table: db.orm.decl_api.DeclarativeMeta,
+        **filtered_values,
+    ):
+        """
+        Update a record in the SQL table.
+
+        :param attributes:  Dictionary of attributes that will be used for update the record. Note that the keys
+                            of the attributes dictionary should exist in the SQL table.
+        :param table:       SQLAlchemy declarative table.
+
+        """
+        filter_query_ = []
+        for _filter in filtered_values:
+            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
+
+        with create_session(dsn=self.sql_connection_string) as session:
+            # Generate and commit the update session query
+            session.query(table).filter(text(*filter_query_)).update(
+                attributes, synchronize_session=False
             )
-        self.model_endpoints_table = (
-            self.ModelEndpointsTable.__table__  # pyright: ignore[reportGeneralTypeIssues]
-        )
+            session.commit()
+
+    def _get(self, table: db.orm.decl_api.DeclarativeMeta, **filtered_values):
+        """
+        Get a record from the SQL table.
+
+        param table: SQLAlchemy declarative table.
+        """
+
+        filter_query_ = []
+        for _filter in filtered_values:
+            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
+        with create_session(dsn=self.sql_connection_string) as session:
+            try:
+                # Generate the get query
+                return session.query(table).filter(text(*filter_query_)).one_or_none()
+            except db.exc.ProgrammingError:
+                # Probably table doesn't exist, try to create tables
+                self._create_tables_if_not_exist()
+                return
+
+    def _delete(self, table: db.orm.decl_api.DeclarativeMeta, **filtered_values):
+        """
+        Delete records from the SQL table.
+
+        param table: SQLAlchemy declarative table.
+        """
+        filter_query_ = []
+        for _filter in filtered_values:
+            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
+        with create_session(dsn=self.sql_connection_string) as session:
+            # Generate and commit the delete query
+            session.query(table).filter(text(*filter_query_)).delete(
+                synchronize_session=False
+            )
+            session.commit()
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """
@@ -87,21 +181,18 @@ class SQLModelEndpointStore(ModelEndpointStore):
         :param endpoint: model endpoint dictionary that will be written into the DB.
         """
 
-        with self._engine.connect() as connection:
-            # Adjust timestamps fields
-            endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST
-            ] = datetime.now(timezone.utc)
-            endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST
-            ] = datetime.now(timezone.utc)
+        # Adjust timestamps fields
+        endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST] = (
+            datetime.now(timezone.utc)
+        )
+        endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST] = (
+            datetime.now(timezone.utc)
+        )
 
-            # Convert the result into a pandas Dataframe and write it into the database
-            endpoint_df = pd.DataFrame([endpoint])
-
-            endpoint_df.to_sql(
-                self.table_name, con=connection, index=False, if_exists="append"
-            )
+        self._write(
+            table=mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS,
+            event=endpoint,
+        )
 
     def update_model_endpoint(
         self, endpoint_id: str, attributes: dict[str, typing.Any]
@@ -114,19 +205,19 @@ class SQLModelEndpointStore(ModelEndpointStore):
                            of the attributes dictionary should exist in the SQL table.
 
         """
+        self._init_model_endpoints_table()
 
-        # Update the model endpoint record using sqlalchemy ORM
-        with create_session(dsn=self.sql_connection_string) as session:
-            # Remove endpoint id (foreign key) from the update query
-            attributes.pop(
-                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID, None
-            )
+        attributes.pop(
+            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID, None
+        )
 
-            # Generate and commit the update session query
-            session.query(self.ModelEndpointsTable).filter(
-                self.ModelEndpointsTable.uid == endpoint_id
-            ).update(attributes)
-            session.commit()
+        filter_endpoint = {
+            mlrun.common.schemas.model_monitoring.EventFieldType.UID: endpoint_id
+        }
+
+        self._update(
+            attributes=attributes, table=self.ModelEndpointsTable, **filter_endpoint
+        )
 
     def delete_model_endpoint(self, endpoint_id: str):
         """
@@ -134,12 +225,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         :param endpoint_id: The unique id of the model endpoint.
         """
+        self._init_model_endpoints_table()
 
+        filter_endpoint = {
+            mlrun.common.schemas.model_monitoring.EventFieldType.UID: endpoint_id
+        }
         # Delete the model endpoint record using sqlalchemy ORM
-        with create_session(dsn=self.sql_connection_string) as session:
-            # Generate and commit the delete query
-            session.query(self.ModelEndpointsTable).filter_by(uid=endpoint_id).delete()
-            session.commit()
+        self._delete(table=self.ModelEndpointsTable, **filter_endpoint)
 
     def get_model_endpoint(
         self,
@@ -154,15 +246,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         :raise MLRunNotFoundError: If the model endpoints table was not found or the model endpoint id was not found.
         """
+        self._init_model_endpoints_table()
 
         # Get the model endpoint record using sqlalchemy ORM
-        with create_session(dsn=self.sql_connection_string) as session:
-            # Generate the get query
-            endpoint_record = (
-                session.query(self.ModelEndpointsTable)
-                .filter_by(uid=endpoint_id)
-                .one_or_none()
-            )
+        filter_endpoint = {
+            mlrun.common.schemas.model_monitoring.EventFieldType.UID: endpoint_id
+        }
+        endpoint_record = self._get(table=self.ModelEndpointsTable, **filter_endpoint)
 
         if not endpoint_record:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
@@ -193,9 +283,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         :return: A list of model endpoint dictionaries.
         """
-
+        self._init_model_endpoints_table()
         # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
         endpoint_list = []
+
+        model_endpoints_table = (
+            self.ModelEndpointsTable.__table__  # pyright: ignore[reportGeneralTypeIssues]
+        )
 
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self.sql_connection_string) as session:
@@ -208,21 +302,21 @@ class SQLModelEndpointStore(ModelEndpointStore):
             if model:
                 query = self._filter_values(
                     query=query,
-                    model_endpoints_table=self.model_endpoints_table,
+                    model_endpoints_table=model_endpoints_table,
                     key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.MODEL,
                     filtered_values=[model],
                 )
             if function:
                 query = self._filter_values(
                     query=query,
-                    model_endpoints_table=self.model_endpoints_table,
+                    model_endpoints_table=model_endpoints_table,
                     key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION,
                     filtered_values=[function],
                 )
             if uids:
                 query = self._filter_values(
                     query=query,
-                    model_endpoints_table=self.model_endpoints_table,
+                    model_endpoints_table=model_endpoints_table,
                     key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.UID,
                     filtered_values=uids,
                     combined=False,
@@ -237,7 +331,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 endpoint_types = [node_ep, router_ep]
                 query = self._filter_values(
                     query=query,
-                    model_endpoints_table=self.model_endpoints_table,
+                    model_endpoints_table=model_endpoints_table,
                     key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE,
                     filtered_values=endpoint_types,
                     combined=False,
@@ -255,6 +349,114 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 endpoint_list.append(endpoint_dict)
 
         return endpoint_list
+
+    def write_application_result(self, event: dict[str, typing.Any]):
+        """
+        Write a new application result event in the target table.
+
+        :param event: An event dictionary that represents the application result, should be corresponded to the
+                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
+                      object.
+        """
+        self._init_application_results_table()
+
+        # First, try to update an existing result
+        application_filter_dict = self.filter_endpoint_and_application_name(
+            endpoint_id=event[
+                mlrun.common.schemas.model_monitoring.WriterEvent.ENDPOINT_ID
+            ],
+            application_name=event[
+                mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME
+            ],
+        )
+
+        application_record = self._get(
+            table=self.ApplicationResultsTable, **application_filter_dict
+        )
+        if application_record:
+            # Update an existing application result
+            self._update(
+                attributes=event,
+                table=self.ApplicationResultsTable,
+                **application_filter_dict,
+            )
+        else:
+            # Write a new application result
+            event[mlrun.common.schemas.model_monitoring.EventFieldType.UID] = (
+                uuid.uuid4().hex
+            )
+            self._write(
+                table=mlrun.common.schemas.model_monitoring.FileTargetKind.APP_RESULTS,
+                event=event,
+            )
+
+    def get_last_analyzed(self, endpoint_id: str, application_name: str):
+        self._init_monitoring_schedules_table()
+
+        application_filter_dict = self.filter_endpoint_and_application_name(
+            endpoint_id=endpoint_id, application_name=application_name
+        )
+
+        monitoring_schedule_record = self._get(
+            table=self.MonitoringSchedulesTable, **application_filter_dict
+        )
+        if not monitoring_schedule_record:
+            self._write(
+                table=mlrun.common.schemas.model_monitoring.FileTargetKind.MONITORING_SCHEDULES,
+                event={
+                    mlrun.common.schemas.model_monitoring.SchedulingKeys.UID: uuid.uuid4().hex,
+                    mlrun.common.schemas.model_monitoring.SchedulingKeys.APPLICATION_NAME: application_name,
+                    mlrun.common.schemas.model_monitoring.SchedulingKeys.ENDPOINT_ID: endpoint_id,
+                },
+            )
+            return
+        return monitoring_schedule_record.last_analyzed
+
+    def update_last_analyzed(
+        self, endpoint_id: str, application_name: str, attributes: dict[str, typing.Any]
+    ):
+        self._init_monitoring_schedules_table()
+
+        application_filter_dict = self.filter_endpoint_and_application_name(
+            endpoint_id=endpoint_id, application_name=application_name
+        )
+        self._update(
+            attributes=attributes,
+            table=self.MonitoringSchedulesTable,
+            **application_filter_dict,
+        )
+
+    def delete_last_analyzed(self, endpoint_id: str = "", application_name: str = ""):
+        self._init_monitoring_schedules_table()
+
+        application_filter_dict = self.filter_endpoint_and_application_name(
+            endpoint_id=endpoint_id, application_name=application_name
+        )
+
+        # Delete the model endpoint record using sqlalchemy ORM
+        self._delete(table=self.MonitoringSchedulesTable, **application_filter_dict)
+
+    def delete_application_result(
+        self, endpoint_id: str = "", application_name: str = ""
+    ):
+        self._init_application_results_table()
+
+        application_filter_dict = self.filter_endpoint_and_application_name(
+            endpoint_id=endpoint_id, application_name=application_name
+        )
+
+        # Delete the model endpoint record using sqlalchemy ORM
+        self._delete(table=self.ApplicationResultsTable, **application_filter_dict)
+
+    def _create_tables_if_not_exist(self):
+        self._init_tables()
+
+        for table in self._tables:
+            # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
+            if not self._engine.has_table(table):
+                self._tables[table].metadata.create_all(  # pyright: ignore[reportGeneralTypeIssues]
+                    bind=self._engine
+                )
 
     @staticmethod
     def _filter_values(
@@ -333,6 +535,26 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         return True
 
+    @staticmethod
+    def filter_endpoint_and_application_name(
+        endpoint_id: str, application_name: str
+    ) -> dict[str, str]:
+        """Generate a dictionary filter for endpoint id and application name"""
+        if not endpoint_id and not application_name:
+            raise mlrun.errors.MLRunNotFoundError(
+                "Please provide a valid endpoint_id and/or application_name"
+            )
+        application_filter_dict = {}
+        if endpoint_id:
+            application_filter_dict[
+                mlrun.common.schemas.model_monitoring.SchedulingKeys.ENDPOINT_ID
+            ] = endpoint_id
+        if application_name:
+            application_filter_dict[
+                mlrun.common.schemas.model_monitoring.SchedulingKeys.APPLICATION_NAME
+            ] = application_name
+        return application_filter_dict
+
     def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
         """
         Delete all model endpoints resources in both SQL and the time series DB.
@@ -341,10 +563,18 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         for endpoint_dict in endpoints:
-            # Delete model endpoint record from SQL table
-            self.delete_model_endpoint(
-                endpoint_dict[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
-            )
+            endpoint_id = endpoint_dict[
+                mlrun.common.schemas.model_monitoring.EventFieldType.UID
+            ]
+
+            # Delete last analyzed records
+            self.delete_last_analyzed(endpoint_id=endpoint_id)
+
+            # Delete application results records
+            self.delete_application_result(endpoint_id=endpoint_id)
+
+            # Delete model endpoint record
+            self.delete_model_endpoint(endpoint_id=endpoint_id)
 
     def get_endpoint_real_time_metrics(
         self,

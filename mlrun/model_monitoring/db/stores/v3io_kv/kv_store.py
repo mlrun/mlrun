@@ -16,16 +16,17 @@
 import json
 import os
 import typing
+from http import HTTPStatus
 
 import v3io.dataplane
+import v3io.dataplane.response
 import v3io_frames
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
-
-from .model_endpoint_store import ModelEndpointStore
 
 # Fields to encode before storing in the KV table or to decode after retrieving
 fields_to_encode_decode = [
@@ -34,7 +35,7 @@ fields_to_encode_decode = [
 ]
 
 
-class KVModelEndpointStore(ModelEndpointStore):
+class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     """
     Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
@@ -394,6 +395,103 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         return metrics_mapping
 
+    def write_application_result(self, event: dict[str, typing.Any]):
+        """
+        Write a new application result event in the target table.
+
+        :param event: An event dictionary that represents the application result, should be corresponded to the
+                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
+                      object.
+        """
+        endpoint_id = event.pop(
+            mlrun.common.schemas.model_monitoring.WriterEvent.ENDPOINT_ID
+        )
+        app_name = event.pop(
+            mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME
+        )
+        metric_name = event.pop(
+            mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME
+        )
+        attributes = {metric_name: json.dumps(event)}
+
+        v3io_monitoring_apps_container = self.get_v3io_monitoring_apps_container(
+            project_name=self.project
+        )
+
+        self.client.kv.update(
+            container=v3io_monitoring_apps_container,
+            table_path=endpoint_id,
+            key=app_name,
+            attributes=attributes,
+        )
+
+        schema_file = self.client.kv.new_cursor(
+            container=v3io_monitoring_apps_container,
+            table_path=endpoint_id,
+            filter_expression='__name==".#schema"',
+        )
+
+        if not schema_file.all():
+            logger.info(
+                "Generate a new V3IO KV schema file",
+                container=v3io_monitoring_apps_container,
+                endpoint_id=endpoint_id,
+            )
+            self._generate_kv_schema(endpoint_id, v3io_monitoring_apps_container)
+        logger.info("Updated V3IO KV successfully", key=app_name)
+
+    def _generate_kv_schema(
+        self, endpoint_id: str, v3io_monitoring_apps_container: str
+    ):
+        """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
+        fields = [
+            {
+                "name": mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME,
+                "type": "string",
+                "nullable": False,
+            }
+        ]
+        res = self.client.kv.create_schema(
+            container=v3io_monitoring_apps_container,
+            table_path=endpoint_id,
+            key=mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME,
+            fields=fields,
+        )
+        if res.status_code != HTTPStatus.OK.value:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
+            )
+        else:
+            logger.info(
+                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
+            )
+
+    def get_last_analyzed(self, endpoint_id: str, application_name: str):
+        try:
+            data = self.client.kv.get(
+                container=self._get_monitoring_schedules_container(
+                    project_name=self.project
+                ),
+                table_path=endpoint_id,
+                key=application_name,
+            )
+            return data.output.item[
+                mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED
+            ]
+        except v3io.dataplane.response.HttpResponseError as err:
+            logger.debug("Error while getting last analyzed time", err=err)
+            return None
+
+    def update_last_analyzed(self, endpoint_id, application_name, attributes):
+        self.client.kv.put(
+            container=self._get_monitoring_schedules_container(
+                project_name=self.project
+            ),
+            table_path=endpoint_id,
+            key=application_name,
+            attributes=attributes,
+        )
+
     def _generate_tsdb_paths(self) -> tuple[str, str]:
         """Generate a short path to the TSDB resources and a filtered path for the frames object
         :return: A tuple of:
@@ -572,3 +670,11 @@ class KVModelEndpointStore(ModelEndpointStore):
         if isinstance(field, bytes):
             return field.decode()
         return field
+
+    @staticmethod
+    def get_v3io_monitoring_apps_container(project_name: str) -> str:
+        return f"users/pipelines/{project_name}/monitoring-apps"
+
+    @staticmethod
+    def _get_monitoring_schedules_container(project_name: str) -> str:
+        return f"users/pipelines/{project_name}/monitoring-schedules/functions"

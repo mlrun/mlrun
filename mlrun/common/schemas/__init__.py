@@ -139,6 +139,7 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
+    PrometheusEndpoints,
     TimeSeriesTarget,
 )
 from .notification import (

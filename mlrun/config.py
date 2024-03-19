@@ -495,7 +495,7 @@ default_config = {
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
+        # See mlrun.model_monitoring.db.stores.ObjectStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },

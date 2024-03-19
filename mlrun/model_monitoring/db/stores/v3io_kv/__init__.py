@@ -11,17 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Optional, Union
-
-from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
-from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
-
-
-def get_model_endpoints_table(
-    connection_string: Optional[str] = None,
-) -> Union[type[MySQLModelEndpointsTable], type[SQLiteModelEndpointsTable]]:
-    """Return ModelEndpointsTable based on the provided connection string"""
-    if connection_string and "mysql:" in connection_string:
-        return MySQLModelEndpointsTable
-    return SQLiteModelEndpointsTable
+#

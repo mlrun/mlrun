@@ -146,6 +146,9 @@ class ModelMonitoringStoreKinds:
 
 class SchedulingKeys:
     LAST_ANALYZED = "last_analyzed"
+    ENDPOINT_ID = "endpoint_id"
+    APPLICATION_NAME = "application_name"
+    UID = "uid"
 
 
 class FileTargetKind:
@@ -155,6 +158,8 @@ class FileTargetKind:
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
+    APP_RESULTS = "app_results"
+    MONITORING_SCHEDULES = "monitoring_schedules"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -175,6 +180,16 @@ class PrometheusMetric:
     ERRORS_TOTAL = "errors_total"
     DRIFT_METRICS = "drift_metrics"
     DRIFT_STATUS = "drift_status"
+
+
+class PrometheusEndpoints(StrEnum):
+    MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
+    MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
+    MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 class MonitoringFunctionNames:

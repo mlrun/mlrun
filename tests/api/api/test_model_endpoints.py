@@ -27,9 +27,9 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
-from mlrun.model_monitoring.stores import (  # noqa: F401
-    ModelEndpointStore,
-    ModelEndpointStoreType,
+from mlrun.model_monitoring.db.stores import (  # noqa: F401
+    ObjectStoreType,
+    StoreBase,
 )
 
 TEST_PROJECT = "test_model_endpoints"
@@ -38,19 +38,17 @@ ENDPOINT_STORE_CONNECTION = "sqlite:///test.db"
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
 
-# Bound a typing variable for ModelEndpointStore
-KVmodelType = typing.TypeVar("KVmodelType", bound="ModelEndpointStore")
+# Bound a typing variable for StoreBase
+KVmodelType = typing.TypeVar("KVmodelType", bound="StoreBase")
 
 
 def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.ModelEndpointStoreType(
-        value="v3io-nosql"
-    )
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="v3io-nosql")
 
-    endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
+    endpoint_store: KVmodelType = store_type_object.to_object_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
@@ -277,15 +275,13 @@ def test_get_endpoint_features_function():
 
 
 def test_generating_tsdb_paths():
-    """Validate that the TSDB paths for the KVModelEndpointStore object are created as expected. These paths are
+    """Validate that the TSDB paths for the KVStoreBase object are created as expected. These paths are
     usually important when the user call the delete project API and as a result the TSDB resources should be deleted
     """
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
-        value="v3io-nosql"
-    )
-    endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="v3io-nosql")
+    endpoint_store: KVmodelType = store_type_object.to_object_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
@@ -336,12 +332,12 @@ def test_sql_target_list_model_endpoints():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
-        value="sql"
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="sql")
+    endpoint_store = store_type_object.to_object_store(
+        project=TEST_PROJECT, store_connection=ENDPOINT_STORE_CONNECTION
     )
-    endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, endpoint_store_connection=ENDPOINT_STORE_CONNECTION
-    )
+
+    endpoint_store._create_tables_if_not_exist()
 
     # First, validate that there are no model endpoints records at the moment
     list_of_endpoints = endpoint_store.list_model_endpoints()
@@ -385,12 +381,12 @@ def test_sql_target_patch_endpoint():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
-        value="sql"
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="sql")
+    endpoint_store = store_type_object.to_object_store(
+        project=TEST_PROJECT, store_connection=ENDPOINT_STORE_CONNECTION
     )
-    endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, endpoint_store_connection=ENDPOINT_STORE_CONNECTION
-    )
+
+    endpoint_store._create_tables_if_not_exist()
 
     # First, validate that there are no model endpoints records at the moment
     list_of_endpoints = endpoint_store.list_model_endpoints()

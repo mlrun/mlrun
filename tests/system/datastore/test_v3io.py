@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import pytest
+from pandas._testing import assert_frame_equal
 
 import mlrun.datastore
 from mlrun.datastore.datastore_profile import (
@@ -98,16 +99,28 @@ class TestV3ioDataStore(TestMLRunSystem):
             )
         return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
 
-    def _setup_df_dir(self, first_file_path, second_file_path, file_extension):
-        dataitem_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.{file_extension}"
+    def _setup_df_dir(self, file_format, reader):
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
+        df1_path = os.path.join(
+            self.assets_path, f"testdata_short.{file_format}"
+        )  # TODO change to data store convention
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
-        uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
-        uploaded_data_item.upload(first_file_path)
-
-        dataitem_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.{file_extension}"
-
-        uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
-        uploaded_data_item.upload(second_file_path)
+        #  upload
+        dt1 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df1.{file_format}",
+        )
+        dt2 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df2.{file_format}",
+        )
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        return (
+            mlrun.run.get_dataitem(dataframes_url),
+            reader(df1_path),
+            reader(df2_path),
+        )
 
     def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
@@ -296,42 +309,21 @@ class TestV3ioDataStore(TestMLRunSystem):
         pd.testing.assert_frame_equal(source, response)
 
     @pytest.mark.parametrize(
-        "file_extension, reader",
+        "file_format, reader, reset_index",
         [
-            (
-                "parquet",
-                pd.read_parquet,
-            ),
-            ("csv", pd.read_csv),
+            ("parquet", pd.read_parquet, False),
+            ("csv", pd.read_csv, True),
         ],
     )
-    def test_check_read_df_dir(
-        self,
-        use_datastore_profile: bool,
-        file_extension: str,
-        reader: callable,
+    def test_as_df_directory(
+        self, use_datastore_profile, file_format, reader, reset_index
     ):
-        first_file_path = self.df_paths[file_extension]
-        second_file_path = self.additional_df_paths[file_extension]
-        self._setup_df_dir(
-            first_file_path=first_file_path,
-            second_file_path=second_file_path,
-            file_extension=file_extension,
+        dt_dir, df1, df2 = self._setup_df_dir(
+            file_format=file_format,
+            reader=reader,
         )
-
-        dir_data_item = mlrun.run.get_dataitem(self.run_dir_url)
-        response_df = (
-            dir_data_item.as_df(format=file_extension, time_column="date_of_birth")
-            .sort_values("id")
-            .reset_index(drop=True)
-        )
-        df = reader(first_file_path)
-        df["date_of_birth"] = pd.to_datetime(df["date_of_birth"])
-        additional_df = reader(second_file_path)
-        additional_df["date_of_birth"] = pd.to_datetime(additional_df["date_of_birth"])
-        appended_df = (
-            pd.concat([df, additional_df], axis=0)
-            .sort_values("id")
-            .reset_index(drop=True)
-        )
-        pd.testing.assert_frame_equal(response_df, appended_df)
+        tested_df = dt_dir.as_df(format=file_format)
+        if reset_index:
+            tested_df = tested_df.sort_values("id").reset_index(drop=True)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
+        assert_frame_equal(tested_df, expected_df)

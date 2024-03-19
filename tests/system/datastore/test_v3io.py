@@ -17,8 +17,10 @@ import subprocess
 import tempfile
 import time
 import uuid
+from os.path import join
 from urllib.parse import urlparse
 
+import dask.dataframe as dd
 import pandas as pd
 import pytest
 from pandas._testing import assert_frame_equal
@@ -57,7 +59,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         }
         with open(cls.test_file_path) as f:
             cls.test_string = f.read()
-        cls.test_dir = "/bigdata/v3io_tomer_tests"  # TODO delete Tomer...
+        cls.test_dir = "/bigdata/v3io_tests"
         cls.test_dir_url = "v3io://" + cls.test_dir
         cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.profile_name = "v3io_ds_profile"
@@ -102,10 +104,10 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _setup_df_dir(self, file_format, reader):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = os.path.join(
+        df1_path = join(
             self.assets_path, f"testdata_short.{file_format}"
         )  # TODO change to data store convention
-        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
+        df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
         #  upload
         dt1 = mlrun.run.get_dataitem(
@@ -123,8 +125,8 @@ class TestV3ioDataStore(TestMLRunSystem):
         )
 
     def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
-        tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
-        tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
+        tempfile_1_path = join(tmp_path, "tempfile_1")
+        tempfile_2_path = join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
         first_start_time = time.time()
         with open(tempfile_1_path, "wb") as f:
@@ -282,31 +284,60 @@ class TestV3ioDataStore(TestMLRunSystem):
             data_item.stat()
 
     @pytest.mark.parametrize(
-        "file_extension,kwargs, reader",
+        "file_format, reader, reader_args",
         [
-            (
-                "parquet",
-                {},
-                pd.read_parquet,
-            ),
-            ("csv", {}, pd.read_csv),
-            ("json", {"orient": "records", "lines": True}, pd.read_json),
+            ("parquet", pd.read_parquet, {}),
+            ("csv", pd.read_csv, {}),
+            ("json", pd.read_json, {"orient": "records"}),
         ],
     )
     def test_as_df(
         self,
         use_datastore_profile: bool,
-        file_extension: str,
-        kwargs: dict,
+        file_format: str,
         reader: callable,
+        reader_args: dict,
     ):
-        local_file_path = self.df_paths[file_extension]
-        source = reader(local_file_path, **kwargs)
-        source["date_of_birth"] = pd.to_datetime(source["date_of_birth"])
-        dataitem, _ = self._get_data_item(file_extension=file_extension)
-        dataitem.upload(local_file_path)
-        response = dataitem.as_df(time_column="date_of_birth", **kwargs)
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
+        local_file_path = join(
+            self.assets_path, f"testdata_short.{file_format}"
+        )  # TODO fix filename
+
+        source = reader(local_file_path, **reader_args)
+
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url)
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
+
+    @pytest.mark.parametrize(
+        "file_format, reader, reader_args",
+        [
+            # ("parquet", dd.read_parquet, {}),
+            # ("csv", dd.read_csv, {}),
+            ("json", dd.read_json, {"orient": "values"}),
+        ],
+    )
+    def test_as_df_dd(
+        self,
+        use_datastore_profile,
+        file_format,
+        reader,
+        reader_args,
+    ):
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
+        local_file_path = join(
+            self.assets_path, f"testdata_short.{file_format}"
+        )  # TODO fix filename
+
+        source = reader(local_file_path, **reader_args)
+
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url)
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(**reader_args, df_module=dd)
+        dd.assert_eq(source, response)
 
     @pytest.mark.parametrize(
         "file_format, reader, reset_index",
@@ -327,3 +358,23 @@ class TestV3ioDataStore(TestMLRunSystem):
             tested_df = tested_df.sort_values("id").reset_index(drop=True)
         expected_df = pd.concat([df1, df2], ignore_index=True)
         assert_frame_equal(tested_df, expected_df)
+
+    @pytest.mark.parametrize(
+        "file_format, reader, reset_index",
+        [
+            ("parquet", dd.read_parquet, False),
+            ("csv", dd.read_csv, True),
+        ],
+    )
+    def test_as_df_directory_dd(
+        self, use_datastore_profile, file_format, reader, reset_index
+    ):
+        dt_dir, df1, df2 = self._setup_df_dir(
+            file_format=file_format,
+            reader=reader,
+        )
+        tested_df = dt_dir.as_df(format=file_format, df_module=dd)
+        if reset_index:
+            tested_df = tested_df.sort_values("id").reset_index(drop=True)
+        expected_df = dd.concat([df1, df2], axis=0)
+        dd.assert_eq(tested_df, expected_df)

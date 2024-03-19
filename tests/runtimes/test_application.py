@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import pathlib
 
 import pytest
@@ -26,18 +27,8 @@ def test_create_application_runtime():
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.spec.image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
-    # base64 prefix of the reverse proxy code
-    assert (
-        "Ly8gQ29weXJpZ2h0IDIwMjQgSWd1YXppbwovLwovLyBMaWN"
-        in fn.spec.build.functionSourceCode
-    )
-
-    filepath, expected_handler = (
-        mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
-    )
-    expected_filename = pathlib.Path(filepath).name
-    expected_function_handler = f"{expected_filename.split('.')[0]}:{expected_handler}"
-    assert fn.spec.function_handler == expected_function_handler
+    _assert_function_code(fn)
+    _assert_function_handler(fn)
 
 
 def test_create_application_runtime_with_command(rundb_mock):
@@ -49,18 +40,8 @@ def test_create_application_runtime_with_command(rundb_mock):
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.status.application_image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
-    # base64 prefix of the reverse proxy code
-    assert (
-        "Ly8gQ29weXJpZ2h0IDIwMjQgSWd1YXppbwovLwovLyBMaWN"
-        in fn.spec.build.functionSourceCode
-    )
-
-    filepath, expected_handler = (
-        mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
-    )
-    expected_filename = pathlib.Path(filepath).name
-    expected_function_handler = f"{expected_filename.split('.')[0]}:{expected_handler}"
-    assert fn.spec.function_handler == expected_function_handler
+    _assert_function_code(fn)
+    _assert_function_handler(fn)
 
 
 def test_deploy_application_runtime(rundb_mock):
@@ -69,16 +50,7 @@ def test_deploy_application_runtime(rundb_mock):
         "application-test", kind="application", image=image
     )
     fn.deploy()
-    assert fn.spec.config["spec.sidecars"] == [
-        {
-            "image": image,
-            "name": "application-test-sidecar",
-            "ports": [{"containerPort": 8080, "name": "http", "protocol": "TCP"}],
-        }
-    ]
-    assert fn.get_env("SIDECAR_PORT") == "8080"
-    assert fn.status.application_image == image
-    assert not fn.spec.image
+    _assert_application_post_deploy_spec(fn, image)
 
 
 def test_consecutive_deploy_application_runtime(rundb_mock):
@@ -87,26 +59,10 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
         "application-test", kind="application", image=image
     )
     fn.deploy()
-    assert fn.spec.config["spec.sidecars"] == [
-        {
-            "image": image,
-            "name": "application-test-sidecar",
-            "ports": [{"containerPort": 8080, "name": "http", "protocol": "TCP"}],
-        }
-    ]
-    assert fn.status.application_image == image
-    assert not fn.spec.image
+    _assert_application_post_deploy_spec(fn, image)
 
     fn.deploy()
-    assert fn.spec.config["spec.sidecars"] == [
-        {
-            "image": image,
-            "name": "application-test-sidecar",
-            "ports": [{"containerPort": 8080, "name": "http", "protocol": "TCP"}],
-        }
-    ]
-    assert fn.status.application_image == image
-    assert not fn.spec.image
+    _assert_application_post_deploy_spec(fn, image)
 
     # Change the image and deploy again
     image = "another/web-app:latest"
@@ -114,15 +70,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
     fn.deploy()
 
     # Ensure the image is updated
-    assert fn.spec.config["spec.sidecars"] == [
-        {
-            "image": image,
-            "name": "application-test-sidecar",
-            "ports": [{"containerPort": 8080, "name": "http", "protocol": "TCP"}],
-        }
-    ]
-    assert fn.status.application_image == image
-    assert not fn.spec.image
+    _assert_application_post_deploy_spec(fn, image)
 
 
 @pytest.mark.parametrize(
@@ -195,3 +143,36 @@ def test_pre_deploy_validation(sidecars, expected_error_message):
         assert expected_error_message in str(exc.value)
     else:
         fn.pre_deploy_validation()
+
+
+def _assert_function_code(fn, file_path=None):
+    file_path = (
+        file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]
+    )
+    expected_code = pathlib.Path(file_path).read_text()
+    expected_code_encoded = base64.b64encode(expected_code.encode("utf-8")).decode(
+        "utf-8"
+    )
+    assert fn.spec.build.functionSourceCode == expected_code_encoded
+
+
+def _assert_function_handler(fn):
+    filepath, expected_handler = (
+        mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
+    )
+    expected_filename = pathlib.Path(filepath).name
+    expected_function_handler = f"{expected_filename.split('.')[0]}:{expected_handler}"
+    assert fn.spec.function_handler == expected_function_handler
+
+
+def _assert_application_post_deploy_spec(fn, image):
+    assert fn.spec.config["spec.sidecars"] == [
+        {
+            "image": image,
+            "name": "application-test-sidecar",
+            "ports": [{"containerPort": 8080, "name": "http", "protocol": "TCP"}],
+        }
+    ]
+    assert fn.get_env("SIDECAR_PORT") == "8080"
+    assert fn.status.application_image == image
+    assert not fn.spec.image

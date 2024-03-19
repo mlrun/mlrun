@@ -33,6 +33,7 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     // populate reverse proxy http request
     httpRequest, err := http.NewRequest(event.GetMethod(), event.GetPath(), bytes.NewReader(event.GetBody()))
     if err != nil {
+        context.Logger.ErrorWith("Failed to create a reverse proxy request")
         return nil, err
     }
     for k, v := range event.GetHeaders() {

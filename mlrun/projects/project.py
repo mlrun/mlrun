@@ -1396,6 +1396,7 @@ class MlrunProject(ModelObj):
                         self.spec.get_code_path(), artifact.src_path
                     )
                 producer = self._resolve_artifact_producer(artifact, project_tag)
+                # log the artifact only if it doesn't already exist
                 if (
                     producer.name != self.metadata.name
                     and self._resolve_existing_artifact(

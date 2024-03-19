@@ -22,6 +22,7 @@ from contextlib import nullcontext as does_not_raise
 
 import pandas as pd
 import pytest
+import yaml
 
 import mlrun
 import mlrun.artifacts
@@ -587,3 +588,32 @@ def test_register_artifacts(rundb_mock):
 
     artifact = project.get_artifact(artifact_key)
     assert artifact.tree == expected_tree
+
+
+def test_producer_in_exported_artifact():
+    project_name = "my-project"
+    project = mlrun.new_project(project_name, save=False)
+
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=results_dir
+    )
+
+    assert artifact.producer.get("kind") == "project"
+    assert artifact.producer.get("name") == project_name
+
+    artifact_path = f"{results_dir}/x.yaml"
+    artifact.export(artifact_path)
+
+    with open(artifact_path) as file:
+        exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
+        assert "producer" in exported_artifact["spec"]
+        assert exported_artifact["spec"]["producer"]["kind"] == "project"
+        assert exported_artifact["spec"]["producer"]["name"] == project_name
+
+    # remove the producer from the artifact and export it again
+    artifact.producer = None
+    artifact.export(artifact_path)
+
+    with open(artifact_path) as file:
+        exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
+        assert "producer" not in exported_artifact["spec"]

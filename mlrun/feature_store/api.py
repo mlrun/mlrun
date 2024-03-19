@@ -739,16 +739,19 @@ def _ingest(
 
     _infer_from_static_df(df, featureset, options=infer_stats)
 
-    if isinstance(source, DataSource):
+    if isinstance(source, DataSource) and source.schedule:
+        timestamp_key = featureset.spec.timestamp_key
         for target in featureset.status.targets:
-            if (
-                target.last_written == datetime.min
-                and source.schedule
-                and source.start_time
-            ):
-                # datetime.min is a special case that indicated that nothing was written in storey. we need the fix so
-                # in the next scheduled run, we will have the same start time
-                target.last_written = source.start_time
+
+            max_time = (
+                max(df[timestamp_key])
+                if timestamp_key
+                and timestamp_key in df
+                and df[timestamp_key].shape[0] != 0
+                else source.start_time  # if max_time is None (no data),
+                # next scheduled run should be with same start_time
+            )
+            target.last_written = max_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)
     if return_df:

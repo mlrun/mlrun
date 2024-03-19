@@ -194,7 +194,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
-            **({} if self.image is None else {"default_controller_image": self.image}),
+            **({} if self.image is None else {"image": self.image}),
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -388,7 +388,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
-            **({} if self.image is None else {"default_controller_image": self.image}),
+            **({} if self.image is None else {"image": self.image}),
         )
 
     def test_inference_feature_set(self) -> None:

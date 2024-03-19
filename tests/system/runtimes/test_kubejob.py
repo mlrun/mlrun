@@ -27,8 +27,8 @@ import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
 
 
-def exec_run(args):
-    cmd = [executable, "-m", "mlrun", "run"] + args
+def exec_cli(args, action="run"):
+    cmd = [executable, "-m", "mlrun", action] + args
     process = os.popen(" ".join(cmd))
     out = process.read()
     ret_code = process.close()
@@ -375,7 +375,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "handler",
         ]
         start_time = datetime.datetime.now()
-        exec_run(args)
+        exec_cli(args)
         end_time = datetime.datetime.now()
 
         assert (
@@ -384,6 +384,16 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
+
+    def test_build_cli_local_source(self):
+        args = [
+            "--project",
+            self.project_name,
+            str(self.assets_path / "local_src_func.yml"),
+        ]
+        out, _ = exec_cli(args, action="build")
+        assert "Function built, state=ready" in out
+        assert "Packing code at assets/sleep.py" in out
 
     def test_run_cli_not_specified_image(self):
         # define the function without an image
@@ -406,7 +416,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--handler",
             "handler",
         ]
-        _, ret_code = exec_run(args)
+        _, ret_code = exec_cli(args)
         assert ret_code is None
 
     @pytest.mark.parametrize("local", [True, False])

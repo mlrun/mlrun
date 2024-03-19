@@ -530,6 +530,9 @@ def build(
         b.image = image or b.image
         b.secret = secret_name or b.secret
 
+    if path.isfile(func.spec.command) and not source:
+        source = func.spec.command
+
     if source.endswith(".py"):
         if not path.isfile(source):
             print(f"Source file doesnt exist ({source})")

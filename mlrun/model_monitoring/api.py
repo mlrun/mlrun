@@ -704,8 +704,8 @@ def perform_drift_analysis(
         drift_detected_threshold=drift_threshold,
     )
 
-    # Drift table plot
-    html_plot = FeaturesDriftTablePlot().produce(
+    # Drift table artifact
+    plotly_artifact = FeaturesDriftTablePlot().produce(
         sample_set_statistics=sample_set_statistics,
         inputs_statistics=inputs_statistics,
         metrics=metrics,
@@ -732,7 +732,7 @@ def perform_drift_analysis(
     # Log the different artifacts
     _log_drift_artifacts(
         context=context,
-        html_plot=html_plot,
+        plotly_artifact=plotly_artifact,
         metrics_per_feature=metrics_per_feature,
         drift_status=drift_status,
         drift_metric=drift_metric,
@@ -742,7 +742,7 @@ def perform_drift_analysis(
 
 def _log_drift_artifacts(
     context: mlrun.MLClientCtx,
-    html_plot: str,
+    plotly_artifact: mlrun.artifacts.Artifact,
     metrics_per_feature: dict[str, float],
     drift_status: bool,
     drift_metric: float,
@@ -755,20 +755,14 @@ def _log_drift_artifacts(
     3 - Results of the total drift analysis
 
     :param context:             MLRun context. Will log the artifacts.
-    :param html_plot:           Body of the html file of the plot.
+    :param plotly_artifact:     The plotly artifact.
     :param metrics_per_feature: Dictionary in which the key is a feature name and the value is the drift numerical
                                 result.
     :param drift_status:        Boolean value that represents the final drift analysis result.
     :param drift_metric:        The final drift numerical result.
     :param artifacts_tag:       Tag to use for all the artifacts resulted from the function.
-
     """
-    context.log_artifact(
-        mlrun.artifacts.Artifact(
-            body=html_plot.encode("utf-8"), format="html", key="drift_table_plot"
-        ),
-        tag=artifacts_tag,
-    )
+    context.log_artifact(plotly_artifact, tag=artifacts_tag)
     context.log_artifact(
         mlrun.artifacts.Artifact(
             body=json.dumps(metrics_per_feature),

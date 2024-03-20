@@ -324,7 +324,13 @@ default_config = {
                 # optional values (as per https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html#sql-mode-full):
                 #
                 # if set to "nil" or "none", nothing would be set
-                "modes": "STRICT_TRANS_TABLES",
+                "modes": (
+                    "STRICT_TRANS_TABLES"
+                    ",NO_ZERO_IN_DATE"
+                    ",NO_ZERO_DATE"
+                    ",ERROR_FOR_DIVISION_BY_ZERO"
+                    ",NO_ENGINE_SUBSTITUTION",
+                )
             },
         },
         "jobs": {

@@ -21,4 +21,6 @@ def new_pipe_metadata(
     cleanup_ttl: int = None,
     op_transformers: list[typing.Callable] = None,
 ):
+    # This function is not required on a KFP 2.0 setup
+    # The definition is here for import compatibilty reasons
     raise NotImplementedError

@@ -587,6 +587,8 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         for key in [
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,
+            EventFieldType.PREDICTION,
+            EventFieldType.NAMED_PREDICTIONS,
         ]:
             event.pop(key, None)
 

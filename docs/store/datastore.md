@@ -3,7 +3,7 @@
 
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-MLRun supports multiple data stores. ((Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.)
+MLRun supports multiple data stores. 
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
@@ -15,6 +15,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
+* Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class. See [Adding a data store profile](#adding-a-data-store-profile)
 
 **In this section**
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
@@ -25,6 +26,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 - [HDFS](#hdfs)
 - [S3](#s3)
 - [V3IO](#v3io)
+- [Adding a data store profile](#adding-a-data-store-profile)
 
 
 ## Storage credentials and parameters
@@ -97,26 +99,33 @@ Create a data store profile in the context of a project. Example of creating a R
 2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
-   `RedisNoSqlTarget(path="ds://profile-name/a/b")`<br>
-    If you want to use a profile from a different project, you can specify it 
-	explicitly in the URI using the format:<br>
-    `RedisNoSqlTarget(path="ds://another_project@profile-name")`
-
-
-To access a profile from the client/sdk, register the profile locally by calling
+   `RedisNoSqlTarget(path="ds://profile-name/a/b")`
+   
+More options:
+- To access a profile from the client/sdk, register the profile locally by calling
    `register_temporary_client_datastore_profile()` with a profile object.
-You can also choose to retrieve the public information of an already registered profile by calling 
+- You can also choose to retrieve the public information of an already registered profile by calling 
    `project.get_datastore_profile()` and then adding the private credentials before registering it locally.
-For example, using Redis:
-```python
-redis_profile = project.get_datastore_profile("my_profile")
-local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
-register_temporary_client_datastore_profile(local_redis_profile)
-```
+
+    For example, using Redis:
+    ```python
+    redis_profile = project.get_datastore_profile("my_profile")
+    local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
+    register_temporary_client_datastore_profile(local_redis_profile)
+    ```
 
 ```{admonition} Notes
 - Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
+
+See also:
+- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
+- {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
+- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
+- {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
+
+The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
+the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
 
 ## Azure data store
 
@@ -253,8 +262,8 @@ ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 - `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name is the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name is used. In Spark, this is evaluated at the time that the spark context is created.
 
 
-
 ## S3
+
 ### S3 credentials and parameters
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
@@ -310,11 +319,14 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 - `name` &mdash; Name of the profile
 - `v3io_access_key` &mdash; Optional. Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
 
-## See also
-- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
-- {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
-- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
-- {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
+## Adding a data store profile
 
-The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
-the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
+If you already have a functioning datastore, integrating it with a datastore profile is straightforward. Follow these steps:
+1. Derive a new datastore profile class from the `DatastoreProfile` class. During this process, specify the datastore profile type. 
+   This is usually the same as the schema associated with the datastore URL, although this is not strictly necessary.
+2. Incorporate all necessary parameters for accessing the datastore, ensuring they are appropriately classified as public or private.
+3. Implement two essential methods: `secrets()` and `url()`.
+   - The `url()` method constructs a URL path to a specific object. It takes a 'subpath' parameter, which is the relative path to the object, 
+   and returns the fully resolved URL that is used to access the object in the datastore.
+   - The `secrets()` method returns a dictionary containing environment variables that are used when accessing the datastore.
+4. In the `create_from_json()` function, introduce factory settings for the newly created profile. Use the profile type as a key for these settings.

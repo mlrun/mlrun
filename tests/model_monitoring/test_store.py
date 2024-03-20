@@ -24,9 +24,11 @@ from _pytest.fixtures import FixtureRequest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores
 import mlrun.model_monitoring.db.stores.sqldb.sql_store
 from mlrun.common.schemas.model_monitoring import SchedulingKeys, WriterEvent
+from mlrun.model_monitoring.db.stores import (  # noqa: F401
+    StoreBase,
+)
 from mlrun.model_monitoring.writer import _AppResultEvent
 
 SQLstoreObject = typing.TypeVar("SQLstoreObject", bound="StoreBase")

@@ -204,13 +204,8 @@ def record_results(
     )
 
     if trigger_monitoring_job:
-        # Run the monitoring batch drift job
-        trigger_drift_batch_job(
-            project=project,
-            default_batch_image=default_batch_image,
-            model_endpoints_ids=[model_endpoint.metadata.uid],
-            db_session=db,
-        )
+        # TODO: add deprecation
+        pass
 
     return model_endpoint
 
@@ -392,71 +387,6 @@ def _generate_model_endpoint(
     )
 
     return db_session.get_model_endpoint(project=project, endpoint_id=endpoint_id)
-
-
-def trigger_drift_batch_job(
-    project: str,
-    default_batch_image="mlrun/mlrun",
-    model_endpoints_ids: list[str] = None,
-    batch_intervals_dict: dict[str, float] = None,
-    db_session=None,
-):
-    """
-    Run model monitoring drift analysis job. If not exists, the monitoring batch function will be registered through
-    MLRun API with the provided image.
-
-    :param project:              Project name.
-    :param default_batch_image:  The image that will be used when registering the model monitoring batch job.
-    :param model_endpoints_ids:  List of model endpoints to include in the current run.
-    :param batch_intervals_dict: Batch interval range (days, hours, minutes). By default, the batch interval is
-                                 configured to run through the last hour.
-    :param db_session:           A runtime session that manages the current dialog with the database.
-
-    """
-    if not model_endpoints_ids:
-        raise mlrun.errors.MLRunNotFoundError(
-            "No model endpoints provided",
-        )
-    if not db_session:
-        db_session = mlrun.get_run_db()
-
-    # Register the monitoring batch job (do nothing if already exist) and get the job function as a dictionary
-    batch_function_dict: dict[str, typing.Any] = db_session.deploy_monitoring_batch_job(
-        project=project,
-        default_batch_image=default_batch_image,
-    )
-
-    # Prepare current run params
-    job_params = _generate_job_params(
-        model_endpoints_ids=model_endpoints_ids,
-        batch_intervals_dict=batch_intervals_dict,
-    )
-
-    # Generate runtime and trigger the job function
-    batch_function = mlrun.new_function(runtime=batch_function_dict)
-    batch_function.run(name="model-monitoring-batch", params=job_params, watch=True)
-
-
-def _generate_job_params(
-    model_endpoints_ids: list[str],
-    batch_intervals_dict: dict[str, float] = None,
-):
-    """
-    Generate the required params for the model monitoring batch job function.
-
-    :param model_endpoints_ids:  List of model endpoints to include in the current run.
-    :param batch_intervals_dict: Batch interval range (days, hours, minutes). By default, the batch interval is
-                                 configured to run through the last hour.
-
-    """
-    if not batch_intervals_dict:
-        # Generate default batch intervals dict
-        batch_intervals_dict = {"minutes": 0, "hours": 1, "days": 0}
-
-    return {
-        "model_endpoints": model_endpoints_ids,
-        "batch_intervals_dict": batch_intervals_dict,
-    }
 
 
 def get_sample_set_statistics(

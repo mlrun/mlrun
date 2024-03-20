@@ -801,8 +801,8 @@ def _deploy_nuclio_runtime(
                 server.api.crud.model_monitoring.deployment.MonitoringDeployment(
                     project=fn.metadata.project,
                     auth_info=auth_info,
-                    model_monitoring_access_key=model_monitoring_access_key,
                     db_session=db_session,
+                    model_monitoring_access_key=model_monitoring_access_key,
                 )
             )
             fn = monitoring_deploy._apply_and_create_stream_trigger(
@@ -843,8 +843,8 @@ def _deploy_serving_monitoring(
         monitoring_deploy = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment(
                 project=fn.metadata.project,
-                db_session=db_session,
                 auth_info=auth_info,
+                db_session=db_session,
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         )

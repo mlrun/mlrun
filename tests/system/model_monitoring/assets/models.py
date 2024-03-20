@@ -15,10 +15,14 @@ import mlrun.serving
 
 
 class OneToOne(mlrun.serving.V2ModelServer):
+    """
+    In this class the predict method returns one result to each input
+    """
+
     def load(self):
         pass
 
-    def predict(self, body: dict):
+    def predict(self, body: dict) -> list:
         inputs = body.get("inputs")
         if isinstance(inputs[0], list) and len(inputs) == 600:  # single image
             outputs = 3
@@ -34,10 +38,14 @@ class OneToOne(mlrun.serving.V2ModelServer):
 
 
 class OneToMany(mlrun.serving.V2ModelServer):
+    """
+    In this class the predict method returns 5 port outputs result to each input
+    """
+
     def load(self):
         pass
 
-    def predict(self, body: dict):
+    def predict(self, body: dict) -> list:
         inputs = body.get("inputs")
         if isinstance(inputs[0], list) or (
             isinstance(inputs[0], str) and isinstance(inputs, list)

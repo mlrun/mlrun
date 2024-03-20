@@ -34,6 +34,7 @@ import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
     HistogramDistanceMetric,

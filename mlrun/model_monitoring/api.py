@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import hashlib
-import json
 import typing
 from datetime import datetime
 
@@ -27,8 +26,6 @@ from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitorin
 from mlrun.data_types.infer import InferOptions, get_df_stats
 from mlrun.utils import datetime_now, logger
 
-from .batch import VirtualDrift
-from .features_drift_table import FeaturesDriftTablePlot
 from .helpers import update_model_endpoint_last_request
 from .model_endpoint import ModelEndpoint
 
@@ -220,17 +217,6 @@ def record_results(
             model_endpoint=model_endpoint,
             drift_threshold=drift_threshold,
             possible_drift_threshold=possible_drift_threshold,
-        )
-
-        perform_drift_analysis(
-            project=project,
-            context=context,
-            sample_set_statistics=model_endpoint.status.feature_stats,
-            drift_threshold=drift_threshold,
-            possible_drift_threshold=possible_drift_threshold,
-            artifacts_tag=artifacts_tag,
-            endpoint_id=model_endpoint.metadata.uid,
-            db_session=db,
         )
 
     return model_endpoint
@@ -657,145 +643,6 @@ def read_dataset_as_dataframe(
         label_columns = [label_columns]
 
     return dataset, label_columns
-
-
-def perform_drift_analysis(
-    project: str,
-    endpoint_id: str,
-    context: mlrun.MLClientCtx,
-    sample_set_statistics: dict,
-    drift_threshold: float,
-    possible_drift_threshold: float,
-    artifacts_tag: str = "",
-    db_session=None,
-) -> None:
-    """
-    Calculate drift per feature and produce the drift table artifact for logging post prediction. Note that most of
-    the calculations were already made through the monitoring batch job.
-
-    :param project:                  Project name.
-    :param endpoint_id:              Model endpoint unique ID.
-    :param context:                  MLRun context. Will log the artifacts.
-    :param sample_set_statistics:    The statistics of the sample set logged along a model.
-    :param drift_threshold:          The threshold of which to mark drifts.
-    :param possible_drift_threshold: The threshold of which to mark possible drifts.
-    :param artifacts_tag:            Tag to use for all the artifacts resulted from the function.
-    :param db_session:               A runtime session that manages the current dialog with the database.
-
-    """
-    if not db_session:
-        db_session = mlrun.get_run_db()
-
-    model_endpoint = db_session.get_model_endpoint(
-        project=project, endpoint_id=endpoint_id
-    )
-
-    # Get the drift metrics results along with the feature statistics from the latest batch
-    metrics = model_endpoint.status.drift_measures
-    inputs_statistics = model_endpoint.status.current_stats
-
-    inputs_statistics.pop(EventFieldType.TIMESTAMP, None)
-
-    # Calculate drift for each feature
-    virtual_drift = VirtualDrift()
-    drift_results = virtual_drift.check_for_drift_per_feature(
-        metrics_results_dictionary=metrics,
-        possible_drift_threshold=possible_drift_threshold,
-        drift_detected_threshold=drift_threshold,
-    )
-
-    # Drift table artifact
-    plotly_artifact = FeaturesDriftTablePlot().produce(
-        sample_set_statistics=sample_set_statistics,
-        inputs_statistics=inputs_statistics,
-        metrics=metrics,
-        drift_results=drift_results,
-    )
-
-    # Prepare drift result per feature dictionary
-    metrics_per_feature = {
-        feature: _get_drift_result(
-            tvd=metric_dictionary["tvd"],
-            hellinger=metric_dictionary["hellinger"],
-            threshold=drift_threshold,
-        )[1]
-        for feature, metric_dictionary in metrics.items()
-        if isinstance(metric_dictionary, dict)
-    }
-
-    # Calculate the final analysis result as well
-    drift_status, drift_metric = _get_drift_result(
-        tvd=metrics["tvd_mean"],
-        hellinger=metrics["hellinger_mean"],
-        threshold=drift_threshold,
-    )
-    # Log the different artifacts
-    _log_drift_artifacts(
-        context=context,
-        plotly_artifact=plotly_artifact,
-        metrics_per_feature=metrics_per_feature,
-        drift_status=drift_status,
-        drift_metric=drift_metric,
-        artifacts_tag=artifacts_tag,
-    )
-
-
-def _log_drift_artifacts(
-    context: mlrun.MLClientCtx,
-    plotly_artifact: mlrun.artifacts.Artifact,
-    metrics_per_feature: dict[str, float],
-    drift_status: bool,
-    drift_metric: float,
-    artifacts_tag: str,
-):
-    """
-    Log the following artifacts/results:
-    1 - Drift table plot which includes a detailed drift analysis per feature
-    2 - Drift result per feature in a JSON format
-    3 - Results of the total drift analysis
-
-    :param context:             MLRun context. Will log the artifacts.
-    :param plotly_artifact:     The plotly artifact.
-    :param metrics_per_feature: Dictionary in which the key is a feature name and the value is the drift numerical
-                                result.
-    :param drift_status:        Boolean value that represents the final drift analysis result.
-    :param drift_metric:        The final drift numerical result.
-    :param artifacts_tag:       Tag to use for all the artifacts resulted from the function.
-    """
-    context.log_artifact(plotly_artifact, tag=artifacts_tag)
-    context.log_artifact(
-        mlrun.artifacts.Artifact(
-            body=json.dumps(metrics_per_feature),
-            format="json",
-            key="features_drift_results",
-        ),
-        tag=artifacts_tag,
-    )
-    context.log_results(
-        results={"drift_status": drift_status, "drift_metric": drift_metric}
-    )
-
-
-def _get_drift_result(
-    tvd: float,
-    hellinger: float,
-    threshold: float,
-) -> tuple[bool, float]:
-    """
-    Calculate the drift result by the following equation: (tvd + hellinger) / 2
-
-    :param tvd:       The feature's TVD value.
-    :param hellinger: The feature's Hellinger value.
-    :param threshold: The threshold from which the value is considered a drift.
-
-    :returns: A tuple of:
-              [0] = Boolean value as the drift status.
-              [1] = The result.
-    """
-    result = (tvd + hellinger) / 2
-    if result >= threshold:
-        return True, result
-    return False, result
 
 
 def log_result(

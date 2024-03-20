@@ -262,6 +262,8 @@ class ApplicationRuntime(RemoteRuntime):
 
         if self.status.container_image:
             self.from_image(self.status.container_image)
+            # nuclio implementation detail - when providing the image and emptying out the source code,
+            # nuclio skips rebuilding the image and simply takes the prebuilt image
             self.spec.build.functionSourceCode = ""
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"

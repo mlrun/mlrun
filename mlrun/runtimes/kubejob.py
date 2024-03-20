@@ -15,7 +15,7 @@
 import time
 import warnings
 
-from mlrun_pipelines.ops import build_op
+from mlrun_pipelines.common.ops import build_op
 
 import mlrun.common.schemas
 import mlrun.db

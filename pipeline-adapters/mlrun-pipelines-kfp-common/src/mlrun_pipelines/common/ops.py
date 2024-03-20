@@ -342,6 +342,48 @@ def mlrun_op(
     )
 
 
+def build_op(
+    name,
+    function=None,
+    func_url=None,
+    image=None,
+    base_image=None,
+    commands: list = None,
+    secret_name="",
+    with_mlrun=True,
+    skip_deployed=False,
+):
+    """build Docker image."""
+    # TODO: improve code distribution to avoid circular imports
+    from mlrun_pipelines.ops import generate_image_builder_pipeline_node
+
+    cmd = ["python", "-m", "mlrun", "build", "--kfp"]
+    if function:
+        if not hasattr(function, "to_dict"):
+            raise ValueError("function must specify a function runtime object")
+        cmd += ["-r", str(function.to_dict())]
+    elif not func_url:
+        raise ValueError("function object or func_url must be specified")
+
+    commands = commands or []
+    if image:
+        cmd += ["-i", image]
+    if base_image:
+        cmd += ["-b", base_image]
+    if secret_name:
+        cmd += ["--secret-name", secret_name]
+    if with_mlrun:
+        cmd += ["--with-mlrun"]
+    if skip_deployed:
+        cmd += ["--skip"]
+    for c in commands:
+        cmd += ["-c", c]
+    if func_url and not function:
+        cmd += [func_url]
+
+    generate_image_builder_pipeline_node(name, function, func_url, cmd)
+
+
 def get_default_reg():
     if config.httpdb.builder.docker_registry:
         return config.httpdb.builder.docker_registry

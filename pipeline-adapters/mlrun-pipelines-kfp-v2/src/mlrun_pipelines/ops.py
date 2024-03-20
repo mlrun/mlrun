@@ -186,6 +186,9 @@ def add_labels(task, function, scrape_metrics=False):
 
 
 def add_default_env(task):
+    # TODO: add an environment variable to communicate that
+    #   the target mlrun container should run in KFP 2.0 compatible mode
+
     if hasattr(kfp_k8s, "use_field_path_as_env"):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
     else:
@@ -225,7 +228,7 @@ def generate_pipeline_node(
     registry: str,
 ):
     # TODO: work out how to reproduce the file and artifacts output behaviour used on ContainerOp
-    #   dsl.OutputPaths should be the way to go, but the MLRun<>KFPv2 communication is not yet ready
+    #   dsl.OutputPath should be the way to go, but the MLRun<>KFPv2 communication is not yet ready
     def mlrun_function():
         return dsl.ContainerSpec(
             image=image,
@@ -260,19 +263,49 @@ def generate_pipeline_node(
     return task
 
 
-def build_op(
+def generate_image_builder_pipeline_node(
     name,
     function=None,
     func_url=None,
-    image=None,
-    base_image=None,
-    commands: list = None,
-    secret_name="",
-    with_mlrun=True,
-    skip_deployed=False,
+    cmd=None,
 ):
-    """build Docker image."""
-    raise NotImplementedError
+    def build_mlrun_function(state: dsl.OutputPath(str), image: dsl.OutputPath(str)):
+        runtime_args = ["--state-file-path", state, "--image-file-path", image]
+        return dsl.ContainerSpec(
+            image=config.kfp_image,
+            command=cmd + runtime_args,
+        )
+
+    container_component = dsl.component_factory.create_container_component_from_func(
+        build_mlrun_function
+    )
+    task = container_component()
+    task.set_display_name(name)
+
+    add_default_function_resources(task)
+    add_function_node_selection_attributes(function, task)
+    add_annotations(task, PipelineRunType.build, function, func_url)
+
+    if config.httpdb.builder.docker_registry:
+        task.set_env_variable(
+            name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY",
+            value=config.httpdb.builder.docker_registry,
+        )
+    if "IGZ_NAMESPACE_DOMAIN" in os.environ:
+        task.set_env_variable(
+            name="IGZ_NAMESPACE_DOMAIN",
+            value=os.environ.get("IGZ_NAMESPACE_DOMAIN"),
+        )
+
+    is_v3io = function.spec.build.source and function.spec.build.source.startswith(
+        "v3io"
+    )
+    if "V3IO_ACCESS_KEY" in os.environ and is_v3io:
+        task.set_env_variable(
+            name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
+        )
+    add_default_env(task)
+    return task
 
 
 def deploy_op(

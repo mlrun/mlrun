@@ -212,13 +212,6 @@ def record_results(
             db_session=db,
         )
 
-        # Getting drift thresholds if not provided
-        drift_threshold, possible_drift_threshold = get_drift_thresholds_if_not_none(
-            model_endpoint=model_endpoint,
-            drift_threshold=drift_threshold,
-            possible_drift_threshold=possible_drift_threshold,
-        )
-
     return model_endpoint
 
 
@@ -287,40 +280,6 @@ def _model_endpoint_validations(
                 f"Cannot change existing possible drift threshold. Expected {current_possible_drift_threshold}, "
                 f"got {possible_drift_threshold}. Please update drift threshold or generate a new model endpoint record"
             )
-
-
-def get_drift_thresholds_if_not_none(
-    model_endpoint: ModelEndpoint,
-    drift_threshold: float = None,
-    possible_drift_threshold: float = None,
-) -> tuple[float, float]:
-    """
-    Get drift and possible drift thresholds. If one of the thresholds is missing, will try to retrieve
-    it from the `ModelEndpoint` object. If not defined under the `ModelEndpoint` as well, will retrieve it from
-    the default mlrun configuration.
-
-    :param model_endpoint:           `ModelEndpoint` object.
-    :param drift_threshold:           The threshold of which to mark drifts.
-    :param possible_drift_threshold:  The threshold of which to mark possible drifts.
-
-    :return: A Tuple of:
-            [0] drift threshold as a float
-            [1] possible drift threshold as a float
-    """
-    if not drift_threshold:
-        # Getting drift threshold value from either model endpoint or monitoring default configurations
-        drift_threshold = model_endpoint.spec.monitor_configuration.get(
-            EventFieldType.DRIFT_DETECTED_THRESHOLD,
-            mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected,
-        )
-    if not possible_drift_threshold:
-        # Getting possible drift threshold value from either model endpoint or monitoring default configurations
-        possible_drift_threshold = model_endpoint.spec.monitor_configuration.get(
-            EventFieldType.POSSIBLE_DRIFT_THRESHOLD,
-            mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift,
-        )
-
-    return drift_threshold, possible_drift_threshold
 
 
 def write_monitoring_df(

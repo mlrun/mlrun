@@ -3988,6 +3988,18 @@ def _init_function_from_dict(
                 tag=tag,
             )
 
+    elif image and kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        func = new_function(
+            name,
+            command=relative_url,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        if kind != mlrun.runtimes.RuntimeKinds.application:
+            logger.info("Function code not specified, setting entry point to image")
+            func.from_image(image)
     else:
         raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 

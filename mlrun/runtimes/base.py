@@ -786,7 +786,7 @@ class BaseRuntime(ModelObj):
         requirements: Optional[list[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: str = "",
+        requirements_file: Optional[str] = "",
     ):
         """add package requirements from file or list to build spec.
 

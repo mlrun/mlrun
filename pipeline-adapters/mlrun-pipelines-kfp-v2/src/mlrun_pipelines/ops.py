@@ -224,17 +224,19 @@ def generate_pipeline_node(
     code_env: str,
     registry: str,
 ):
-    csp = dsl.ContainerSpec(
-        image=image,
-        command=command,
-    )
+    # TODO: work out how to reproduce the file and artifacts output behaviour used on ContainerOp
+    #   dsl.OutputPaths should be the way to go, but the MLRun<>KFPv2 communication is not yet ready
+    def mlrun_function():
+        return dsl.ContainerSpec(
+            image=image,
+            command=command,
+        )
 
     container_component = dsl.component_factory.create_container_component_from_func(
-        lambda: csp
+        mlrun_function
     )
-    task = container_component()
 
-    # TODO: work out how to reproduce the file and artifacts output behaviour used on ContainerOp
+    task = container_component()
 
     # TODO: ensure that "name" can be used to identify the current pipeline node
     task.set_display_name(name)

@@ -50,13 +50,11 @@ from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
-from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
-from server.api.crud.model_monitoring.helpers import Seconds
 from server.api.crud.secrets import Secrets, SecretsClientType
 from server.api.utils.builder import build_runtime
 from server.api.utils.singletons.scheduler import get_scheduler
@@ -780,8 +778,7 @@ def _deploy_nuclio_runtime(
         fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
         == mm_constants.ModelMonitoringAppLabel.VAL
     )
-    serving_to_monitor = fn.kind == RuntimeKinds.serving and fn.spec.track_models
-    if serving_to_monitor or monitoring_application:
+    if monitoring_application:
         if not mlrun.mlconf.is_ce_mode():
             model_monitoring_access_key = process_model_monitoring_secret(
                 db_session,
@@ -790,58 +787,7 @@ def _deploy_nuclio_runtime(
             )
         else:
             model_monitoring_access_key = None
-        if serving_to_monitor:
-            # TODO : delete when batch is deprecated.
-            _deploy_serving_monitoring(
-                auth_info,
-                db_session,
-                fn,
-                model_monitoring_access_key,
-            )
-        if monitoring_application:
-            monitoring_deploy = (
-                server.api.crud.model_monitoring.deployment.MonitoringDeployment(
-                    project=fn.metadata.project,
-                    auth_info=auth_info,
-                    db_session=db_session,
-                    model_monitoring_access_key=model_monitoring_access_key,
-                )
-            )
-            fn = monitoring_deploy._apply_and_create_stream_trigger(
-                function=fn,
-                function_name=fn.metadata.name,
-            )
-    server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
-        fn,
-        auth_info=auth_info,
-        client_version=client_version,
-        client_python_version=client_python_version,
-        builder_env=builder_env,
-    )
-    return fn
 
-
-def _deploy_serving_monitoring(
-    auth_info,
-    db_session,
-    fn,
-    model_monitoring_access_key,
-):
-    # TODO : delete when batch is deprecated.
-    try:
-        # Handle model monitoring
-        logger.info("Tracking enabled, initializing model monitoring")
-
-        if fn.spec.tracking_policy:
-            # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
-            fn.spec.tracking_policy = TrackingPolicy.from_dict(fn.spec.tracking_policy)
-        else:
-            # Initialize tracking policy with default values
-            fn.spec.tracking_policy = TrackingPolicy()
-
-        if not mlrun.mlconf.is_ce_mode():
-            _init_serving_function_stream_args(fn=fn)
-        # deploy model monitoring stream, model monitoring batch job,
         monitoring_deploy = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment(
                 project=fn.metadata.project,
@@ -850,18 +796,19 @@ def _deploy_serving_monitoring(
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         )
-        monitoring_deploy.deploy_model_monitoring_batch_processing(
-            tracking_policy=fn.spec.tracking_policy,
-            tracking_offset=Seconds(monitoring_deploy._max_parquet_save_interval),
+        fn = monitoring_deploy._apply_and_create_stream_trigger(
+            function=fn,
+            function_name=fn.metadata.name,
         )
 
-    except Exception as exc:
-        logger.warning(
-            "Failed deploying model monitoring infrastructure for the project application",
-            project=fn.metadata.project,
-            exc=exc,
-            traceback=traceback.format_exc(),
-        )
+    server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+        fn,
+        auth_info=auth_info,
+        client_version=client_version,
+        client_python_version=client_python_version,
+        builder_env=builder_env,
+    )
+    return fn
 
 
 def _parse_start_function_body(db_session, data):

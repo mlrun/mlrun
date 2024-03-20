@@ -179,9 +179,9 @@ class _TarArchiver(_Archiver):
 
         # Extract:
         with tarfile.open(archive_path, f"r:{cls._MODE_STRING}") as tar_file:
-            # use 'data' to ensure no security risks are imposed by the archive files
+            # use 'tar' to ensure no security risks are imposed by the archive files
             # see: https://docs.python.org/3/library/tarfile.html#tarfile.TarFile.extractall
-            tar_file.extractall(directory_path, filter="data")
+            tar_file.extractall(directory_path, filter="tar")
 
         return str(directory_path)
 

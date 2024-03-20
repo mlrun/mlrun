@@ -133,7 +133,7 @@ def record_results(
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
     artifacts_tag: str = "",
-    default_batch_image="mlrun/mlrun",
+    default_batch_image: str = "mlrun/mlrun",
 ) -> ModelEndpoint:
     """
     Write a provided inference dataset to model endpoint parquet target. If not exist, generate a new model endpoint

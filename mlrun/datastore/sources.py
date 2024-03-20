@@ -204,11 +204,11 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
+        store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
-                "path": url,
+                "path": store.spark_url + path,
                 "format": "csv",
                 "header": "true",
                 "inferSchema": "true",
@@ -357,7 +357,7 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
+        store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {

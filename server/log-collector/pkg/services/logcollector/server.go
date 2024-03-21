@@ -72,6 +72,8 @@ type Server struct {
 	// interval durations
 	readLogWaitTime    time.Duration
 	monitoringInterval time.Duration
+
+	listRunsChunkSize int
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -88,7 +90,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferSizeBytes,
 	getLogsBufferSizeBytes,
 	logTimeUpdateBytesInterval,
-	advancedLogLevel int) (*Server, error) {
+	advancedLogLevel,
+	listRunsChunkSize int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -146,6 +149,10 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, logCollectionBufferSizeBytes)
 	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, getLogsBufferSizeBytes)
 
+	if listRunsChunkSize <= 0 {
+		listRunsChunkSize = common.DefaultListRunsChunkSize
+	}
+
 	return &Server{
 		AbstractMlrunGRPCServer:      abstractServer,
 		namespace:                    namespace,
@@ -164,6 +171,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
 		advancedLogLevel:             advancedLogLevel,
+		listRunsChunkSize:            listRunsChunkSize,
 	}, nil
 }
 
@@ -696,8 +704,8 @@ func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, 
 	}
 
 	// send each run in progress to the stream in chunks of 10 due to gRPC message size limit
-	for i := 0; i < len(runsInProgress); i += 10 {
-		endIndex := i + 10
+	for i := 0; i < len(runsInProgress); i += s.listRunsChunkSize {
+		endIndex := i + s.listRunsChunkSize
 		if endIndex > len(runsInProgress) {
 			endIndex = len(runsInProgress)
 		}

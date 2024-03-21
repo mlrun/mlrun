@@ -68,6 +68,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	bufferSizeBytes := 100
 	clusterizationRole := "chief"
 	advancedLogLevel := 0
+	listRunsChunkSize := 10
 
 	// create base dir
 	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
@@ -88,7 +89,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		bufferSizeBytes,
 		bufferSizeBytes,
 		common.LogTimeUpdateBytesInterval,
-		advancedLogLevel)
+		advancedLogLevel,
+		listRunsChunkSize)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	suite.logger.InfoWith("Setup complete")
@@ -810,6 +812,16 @@ func (suite *LogCollectorTestSuite) TestListRunsInProgress() {
 	logItemsNum := 5
 	var projectToRuns = map[string][]string{}
 	suite.createLogItems(projectNum, logItemsNum, projectToRuns)
+	defer func() {
+		// remove projects from state manifest and current state when test is done to avoid conflicts with other tests
+		for project := range projectToRuns {
+			err := suite.logCollectorServer.stateManifest.RemoveProject(project)
+			suite.Require().NoError(err, "Failed to remove project from state manifest")
+
+			err = suite.logCollectorServer.currentState.RemoveProject(project)
+			suite.Require().NoError(err, "Failed to remove project from current state")
+		}
+	}()
 
 	var expectedRunUIDs []string
 	for _, runs := range projectToRuns {

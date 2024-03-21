@@ -241,9 +241,11 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     """Deploy and apply monitoring on a basic pre-trained model"""
 
     project_name = "pr-basic-model-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    def test_basic_model_monitoring(self):
+    def test_basic_model_monitoring(self) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
@@ -271,7 +273,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn.set_tracking()
         project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
-            image="jonathandaniel503/mlrun:ml-5752",
+            **({} if self.image is None else {"image": self.image}),
         )
 
         model_name = "sklearn_RandomForestClassifier"
@@ -291,9 +293,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
                 key=model_name, category="model", tag="latest"
             ),
         )
-        serving_fn.spec.image = serving_fn.spec.build.image = (
-            "jonathandaniel503/mlrun:ml-5752"
-        )
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
+
         # Deploy the function
         serving_fn.deploy()
 
@@ -311,7 +313,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         sleep(5)
         self._assert_model_endpoint_metrics()
 
-    def _assert_model_endpoint_metrics(self):
+    def _assert_model_endpoint_metrics(self) -> None:
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )

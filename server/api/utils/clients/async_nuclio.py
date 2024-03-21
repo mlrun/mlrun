@@ -13,11 +13,10 @@
 # limitations under the License.
 #
 import copy
-import json
 import urllib.parse
+from http import HTTPStatus
 
 import aiohttp
-from http import HTTPStatus
 
 import mlrun.common.schemas
 import mlrun.errors

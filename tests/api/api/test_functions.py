@@ -353,13 +353,12 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
         assert response.json() == expected_response
 
 
+@pytest.mark.usefixtures("httpserver", "k8s_secrets_mock")
 def test_tracking_on_serving(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    httpserver,
-    monkeypatch,
-    k8s_secrets_mock,
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
     generated as expected when the user applies model monitoring on a serving function
     """

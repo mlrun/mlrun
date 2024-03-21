@@ -13,9 +13,11 @@
 # limitations under the License.
 #
 import copy
+import json
 import urllib.parse
 
 import aiohttp
+from http import HTTPStatus
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -112,6 +114,19 @@ class Client:
             json=body,
         )
 
+    async def delete_api_gateway(self, name: str, project_name: str = None):
+        headers = {}
+
+        if project_name:
+            headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
+
+        return await self._send_request_to_api(
+            method="DELETE",
+            path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=""),
+            headers=headers,
+            json={"metadata": {"name": name}},
+        )
+
     def _set_iguazio_labels(self, nuclio_object, project_name):
         nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
         nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
@@ -157,6 +172,8 @@ class Client:
                 kwargs,
             )
         else:
+            if response.status == HTTPStatus.NO_CONTENT:
+                return
             return await response.json()
 
     def _handle_error_response(

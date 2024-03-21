@@ -122,3 +122,28 @@ async def store_api_gateway(
             project_name=project,
         )
     return api_gateway
+
+
+@router.delete(
+    "/projects/{project}/api-gateways/{gateway}",
+)
+async def delete_api_gateway(
+    project: str,
+    gateway: str,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+):
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+        project,
+        gateway,
+        mlrun.common.schemas.AuthorizationAction.delete,
+        auth_info,
+    )
+
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        return await client.delete_api_gateway(project_name=project, name=gateway)

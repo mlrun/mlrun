@@ -73,6 +73,20 @@ async def test_nuclio_get_api_gateway(
 
 
 @pytest.mark.asyncio
+async def test_nuclio_delete_api_gateway(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    request_url = f"{api_url}/api/api_gateways/test-basic"
+    mock_aioresponse.delete(
+        request_url,
+        status=http.HTTPStatus.NO_CONTENT,
+    )
+    nuclio_client.delete_api_gateway("test-basic", "default")
+
+
+@pytest.mark.asyncio
 async def test_nuclio_store_api_gateway(
     api_url,
     nuclio_client,

@@ -37,7 +37,6 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
@@ -233,14 +232,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
-        serving_fn.set_tracking(tracking_policy=TrackingPolicy())
+        serving_fn.set_tracking()
         if cls.image is not None:
-            for attr in (
-                "stream_image",
-                "default_batch_image",
-                "default_controller_image",
-            ):
-                setattr(serving_fn.spec.tracking_policy, attr, cls.image)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()

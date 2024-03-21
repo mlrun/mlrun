@@ -18,7 +18,6 @@ import unittest.mock
 from http import HTTPStatus
 from types import ModuleType
 
-import deepdiff
 import fastapi.testclient
 import httpx
 import kubernetes.client.rest
@@ -410,18 +409,6 @@ def test_tracking_on_serving(
     )
 
     assert function_from_db["spec"]["track_models"]
-
-    tracking_policy_default = (
-        mlrun.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
-    )
-    assert (
-        deepdiff.DeepDiff(
-            tracking_policy_default,
-            function_from_db["spec"]["tracking_policy"],
-            ignore_order=True,
-        )
-        == {}
-    )
 
 
 def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions: list):

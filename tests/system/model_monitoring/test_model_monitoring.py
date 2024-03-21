@@ -249,7 +249,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # 2 - stream metrics are recorded as expected under the model endpoint
 
         # Deploy Model Servers
-        project = mlrun.get_run_db().get_project(self.project_name)
+        project = self.project
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -266,8 +266,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
+
         # enable model monitoring
         serving_fn.set_tracking()
+        project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image="jonathandaniel503/mlrun:ml-5752",
+        )
 
         model_name = "sklearn_RandomForestClassifier"
 
@@ -286,7 +291,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
                 key=model_name, category="model", tag="latest"
             ),
         )
-
+        serving_fn.spec.image = serving_fn.spec.build.image = (
+            "jonathandaniel503/mlrun:ml-5752"
+        )
         # Deploy the function
         serving_fn.deploy()
 

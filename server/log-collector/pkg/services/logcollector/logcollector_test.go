@@ -628,24 +628,7 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	projectNum := 2
 	var projectToRuns = map[string][]string{}
 
-	for i := 0; i < projectNum; i++ {
-		projectName := fmt.Sprintf("project-%d", i)
-
-		// add log item to the server's states, so no error will be returned
-		for j := 0; j < logItemsNum; j++ {
-			runUID := uuid.New().String()
-			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
-			selector := fmt.Sprintf("run=%s", runUID)
-
-			// Add state to the log collector's state manifest
-			err = suite.logCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, selector, projectName)
-			suite.Require().NoError(err, "Failed to add log item to the state manifest")
-
-			// Add state to the log collector's current state
-			err = suite.logCollectorServer.currentState.AddLogItem(suite.ctx, runUID, selector, projectName)
-			suite.Require().NoError(err, "Failed to add log item to the current state")
-		}
-	}
+	suite.createLogItems(projectNum, logItemsNum, projectToRuns)
 
 	// write state
 	err = suite.logCollectorServer.stateManifest.WriteState(suite.logCollectorServer.stateManifest.GetState())
@@ -800,6 +783,71 @@ func (suite *LogCollectorTestSuite) TestGetLogFilePath() {
 	logFilePath, err := suite.logCollectorServer.getLogFilePath(suite.ctx, runUID, projectName)
 	suite.Require().NoError(err, "Failed to get log file path")
 	suite.Require().Equal(runFilePath, logFilePath, "Expected log file path to be the same as the run file path")
+}
+
+func (suite *LogCollectorTestSuite) TestListRunsInProgress() {
+	listRunsInProgress := func(request *log_collector.ListRunsRequest) []string {
+		nopStream := &nop.ListRunsResponseStreamNop{}
+		err := suite.logCollectorServer.ListRunsInProgress(request, nopStream)
+		suite.Require().NoError(err, "Failed to list runs in progress")
+		return nopStream.RunUIDs
+
+	}
+
+	verifyRuns := func(expectedRunUIDs []string, responseRunUIDs []string) {
+		suite.Require().Equal(len(expectedRunUIDs), len(responseRunUIDs))
+		for _, runUID := range responseRunUIDs {
+			suite.Require().Contains(expectedRunUIDs, runUID, "Expected runUID to be in the expected list")
+		}
+	}
+
+	// list runs without any runs in progress
+	runsInProgress := listRunsInProgress(&log_collector.ListRunsRequest{})
+	suite.Require().Empty(runsInProgress, "Expected no runs in progress")
+
+	// create log items in progress
+	projectNum := 5
+	logItemsNum := 5
+	var projectToRuns = map[string][]string{}
+	suite.createLogItems(projectNum, logItemsNum, projectToRuns)
+
+	var expectedRunUIDs []string
+	for _, runs := range projectToRuns {
+		expectedRunUIDs = append(expectedRunUIDs, runs...)
+	}
+
+	// list runs in progress for all projects
+	runsInProgress = listRunsInProgress(&log_collector.ListRunsRequest{})
+	verifyRuns(expectedRunUIDs, runsInProgress)
+
+	// list runs in progress for a specific project
+	projectName := "project-1"
+	expectedRunUIDs = projectToRuns[projectName]
+	runsInProgress = listRunsInProgress(&log_collector.ListRunsRequest{Project: projectName})
+	verifyRuns(expectedRunUIDs, runsInProgress)
+}
+
+// createLogItems creates `logItemsNum` log items for `projectNum` projects, and adds them to the server's states
+func (suite *LogCollectorTestSuite) createLogItems(projectNum int, logItemsNum int, projectToRuns map[string][]string) {
+	var err error
+	for i := 0; i < projectNum; i++ {
+		projectName := fmt.Sprintf("project-%d", i)
+
+		// add log item to the server's states, so no error will be returned
+		for j := 0; j < logItemsNum; j++ {
+			runUID := uuid.New().String()
+			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
+			selector := fmt.Sprintf("run=%s", runUID)
+
+			// Add state to the log collector's state manifest
+			err = suite.logCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to the state manifest")
+
+			// Add state to the log collector's current state
+			err = suite.logCollectorServer.currentState.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to the current state")
+		}
+	}
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

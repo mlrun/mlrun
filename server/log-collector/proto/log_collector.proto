@@ -24,6 +24,7 @@ service LogCollector {
   rpc GetLogSize(GetLogSizeRequest) returns (GetLogSizeResponse) {}
   rpc StopLogs(StopLogsRequest) returns (BaseResponse) {}
   rpc DeleteLogs(StopLogsRequest) returns (BaseResponse) {}
+  rpc ListRunsInProgress(ListRunsRequest) returns (stream ListRunsResponse) {}
 }
 
 message BaseResponse {
@@ -69,6 +70,15 @@ message GetLogSizeResponse {
 message StopLogsRequest {
   string project = 1;
   repeated string runUIDs = 2;
+}
+
+message ListRunsRequest {
+  string project = 1;
+}
+
+message ListRunsResponse {
+  repeated string runUIDs = 1;
+  bool success = 2;
 }
 
 // StringArray is a wrapper around a repeated string field, used in map values.

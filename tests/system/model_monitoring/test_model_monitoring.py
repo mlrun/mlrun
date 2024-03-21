@@ -423,13 +423,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
-        # Define tracking policy
-        tracking_policy = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
-        }
-
         # Enable model monitoring
-        serving_fn.set_tracking(tracking_policy=tracking_policy)
+        serving_fn.set_tracking()
 
         # Deploy the serving function
         serving_fn.deploy()

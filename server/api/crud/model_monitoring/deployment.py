@@ -22,7 +22,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
-import mlrun.model_monitoring.tracking_policy
 import mlrun.model_monitoring.writer
 import server.api.api.endpoints.functions
 import server.api.api.utils

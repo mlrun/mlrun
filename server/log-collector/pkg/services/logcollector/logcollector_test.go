@@ -816,10 +816,10 @@ func (suite *LogCollectorTestSuite) TestListRunsInProgress() {
 		// remove projects from state manifest and current state when test is done to avoid conflicts with other tests
 		for project := range projectToRuns {
 			err := suite.logCollectorServer.stateManifest.RemoveProject(project)
-			suite.Require().NoError(err, "Failed to remove project from state manifest")
+			suite.Assert().NoError(err, "Failed to remove project from state manifest")
 
 			err = suite.logCollectorServer.currentState.RemoveProject(project)
-			suite.Require().NoError(err, "Failed to remove project from current state")
+			suite.Assert().NoError(err, "Failed to remove project from current state")
 		}
 	}()
 

@@ -692,8 +692,11 @@ class HttpStore(DataStore):
         url,
         headers=None,
         auth=None,
-        verify_ssl=mlrun.config.config.httpdb.http.verify,
     ):
+        # import here to prevent import cycle
+        from mlrun.config import config as mlconf
+
+        verify_ssl = mlconf.httpdb.http.verify
         try:
             if not verify_ssl:
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

@@ -146,7 +146,7 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5752"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -294,7 +294,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5752"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -403,7 +403,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 class TestModelMonitoringInitialize(TestMLRunSystem):
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5752"
+    image: typing.Optional[str] = None
 
     def test_enable_model_monitoring(self) -> None:
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -454,7 +454,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
 class TestAllKindOfServing(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5752"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:

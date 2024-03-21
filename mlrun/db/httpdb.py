@@ -3401,7 +3401,7 @@ class HTTPRunDB(RunDBInterface):
         """
         Deletes an API gateway
         :param name: API gateway name
-        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+        :param project: Project name
         """
         project = project or config.default_project
         error = "get api gateway"

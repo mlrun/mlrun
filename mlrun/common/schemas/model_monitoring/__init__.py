@@ -22,6 +22,7 @@ from .constants import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
+    FeatureSetFeatures,
     FileTargetKind,
     FunctionURI,
     ModelEndpointTarget,

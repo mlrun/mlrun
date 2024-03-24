@@ -77,6 +77,19 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
+class FeatureSetFeatures(StrEnum):
+    LATENCY = "latency"
+    ERROR_COUNT = "error_count"
+    METRICS = "metrics"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+    # def entity(self):
+    #
+
+
 class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     CURRENT_STATS = "current_stats"

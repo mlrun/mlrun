@@ -82,6 +82,7 @@ _DefaultDataDriftAppData = _AppData(
 
 
 class _V3IORecordsChecker:
+    project = None
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
@@ -93,6 +94,7 @@ class _V3IORecordsChecker:
         cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
             cls._v3io_container
         )
+        cls.project = mlrun.get_or_create_project(project_name)
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
@@ -137,9 +139,38 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_v3io_records(cls, ep_id: str) -> None:
+    def _test_apps_parquet(cls, ep_id, with_training_set):
+        parquet_apps_directory = (
+            mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
+                cls.project,
+                kind=mm_constants.FileTargetKind.APPS_PARQUET,
+            )
+        )
+        df = ParquetTarget(
+            path=f"{parquet_apps_directory}/key={ep_id}",
+        ).as_df()
+
+        dataset = load_iris()
+        inputs: set = (
+            {dataset.feature_names}
+            if with_training_set
+            else {f"f{i}" for i in range(len(dataset.feature_names))}
+        )
+
+        is_inputs_saved = inputs.issubset(df.columns)
+        assert is_inputs_saved, "Dataframe does not contains the input columns"
+        is_output_saved = {"p0"}.issubset(df.columns)
+        assert is_output_saved, "Dataframe does not contains the output columns"
+        is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
+            df.columns
+        )
+        assert is_metadata_saved, "Dataframe does not contains the metadata columns"
+
+    @classmethod
+    def _test_v3io_records(cls, ep_id: str, with_training_set: bool) -> None:
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
+        cls._test_apps_parquet(ep_id, with_training_set)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -147,7 +178,7 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -211,12 +242,15 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     )
                     executor.submit(fn.deploy)
 
-    def _log_model(self) -> None:
-        dataset = load_iris()
-        train_set = pd.DataFrame(
-            dataset.data,
-            columns=dataset.feature_names,
-        )
+    def _log_model(self, with_training_set: bool) -> None:
+        train_set = None
+        if with_training_set:
+            dataset = load_iris()
+            train_set = pd.DataFrame(
+                dataset.data,
+                columns=dataset.feature_names,
+            )
+
         self.project.log_model(
             self.model_name,
             model_dir=str((Path(__file__).parent / "assets").absolute()),
@@ -269,9 +303,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
 
-    def test_app_flow(self) -> None:
+    @pytest.mark.parametrize("with_training_set", [False, True])
+    def test_app_flow(self, with_training_set) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self._log_model()
+        self._log_model(with_training_set)
+        self.apps_data[1].kwargs["with_training_set"] = with_training_set
 
         with ThreadPoolExecutor() as executor:
             executor.submit(self._submit_controller_and_deploy_writer)
@@ -292,7 +328,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 
-        self._test_v3io_records(ep_id=self._get_model_enpoint_id())
+        self._test_v3io_records(
+            ep_id=self._get_model_enpoint_id(), with_training_set=with_training_set
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

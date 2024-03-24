@@ -230,6 +230,8 @@ class ModelEndpoints:
             logger.warn(
                 "Could not find any features in the model object and in the Feature Vector"
             )
+        for feature in mlrun.common.schemas.model_monitoring.FeatureSetFeatures.list():
+            features.append(mlrun.feature_store.Feature(name=feature))
         logger.debug("Listed features", features=features)
         return features
 

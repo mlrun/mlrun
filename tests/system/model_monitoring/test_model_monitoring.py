@@ -39,7 +39,7 @@ import mlrun.serving.routers
 import mlrun.utils
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.writer import _TSDB_BE, ModelMonitoringWriter
+from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -1085,6 +1085,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1105,7 +1107,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             mlrun.utils.datetime_now()
         )
 
-    def custom_setup(self):
+    def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
 
     def _log_model(self) -> str:
@@ -1120,31 +1122,46 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
-        frames = ModelMonitoringWriter._get_v3io_frames_client(
-            v3io_container="users",
+        tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
+            v3io_container=ModelMonitoringWriter.get_v3io_container(cls.project_name)
         )
-        df: pd.DataFrame = frames.read(
-            backend=_TSDB_BE,
-            table=f"pipelines/{cls.project_name}/model-endpoints/events",
-            start="now-5m",
+        df: pd.DataFrame = tsdb_client.read(
+            backend=_TSDB_BE, table=_TSDB_TABLE, start="now-5m", end="now"
         )
-        assert len(df) == 1, "Expected a single record in the TSDB"
-        assert {
-            "endpoint_id",
-            "record_type",
+
+        assert not df.empty, "No TSDB data"
+        assert (
+            len(df) == 4
+        ), "Expects four results of the histogram data drift app in the TSDB"
+        assert set(df.application_name) == {
+            "histogram-data-drift"
+        }, "The application names are different than expected"
+        assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
+        assert set(df.result_name) == {
+            "general_drift",
             "hellinger_mean",
             "kld_mean",
             "tvd_mean",
-        } == set(df.columns), "Unexpected columns in the TSDB record"
+        }, "The results are different than expected"
 
     def test_record(self) -> None:
+        self.project.enable_model_monitoring(
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
         model_uri = self._log_model()
+
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
-            trigger_monitoring_job=True,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
+            # trigger_monitoring_job=True,
         )
+
+        sleep(130)
+
         self._test_v3io_tsdb_record()

@@ -34,6 +34,7 @@ import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.model_monitoring.api
+import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
 from mlrun.errors import MLRunNotFoundError

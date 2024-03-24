@@ -1001,7 +1001,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.test_set = cls.x_test.join(cls.y_test)
         cls.infer_results_df = cls.test_set
         cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            datetime.utcnow()
+            mlrun.utils.datetime_now()
         )
         cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
         cls.function_name = f"{cls.name_prefix}-function"
@@ -1096,7 +1096,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
         cls.infer_results_df = cls.train_set.copy()
         cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            datetime.utcnow()
+            mlrun.utils.datetime_now()
         )
 
     def custom_setup(self):

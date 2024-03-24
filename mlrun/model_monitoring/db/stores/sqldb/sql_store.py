@@ -389,38 +389,66 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
                 event=event,
             )
 
-    def get_last_analyzed(self, endpoint_id: str, application_name: str):
+    def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
+        """
+        Get the last analyzed time for the provided model endpoint and application.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param application_name: Registered application name.
+
+        :return: Timestamp as a Unix time.
+        :raise:  MLRunNotFoundError if last analyzed value is not found.
+
+        """
+        self._init_monitoring_schedules_table()
+        application_filter_dict = self.filter_endpoint_and_application_name(
+            endpoint_id=endpoint_id, application_name=application_name
+        )
+        monitoring_schedule_record = self._get(
+            table=self.MonitoringSchedulesTable, **application_filter_dict
+        )
+        if not monitoring_schedule_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"No last analyzed value has been found for {application_name} "
+                f"that processes model endpoint {endpoint_id}"
+            )
+        return monitoring_schedule_record.last_analyzed
+
+    def update_last_analyzed(
+        self, endpoint_id: str, application_name: str, last_analyzed: int
+    ):
+        """
+        Update the last analyzed time for the provided model endpoint and application.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param application_name: Registered application name.
+        :param last_analyzed:    Timestamp as a Unix time that represents the last analyzed time of a certain
+                                 application and model endpoint.
+        """
         self._init_monitoring_schedules_table()
 
         application_filter_dict = self.filter_endpoint_and_application_name(
             endpoint_id=endpoint_id, application_name=application_name
         )
-
         monitoring_schedule_record = self._get(
             table=self.MonitoringSchedulesTable, **application_filter_dict
         )
         if not monitoring_schedule_record:
+            # Add a new record with empty last analyzed value
             self._write(
                 table=mlrun.common.schemas.model_monitoring.FileTargetKind.MONITORING_SCHEDULES,
                 event={
                     mlrun.common.schemas.model_monitoring.SchedulingKeys.UID: uuid.uuid4().hex,
                     mlrun.common.schemas.model_monitoring.SchedulingKeys.APPLICATION_NAME: application_name,
                     mlrun.common.schemas.model_monitoring.SchedulingKeys.ENDPOINT_ID: endpoint_id,
+                    mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED: last_analyzed,
                 },
             )
-            return
-        return monitoring_schedule_record.last_analyzed
 
-    def update_last_analyzed(
-        self, endpoint_id: str, application_name: str, attributes: dict[str, typing.Any]
-    ):
-        self._init_monitoring_schedules_table()
-
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
-        )
         self._update(
-            attributes=attributes,
+            attributes={
+                mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED: last_analyzed
+            },
             table=self.MonitoringSchedulesTable,
             **application_filter_dict,
         )

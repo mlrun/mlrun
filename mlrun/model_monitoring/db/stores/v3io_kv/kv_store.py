@@ -466,7 +466,17 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
             )
 
-    def get_last_analyzed(self, endpoint_id: str, application_name: str):
+    def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
+        """
+        Get the last analyzed time for the provided model endpoint and application.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param application_name: Registered application name.
+
+        :return: Timestamp as a Unix time.
+        :raise:  MLRunNotFoundError if last analyzed value is not found.
+
+        """
         try:
             data = self.client.kv.get(
                 container=self._get_monitoring_schedules_container(
@@ -480,16 +490,31 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             ]
         except v3io.dataplane.response.HttpResponseError as err:
             logger.debug("Error while getting last analyzed time", err=err)
-            return None
+            raise mlrun.errors.MLRunNotFoundError(
+                f"No last analyzed value has been found for {application_name} "
+                f"that processes model endpoint {endpoint_id}",
+            )
 
-    def update_last_analyzed(self, endpoint_id, application_name, attributes):
+    def update_last_analyzed(
+        self, endpoint_id: str, application_name: str, last_analyzed: int
+    ):
+        """
+        Update the last analyzed time for the provided model endpoint and application.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param application_name: Registered application name.
+        :param last_analyzed:    Timestamp as a Unix time that represents the last analyzed time of a certain
+                                 application and model endpoint.
+        """
         self.client.kv.put(
             container=self._get_monitoring_schedules_container(
                 project_name=self.project
             ),
             table_path=endpoint_id,
             key=application_name,
-            attributes=attributes,
+            attributes={
+                mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED: last_analyzed
+            },
         )
 
     def _generate_tsdb_paths(self) -> tuple[str, str]:

@@ -24,7 +24,7 @@ import pytest
 import mlrun.common.schemas
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores.sqldb.sql_store
-from mlrun.common.schemas.model_monitoring import SchedulingKeys, WriterEvent
+from mlrun.common.schemas.model_monitoring import WriterEvent
 from mlrun.model_monitoring.db.stores import (  # noqa: F401
     StoreBase,
 )
@@ -149,19 +149,18 @@ def test_sql_last_analyzed_result(event: _AppResultEvent):
     sql_store.write_model_endpoint(endpoint=mock_endpoint_1.flat_dict())
 
     # Try to get last analyzed value, we expect it to be empty
-    last_analyzed = sql_store.get_last_analyzed(
-        endpoint_id=mock_endpoint_1.metadata.uid,
-        application_name=event[WriterEvent.APPLICATION_NAME],
-    )
-    assert not last_analyzed
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        sql_store.get_last_analyzed(
+            endpoint_id=mock_endpoint_1.metadata.uid,
+            application_name=event[WriterEvent.APPLICATION_NAME],
+        )
 
     # Let's ingest a dummy epoch time record and validate it has been stored as expected
     epoch_time = int(time.time())
-    attributes = {SchedulingKeys.LAST_ANALYZED: epoch_time}
     sql_store.update_last_analyzed(
         endpoint_id=mock_endpoint_1.metadata.uid,
         application_name=event[WriterEvent.APPLICATION_NAME],
-        attributes=attributes,
+        last_analyzed=epoch_time,
     )
 
     last_analyzed = sql_store.get_last_analyzed(

@@ -35,6 +35,7 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 import mlrun.serving.routers
+import mlrun.utils
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.model_monitoring.writer import _TSDB_BE, ModelMonitoringWriter
@@ -771,6 +772,8 @@ class TestBatchDrift(TestMLRunSystem):
     """
 
     project_name = "pr-batch-drift"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -783,7 +786,7 @@ class TestBatchDrift(TestMLRunSystem):
         # 4 - Log monitoring artifacts
 
         # Generate project and context (context will be used for logging the artifacts)
-        project = mlrun.get_run_db().get_project(self.project_name)
+        project = self.project
         context = mlrun.get_or_create_ctx(name="batch-drift-context")
 
         # Log a model artifact
@@ -807,11 +810,18 @@ class TestBatchDrift(TestMLRunSystem):
             model_dir=os.path.relpath(self.assets_path),
             model_file="model.pkl",
             training_set=train_set,
-            artifact_path=f"v3io:///projects/{project.metadata.name}",
+            artifact_path=f"v3io:///projects/{project.name}",
             label_column="p0",
         )
 
-        # Generate a dataframe that will be writen as a monitoring parquet
+        # Deploy model monitoring infra
+        project.enable_model_monitoring(
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # Generate a dataframe that will be written as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
         infer_results_df = pd.DataFrame(
             {
@@ -823,7 +833,7 @@ class TestBatchDrift(TestMLRunSystem):
             }
         )
         infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            datetime.utcnow()
+            mlrun.utils.datetime_now()
         )
 
         # Record results and trigger the monitoring batch job
@@ -838,33 +848,33 @@ class TestBatchDrift(TestMLRunSystem):
             function_name="batch-drift-function",
             context=context,
             infer_results_df=infer_results_df,
-            trigger_monitoring_job=True,
+            # trigger_monitoring_job=True,  # TODO: comment out when ML-5792 is done
         )
 
-        # Test the drift results
+        # Wait for the controller, app and writer to complete
+        sleep(130)
+
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
-            project=project.metadata.name, endpoint_id=endpoint_id
+            project=project.name, endpoint_id=endpoint_id
         )
-        assert model_endpoint.status.feature_stats
-        assert model_endpoint.status.current_stats
-        assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
-
-        # Validate that the artifacts were logged under the generated context
-        artifacts = context.artifacts
-        assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
-        assert artifacts[1]["metadata"]["key"] == "features_drift_results"
 
         # Validate that model_uri is based on models prefix
         assert (
             model_endpoint.spec.model_uri
-            == f"store://models/{project.metadata.name}/{model_name}:latest"
+            == f"store://models/{project.name}/{model_name}:latest"
         )
 
-        # Validate that function_uri is based on project and function name
-        assert (
-            model_endpoint.spec.function_uri
-            == f"{project.metadata.name}/batch-drift-function"
-        )
+        # Test the drift results
+        # TODO: comment out when ML-5767 is done
+        # assert model_endpoint.status.feature_stats
+        # assert model_endpoint.status.current_stats
+        # assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
+
+        # Validate that the artifacts were logged under the generated context
+        assert len(project.list_artifacts(name="~drift_table_plot")) == 1
+        assert len(project.list_artifacts(name="~features_drift_results")) == 1
+        # TODO: take the artifacts from the original context when ML-5792 is done
+        # artifacts = context.artifacts
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

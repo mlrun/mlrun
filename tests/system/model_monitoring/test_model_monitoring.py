@@ -986,6 +986,8 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1007,7 +1009,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.function_name = f"{cls.name_prefix}-function"
         cls._train()
 
-    def custom_setup(self):
+    def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
 
     @classmethod
@@ -1053,6 +1055,10 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             label_column=self.y_name,
         )
 
+        self.project.enable_model_monitoring(
+            **({} if self.image is None else {"image": self.image})
+        )
+
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(
@@ -1063,7 +1069,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             endpoint_id=self.endpoint_id,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
-            trigger_monitoring_job=True,
+            # trigger_monitoring_job=True,
         )
 
         self._test_feature_names()

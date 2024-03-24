@@ -895,7 +895,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_model_monitoring_with_kafka_stream(self):
-        project = mlrun.get_run_db().get_project(self.project_name)
+        project = self.project
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -935,6 +935,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         # enable model monitoring
         serving_fn.set_tracking()
+        project.enable_model_monitoring(base_period=1)
         # Deploy the function
         serving_fn.deploy()
 

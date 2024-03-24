@@ -40,7 +40,6 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
-import mlrun.model_monitoring.helpers
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod

@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ from random import choice, randint
 from typing import Optional
 
 import pytest
-from _pytest.fixtures import FixtureRequest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
@@ -58,7 +57,7 @@ def _mock_random_endpoint(
 
 
 @pytest.fixture(params=[0])
-def event(request: FixtureRequest) -> _AppResultEvent:
+def event(request: pytest.FixtureRequest) -> _AppResultEvent:
     return _AppResultEvent(
         {
             WriterEvent.ENDPOINT_ID: "some-ep-id",

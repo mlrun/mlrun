@@ -21,6 +21,12 @@ import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
 
+class MonitoringStrEnum(StrEnum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
 class EventFieldType:
     FUNCTION_URI = "function_uri"
     FUNCTION = "function"
@@ -89,7 +95,7 @@ class ApplicationEvent:
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent(StrEnum):
+class WriterEvent(MonitoringStrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
@@ -100,10 +106,6 @@ class WriterEvent(StrEnum):
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
     CURRENT_STATS = "current_stats"
-
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:
@@ -182,14 +184,10 @@ class PrometheusMetric:
     DRIFT_STATUS = "drift_status"
 
 
-class PrometheusEndpoints(StrEnum):
+class PrometheusEndpoints(MonitoringStrEnum):
     MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
     MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
     MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
-
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
 
 
 class MonitoringFunctionNames:

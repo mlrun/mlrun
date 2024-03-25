@@ -3368,6 +3368,17 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error)
         return mlrun.common.schemas.APIGateway(**response.json())
 
+    def delete_api_gateway(self, name, project=None):
+        """
+        Deletes an API gateway
+        :param name: API gateway name
+        :param project: Project name
+        """
+        project = project or config.default_project
+        error = "get api gateway"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
+        self.api_call("DELETE", endpoint_path, error)
+
     def store_api_gateway(
         self,
         api_gateway: Union[

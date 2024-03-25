@@ -3749,6 +3749,18 @@ class MlrunProject(ModelObj):
 
         return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
 
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to retrieve.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
+
     def _run_authenticated_git_action(
         self,
         action: Callable,

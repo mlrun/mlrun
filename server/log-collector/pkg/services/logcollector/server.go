@@ -696,7 +696,6 @@ func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, 
 		s.Logger.DebugWithCtx(ctx, "No runs in progress to list")
 		if err := responseStream.Send(&protologcollector.ListRunsResponse{
 			RunUIDs: []string{},
-			Success: true,
 		}); err != nil {
 			return errors.Wrapf(err, "Failed to send empty response to stream")
 		}
@@ -712,7 +711,6 @@ func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, 
 
 		if err := responseStream.Send(&protologcollector.ListRunsResponse{
 			RunUIDs: runsInProgress[i:endIndex],
-			Success: true,
 		}); err != nil {
 			return errors.Wrapf(err, "Failed to send runs in progress to stream")
 		}

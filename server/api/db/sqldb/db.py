@@ -252,6 +252,7 @@ class SQLDB(DBInterface):
         only_uids=True,
         last_update_time_from: datetime = None,
         states: list[str] = None,
+        specific_uids: list[str] = None,
     ) -> typing.Union[list[str], RunList]:
         """
         List all runs uids in the DB
@@ -281,6 +282,9 @@ class SQLDB(DBInterface):
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
+
+        if specific_uids:
+            query = query.filter(Run.uid.in_(specific_uids))
 
         if not only_uids:
             # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
@@ -405,9 +409,9 @@ class SQLDB(DBInterface):
                         notification
                     )
                     run_struct["spec"]["notifications"].append(notification_spec)
-                    run_struct["status"]["notifications"][
-                        notification.name
-                    ] = notification_status
+                    run_struct["status"]["notifications"][notification.name] = (
+                        notification_status
+                    )
             runs.append(run_struct)
 
         return runs

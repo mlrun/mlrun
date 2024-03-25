@@ -40,7 +40,7 @@ class TestHorovodTFv2(TestDemo):
         trainer_src_path = str(self.assets_path / "horovod_training.py")
         trainer_dest_path = pathlib.Path("/assets/horovod_training.py")
         stores = mlrun.datastore.store_manager.set()
-        datastore, subpath = stores.get_or_create_store(
+        datastore, subpath, _ = stores.get_or_create_store(
             self._get_v3io_user_store_path(trainer_dest_path)
         )
         datastore.upload(subpath, trainer_src_path)

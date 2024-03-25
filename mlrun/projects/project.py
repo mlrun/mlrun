@@ -36,12 +36,12 @@ import requests
 import yaml
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
@@ -617,9 +617,14 @@ def _load_project_dir(context, name="", subpath=""):
         # If there is a setup script do not force having project.yaml file
         project = MlrunProject()
     else:
-        raise mlrun.errors.MLRunNotFoundError(
-            "project or function YAML not found in path"
+        message = "Project or function YAML not found in path"
+        logger.error(
+            message,
+            context=context,
+            name=name,
+            subpath=subpath,
         )
+        raise mlrun.errors.MLRunNotFoundError(message)
 
     project.spec.context = context
     project.metadata.name = name or project.metadata.name
@@ -1247,20 +1252,20 @@ class MlrunProject(ModelObj):
         self,
         name,
         workflow_path: str,
-        embed=False,
-        engine=None,
+        embed: bool = False,
+        engine: Optional[str] = None,
         args_schema: list[EntrypointParam] = None,
-        handler=None,
+        handler: Optional[str] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        ttl=None,
-        image: str = None,
+        ttl: Optional[int] = None,
+        image: Optional[str] = None,
         **args,
     ):
         """Add or update a workflow, specify a name and the code path
 
         :param name:          Name of the workflow
         :param workflow_path: URL (remote) / Path (absolute or relative to the project code path i.e.
-                <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
+            <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
         :param embed:         Add the workflow code into the project.yaml
         :param engine:        Workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   List of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
@@ -1370,14 +1375,7 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
-        # TODO: To correctly maintain the list of artifacts from an exported project,
-        #  we need to maintain the different trees that generated them
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        project_tag = self._get_project_tag()
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
                 import_from = artifact_dict["import_from"]
@@ -1397,6 +1395,15 @@ class MlrunProject(ModelObj):
                     artifact.src_path = path.join(
                         self.spec.get_code_path(), artifact.src_path
                     )
+                producer = self._resolve_artifact_producer(artifact, project_tag)
+                # log the artifact only if it doesn't already exist
+                if (
+                    producer.name != self.metadata.name
+                    and self._resolve_existing_artifact(
+                        artifact,
+                    )
+                ):
+                    continue
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
                 )
@@ -1493,12 +1500,20 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             artifact_path, self.metadata.name
         )
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        producer = self._resolve_artifact_producer(item)
+        if producer.name != self.metadata.name:
+            # the artifact producer is retained, log it only if it doesn't already exist
+            if existing_artifact := self._resolve_existing_artifact(
+                item,
+                tag,
+            ):
+                artifact_key = item if isinstance(item, str) else item.key
+                logger.info(
+                    "Artifact already exists, skipping logging",
+                    key=artifact_key,
+                    tag=tag,
+                )
+                return existing_artifact
         item = am.log_artifact(
             producer,
             item,
@@ -1803,10 +1818,13 @@ class MlrunProject(ModelObj):
     ) -> mlrun.runtimes.BaseRuntime:
         """
         Update or add a monitoring function to the project.
+        Note: to deploy the function after linking it to the project,
+        call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
-            project.set_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.set_model_monitoring_function(
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
+            )
 
         :param func:                    Function object or spec/code url, None refers to current Notebook
         :param name:                    Name of the function (under the project), can be specified with a tag to support
@@ -1821,11 +1839,16 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            A list of python packages
         :param requirements_file:       Path to a python requirements file
-        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
 
+        if name in mm_constants.MonitoringFunctionNames.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Application name can not be on of the following name : "
+                f"{mm_constants.MonitoringFunctionNames.all()}"
+            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -1987,26 +2010,75 @@ class MlrunProject(ModelObj):
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
-    ) -> dict:
-        r"""
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        """
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              The time period in minutes in which the model monitoring controller job
-                                         runs. By default, the base period is 10 minutes. The schedule for the job
-                                         will be the following cron expression: "\*/{base_period} \* \* \* \*".
+
+        :param default_controller_image:        Deprecated.
+        :param base_period:                     The time period in minutes in which the model monitoring controller
+                                                function is triggered. By default, the base period is 10 minutes.
+        :param image:                           The image of the model monitoring controller, writer, monitoring
+                                                stream & histogram data drift functions, which are real time nuclio
+                                                functions. By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+
+        :returns: model monitoring controller job as a dictionary.
+        """
+        if default_controller_image != "mlrun/mlrun":
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'default_controller_image' is deprecated and will be removed in 1.9.0, "
+                "use 'image' instead",
+                FutureWarning,
+            )
+            image = default_controller_image
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.enable_model_monitoring(
+            project=self.name,
+            image=image,
+            base_period=base_period,
+        )
+        if deploy_histogram_data_drift_app:
+            fn = self.set_model_monitoring_function(
+                func=str(
+                    pathlib.Path(__file__).parent.parent
+                    / "model_monitoring/applications/histogram_data_drift.py"
+                ),
+                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+                application_class="HistogramDataDriftApplication",
+                image=image,
+            )
+            fn.deploy()
+
+    def update_model_monitoring_controller(
+        self,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ) -> None:
+        """
+        Redeploy model monitoring application controller functions.
+
+
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         is triggered. By default, the base period is 10 minutes.
+        :param image:                    The image of the model monitoring controller, writer & monitoring
+                                         stream functions, which are real time nuclio functions.
+                                         By default, the image is mlrun/mlrun.
         :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.create_model_monitoring_controller(
+        db.update_model_monitoring_controller(
             project=self.name,
-            default_controller_image=default_controller_image,
             base_period=base_period,
+            image=image,
         )
 
     def disable_model_monitoring(self):
@@ -2014,6 +2086,14 @@ class MlrunProject(ModelObj):
         db.delete_function(
             project=self.name,
             name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.WRITER,
+        )
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.STREAM,
         )
 
     def set_function(
@@ -2333,13 +2413,47 @@ class MlrunProject(ModelObj):
             clone_zip(url, self.spec.context, self._secrets)
 
     def create_remote(self, url, name="origin", branch=None):
-        """create remote for the project git
+        """Create remote for the project git
+
+         This method creates a new remote repository associated with the project's Git repository.
+         If a remote with the specified name already exists, it will not be overwritten.
+
+         If you wish to update the URL of an existing remote, use the `set_remote` method instead.
 
         :param url:    remote git url
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
+        self.set_remote(url, name=name, branch=branch, overwrite=False)
+
+    def set_remote(self, url, name="origin", branch=None, overwrite=True):
+        """Create or update a remote for the project git repository.
+
+        This method allows you to manage remote repositories associated with the project.
+        It checks if a remote with the specified name already exists.
+
+        If a remote with the same name does not exist, it will be created.
+        If a remote with the same name already exists,
+        the behavior depends on the value of the 'overwrite' flag.
+
+        :param url: remote git url
+        :param name: name for the remote (default is 'origin')
+        :param branch: Git branch to use as source
+        :param overwrite: if True (default), updates the existing remote with the given URL if it already exists.
+                          if False, raises an error when attempting to create a remote with a name that already exists.
+        :raises MLRunConflictError: If a remote with the same name already exists and overwrite
+                                     is set to False.
+        """
         self._ensure_git_repo()
+        if self._remote_exists(name):
+            if overwrite:
+                self.spec.repo.delete_remote(name)
+            else:
+                raise mlrun.errors.MLRunConflictError(
+                    f"Remote '{name}' already exists in the project, "
+                    f"each remote in the project must have a unique name."
+                    "Use 'set_remote' with 'override=True' inorder to update the remote, or choose a different name."
+                )
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:
@@ -2351,6 +2465,22 @@ class MlrunProject(ModelObj):
             url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
+
+    def remove_remote(self, name):
+        """Remove a remote from the project's Git repository.
+
+        This method removes the remote repository associated with the specified name from the project's Git repository.
+
+        :param name: Name of the remote to remove.
+        """
+        if self._remote_exists(name):
+            self.spec.repo.delete_remote(name)
+        else:
+            logger.warning(f"The remote '{name}' does not exist. Nothing to remove.")
+
+    def _remote_exists(self, name):
+        """Check if a remote with the given name already exists"""
+        return any(remote.name == name for remote in self.spec.repo.remotes)
 
     def _ensure_git_repo(self):
         if self.spec.repo:
@@ -3263,7 +3393,12 @@ class MlrunProject(ModelObj):
         artifact = db.read_artifact(
             key, tag, iter=iter, project=self.metadata.name, tree=tree
         )
-        return dict_to_artifact(artifact)
+
+        # in tests, if an artifact is not found, the db returns None
+        # in real usage, the db should raise an exception
+        if artifact:
+            return dict_to_artifact(artifact)
+        return None
 
     def list_artifacts(
         self,
@@ -3556,6 +3691,76 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_custom_packager(packager=packager)
 
+    def store_api_gateway(
+        self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway
+    ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
+        """
+        Creates or updates a Nuclio API Gateway using the provided APIGateway object.
+
+        This method interacts with the MLRun service to create/update a Nuclio API Gateway based on the provided
+        APIGateway object. Once done, it returns the updated APIGateway object containing all fields propagated
+        on MLRun and Nuclio sides, such as the 'host' attribute.
+        Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+
+        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
+        of the API Gateway to be created
+
+        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
+        information retrieved from the Nuclio API
+        """
+
+        api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
+            api_gateway=api_gateway,
+            project=self.name,
+        )
+
+        if api_gateway_json:
+            # fill in all the fields in the user's api_gateway object
+            api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(
+                api_gateway_json
+            )
+        return api_gateway
+
+    def list_api_gateways(self) -> list[mlrun.runtimes.nuclio.api_gateway.APIGateway]:
+        """
+        Retrieves a list of Nuclio API gateways associated with the project.
+
+        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+        the Nuclio API gateways associated with the project.
+        """
+        gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
+        return [
+            mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(gateway_dict)
+            for gateway_dict in gateways_list.api_gateways.values()
+        ]
+
+    def get_api_gateway(
+        self,
+        name: str,
+    ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
+        """
+        Retrieves an API gateway by name instance.
+
+        :param name: The name of the API gateway to retrieve.
+
+        Returns:
+            mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
+        """
+
+        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to retrieve.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
+
     def _run_authenticated_git_action(
         self,
         action: Callable,
@@ -3632,6 +3837,83 @@ class MlrunProject(ModelObj):
                 f"Path must be absolute or relative to the project code path i.e. "
                 f"<project.spec.get_code_path()>/<{param_name}>)."
             )
+
+    def _resolve_artifact_producer(
+        self,
+        artifact: typing.Union[str, Artifact],
+        project_producer_tag: str = None,
+    ) -> typing.Optional[ArtifactProducer]:
+        """
+        Resolve the artifact producer of the given artifact.
+        If the artifact's producer is a run, the artifact is registered with the original producer.
+        Otherwise, the artifact is registered with the current project as the producer.
+
+        :param artifact:                The artifact to resolve its producer.
+        :param project_producer_tag:    The tag to use for the project as the producer. If not provided, a tag will be
+        generated for the project.
+        :return:                        A tuple of the resolved producer and the resolved artifact.
+        """
+
+        if not isinstance(artifact, str) and artifact.producer:
+            # if the artifact was imported from a yaml file, the producer can be a dict
+            if isinstance(artifact.spec.producer, ArtifactProducer):
+                producer_dict = artifact.spec.producer.get_meta()
+            else:
+                producer_dict = artifact.spec.producer
+
+            if producer_dict.get("kind", "") == "run":
+                return ArtifactProducer(
+                    name=producer_dict.get("name", ""),
+                    kind=producer_dict.get("kind", ""),
+                    project=producer_dict.get("project", ""),
+                    tag=producer_dict.get("tag", ""),
+                )
+
+        # do not retain the artifact's producer, replace it with the project as the producer
+        project_producer_tag = project_producer_tag or self._get_project_tag()
+        return ArtifactProducer(
+            kind="project",
+            name=self.metadata.name,
+            project=self.metadata.name,
+            tag=project_producer_tag,
+        )
+
+    def _resolve_existing_artifact(
+        self,
+        item: typing.Union[str, Artifact],
+        tag: str = None,
+    ) -> typing.Optional[Artifact]:
+        """
+        Check if there is and existing artifact with the given item and tag.
+        If there is, return the existing artifact. Otherwise, return None.
+
+        :param item:    The item (or key) to check if there is an existing artifact for.
+        :param tag:     The tag to check if there is an existing artifact for.
+        :return:        The existing artifact if there is one, otherwise None.
+        """
+        try:
+            if isinstance(item, str):
+                existing_artifact = self.get_artifact(key=item, tag=tag)
+            else:
+                existing_artifact = self.get_artifact(
+                    key=item.key,
+                    tag=item.tag,
+                    iter=item.iter,
+                    tree=item.tree,
+                )
+            if existing_artifact is not None:
+                return existing_artifact.from_dict(existing_artifact)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "No existing artifact was found",
+                key=item if isinstance(item, str) else item.key,
+                tag=tag if isinstance(item, str) else item.tag,
+                tree=None if isinstance(item, str) else item.tree,
+            )
+            return None
+
+    def _get_project_tag(self):
+        return self._get_hexsha() or str(uuid.uuid4())
 
 
 def _set_as_current_default_project(project: MlrunProject):
@@ -3718,6 +4000,18 @@ def _init_function_from_dict(
                 tag=tag,
             )
 
+    elif image and kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        func = new_function(
+            name,
+            command=relative_url,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        if kind != mlrun.runtimes.RuntimeKinds.application:
+            logger.info("Function code not specified, setting entry point to image")
+            func.from_image(image)
     else:
         raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 

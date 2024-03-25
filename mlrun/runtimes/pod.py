@@ -501,9 +501,9 @@ class KubeResourceSpec(FunctionSpec):
                         )
                         is None
                     ):
-                        resources[resource_requirement][
-                            resource_type
-                        ] = default_resources[resource_requirement][resource_type]
+                        resources[resource_requirement][resource_type] = (
+                            default_resources[resource_requirement][resource_type]
+                        )
         # This enables the user to define that no defaults would be applied on the resources
         elif resources == {}:
             return resources
@@ -985,7 +985,7 @@ class KubeResource(BaseRuntime):
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
-        super().__init__(metadata, spec)
+        super().__init__(metadata=metadata, spec=spec)
         self.verbose = False
 
     @property

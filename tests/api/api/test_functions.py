@@ -359,6 +359,7 @@ def test_tracking_on_serving(
     client: fastapi.testclient.TestClient,
     httpserver,
     monkeypatch,
+    k8s_secrets_mock,
 ):
     """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
     generated as expected when the user applies model monitoring on a serving function
@@ -691,6 +692,39 @@ def test_build_no_access_key(
     assert response.status_code == expected_status_code
     if expected_reason:
         assert response.json()["detail"]["reason"] == expected_reason
+
+
+def test_build_clone_target_dir_backwards_compatability(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    clone_target_dir = "/some/path"
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "clone_target_dir": clone_target_dir,
+        },
+    }
+
+    monkeypatch.setattr(
+        server.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.json()["data"]["spec"]["clone_target_dir"] == clone_target_dir
 
 
 def test_start_function_succeeded(

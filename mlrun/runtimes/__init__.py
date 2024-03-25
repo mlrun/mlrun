@@ -43,6 +43,8 @@ from .nuclio import (
     new_v2_model_server,
     nuclio_init_hook,
 )
+from .nuclio.application import ApplicationRuntime
+from .nuclio.serving import serving_subkind
 from .remotesparkjob import RemoteSparkRuntime
 from .sparkjob import Spark3Runtime
 
@@ -101,6 +103,7 @@ class RuntimeKinds:
     local = "local"
     handler = "handler"
     databricks = "databricks"
+    application = "application"
 
     @staticmethod
     def all():
@@ -115,6 +118,7 @@ class RuntimeKinds:
             RuntimeKinds.mpijob,
             RuntimeKinds.local,
             RuntimeKinds.databricks,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
@@ -147,6 +151,7 @@ class RuntimeKinds:
             RuntimeKinds.remote,
             RuntimeKinds.nuclio,
             RuntimeKinds.serving,
+            RuntimeKinds.application,
         ]
 
     @staticmethod
@@ -211,6 +216,35 @@ class RuntimeKinds:
         # both spark and remote spark uses different mechanism for assigning images
         return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
 
+    @staticmethod
+    def resolve_nuclio_runtime(kind: str, sub_kind: str):
+        kind = kind.split(":")[0]
+        if kind not in RuntimeKinds.nuclio_runtimes():
+            raise ValueError(
+                f"Kind {kind} is not a nuclio runtime, available runtimes are {RuntimeKinds.nuclio_runtimes()}"
+            )
+
+        if sub_kind == serving_subkind:
+            return ServingRuntime()
+
+        if kind == RuntimeKinds.application:
+            return ApplicationRuntime()
+
+        runtime = RemoteRuntime()
+        runtime.spec.function_kind = sub_kind
+        return runtime
+
+    @staticmethod
+    def resolve_nuclio_sub_kind(kind):
+        is_nuclio = kind.startswith("nuclio")
+        sub_kind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
+        if kind == RuntimeKinds.serving:
+            is_nuclio = True
+            sub_kind = serving_subkind
+        elif kind == RuntimeKinds.application:
+            is_nuclio = True
+        return is_nuclio, sub_kind
+
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
@@ -228,6 +262,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
         RuntimeKinds.databricks: DatabricksRuntime,
+        RuntimeKinds.application: ApplicationRuntime,
     }
 
     return kind_runtime_map[kind]

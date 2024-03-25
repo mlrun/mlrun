@@ -219,11 +219,10 @@ class TestAwsS3:
         # Create the DataFrames
         df1 = pd.DataFrame(data1)
         df2 = pd.DataFrame(data2)
-        with tempfile.NamedTemporaryFile(
-            suffix=".parquet", delete=True
-        ) as temp_file1, tempfile.NamedTemporaryFile(
-            suffix=".parquet", delete=True
-        ) as temp_file2:
+        with (
+            tempfile.NamedTemporaryFile(suffix=".parquet", delete=True) as temp_file1,
+            tempfile.NamedTemporaryFile(suffix=".parquet", delete=True) as temp_file2,
+        ):
             # Save DataFrames as Parquet files
             df1.to_parquet(temp_file1.name, index=False)
             df2.to_parquet(temp_file2.name, index=False)
@@ -255,11 +254,10 @@ class TestAwsS3:
         # Create the DataFrames
         df1 = pd.DataFrame(data1)
         df2 = pd.DataFrame(data2)
-        with tempfile.NamedTemporaryFile(
-            suffix=".csv", delete=True
-        ) as temp_file1, tempfile.NamedTemporaryFile(
-            suffix=".csv", delete=True
-        ) as temp_file2:
+        with (
+            tempfile.NamedTemporaryFile(suffix=".csv", delete=True) as temp_file1,
+            tempfile.NamedTemporaryFile(suffix=".csv", delete=True) as temp_file2,
+        ):
             # Save DataFrames as csv files
             df1.to_csv(temp_file1.name, index=False)
             df2.to_csv(temp_file2.name, index=False)

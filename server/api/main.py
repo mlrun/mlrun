@@ -519,12 +519,36 @@ async def _start_periodic_stop_logs():
 
 async def _verify_log_collection_stopped_on_startup():
     """
-    Pulls runs from DB that are in terminal state and have logs requested, and call stop logs for them.
+    First, list runs that are currently being collected in the log collector.
+    Second, query the DB for those runs that are also in terminal state and have logs requested.
+    Lastly, call stop logs for the runs that met all of the above conditions.
     This is done so that the log collector won't keep trying to collect logs for runs that are already
     in terminal state.
     """
+    logger.debug("Listing runs currently being log collected")
+    log_collector_client = server.api.utils.clients.log_collector.LogCollectorClient()
+    run_uids_in_progress = []
+    failed_listing = False
+    try:
+        runs_in_progress_response_stream = log_collector_client.list_runs_in_progress()
+        # collate the run uids from the response stream to a list
+        async for run_uids in runs_in_progress_response_stream:
+            run_uids_in_progress.extend(run_uids)
+    except Exception as exc:
+        failed_listing = True
+        logger.warning(
+            "Failed listing runs currently being log collected",
+            exc=err_to_str(exc),
+            traceback=traceback.format_exc(),
+        )
+
+    if len(run_uids_in_progress) == 0 and not failed_listing:
+        logger.debug("No runs currently being log collected")
+        return
+
     logger.debug(
-        "Getting all runs which have reached terminal state and already have logs requested",
+        "Getting current log collected runs which have reached terminal state and already have logs requested",
+        run_uids_in_progress_count=len(run_uids_in_progress),
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
@@ -539,6 +563,7 @@ async def _verify_log_collection_stopped_on_startup():
                 # usually it happens when run pods get preempted
                 mlrun.runtimes.constants.RunStates.unknown,
             ],
+            specific_uids=run_uids_in_progress,
         )
 
         if len(runs) > 0:
@@ -725,9 +750,9 @@ async def _abort_stale_runs(stale_runs: list[dict]):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
             # mark abort as internal, it doesn't have a background task
-            stale_run[
-                "new_background_task_id"
-            ] = server.api.constants.internal_abort_task_id
+            stale_run["new_background_task_id"] = (
+                server.api.constants.internal_abort_task_id
+            )
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Runs().abort_run,

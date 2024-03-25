@@ -56,6 +56,7 @@ from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
+from server.api.crud.model_monitoring.helpers import Seconds
 from server.api.crud.secrets import Secrets, SecretsClientType
 from server.api.utils.builder import build_runtime
 from server.api.utils.singletons.scheduler import get_scheduler
@@ -312,8 +313,15 @@ async def build_function(
         client_python_version,
         force_build,
     )
+
+    # clone_target_dir is deprecated but needs to remain for backward compatibility
+    func_dict = fn.to_dict()
+    func_dict["spec"]["clone_target_dir"] = get_in(
+        func_dict, "spec.build.source_code_target_dir"
+    )
+
     return {
-        "data": fn.to_dict(),
+        "data": func_dict,
         "ready": ready,
     }
 
@@ -722,6 +730,8 @@ def _build_function(
 
         fn.save(versioned=False)
         if is_nuclio_runtime:
+            fn: mlrun.runtimes.RemoteRuntime
+            fn.pre_deploy_validation()
             fn = _deploy_nuclio_runtime(
                 auth_info,
                 builder_env,
@@ -781,16 +791,25 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
         if serving_to_monitor:
+            # TODO : delete when batch is deprecated.
             _deploy_serving_monitoring(
                 auth_info,
                 db_session,
                 fn,
                 model_monitoring_access_key,
-                monitoring_application,
             )
         if monitoring_application:
-            fn = _deploy_monitoring_application(
-                auth_info, fn, model_monitoring_access_key, monitoring_application
+            monitoring_deploy = (
+                server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                    project=fn.metadata.project,
+                    auth_info=auth_info,
+                    db_session=db_session,
+                    model_monitoring_access_key=model_monitoring_access_key,
+                )
+            )
+            fn = monitoring_deploy._apply_and_create_stream_trigger(
+                function=fn,
+                function_name=fn.metadata.name,
             )
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
@@ -807,8 +826,8 @@ def _deploy_serving_monitoring(
     db_session,
     fn,
     model_monitoring_access_key,
-    monitoring_application,
 ):
+    # TODO : delete when batch is deprecated.
     try:
         # Handle model monitoring
         logger.info("Tracking enabled, initializing model monitoring")
@@ -821,27 +840,19 @@ def _deploy_serving_monitoring(
             fn.spec.tracking_policy = TrackingPolicy()
 
         if not mlrun.mlconf.is_ce_mode():
-            # create v3io stream for model_monitoring_stream
-            create_model_monitoring_stream(
-                project=fn.metadata.project,
-                function=fn,
-                monitoring_application=monitoring_application,
-                stream_path=server.api.crud.model_monitoring.get_stream_path(
-                    project=fn.metadata.project,
-                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
-                ),
-            )
-
+            _init_serving_function_stream_args(fn=fn)
         # deploy model monitoring stream, model monitoring batch job,
         monitoring_deploy = (
-            server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=fn.metadata.project,
+                auth_info=auth_info,
+                db_session=db_session,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         )
-        monitoring_deploy.deploy_monitoring_functions(
-            project=fn.metadata.project,
-            db_session=db_session,
-            auth_info=auth_info,
+        monitoring_deploy.deploy_model_monitoring_batch_processing(
             tracking_policy=fn.spec.tracking_policy,
-            model_monitoring_access_key=model_monitoring_access_key,
+            tracking_offset=Seconds(monitoring_deploy._max_parquet_save_interval),
         )
 
     except Exception as exc:
@@ -851,35 +862,6 @@ def _deploy_serving_monitoring(
             exc=exc,
             traceback=traceback.format_exc(),
         )
-
-
-def _deploy_monitoring_application(
-    auth_info, fn, model_monitoring_access_key, monitoring_application
-):
-    if not mlrun.mlconf.is_ce_mode():
-        # create v3io stream for model monitoring application
-        create_model_monitoring_stream(
-            project=fn.metadata.project,
-            function=fn,
-            monitoring_application=monitoring_application,
-            stream_path=server.api.crud.model_monitoring.get_stream_path(
-                project=fn.metadata.project,
-                application_name=fn.metadata.name,
-            ),
-            access_key=model_monitoring_access_key,
-        )
-    # apply stream trigger to monitoring application
-    monitoring_deploy = (
-        server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-    )
-    fn = monitoring_deploy._apply_stream_trigger(
-        project=fn.metadata.project,
-        function=fn,
-        model_monitoring_access_key=model_monitoring_access_key,
-        function_name=fn.metadata.name,
-        auth_info=auth_info,
-    )
-    return fn
 
 
 def _parse_start_function_body(db_session, data):
@@ -1079,7 +1061,6 @@ def _is_nuclio_deploy_status_changed(
 
 def create_model_monitoring_stream(
     project: str,
-    function,
     stream_path: str,
     monitoring_application: bool = None,
     access_key: str = None,
@@ -1087,13 +1068,11 @@ def create_model_monitoring_stream(
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
 
-        _init_serving_function_stream_args(fn=function)
-
         _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
         # TODO: How should we configure sharding here?
         logger.info(
-            "Creating model endpoint stream for project",
+            "Creating stream",
             project=project,
             stream_path=stream_path,
             container=container,
@@ -1114,7 +1093,9 @@ def create_model_monitoring_stream(
             shard_count=stream_args.shard_count,
             retention_period_hours=stream_args.retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key,
+            access_key=access_key
+            if monitoring_application
+            else os.environ.get("V3IO_ACCESS_KEY"),
         )
 
         if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):

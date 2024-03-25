@@ -15,6 +15,7 @@
 import pandas as pd
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
@@ -30,7 +31,7 @@ EXPECTED_EVENTS_COUNT = (
 
 
 class DemoMonitoringApp(ModelMonitoringApplicationBase):
-    name = "monitoring-test"
+    NAME = "monitoring-test"
     check_num_events = True
 
     # noinspection PyMethodOverriding
@@ -41,8 +42,8 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
     def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         sample_df: pd.DataFrame,
         start_infer_time: pd.Timestamp,
         end_infer_time: pd.Timestamp,

@@ -20,6 +20,7 @@ import logging
 import os
 import shlex
 import subprocess
+import typing
 
 import click
 import coloredlogs
@@ -149,10 +150,12 @@ class MLRunPatcher:
 
     def _make_mlrun(self, target, image_tag, image_name) -> str:
         logger.info(f"Building mlrun docker image: {target}:{image_tag}")
-        os.environ["MLRUN_VERSION"] = image_tag
-        os.environ["MLRUN_DOCKER_REPO"] = self._config["DOCKER_REGISTRY"]
+        env = {
+            "MLRUN_VERSION": image_tag,
+            "MLRUN_DOCKER_REPO": self._config["DOCKER_REGISTRY"],
+        }
         cmd = ["make", target]
-        self._exec_local(cmd, live=True)
+        self._exec_local(cmd, live=True, env=env)
         return f"{self._config['DOCKER_REGISTRY']}/{image_name}:{image_tag}"
 
     def _connect_to_node(self, node):
@@ -193,7 +196,7 @@ class MLRunPatcher:
                 "deployment",
                 "mlrun-api-chief",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -207,7 +210,7 @@ class MLRunPatcher:
                 "deployment",
                 "mlrun-api-worker",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -438,9 +441,10 @@ class MLRunPatcher:
         return f"{tag}"
 
     @staticmethod
-    def _execute_local_proc_interactive(cmd):
+    def _execute_local_proc_interactive(cmd, env=None):
+        env = os.environ | (env or {})
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env
         )
         yield from proc.stdout
         proc.stdout.close()
@@ -448,10 +452,12 @@ class MLRunPatcher:
         if ret_code:
             raise subprocess.CalledProcessError(ret_code, cmd)
 
-    def _exec_local(self, cmd: list[str], live=False) -> str:
+    def _exec_local(
+        self, cmd: list[str], live: bool = False, env: typing.Optional[dict] = None
+    ) -> str:
         logger.debug("Exec local: %s", " ".join(cmd))
         buf = io.StringIO()
-        for line in self._execute_local_proc_interactive(cmd):
+        for line in self._execute_local_proc_interactive(cmd, env):
             buf.write(line)
             if live:
                 print(line, end="")

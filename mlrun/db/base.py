@@ -616,6 +616,26 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        pass
+
+    @abstractmethod
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        pass
+
+    @abstractmethod
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        pass
+
+    @abstractmethod
+    def delete_api_gateway(self, name, project=None):
+        pass
+
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",
@@ -674,5 +694,39 @@ class RunDBInterface(ABC):
 
     def start_function(
         self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
+        pass
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            "mlrun.projects.pipelines.WorkflowSpec",
+            "mlrun.common.schemas.WorkflowSpec",
+            dict,
+        ],
+        arguments: Optional[dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        notifications: list["mlrun.model.Notification"] = None,
+    ) -> "mlrun.common.schemas.WorkflowResponse":
+        pass
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        pass
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
     ):
         pass

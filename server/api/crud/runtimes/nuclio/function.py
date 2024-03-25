@@ -524,6 +524,7 @@ def _add_secrets_config_to_function_spec(
     if function.kind in [
         mlrun.runtimes.RuntimeKinds.remote,
         mlrun.runtimes.RuntimeKinds.nuclio,
+        mlrun.runtimes.RuntimeKinds.application,
     ]:
         # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
         # to decode the secrets and special env variable names in the function, we just use the same env variable as

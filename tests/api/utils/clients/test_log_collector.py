@@ -16,9 +16,7 @@
 import unittest.mock
 
 import deepdiff
-import fastapi.testclient
 import pytest
-import sqlalchemy.orm.session
 
 import mlrun
 import mlrun.common.schemas
@@ -66,6 +64,23 @@ class GetLogSizeResponse:
         self.logSize = log_size
 
 
+class ListRunsResponse:
+    def __init__(self, run_uids=None, total_calls=1):
+        self.runUIDs = run_uids or []
+        self.total_calls = total_calls
+        self.current_calls = 0
+
+    # the following methods are required for the async iterator protocol
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.current_calls < self.total_calls:
+            self.current_calls += 1
+            return self
+        raise StopAsyncIteration
+
+
 mlrun.mlconf.log_collector.address = "http://localhost:8080"
 mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
@@ -74,8 +89,6 @@ class TestLogCollector:
     @pytest.mark.asyncio
     async def test_start_log(
         self,
-        db: sqlalchemy.orm.session.Session,
-        client: fastapi.testclient.TestClient,
         monkeypatch,
     ):
         run_uid = "123"
@@ -108,9 +121,7 @@ class TestLogCollector:
         assert success is False and error == "Failed to start logs"
 
     @pytest.mark.asyncio
-    async def test_get_logs(
-        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
-    ):
+    async def test_get_logs(self):
         run_uid = "123"
         project_name = "some-project"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
@@ -151,9 +162,7 @@ class TestLogCollector:
             assert log == b""
 
     @pytest.mark.asyncio
-    async def test_get_log_with_retryable_error(
-        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
-    ):
+    async def test_get_log_with_retryable_error(self):
         run_uid = "123"
         project_name = "some-project"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
@@ -186,9 +195,7 @@ class TestLogCollector:
                 assert log == b""  # should not get here
 
     @pytest.mark.asyncio
-    async def test_stop_logs(
-        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
-    ):
+    async def test_stop_logs(self):
         run_uids = ["123"]
         project_name = "some-project"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
@@ -213,9 +220,7 @@ class TestLogCollector:
             await log_collector.stop_logs(run_uids=run_uids, project=project_name)
 
     @pytest.mark.asyncio
-    async def test_delete_logs(
-        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
-    ):
+    async def test_delete_logs(self):
         run_uids = None
         project_name = "some-project"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
@@ -246,6 +251,24 @@ class TestLogCollector:
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
         assert stop_log_request.runUIDs == run_uids
+
+    @pytest.mark.asyncio
+    async def test_list_runs_in_progress(self):
+        project_name = "some-project"
+        log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
+
+        async def _verify_runs(run_uids_stream):
+            async for run_uid_list in run_uids_stream:
+                for run_uid in run_uid_list:
+                    assert run_uid in run_uids
+
+        # mock a short response for ListRunsInProgress
+        run_uids = [f"{str(i)}" for i in range(10)]
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=ListRunsResponse(run_uids=run_uids)
+        )
+        run_uids_stream = log_collector.list_runs_in_progress(project=project_name)
+        await _verify_runs(run_uids_stream)
 
     @pytest.mark.parametrize(
         "error_code,expected_mlrun_error",

@@ -23,9 +23,6 @@ const (
 	ErrCodeBadRequest
 )
 
-const DefaultErrorStackDepth = 3
-
-// Buffer sizes
 const (
 	// DefaultLogCollectionBufferSize is the default buffer size for collecting logs from pods
 	DefaultLogCollectionBufferSize int = 10 * 1024 * 1024 // 10MB
@@ -37,6 +34,12 @@ const (
 	// LogTimeUpdateBytesInterval is the bytes amount to read between updates of the
 	// last log time in the in memory state
 	LogTimeUpdateBytesInterval int = 4 * 1024 // 4KB
+
+	// DefaultListRunsChunkSize is the default chunk size for listing runs
+	DefaultListRunsChunkSize int = 10
+
+	// DefaultErrorStackDepth is the default stack depth for errors
+	DefaultErrorStackDepth = 3
 )
 
 // Custom errors

@@ -412,6 +412,11 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
+    if project.spec.default_function_node_selector:
+        f.enrich_runtime_spec(
+            project.spec.default_function_node_selector,
+        )
+
     if try_auto_mount:
         if (
             decorator and AutoMountType.is_auto_modifier(decorator)

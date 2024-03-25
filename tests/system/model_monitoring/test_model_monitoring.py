@@ -890,6 +890,8 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         else None
     )
     project_name = "pr-kafka-model-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @pytest.mark.timeout(300)
     @pytest.mark.skipif(
@@ -936,8 +938,13 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         # enable model monitoring
         serving_fn.set_tracking()
-        project.enable_model_monitoring(base_period=1)
+        project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
         # Deploy the function
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
         serving_fn.deploy()
 
         monitoring_stream_fn = project.get_function("model-monitoring-stream")

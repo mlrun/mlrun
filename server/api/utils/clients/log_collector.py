@@ -331,16 +331,19 @@ class LogCollectorClient(
         )
 
         response_stream = self._call_stream("ListRunsInProgress", request)
-        async for chunk in response_stream:
-            if not chunk.success:
-                msg = "Failed to list runs in progress"
-                if raise_on_error:
-                    raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
-                        chunk.errorCode, chunk.errorMessage, msg
-                    )
-                if verbose:
-                    logger.warning(msg, error=chunk.errorMessage)
-            yield chunk.runUIDs
+        try:
+            async for chunk in response_stream:
+                yield chunk.runUIDs
+        except Exception as exc:
+            msg = "Failed to list runs in progress"
+            if raise_on_error:
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    LogCollectorErrorCode.ErrCodeInternal.value,
+                    mlrun.errors.err_to_str(exc),
+                    msg,
+                )
+            if verbose:
+                logger.warning(msg, error=mlrun.errors.err_to_str(exc))
 
     @staticmethod
     def _retryable_error(error_message, retryable_error_patterns) -> bool:

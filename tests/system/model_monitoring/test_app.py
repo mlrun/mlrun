@@ -152,7 +152,10 @@ class _V3IORecordsChecker:
 
         dataset = load_iris()
         inputs: set = (
-            {mlrun.feature_store.api.norm_column_name(feature) for feature in dataset.feature_names}
+            {
+                mlrun.feature_store.api.norm_column_name(feature)
+                for feature in dataset.feature_names
+            }
             if with_training_set
             else {f"f{i}" for i in range(len(dataset.feature_names))}
         )
@@ -263,7 +266,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     @classmethod
-    def _deploy_model_serving(cls, with_training_set: bool) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+    def _deploy_model_serving(
+        cls, with_training_set: bool
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
         )
@@ -290,7 +295,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         num_events: int = 10_000,
-        with_training_set: bool = True
+        with_training_set: bool = True,
     ) -> None:
         result = serving_fn.invoke(
             f"v2/models/{cls.model_name}_{with_training_set}/infer",
@@ -322,14 +327,14 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             if "with_training_set" in self.apps_data[i].kwargs:
                 self.apps_data[i].kwargs["with_training_set"] = with_training_set
 
-        # work around for ML-5997
+        # workaround for ML-5997
         if not with_training_set:
             self.apps_data.pop(0)
 
         with ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=with_training_set,  # work around for ML-5997
+                deploy_histogram_data_drift_app=with_training_set,  # workaround for ML-5997
             )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)

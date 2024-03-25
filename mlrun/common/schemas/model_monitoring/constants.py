@@ -86,8 +86,13 @@ class FeatureSetFeatures(StrEnum):
     def list(cls):
         return list(map(lambda c: c.value, cls))
 
-    # def entity(self):
-    #
+    @classmethod
+    def time_stamp(cls):
+        return "timestamp"
+
+    @classmethod
+    def entity(cls):
+        return "endpoint_id"
 
 
 class ApplicationEvent:

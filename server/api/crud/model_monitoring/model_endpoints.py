@@ -265,8 +265,10 @@ class ModelEndpoints:
 
         feature_set = mlrun.feature_store.FeatureSet(
             f"monitoring-{serving_function_name}-{model_name}",
-            entities=[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID],
-            timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
+            entities=[
+                mlrun.common.schemas.model_monitoring.FeatureSetFeatures.entity()
+            ],
+            timestamp_key=mlrun.common.schemas.model_monitoring.FeatureSetFeatures.time_stamp(),
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
         # Set the run db instance with the current db session

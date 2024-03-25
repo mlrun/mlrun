@@ -82,7 +82,7 @@ _DefaultDataDriftAppData = _AppData(
 
 
 class _V3IORecordsChecker:
-    project = None
+    project_name = None
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
@@ -94,7 +94,7 @@ class _V3IORecordsChecker:
         cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
             cls._v3io_container
         )
-        cls.project = mlrun.get_or_create_project(project_name)
+        cls.project_name = project_name
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
@@ -142,7 +142,7 @@ class _V3IORecordsChecker:
     def _test_apps_parquet(cls, ep_id, with_training_set):
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
-                cls.project,
+                mlrun.get_or_create_project(cls.project_name),
                 kind=mm_constants.FileTargetKind.APPS_PARQUET,
             )
         )
@@ -152,7 +152,7 @@ class _V3IORecordsChecker:
 
         dataset = load_iris()
         inputs: set = (
-            {dataset.feature_names}
+            {mlrun.feature_store.api.norm_column_name(feature) for feature in dataset.feature_names}
             if with_training_set
             else {f"f{i}" for i in range(len(dataset.feature_names))}
         )
@@ -178,7 +178,8 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+    image: typing.Optional[str] = None
+    last_endpoint_ids: list[str] = []
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -214,18 +215,21 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
+                    "with_training_set": True,
                 },
                 results={"data_drift_test"},
             ),
         ]
-        cls.infer_path = f"v2/models/{cls.model_name}/infer"
 
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
-    def _submit_controller_and_deploy_writer(self) -> None:
+    def _submit_controller_and_deploy_writer(
+        self, deploy_histogram_data_drift_app
+    ) -> None:
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
             **({} if self.image is None else {"default_controller_image": self.image}),
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -252,20 +256,20 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             )
 
         self.project.log_model(
-            self.model_name,
+            f"{self.model_name}_{with_training_set}",
             model_dir=str((Path(__file__).parent / "assets").absolute()),
             model_file="model.pkl",
             training_set=train_set,
         )
 
     @classmethod
-    def _deploy_model_serving(cls) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+    def _deploy_model_serving(cls, with_training_set: bool) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
         )
         serving_fn.add_model(
-            cls.model_name,
-            model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
+            f"{cls.model_name}_{with_training_set}",
+            model_path=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
         )
         serving_fn.set_tracking(tracking_policy=TrackingPolicy())
         if cls.image is not None:
@@ -286,9 +290,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         num_events: int = 10_000,
+        with_training_set: bool = True
     ) -> None:
         result = serving_fn.invoke(
-            cls.infer_path,
+            f"v2/models/{cls.model_name}_{with_training_set}/infer",
             json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
         )
         assert isinstance(result, dict), "Unexpected result type"
@@ -298,38 +303,53 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "Outputs length does not match inputs"
 
     @classmethod
-    def _get_model_enpoint_id(cls) -> str:
+    def _get_model_endpoint_id(cls) -> str:
         endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
-        assert endpoints and len(endpoints) == 1
-        return endpoints[0].metadata.uid
+        assert endpoints and len(endpoints) <= 2
+        for endpoint in endpoints:
+            if endpoint.metadata.uid in cls.last_endpoint_ids:
+                continue
+            else:
+                cls.last_endpoint_ids.append(endpoint.metadata.uid)
+                return endpoint.metadata.uid
 
-    @pytest.mark.parametrize("with_training_set", [False, True])
+    @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         self._log_model(with_training_set)
-        self.apps_data[1].kwargs["with_training_set"] = with_training_set
+
+        for i in range(len(self.apps_data)):
+            if "with_training_set" in self.apps_data[i].kwargs:
+                self.apps_data[i].kwargs["with_training_set"] = with_training_set
+
+        # work around for ML-5997
+        if not with_training_set:
+            self.apps_data.pop(0)
 
         with ThreadPoolExecutor() as executor:
-            executor.submit(self._submit_controller_and_deploy_writer)
+            executor.submit(
+                self._submit_controller_and_deploy_writer,
+                deploy_histogram_data_drift_app=with_training_set,  # work around for ML-5997
+            )
             executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(self._deploy_model_serving)
+            future = executor.submit(self._deploy_model_serving, with_training_set)
 
         serving_fn = future.result()
 
         time.sleep(5)
-        self._infer(serving_fn)
+        self._infer(serving_fn, with_training_set=with_training_set)
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + 2
         )
-        self._infer(serving_fn, num_events=1)
+        self._infer(serving_fn, num_events=1, with_training_set=with_training_set)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 
         self._test_v3io_records(
-            ep_id=self._get_model_enpoint_id(), with_training_set=with_training_set
+            ep_id=self._get_model_endpoint_id(), with_training_set=with_training_set
         )
 
 

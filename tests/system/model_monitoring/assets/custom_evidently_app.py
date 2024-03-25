@@ -126,16 +126,16 @@ if _HAS_EVIDENTLY:
         project.save()
         return project
 
-    def create_demo_project(workspace_path: str) -> tuple[Workspace, Project]:
-        workspace = Workspace.create(workspace_path)
-        project = _create_evidently_project(workspace)
-        return workspace, project
-
 
 class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     NAME = "evidently-app-test"
 
-    def __init__(self, evidently_workspace_path: str, evidently_project_id: "STR_UUID", with_training_set):
+    def __init__(
+        self,
+        evidently_workspace_path: str,
+        evidently_project_id: "STR_UUID",
+        with_training_set,
+    ):
         super().__init__(evidently_workspace_path, evidently_project_id)
         self._init_evidently_project()
         self._init_iris_data(with_training_set)
@@ -157,9 +157,6 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         if self.evidently_project is None:
             if isinstance(self.evidently_project_id, str):
                 self.evidently_project_id = UUID(self.evidently_project_id)
-            self.context.logger.info(
-                "Creating evidently project", id=self.evidently_project_id
-            )
             self.evidently_project = _create_evidently_project(
                 self.evidently_workspace, self.evidently_project_id
             )

@@ -291,7 +291,9 @@ class ServingRuntime(RemoteRuntime):
                         "provided class is not a router step, must provide a router class in router topology"
                     )
             else:
-                step = RouterStep(class_name=class_name, class_args=class_args)
+                step = RouterStep(
+                    class_name=class_name, class_args=class_args, engine=engine
+                )
             self.spec.graph = step
         elif topology == StepKinds.flow:
             self.spec.graph = RootFlowStep(engine=engine)

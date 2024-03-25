@@ -223,7 +223,29 @@ class ApplicationRuntime(RemoteRuntime):
         auth_info: AuthInfo = None,
         builder_env: dict = None,
         force_build: bool = False,
+        watch=True,
+        with_mlrun=None,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
+        if self.requires_build():
+            self._build_application_image(
+                project=project,
+                tag=tag,
+                verbose=verbose,
+                auth_info=auth_info,
+                builder_env=builder_env,
+                force_build=force_build,
+                watch=watch,
+                with_mlrun=with_mlrun,
+                skip_deployed=skip_deployed,
+                is_kfp=is_kfp,
+                mlrun_version_specifier=mlrun_version_specifier,
+                show_on_failure=show_on_failure,
+            )
+
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
         super().deploy(
@@ -234,6 +256,44 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env,
             force_build,
         )
+
+    def with_source_archive(
+        self, source, workdir=None, pull_at_runtime=True, target_dir=None
+    ):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
+        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
+        """
+        self._configure_mlrun_build_with_source(
+            source=source,
+            workdir=workdir,
+            pull_at_runtime=pull_at_runtime,
+            target_dir=target_dir,
+        )
+
+    def _build_application_image(
+        self,
+        project="",
+        tag="",
+        verbose=False,
+        auth_info: AuthInfo = None,
+        builder_env: dict = None,
+        force_build: bool = False,
+        watch=True,
+        with_mlrun=None,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+        show_on_failure: bool = False,
+    ):
+        with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
 
     def _ensure_reverse_proxy_configurations(self):
         if self.spec.build.functionSourceCode or self.status.container_image:

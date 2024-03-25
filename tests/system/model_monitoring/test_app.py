@@ -182,7 +182,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
-    last_endpoint_ids: list[str] = []
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -310,13 +309,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     @classmethod
     def _get_model_endpoint_id(cls) -> str:
         endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
-        assert endpoints and len(endpoints) <= 2
-        for endpoint in endpoints:
-            if endpoint.metadata.uid in cls.last_endpoint_ids:
-                continue
-            else:
-                cls.last_endpoint_ids.append(endpoint.metadata.uid)
-                return endpoint.metadata.uid
+        assert endpoints and len(endpoints) == 1
+        return endpoints[0].metadata.uid
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set) -> None:
@@ -555,6 +549,17 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "data_point": "input_str",
                 "schema": ["f0", "p0"],
             },
+            "str_one_to_one_with_train": {
+                "name": "serving_3",
+                "model_name": "str_one_to_one_with_train",
+                "class_name": "OneToOne",
+                "data_point": "input_str",
+                "schema": ["str_in", "str_2"],
+                "training_set": pd.DataFrame(
+                    data={"str_in": ["str_1", "str_2"], "str_out": ["str_3", "str_4"]}
+                ),
+                "label_column": "str_out",
+            },
             "str_one_to_many": {
                 "name": "serving_4",
                 "model_name": "str_one_to_many",
@@ -578,11 +583,13 @@ class TestAllKindOfServing(TestMLRunSystem):
             },
         }
 
-    def _log_model(self, model_name) -> None:
+    def _log_model(self, model_name, training_set=None, label_column=None) -> None:
         self.project.log_model(
             model_name,
             model_dir=str((Path(__file__).parent / "assets").absolute()),
             model_file="model.pkl",
+            training_set=training_set,
+            label_column=label_column,
         )
 
     @classmethod
@@ -651,7 +658,11 @@ class TestAllKindOfServing(TestMLRunSystem):
         futures = []
         with ThreadPoolExecutor() as executor:
             for model_name, model_dict in self.models.items():
-                self._log_model(model_name)
+                self._log_model(
+                    model_name,
+                    training_set=model_dict.get("training_set"),
+                    label_column=model_dict.get("label_column"),
+                )
                 future = executor.submit(self._deploy_model_serving, **model_dict)
                 futures.append(future)
 

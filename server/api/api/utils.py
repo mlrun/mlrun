@@ -1105,7 +1105,7 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 def get_or_create_project_deletion_background_task(
     project: mlrun.common.schemas.Project, deletion_strategy: str, db_session, auth_info
-) -> typing.Tuple[typing.Optional[typing.Callable], str]:
+) -> tuple[typing.Optional[typing.Callable], str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:

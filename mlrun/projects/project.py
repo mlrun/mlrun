@@ -2008,10 +2008,10 @@ class MlrunProject(ModelObj):
 
     def enable_model_monitoring(
         self,
+        default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        default_controller_image: str = "mlrun/mlrun",
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.

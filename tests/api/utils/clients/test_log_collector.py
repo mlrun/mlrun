@@ -65,9 +65,8 @@ class GetLogSizeResponse:
 
 
 class ListRunsResponse:
-    def __init__(self, success, run_uids=None, total_calls=1):
-        self.success = success
-        self.runUIDs = run_uids
+    def __init__(self, run_uids=None, total_calls=1):
+        self.runUIDs = run_uids or []
         self.total_calls = total_calls
         self.current_calls = 0
 
@@ -266,7 +265,7 @@ class TestLogCollector:
         # mock a short response for ListRunsInProgress
         run_uids = [f"{str(i)}" for i in range(10)]
         log_collector._call_stream = unittest.mock.MagicMock(
-            return_value=ListRunsResponse(success=True, run_uids=run_uids)
+            return_value=ListRunsResponse(run_uids=run_uids)
         )
         run_uids_stream = log_collector.list_runs_in_progress(project=project_name)
         await _verify_runs(run_uids_stream)

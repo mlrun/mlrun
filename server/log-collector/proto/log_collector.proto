@@ -78,7 +78,6 @@ message ListRunsRequest {
 
 message ListRunsResponse {
   repeated string runUIDs = 1;
-  bool success = 2;
 }
 
 // StringArray is a wrapper around a repeated string field, used in map values.

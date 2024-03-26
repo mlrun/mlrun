@@ -14,6 +14,7 @@
 
 import hashlib
 import typing
+import warnings
 from datetime import datetime
 
 import numpy as np
@@ -126,6 +127,7 @@ def record_results(
     infer_results_df: typing.Optional[pd.DataFrame] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
+    # Deprecated arguments:
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
@@ -135,10 +137,8 @@ def record_results(
     """
     Write a provided inference dataset to model endpoint parquet target. If not exist, generate a new model endpoint
     record and use the provided sample set statistics as feature stats that will be used later for the drift analysis.
-    To manually trigger the monitoring batch job, set `trigger_monitoring_job=True` and then the batch
-    job will immediately perform drift analysis between the sample set statistics stored in the model and the new
-    input data (along with the outputs). The drift rule is the value per-feature mean of the TVD and Hellinger scores
-    according to the provided thresholds.
+    To activate model monitoring, run `project.enable_model_monitoring()`. The model monitoring applications will be
+    triggered with the recorded data according to a periodic schedule.
 
     :param project:                  Project name.
     :param model_path:               The model Store path.
@@ -157,17 +157,47 @@ def record_results(
                                      the current model endpoint.
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id. Enabled
                                      by default.
-    :param drift_threshold:          The threshold of which to mark drifts.
-    :param possible_drift_threshold: The threshold of which to mark possible drifts.
-    :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
-                                     will be registered through MLRun API with the provided image.
-    :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
-                                     only if the monitoring batch job has been triggered.
-
-    :param default_batch_image:      The image that will be used when registering the model monitoring batch job.
+    :param drift_threshold:          (deprecated) The threshold of which to mark drifts.
+    :param possible_drift_threshold: (deprecated) The threshold of which to mark possible drifts.
+    :param trigger_monitoring_job:   (deprecated) If true, run the batch drift job. If not exists, the monitoring
+                                     batch function will be registered through MLRun API with the provided image.
+    :param artifacts_tag:            (deprecated) Tag to use for all the artifacts resulted from the function.
+                                     Will be relevant only if the monitoring batch job has been triggered.
+    :param default_batch_image:      (deprecated) The image that will be used when registering the model monitoring
+                                     batch job.
 
     :return: A ModelEndpoint object
     """
+
+    if drift_threshold is not None or possible_drift_threshold is not None:
+        warnings.warn(
+            "Custom drift threshold arguments are deprecated since version "
+            "1.7.0 and have no effect. They will be removed in version 1.9.0.\n"
+            "To enable the default histogram data drift application, run:\n"
+            "`project.enable_model_monitoring()`.",
+            FutureWarning,
+        )
+    if trigger_monitoring_job is not False:
+        warnings.warn(
+            "`trigger_monitoring_job` argument is deprecated since version "
+            "1.7.0 and has no effect. It will be removed in version 1.9.0.\n"
+            "To enable the default histogram data drift application, run:\n"
+            "`project.enable_model_monitoring()`.",
+            FutureWarning,
+        )
+    if artifacts_tag != "":
+        warnings.warn(
+            "`artifacts_tag` argument is deprecated since version "
+            "1.7.0 and has no effect. It will be removed in version 1.9.0.",
+            FutureWarning,
+        )
+    if default_batch_image != "mlrun/mlrun":
+        warnings.warn(
+            "`default_batch_image` argument is deprecated since version "
+            "1.7.0 and has no effect. It will be removed in version 1.9.0.",
+            FutureWarning,
+        )
+
     db = mlrun.get_run_db()
 
     model_endpoint = get_or_create_model_endpoint(
@@ -178,8 +208,6 @@ def record_results(
         function_name=function_name,
         context=context,
         sample_set_statistics=sample_set_statistics,
-        drift_threshold=drift_threshold,
-        possible_drift_threshold=possible_drift_threshold,
         monitoring_mode=monitoring_mode,
         db_session=db,
     )
@@ -202,10 +230,6 @@ def record_results(
         current_request=timestamp,
         db=db,
     )
-
-    if trigger_monitoring_job:
-        # TODO: add deprecation
-        pass
 
     return model_endpoint
 

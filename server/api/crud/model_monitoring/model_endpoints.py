@@ -129,7 +129,9 @@ class ModelEndpoints:
         if model_endpoint.status.feature_stats:
             logger.info("Feature stats found, cleaning feature names")
 
-            model_endpoint.status.feature_stats = cls._adjust_stats(model_endpoint=model_endpoint)
+            model_endpoint.status.feature_stats = cls._adjust_stats(
+                model_endpoint=model_endpoint
+            )
 
             logger.info(
                 "Done preparing stats names and stats",

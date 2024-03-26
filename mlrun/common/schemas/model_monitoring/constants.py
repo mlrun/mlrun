@@ -77,14 +77,16 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
-class FeatureSetFeatures(StrEnum):
-    LATENCY = "latency"
-    ERROR_COUNT = "error_count"
-    METRICS = "metrics"
-
+class MonitoringStrEnum(StrEnum):
     @classmethod
     def list(cls):
         return list(map(lambda c: c.value, cls))
+
+
+class FeatureSetFeatures(MonitoringStrEnum):
+    LATENCY = "latency"
+    ERROR_COUNT = "error_count"
+    METRICS = "metrics"
 
     @classmethod
     def time_stamp(cls):
@@ -107,7 +109,7 @@ class ApplicationEvent:
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent(StrEnum):
+class WriterEvent(MonitoringStrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
@@ -118,10 +120,6 @@ class WriterEvent(StrEnum):
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
     CURRENT_STATS = "current_stats"
-
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:

@@ -134,7 +134,7 @@ class ModelEndpoints:
             )
 
             logger.info(
-                "Done preparing stats names and stats",
+                "Done preparing stats",
                 feature_names=model_endpoint.spec.feature_names,
             )
 

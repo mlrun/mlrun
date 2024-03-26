@@ -84,17 +84,17 @@ class MonitoringStrEnum(StrEnum):
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
-    LATENCY = "latency"
-    ERROR_COUNT = "error_count"
-    METRICS = "metrics"
+    LATENCY = EventFieldType.LATENCY
+    ERROR_COUNT = EventFieldType.ERROR_COUNT
+    METRICS = EventFieldType.METRICS
 
     @classmethod
     def time_stamp(cls):
-        return "timestamp"
+        return EventFieldType.TIMESTAMP
 
     @classmethod
     def entity(cls):
-        return "endpoint_id"
+        return EventFieldType.ENDPOINT_ID
 
 
 class ApplicationEvent:

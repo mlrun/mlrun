@@ -849,7 +849,7 @@ class TestBatchDrift(TestMLRunSystem):
             function_name="batch-drift-function",
             context=context,
             infer_results_df=infer_results_df,
-            # trigger_monitoring_job=True,  # TODO: comment out when ML-5792 is done
+            # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
         # Wait for the controller, app and writer to complete
@@ -1076,7 +1076,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             endpoint_id=self.endpoint_id,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
-            # trigger_monitoring_job=True,
+            # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
         self._test_feature_names()
@@ -1166,7 +1166,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             model_path=model_uri,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
-            # trigger_monitoring_job=True,
+            # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
         sleep(130)

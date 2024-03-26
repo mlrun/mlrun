@@ -457,7 +457,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             key=mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME,
             fields=fields,
         )
-        if res.status_code != HTTPStatus.OK.value:
+        if res.status_code != HTTPStatus.OK:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
             )

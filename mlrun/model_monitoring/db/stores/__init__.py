@@ -24,7 +24,7 @@ import mlrun.errors
 from .base import StoreBase
 
 
-class ObjectStoreType(enum.Enum):
+class ObjectStoreFactory(enum.Enum):
     """Enum class to handle the different store type values for saving model monitoring records."""
 
     v3io_nosql = "v3io-nosql"
@@ -55,7 +55,7 @@ class ObjectStoreType(enum.Enum):
 
         """
 
-        if self.value == ObjectStoreType.v3io_nosql.value:
+        if self == self.v3io_nosql:
             from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 
             # Get V3IO access key from env
@@ -118,8 +118,8 @@ def get_store_object(
              model monitoring record such as write, update, get and delete a model endpoint.
     """
 
-    # Get store type value from ObjectStoreType enum class
-    store_type = ObjectStoreType(mlrun.mlconf.model_endpoint_monitoring.store_type)
+    # Get store type value from ObjectStoreFactory enum class
+    store_type = ObjectStoreFactory(mlrun.mlconf.model_endpoint_monitoring.store_type)
 
     # Convert into store target object
     return store_type.to_object_store(

@@ -15,7 +15,6 @@
 import json
 import typing
 import uuid
-from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as db
@@ -182,11 +181,10 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         # Adjust timestamps fields
         endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST] = (
-            datetime.now(timezone.utc)
-        )
-        endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST] = (
-            datetime.now(timezone.utc)
-        )
+            endpoint
+        )[
+            mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST
+        ] = mlrun.utils.datetime_now()
 
         self._write(
             table=mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS,
@@ -568,7 +566,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     ) -> dict[str, str]:
         """Generate a dictionary filter for endpoint id and application name"""
         if not endpoint_id and not application_name:
-            raise mlrun.errors.MLRunNotFoundError(
+            raise mlrun.errors.MLRunBadRequestError(
                 "Please provide a valid endpoint_id and/or application_name"
             )
         application_filter_dict = {}

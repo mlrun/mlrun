@@ -28,7 +28,7 @@ import server.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring.db.stores import (  # noqa: F401
-    ObjectStoreType,
+    ObjectStoreFactory,
     StoreBase,
 )
 
@@ -46,7 +46,7 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="v3io-nosql")
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
 
     endpoint_store: KVmodelType = store_type_object.to_object_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
@@ -280,7 +280,7 @@ def test_generating_tsdb_paths():
     """
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="v3io-nosql")
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
     endpoint_store: KVmodelType = store_type_object.to_object_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
@@ -332,7 +332,7 @@ def test_sql_target_list_model_endpoints():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="sql")
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
     endpoint_store = store_type_object.to_object_store(
         project=TEST_PROJECT, store_connection=ENDPOINT_STORE_CONNECTION
     )
@@ -381,7 +381,7 @@ def test_sql_target_patch_endpoint():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreType(value="sql")
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
     endpoint_store = store_type_object.to_object_store(
         project=TEST_PROJECT, store_connection=ENDPOINT_STORE_CONNECTION
     )

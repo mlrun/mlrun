@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .stores import ObjectStoreType, get_store_object
+from .stores import ObjectStoreFactory, get_store_object
 from .stores.base import StoreBase

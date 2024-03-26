@@ -874,6 +874,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
         else None
     )
+
     project_name = "pr-kafka-model-monitoring"
 
     @pytest.mark.timeout(300)
@@ -921,6 +922,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         # enable model monitoring
         serving_fn.set_tracking()
+
         # Deploy the function
         serving_fn.deploy()
 

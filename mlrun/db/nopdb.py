@@ -519,6 +519,9 @@ class NopDB(RunDBInterface):
     def get_api_gateway(self, name, project=None):
         pass
 
+    def delete_api_gateway(self, name, project=None):
+        pass
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,

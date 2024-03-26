@@ -252,6 +252,7 @@ class SQLDB(DBInterface):
         only_uids=True,
         last_update_time_from: datetime = None,
         states: list[str] = None,
+        specific_uids: list[str] = None,
     ) -> typing.Union[list[str], RunList]:
         """
         List all runs uids in the DB
@@ -281,6 +282,9 @@ class SQLDB(DBInterface):
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
+
+        if specific_uids:
+            query = query.filter(Run.uid.in_(specific_uids))
 
         if not only_uids:
             # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
@@ -2036,6 +2040,7 @@ class SQLDB(DBInterface):
             state=project.status.state,
             created=created,
             owner=project.spec.owner,
+            default_function_node_selector=project.spec.default_function_node_selector,
             full_object=project.dict(),
         )
         labels = project.metadata.labels or {}
@@ -2052,6 +2057,7 @@ class SQLDB(DBInterface):
             project_metadata=project.metadata,
             project_owner=project.spec.owner,
             project_desired_state=project.spec.desired_state,
+            default_function_node_selector=project.spec.default_function_node_selector,
             project_status=project.status,
         )
         self._normalize_project_parameters(project)

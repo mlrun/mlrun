@@ -70,6 +70,7 @@ class DBInterface(ABC):
         only_uids: bool = False,
         last_update_time_from: datetime.datetime = None,
         states: list[str] = None,
+        specific_uids: list[str] = None,
     ):
         pass
 

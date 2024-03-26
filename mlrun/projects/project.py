@@ -760,6 +760,7 @@ class ProjectSpec(ModelObj):
         default_image=None,
         build=None,
         custom_packagers: list[tuple[str, bool]] = None,
+        default_function_node_selector=None,
     ):
         self.repo = None
 
@@ -799,6 +800,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
+        self.default_function_node_selector = default_function_node_selector or {}
 
     @property
     def source(self) -> str:
@@ -3748,6 +3750,18 @@ class MlrunProject(ModelObj):
         """
 
         return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to delete.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
     def _run_authenticated_git_action(
         self,

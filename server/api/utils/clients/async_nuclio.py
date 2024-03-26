@@ -133,6 +133,7 @@ class Client:
     async def _ensure_async_session(self):
         if not self._session:
             self._session = mlrun.utils.AsyncClientWithRetry(
+                raise_for_status=False,
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,

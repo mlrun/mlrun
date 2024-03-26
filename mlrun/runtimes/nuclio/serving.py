@@ -14,8 +14,9 @@
 
 import json
 import os
+import warnings
 from copy import deepcopy
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -41,6 +42,10 @@ from mlrun.utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 
 serving_subkind = "serving_v2"
+
+if TYPE_CHECKING:
+    # remove this block in 1.9.0
+    from mlrun.model_monitoring import TrackingPolicy
 
 
 def new_v2_model_server(
@@ -306,6 +311,7 @@ class ServingRuntime(RemoteRuntime):
         batch: Optional[int] = None,
         sample: Optional[int] = None,
         stream_args: Optional[dict] = None,
+        tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
     ) -> None:
         """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
            and analyze performance.
@@ -335,6 +341,14 @@ class ServingRuntime(RemoteRuntime):
             self.spec.parameters["log_stream_sample"] = sample
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
+        if tracking_policy is not None:
+            warnings.warn(
+                "The `tracking_policy` argument is deprecated from version 1.7.0 "
+                "and has no effect. It will be removed in 1.9.0.\n"
+                "To set the desired model monitoring time window and schedule, use "
+                "the `base_period` argument in `project.enable_model_monitoring()`.",
+                FutureWarning,
+            )
 
     def add_model(
         self,

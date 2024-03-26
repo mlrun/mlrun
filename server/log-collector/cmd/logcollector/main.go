@@ -45,6 +45,7 @@ func StartServer() error {
 	getLogsBufferSizeBytes := flag.Int("get-logs-buffer-buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_SIZE_BYTES", common.DefaultGetLogsBufferSize), "Size of buffers in the buffer pool for getting logs, in bytes (default: 3.75MB)")
 	logTimeUpdateBytesInterval := flag.Int("log-time-update-bytes-interval", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_TIME_UPDATE_BYTES_INTERVAL", common.LogTimeUpdateBytesInterval), "Amount of logs to read between updates of the last log time in the 'in memory' state, in bytes (default: 4KB)")
 	clusterizationRole := flag.String("clusterization-role", common.GetEnvOrDefaultString("MLRUN_HTTPDB__CLUSTERIZATION__ROLE", "chief"), "The role of the log collector in the cluster (chief, worker)")
+	listRunsChunkSize := flag.Int("list-runs-chunk-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LIST_RUNS_CHUNK_SIZE", common.DefaultListRunsChunkSize), "The chunk size for listing runs in progress")
 
 	// if namespace is not passed, it will be taken from env
 	namespace := flag.String("namespace", "", "The namespace to collect logs from")
@@ -80,7 +81,8 @@ func StartServer() error {
 		*logCollectionBufferSizeBytes,
 		*getLogsBufferSizeBytes,
 		*logTimeUpdateBytesInterval,
-		*advancedLogLevel)
+		*advancedLogLevel,
+		*listRunsChunkSize)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")
 	}

@@ -15,7 +15,7 @@
 import json
 import os
 from copy import deepcopy
-from typing import Union
+from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -302,11 +302,11 @@ class ServingRuntime(RemoteRuntime):
 
     def set_tracking(
         self,
-        stream_path: str = None,
-        batch: int = None,
-        sample: int = None,
-        stream_args: dict = None,
-    ):
+        stream_path: Optional[str] = None,
+        batch: Optional[int] = None,
+        sample: Optional[int] = None,
+        stream_args: Optional[dict] = None,
+    ) -> None:
         """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
            and analyze performance.
 
@@ -324,7 +324,6 @@ class ServingRuntime(RemoteRuntime):
                                     serving_fn.set_tracking()
 
         """
-
         # Applying model monitoring configurations
         self.spec.track_models = True
 

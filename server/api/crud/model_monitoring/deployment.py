@@ -54,9 +54,8 @@ class MonitoringDeployment:
         """
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
          1. model monitoring stream
-         2. model monitoring batch
-         3. model monitoring controller
-         4. model monitoring writer
+         2. model monitoring controller
+         3. model monitoring writer
 
         :param project:                     The name of the project.
         :param auth_info:                   The auth info of the request.
@@ -162,10 +161,7 @@ class MonitoringDeployment:
             overwrite=overwrite,
         )
 
-        fn = self._get_model_monitoring_batch_function(
-            image=controller_image,
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
+        fn = self._get_model_monitoring_controller_function(image=controller_image)
         minutes = base_period
         hours = days = 0
         batch_dict = {
@@ -281,20 +277,18 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_batch_function(self, image: str, function_name: str):
+    def _get_model_monitoring_controller_function(self, image: str):
         """
-        Initialize model monitoring batch function.
+        Initialize model monitoring controller function.
 
         :param image:         Base docker image to use for building the function container
-        :param function_name: "model-monitoring-controller".
         :return:              A function object from a mlrun runtime class
         """
-        filename = _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH
         # Create job function runtime for the controller
         function = mlrun.code_to_function(
             name=function_name,
             project=self.project,
-            filename=filename,
+            filename=_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH,
             kind=mlrun.run.RuntimeKinds.nuclio,
             image=image,
             handler="handler",

@@ -550,32 +550,32 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "schema": ["f0", "p0"],
             },
             "str_one_to_one_with_train": {
-                "name": "serving_3",
+                "name": "serving_4",
                 "model_name": "str_one_to_one_with_train",
                 "class_name": "OneToOne",
                 "data_point": "input_str",
-                "schema": ["str_in", "str_2"],
+                "schema": ["str_in", "str_out"],
                 "training_set": pd.DataFrame(
                     data={"str_in": ["str_1", "str_2"], "str_out": ["str_3", "str_4"]}
                 ),
                 "label_column": "str_out",
             },
             "str_one_to_many": {
-                "name": "serving_4",
+                "name": "serving_5",
                 "model_name": "str_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": "input_str",
                 "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
             },
             "img_one_to_one": {
-                "name": "serving_5",
+                "name": "serving_6",
                 "model_name": "img_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": random_rgb_image_list,
                 "schema": [f"f{i}" for i in range(600)] + ["p0"],
             },
             "int_and_str_one_to_one": {
-                "name": "serving_6",
+                "name": "serving_7",
                 "model_name": "int_and_str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, "a", 3],
@@ -693,4 +693,6 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "is_schema_saved"
             ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
 
-            assert res_dict["has_all_the_events"], "Not all the events were saved"
+            assert res_dict[
+                "has_all_the_events"
+            ], f"For {res_dict['model_name']} Not all the events were saved"

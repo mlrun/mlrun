@@ -619,7 +619,6 @@ class RouterStep(TaskStep):
         self.routes = routes
         self.engine = engine
         self._controller = None
-        self.responder = True
 
     def get_children(self):
         """get child steps (routes)"""
@@ -696,6 +695,7 @@ class RouterStep(TaskStep):
     def _build_async_flow(self):
         """initialize and build the async/storey DAG"""
 
+        self.respond()
         source, self._wait_for_result = _init_async_objects(self.context, [self])
         source.to(self.async_object)
 

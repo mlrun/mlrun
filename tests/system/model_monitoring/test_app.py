@@ -139,7 +139,7 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_apps_parquet(cls, ep_id, with_training_set):
+    def _test_apps_parquet(cls, ep_id: str, inputs: set[str], outputs: set[str]):
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name),
@@ -150,19 +150,9 @@ class _V3IORecordsChecker:
             path=f"{parquet_apps_directory}/key={ep_id}",
         ).as_df()
 
-        dataset = load_iris()
-        inputs: set = (
-            {
-                mlrun.feature_store.api.norm_column_name(feature)
-                for feature in dataset.feature_names
-            }
-            if with_training_set
-            else {f"f{i}" for i in range(len(dataset.feature_names))}
-        )
-
         is_inputs_saved = inputs.issubset(df.columns)
         assert is_inputs_saved, "Dataframe does not contains the input columns"
-        is_output_saved = {"p0"}.issubset(df.columns)
+        is_output_saved = outputs.issubset(df.columns)
         assert is_output_saved, "Dataframe does not contains the output columns"
         is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
             df.columns
@@ -170,18 +160,20 @@ class _V3IORecordsChecker:
         assert is_metadata_saved, "Dataframe does not contains the metadata columns"
 
     @classmethod
-    def _test_v3io_records(cls, ep_id: str, with_training_set: bool) -> None:
+    def _test_v3io_records(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
-        cls._test_apps_parquet(ep_id, with_training_set)
+        cls._test_apps_parquet(ep_id, inputs, outputs)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow"
+    project_name = "test-app-flow-v21"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -347,8 +339,19 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 
+        dataset = load_iris()
+        inputs: set = (
+            {
+                mlrun.feature_store.api.norm_column_name(feature)
+                for feature in dataset.feature_names
+            }
+            if with_training_set
+            else {f"f{i}" for i in range(len(dataset.feature_names))}
+        )
+        outputs = {"p0"}
+
         self._test_v3io_records(
-            ep_id=self._get_model_endpoint_id(), with_training_set=with_training_set
+            ep_id=self._get_model_endpoint_id(), inputs=inputs, outputs=outputs
         )
 
 
@@ -459,7 +462,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         time.sleep(2.4 * self.app_interval_seconds)
 
-        self._test_v3io_records(self.endpoint_id)
+        self._test_v3io_records(
+            self.endpoint_id, inputs=set(self.columns), outputs=set(self.y_name)
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

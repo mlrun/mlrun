@@ -4643,7 +4643,7 @@ class SQLDB(DBInterface):
         kwargs: dict,
     ):
         # generate key hash from user, function, current_page and kwargs
-        key = hashlib.md5(
+        key = hashlib.sha256(
             f"{user}/{function}/{current_page}/{kwargs}".encode()
         ).hexdigest()
         param_record = PaginationCache(

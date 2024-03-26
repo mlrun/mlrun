@@ -785,6 +785,8 @@ class DBInterface(ABC):
         key: str = None,
         user: str = None,
         function: str = None,
+        last_accessed_before: datetime = None,
+        order_by_desc: bool = True,
     ):
         raise NotImplementedError
 

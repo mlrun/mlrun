@@ -3756,7 +3756,7 @@ class MlrunProject(ModelObj):
         """
         Deletes an API gateway by name.
 
-        :param name: The name of the API gateway to retrieve.
+        :param name: The name of the API gateway to delete.
         """
 
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)

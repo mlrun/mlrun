@@ -1665,6 +1665,7 @@ def test_load_project_from_yaml_with_function(context):
         ),
     ],
 )
+@pytest.mark.parametrize("with_basic_auth", [True, False])
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
 def test_create_api_gateway_valid(
     patched_create_api_gateway,
@@ -1673,6 +1674,7 @@ def test_create_api_gateway_valid(
     kind_2,
     canary,
     upstreams,
+    with_basic_auth,
 ):
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
@@ -1684,6 +1686,9 @@ def test_create_api_gateway_valid(
             path="/",
             host="http://gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
+            authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
+            if not with_basic_auth
+            else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
         ),
     )
     project_name = "project-name"
@@ -1713,12 +1718,16 @@ def test_create_api_gateway_valid(
         canary=canary,
         project=project_name,
     )
+    if with_basic_auth:
+        api_gateway.with_basic_auth("test_username", "test_password")
 
     gateway = project.store_api_gateway(api_gateway)
 
     assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
-
-    assert gateway.authentication_mode == "none"
+    if with_basic_auth:
+        assert gateway.authentication.authentication_mode == "basicAuth"
+    else:
+        assert gateway.authentication.authentication_mode == "none"
 
 
 @pytest.mark.parametrize(
@@ -1808,7 +1817,6 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].functions == ["my-func1"]
 
     assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
-    assert gateways[1]._generate_basic_auth("test", "test") == "Basic dGVzdDp0ZXN0"
 
 
 def test_project_create_remote():

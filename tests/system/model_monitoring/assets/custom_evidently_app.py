@@ -50,6 +50,7 @@ if _HAS_EVIDENTLY:
         PlotType,
         ReportFilter,
     )
+    from evidently.ui.type_aliases import STR_UUID
     from evidently.ui.workspace import Workspace
 
     _PROJECT_NAME = "Iris Monitoring"

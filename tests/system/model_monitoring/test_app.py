@@ -139,7 +139,9 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_apps_parquet(cls, ep_id: str, inputs: set[str], outputs: set[str]):
+    def _test_apps_parquet(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name),

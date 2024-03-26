@@ -187,7 +187,7 @@ class APIGateway:
                 name=self.name,
                 description=self.description,
                 path=self.path,
-                authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
+                authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
                     self.authentication.authentication_mode
                 ),
                 upstreams=upstreams,

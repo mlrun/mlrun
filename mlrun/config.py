@@ -362,6 +362,8 @@ default_config = {
             # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
+            # size of serving spec to move to config maps
+            "serving_spec_env_cutoff": 4096,
         },
         "logs": {
             "decode": {

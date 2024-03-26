@@ -286,7 +286,7 @@ class MonitoringDeployment:
         """
         # Create job function runtime for the controller
         function = mlrun.code_to_function(
-            name=function_name,
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             project=self.project,
             filename=_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH,
             kind=mlrun.run.RuntimeKinds.nuclio,
@@ -302,7 +302,8 @@ class MonitoringDeployment:
 
         if not mlrun.mlconf.is_ce_mode():
             function = self._apply_access_key_and_mount_function(
-                function=function, function_name=function_name
+                function=function,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             )
 
         # Enrich runtime with the required configurations

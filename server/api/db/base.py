@@ -758,3 +758,39 @@ class DBInterface(ABC):
         project: str,
     ) -> list[mlrun.common.schemas.DatastoreProfile]:
         pass
+
+    # Pagination Cache Methods
+    # They are not abstract methods because they are not required for all DBs.
+    # However, they do raise NotImplementedError for DBs that do not implement them.
+    def store_paginated_query_cache_record(
+        self,
+        session,
+        user: str,
+        function: str,
+        current_page: int,
+        kwargs: dict,
+    ):
+        raise NotImplementedError
+
+    def get_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        raise NotImplementedError
+
+    def list_paginated_query_cache_record(
+        self,
+        session,
+        key: str = None,
+        user: str = None,
+        function: str = None,
+    ):
+        raise NotImplementedError
+
+    def delete_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        raise NotImplementedError

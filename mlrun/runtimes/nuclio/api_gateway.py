@@ -51,6 +51,11 @@ class APIGatewayAuthenticator(typing.Protocol):
         else:
             return NoneAuth()
 
+    def to_scheme(
+        self,
+    ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
+        return None
+
 
 class NoneAuth(APIGatewayAuthenticator):
     pass
@@ -64,6 +69,15 @@ class BasicAuth(APIGatewayAuthenticator):
     @property
     def authentication_mode(self) -> str:
         return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+
+    def to_scheme(
+        self,
+    ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
+        return {
+            "authentication": mlrun.common.schemas.APIGatewayBasicAuth(
+                username=self._username, password=self._password
+            )
+        }
 
 
 class APIGateway:
@@ -174,18 +188,12 @@ class APIGateway:
                 description=self.description,
                 path=self.path,
                 authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
-                    self.authentication_mode
+                    self.authentication.authentication_mode
                 ),
                 upstreams=upstreams,
             ),
         )
-        if (
-            self.authentication_mode
-            is NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
-        ):
-            api_gateway.spec.authentication = mlrun.common.schemas.APIGatewayBasicAuth(
-                username=self._username, password=self._password
-            )
+        api_gateway.spec.authentication = self.authentication.to_scheme()
         return api_gateway
 
     @property

@@ -4669,6 +4669,8 @@ class SQLDB(DBInterface):
         key: str = None,
         user: str = None,
         function: str = None,
+        last_accessed_before: datetime = None,
+        order_by_desc: bool = True,
     ):
         query = self._query(session, PaginationCache)
         if key:
@@ -4677,8 +4679,14 @@ class SQLDB(DBInterface):
             query = query.filter(PaginationCache.user == user)
         if function:
             query = query.filter(PaginationCache.function == function)
+        if last_accessed_before:
+            query = query.filter(PaginationCache.last_accessed < last_accessed_before)
 
-        return query.all()
+        return query.order_by(
+            PaginationCache.last_accessed.desc()
+            if order_by_desc
+            else PaginationCache.last_accessed.asc()
+        ).all()
 
     def delete_paginated_query_cache_record(
         self,

@@ -98,7 +98,7 @@ class Client:
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
 
-        body = api_gateway.dict(exclude_unset=True, exclude_none=True)
+        body = api_gateway.dict(exclude_none=True)
         method = "POST" if create else "PUT"
         path = (
             NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=api_gateway_name)

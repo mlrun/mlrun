@@ -3433,7 +3433,7 @@ class HTTPRunDB(RunDBInterface):
             "PUT",
             endpoint_path,
             error,
-            json=api_gateway.dict(exclude_unset=True, exclude_none=True),
+            json=api_gateway.dict(exclude_none=True),
         )
         return mlrun.common.schemas.APIGateway(**response.json())
 

@@ -500,6 +500,7 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
+        get_workflow_id_timeout: int = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -578,6 +579,7 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
+        get_workflow_id_timeout: int = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -587,6 +589,9 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
+        get_workflow_id_timeout = int(get_workflow_id_timeout) or int(
+            mlrun.mlconf.workflows.timeouts.kfp
+        )
 
         # fallback to old notification behavior
         if notifications:
@@ -608,6 +613,7 @@ class _KFPRunner(_PipelineRunner):
             namespace=namespace,
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
+            get_workflow_id_timeout=get_workflow_id_timeout,
         )
 
         # The user provided workflow code might have made changes to function specs that require cleanup
@@ -721,6 +727,7 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
+        get_workflow_id_timeout: int = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -810,6 +817,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace: str = None,
         source: str = None,
         notifications: list[mlrun.model.Notification] = None,
+        get_workflow_id_timeout: int = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -865,6 +873,12 @@ class _RemoteRunner(_PipelineRunner):
                 )
                 return
 
+            if not get_workflow_id_timeout:
+                get_workflow_id_timeout = max(
+                    int(mlrun.mlconf.workflows.timeouts.remote),
+                    int(getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine)),
+                )
+
             logger.debug(
                 "Workflow submitted, waiting for pipeline run to start",
                 workflow_name=workflow_response.name,
@@ -873,7 +887,7 @@ class _RemoteRunner(_PipelineRunner):
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
-                getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine),
+                get_workflow_id_timeout,
                 logger,
                 False,
                 run_db.get_workflow_id,

@@ -1616,6 +1616,7 @@ class HTTPRunDB(RunDBInterface):
         artifact_path=None,
         ops=None,
         cleanup_ttl=None,
+        timeout=20,
     ):
         """Submit a KFP pipeline for execution.
 
@@ -1670,7 +1671,7 @@ class HTTPRunDB(RunDBInterface):
                 "POST",
                 f"projects/{project}/pipelines",
                 params=params,
-                timeout=20,
+                timeout=timeout,
                 body=data,
                 headers=headers,
             )

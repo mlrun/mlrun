@@ -221,6 +221,7 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+            _start_periodic_pagination_cache_monitoring()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
 
@@ -498,6 +499,19 @@ def _start_periodic_runs_monitoring():
         logger.info("Starting periodic runs monitoring", interval=interval)
         run_function_periodically(
             interval, _monitor_runs.__name__, False, _monitor_runs
+        )
+
+
+def _start_periodic_pagination_cache_monitoring():
+    interval = int(config.httpdb.pagination_cache.interval)
+    if interval > 0:
+        logger.info("Starting periodic pagination cache monitoring", interval=interval)
+        run_function_periodically(
+            interval,
+            server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
+            False,
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
         )
 
 

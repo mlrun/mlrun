@@ -139,6 +139,7 @@ def test_pagination_cleanup(db: sqlalchemy.orm.Session):
 
     logger.debug("Cleaning up pagination cache")
     server.api.crud.PaginationCache().cleanup_pagination_cache(db)
+    db.commit()
 
     logger.debug("Checking that all records were removed")
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0

@@ -68,7 +68,6 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
     def cleanup_pagination_cache(session: sqlalchemy.orm.Session):
         db = server.api.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(session, as_query=True).delete()
-        session.commit()
 
     @staticmethod
     def monitor_pagination_cache(session: sqlalchemy.orm.Session):

@@ -114,9 +114,11 @@ def init_data(
 
     if not from_scratch:
         # Cleanup pagination cache on api startup
+        session = create_session()
         server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
-            create_session()
+            session
         )
+        session.commit()
 
     logger.info("Initial data created")
 

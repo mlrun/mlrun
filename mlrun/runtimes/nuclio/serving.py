@@ -646,8 +646,7 @@ class ServingRuntime(RemoteRuntime):
             force_build=force_build,
         )
 
-    def _get_runtime_env(self):
-        env = super()._get_runtime_env()
+    def _get_serving_spec(self):
         function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
 
         serving_spec = {
@@ -670,8 +669,7 @@ class ServingRuntime(RemoteRuntime):
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             serving_spec["secret_sources"] = self._secrets.to_serial()
 
-        env["SERVING_SPEC_ENV"] = json.dumps(serving_spec)
-        return env
+        return json.dumps(serving_spec)
 
     def to_mock_server(
         self,

@@ -3404,7 +3404,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name
         """
         project = project or config.default_project
-        error = "get api gateway"
+        error = "delete api gateway"
         endpoint_path = f"projects/{project}/api-gateways/{name}"
         self.api_call("DELETE", endpoint_path, error)
 

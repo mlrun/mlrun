@@ -39,7 +39,6 @@ class Client:
         self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
-        self._nuclio_domain = self._get_nuclio_external_host()
 
     async def __aenter__(self):
         await self._ensure_async_session()
@@ -93,7 +92,6 @@ class Client:
         self._enrich_nuclio_api_gateway(
             project_name=project_name,
             api_gateway=api_gateway,
-            api_gateway_name=api_gateway_name,
         )
 
         if project_name:
@@ -203,18 +201,7 @@ class Client:
     def _enrich_nuclio_api_gateway(
         self,
         project_name: str,
-        api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
-        if not api_gateway.spec.host:
-            api_gateway.spec.host = (
-                f"{api_gateway_name}-{project_name}."
-                f"{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
-            )
-
         return api_gateway
-
-    @staticmethod
-    def _get_nuclio_external_host():
-        return re.sub(r"^https?://\w+", "nuclio", mlrun.mlconf.resolve_ui_url())

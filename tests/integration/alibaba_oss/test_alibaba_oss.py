@@ -47,7 +47,7 @@ credential_params = ["ALIBABA_ACCESS_KEY_ID", "ALIBABA_SECRET_ACCESS_KEY","ALIBA
 def alibaba_oss_configured(extra_params=None):
     extra_params = extra_params or []
     env_params = config["env"]
-    needed_params = ["bucket_name", *credential_params, *extra_params]
+    needed_params = ["BUCKET_NAME", *credential_params, *extra_params]
     for param in needed_params:
         if not env_params.get(param):
             return False
@@ -59,7 +59,7 @@ def alibaba_oss_configured(extra_params=None):
 class TestAlibabaOssDataStore:
 
     def setup_method(self, method):
-        self._bucket_name = config["env"].get("bucket_name")
+        self._bucket_name = config["env"].get("BUCKET_NAME")
         self._access_key_id = config["env"].get("ALIBABA_ACCESS_KEY_ID")
         self._secret_access_key = config["env"].get("ALIBABA_SECRET_ACCESS_KEY")
 

@@ -25,6 +25,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 - [HDFS](#hdfs)
 - [S3](#s3)
 - [V3IO](#v3io)
+- [OSS](#OSS)
 
 
 ## Storage credentials and parameters
@@ -309,6 +310,14 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 `DatastoreProfileV3io` init parameters:
 - `name` &mdash; Name of the profile
 - `v3io_access_key` &mdash; Optional. Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
+
+## OSS
+### OSS credentials and parameters
+
+* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
+  parameters
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use. example: "https://oss-cn-hangzhou.aliyuncs.com"
+* `BUCKET_NAME` &mdash; name of bucket
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

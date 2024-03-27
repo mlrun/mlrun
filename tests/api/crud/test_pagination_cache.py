@@ -46,6 +46,8 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
         "Sleeping for cache TTL so that records will be removed in the monitor"
     )
     time.sleep(ttl + 1)
+
+    logger.debug("Creating new paginated cache record that won't be expired")
     new_key = server.api.crud.PaginationCache().store_pagination_cache_record(
         db, "user3", method, page, kwargs
     )

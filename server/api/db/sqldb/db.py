@@ -4676,35 +4676,6 @@ class SQLDB(DBInterface):
         order_by: typing.Optional[mlrun.common.schemas.OrderType] = None,
         as_query: bool = False,
     ):
-        query = self._list_paginated_query_cache_record_query(
-            session,
-            key=key,
-            user=user,
-            function=function,
-            last_accessed_before=last_accessed_before,
-            order_by=order_by,
-        )
-        if as_query:
-            return query
-
-        return query.all()
-
-    def delete_paginated_query_cache_record(
-        self,
-        session,
-        key: str,
-    ):
-        self._delete(session, PaginationCache, key=key)
-
-    def _list_paginated_query_cache_record_query(
-        self,
-        session,
-        key: str = None,
-        user: str = None,
-        function: str = None,
-        last_accessed_before: datetime = None,
-        order_by: typing.Optional[mlrun.common.schemas.OrderType] = None,
-    ):
         query = self._query(session, PaginationCache)
         if key:
             query = query.filter(PaginationCache.key == key)
@@ -4720,7 +4691,17 @@ class SQLDB(DBInterface):
                 order_by.to_order_by_predicate(PaginationCache.last_accessed)
             )
 
-        return query
+        if as_query:
+            return query
+
+        return query.all()
+
+    def delete_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        self._delete(session, PaginationCache, key=key)
 
     # ---- Utils ----
     def delete_table_records(

@@ -141,6 +141,7 @@ class APIGateway:
             spec=mlrun.common.schemas.APIGatewaySpec(
                 name=self.name,
                 description=self.description,
+                host=self.host,
                 path=self.path,
                 authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
                     self.authentication_mode

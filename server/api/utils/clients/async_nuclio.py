@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import copy
+import re
 import urllib.parse
 from http import HTTPStatus
 
@@ -38,7 +39,7 @@ class Client:
         self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
-        self._nuclio_domain = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
+        self._nuclio_domain = self._get_nuclio_external_host()
 
     async def __aenter__(self):
         await self._ensure_async_session()
@@ -213,3 +214,7 @@ class Client:
             )
 
         return api_gateway
+
+    @staticmethod
+    def _get_nuclio_external_host():
+        return re.sub(r"^https?://\w+", "nuclio", mlrun.mlconf.resolve_ui_url())

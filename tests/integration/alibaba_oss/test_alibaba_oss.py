@@ -64,8 +64,9 @@ class TestAlibabaOssDataStore:
         self._secret_access_key = config["env"].get("ALIBABA_SECRET_ACCESS_KEY")
 
         object_dir = "test_mlrun_oss_objects"
-        object_file = f"file_{random.randint(0, 1000)}.txt"
-        csv_file = f"file_{random.randint(0,1000)}.csv"
+        uid = uuid.uuid4()
+        object_file = f"file_{uid}.txt"
+        csv_file = f"file_{uid}.csv"
 
         self.oss = {
             "oss": self._make_target_names(

@@ -72,8 +72,10 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def monitor_pagination_cache(session: sqlalchemy.orm.Session):
-        # query the pagination cache table, remove records that their last_accessed is older than ttl.
-        # if the table is larger than max_size, remove the oldest records.
+        """
+        Monitor the pagination cache and remove records that are older than the cache TTL, and if the cache table
+        reached the max size, remove the oldest records.
+        """
         cache_ttl = mlrun.config.config.httpdb.pagination_cache.ttl
         table_max_size = mlrun.config.config.httpdb.pagination_cache.max_size
 

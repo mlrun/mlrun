@@ -425,6 +425,7 @@ with warnings.catch_warnings():
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         users = relationship(User, secondary=project_users)
 

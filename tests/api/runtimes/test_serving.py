@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.config
 import server.api.api.utils
 import server.api.crud
 import server.api.crud.runtimes.nuclio.function
@@ -119,7 +120,9 @@ class TestServingRuntime(TestNuclioRuntime):
         )
         return function
 
-    def _assert_deploy_spec_has_secrets_config(self, expected_secret_sources):
+    def _assert_deploy_spec_has_secrets_config(
+        self, use_config_map, expected_secret_sources
+    ):
         call_args_list = nuclio.deploy.deploy_config.call_args_list
         for single_call_args in call_args_list:
             args, _ = single_call_args
@@ -128,6 +131,13 @@ class TestServingRuntime(TestNuclioRuntime):
             azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace(
                 "~", "/root"
             )
+
+            func_name = None
+            for env in deploy_spec["env"]:
+                if env["name"] == "SERVING_CURRENT_FUNCTION":
+                    func_name = env["value"]
+                    break
+
             # TODO: Vault: uncomment when vault returns to be relevant
             # token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
             expected_volumes = [
@@ -155,6 +165,24 @@ class TestServingRuntime(TestNuclioRuntime):
                     },
                 },
             ]
+            if use_config_map:
+                expected_volumes.append(
+                    {
+                        "volume": {
+                            "configMap": {
+                                "name": f"model-conf-{self.project}-{self.name}"
+                                + (f"-{func_name}" if func_name else "")
+                            },
+                            "name": "model-conf",
+                        },
+                        "volumeMount": {
+                            "mountPath": "/tmp/mlrun/model-conf",
+                            "name": "model-conf",
+                            "readOnly": True,
+                        },
+                    }
+                )
+
             assert (
                 deepdiff.DeepDiff(
                     deploy_spec["volumes"], expected_volumes, ignore_order=True
@@ -166,22 +194,31 @@ class TestServingRuntime(TestNuclioRuntime):
                 # TODO: Vault: uncomment when vault returns to be relevant
                 # "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
                 # "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
-                # For now, just checking the variable exists, later we check specific contents
-                "SERVING_SPEC_ENV": None,
             }
+            if not use_config_map:
+                # For now, just checking the variable exists, later we check specific contents
+                expected_env["SERVING_SPEC_ENV"] = None
+
             self._assert_pod_env(deploy_spec["env"], expected_env)
 
-            for env_variable in deploy_spec["env"]:
-                if env_variable["name"] == "SERVING_SPEC_ENV":
-                    serving_spec = json.loads(env_variable["value"])
-                    assert (
-                        deepdiff.DeepDiff(
-                            serving_spec["secret_sources"],
-                            expected_secret_sources,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
+            serving_spec = None
+            if use_config_map:
+                body = self._mock_get_config_map_body()
+                serving_spec = json.loads(body.data["serving_spec.json"])
+            else:
+                for env_variable in deploy_spec["env"]:
+                    if env_variable["name"] == "SERVING_SPEC_ENV":
+                        serving_spec = json.loads(env_variable["value"])
+                        break
+
+            assert (
+                deepdiff.DeepDiff(
+                    serving_spec["secret_sources"],
+                    expected_secret_sources,
+                    ignore_order=True,
+                )
+                == {}
+            )
 
     def _generate_expected_secret_sources(self):
         full_inline_secrets = self.inline_secrets.copy()
@@ -204,14 +241,24 @@ class TestServingRuntime(TestNuclioRuntime):
         ]
         return expected_secret_sources
 
-    def test_remote_deploy_with_secrets(self, db: Session, client: TestClient):
+    def _setup_serving_spec_in_config_map(self):
+        mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 0
+        self._mock_replace_namespaced_config_map()
+        self._mock_list_namespaced_config_map()
+
+    @pytest.mark.parametrize("use_config_map", [True, False])
+    def test_remote_deploy_with_secrets(self, use_config_map):
+        if use_config_map:
+            self._setup_serving_spec_in_config_map()
+
         function = self._create_serving_function()
 
         function.deploy(verbose=True)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
         self._assert_deploy_spec_has_secrets_config(
-            expected_secret_sources=self._generate_expected_secret_sources()
+            use_config_map,
+            expected_secret_sources=self._generate_expected_secret_sources(),
         )
 
     def test_mock_server_secrets(self, db: Session, client: TestClient):
@@ -276,7 +323,11 @@ class TestServingRuntime(TestNuclioRuntime):
 
         get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
-    def test_child_functions_with_secrets(self, db: Session, client: TestClient):
+    @pytest.mark.parametrize("use_config_map", [True, False])
+    def test_child_functions_with_secrets(self, use_config_map):
+        if use_config_map:
+            self._setup_serving_spec_in_config_map()
+
         function = self._create_serving_function()
         graph = function.spec.graph
         graph.add_step(
@@ -319,7 +370,8 @@ class TestServingRuntime(TestNuclioRuntime):
         )
 
         self._assert_deploy_spec_has_secrets_config(
-            expected_secret_sources=self._generate_expected_secret_sources()
+            use_config_map,
+            expected_secret_sources=self._generate_expected_secret_sources(),
         )
 
     def test_empty_function(self):

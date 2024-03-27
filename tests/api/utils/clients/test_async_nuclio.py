@@ -54,9 +54,11 @@ async def test_nuclio_get_api_gateway(
     mock_aioresponse,
 ):
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        functions=["test"], name="test-basic", project="default-project"
+        functions=["test"],
+        name="test-basic",
+        project="default-project",
     )
-
+    api_gateway.with_basic_auth("test", "test")
     request_url = f"{api_url}/api/api_gateways/test-basic"
     mock_aioresponse.get(
         request_url,
@@ -67,7 +69,10 @@ async def test_nuclio_get_api_gateway(
     received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
     assert received_api_gateway.name == api_gateway.name
     assert received_api_gateway.description == api_gateway.description
-    assert received_api_gateway.authentication_mode == api_gateway.authentication_mode
+    assert (
+        received_api_gateway.authentication.authentication_mode
+        == api_gateway.authentication.authentication_mode
+    )
     assert received_api_gateway.functions == api_gateway.functions
     assert received_api_gateway.canary == api_gateway.canary
 

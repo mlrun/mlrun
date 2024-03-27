@@ -2042,6 +2042,7 @@ class SQLDB(DBInterface):
             state=project.status.state,
             created=created,
             owner=project.spec.owner,
+            default_function_node_selector=project.spec.default_function_node_selector,
             full_object=project.dict(),
         )
         labels = project.metadata.labels or {}
@@ -2058,6 +2059,7 @@ class SQLDB(DBInterface):
             project_metadata=project.metadata,
             project_owner=project.spec.owner,
             project_desired_state=project.spec.desired_state,
+            default_function_node_selector=project.spec.default_function_node_selector,
             project_status=project.status,
         )
         self._normalize_project_parameters(project)
@@ -4643,7 +4645,7 @@ class SQLDB(DBInterface):
         kwargs: dict,
     ):
         # generate key hash from user, function, current_page and kwargs
-        key = hashlib.md5(
+        key = hashlib.sha256(
             f"{user}/{function}/{current_page}/{kwargs}".encode()
         ).hexdigest()
         param_record = PaginationCache(

@@ -1562,3 +1562,25 @@ def is_safe_path(base, filepath, is_symlink=False):
         os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)
     )
     return base == os.path.commonpath((base, resolved_filepath))
+
+
+def get_serving_spec():
+    data = None
+
+    # we will have the serving spec in either mounted config map
+    # or env depending on the size of the spec and configuration
+
+    try:
+        with open(mlrun.common.constants.MLRUN_SERVING_SPEC_PATH) as f:
+            data = f.read()
+    except FileNotFoundError:
+        pass
+
+    if data is None:
+        data = os.environ.get("SERVING_SPEC_ENV", "")
+        if not data:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Failed to find serving spec in env var or config file"
+            )
+    spec = json.loads(data)
+    return spec

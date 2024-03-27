@@ -1057,6 +1057,12 @@ class KubeResource(BaseRuntime):
                 return True
         return False
 
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
+
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
         i = 0

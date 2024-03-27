@@ -840,6 +840,12 @@ class BaseRuntime(ModelObj):
             or (build.source and not build.load_source_on_run)
         )
 
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        pass
+
     def prepare_image_for_deploy(self):
         """
         if a function has a 'spec.image' it is considered to be deployed,

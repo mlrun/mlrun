@@ -317,7 +317,6 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 * `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
   parameters
 * `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use. example: "https://oss-cn-hangzhou.aliyuncs.com"
-* `BUCKET_NAME` &mdash; name of bucket
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

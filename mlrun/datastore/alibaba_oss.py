@@ -63,8 +63,7 @@ class OSSStore(DataStore):
         res = dict(
             endpoint=self._get_secret_or_env("ALIBABA_ENDPOINT_URL"),
             key=self._get_secret_or_env("ALIBABA_ACCESS_KEY_ID"),
-            secret=self._get_secret_or_env("ALIBABA_SECRET_ACCESS_KEY"),
-            bucket_name=self._get_secret_or_env("BUCKET_NAME")
+            secret=self._get_secret_or_env("ALIBABA_SECRET_ACCESS_KEY")
         )
         return self._sanitize_storage_options(res)
 

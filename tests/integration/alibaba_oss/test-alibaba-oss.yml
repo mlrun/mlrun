@@ -14,8 +14,9 @@
 #
 env:
   # Bucket name
-  BUCKET_NAME:
+  bucket_name:
   # Access key parameters as created by ALIBABA
   ALIBABA_ACCESS_KEY_ID:
   ALIBABA_SECRET_ACCESS_KEY:
   ALIBABA_ENDPOINT_URL:
+

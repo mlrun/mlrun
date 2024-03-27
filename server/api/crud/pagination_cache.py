@@ -24,18 +24,6 @@ import server.api.crud
 import server.api.utils.singletons.db
 
 
-class PaginatedMethods:
-    _paginated_methods = [
-        server.api.crud.Projects().list_projects,
-        server.api.crud.Artifacts().list_artifacts,
-        server.api.crud.Functions().list_functions,
-    ]
-    _paginated_methods_map = {method.__name__: method for method in _paginated_methods}
-
-    def get_paginated_method(self, method_name):
-        return self._paginated_methods_map.get(method_name)
-
-
 class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def store_pagination_cache_record(
@@ -80,6 +68,7 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
     def cleanup_pagination_cache(session: sqlalchemy.orm.Session):
         db = server.api.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(session, as_query=True).delete()
+        session.commit()
 
     @staticmethod
     def monitor_pagination_cache(session: sqlalchemy.orm.Session):

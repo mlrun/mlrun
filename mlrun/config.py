@@ -482,6 +482,7 @@ default_config = {
             "verbose": True,
         },
         "pagination_cache": {
+            "interval": 60,
             "ttl": 3600,
             "max_size": 10000,
         },

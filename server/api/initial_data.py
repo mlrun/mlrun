@@ -112,10 +112,11 @@ def init_data(
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online
 
-    # Cleanup pagination cache on api startup
-    server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
-        create_session()
-    )
+    if not from_scratch:
+        # Cleanup pagination cache on api startup
+        server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+            create_session()
+        )
 
     logger.info("Initial data created")
 

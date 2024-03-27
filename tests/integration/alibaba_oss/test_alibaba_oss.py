@@ -67,10 +67,11 @@ class TestAlibabaOssDataStore:
         object_file = f"file_{random.randint(0, 1000)}.txt"
         csv_file = f"file_{random.randint(0,1000)}.csv"
 
-        self.oss = {}
-        self.oss["oss"] = self._make_target_names(
-            "oss://", self._bucket_name, object_dir, object_file, csv_file
-        )
+        self.oss = {
+            "oss": self._make_target_names(
+                "oss://", self._bucket_name, object_dir, object_file, csv_file
+            )
+        }
 
     def test_using_env_variables(self, use_datastore_profile):
         # Use "naked" env variables, useful in client-side sdk.

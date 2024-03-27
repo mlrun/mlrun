@@ -241,7 +241,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     )
                     executor.submit(fn.deploy)
 
-    def _log_model(self, with_training_set: bool) -> typing.Tuple[set[str], set[str]]:
+    def _log_model(self, with_training_set: bool) -> tuple[set[str], set[str]]:
         train_set = None
         dataset = load_iris()
         if with_training_set:

@@ -20,7 +20,7 @@ import requests
 import mlrun
 import mlrun.common.schemas
 
-from .function import RemoteRuntime
+from .function import RemoteRuntime, get_fullname
 from .serving import ServingRuntime
 
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
@@ -258,7 +258,8 @@ class APIGateway:
                     f"input function {function_name} "
                     f"does not belong to this project"
                 )
-            function_names.append(func.uri)
+            nuclio_name = get_fullname(function_name, self.project, func.metadata.tag)
+            function_names.append(nuclio_name)
         return function_names
 
     @staticmethod

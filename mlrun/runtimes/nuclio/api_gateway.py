@@ -258,7 +258,7 @@ class APIGateway:
                     f"input function {function_name} "
                     f"does not belong to this project"
                 )
-            nuclio_name = get_fullname(function_name, self.project, func.metadata.tag)
+            nuclio_name = get_fullname(function_name, project, func.metadata.tag)
             function_names.append(nuclio_name)
         return function_names
 

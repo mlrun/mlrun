@@ -38,8 +38,8 @@ def db() -> Generator:
         db = SQLDB(dsn)
         db.initialize(db_session)
         initialize_db(db)
-        initialize_project_member()
         init_data()
+        initialize_project_member()
         yield db
     finally:
         close_session(db_session)

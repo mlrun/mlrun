@@ -13,9 +13,11 @@
 # limitations under the License.
 #
 import datetime
+import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.utils.singleton
 import server.api.crud
@@ -23,39 +25,80 @@ import server.api.utils.singletons.db
 
 
 class PaginatedMethods:
-    _paginated_methods_map = {
-        "list_runs": server.api.crud.Runs().list_runs,
-        "list_artifacts": server.api.crud.Artifacts().list_artifacts,
-        "list_functions": server.api.crud.Functions().list_functions,
-    }
+    _paginated_methods = [
+        server.api.crud.Projects().list_projects,
+        server.api.crud.Artifacts().list_artifacts,
+        server.api.crud.Functions().list_functions,
+    ]
+    _paginated_methods_map = {method.__name__: method for method in _paginated_methods}
 
     def get_paginated_method(self, method_name):
         return self._paginated_methods_map.get(method_name)
 
 
 class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
-    def __init__(self):
-        self._cache_ttl = mlrun.config.config.pagination_cache.ttl
-        self._table_max_size = mlrun.config.config.pagination_cache.max_size
+    @staticmethod
+    def store_pagination_cache_record(
+        session: sqlalchemy.orm.Session,
+        user: str,
+        method: typing.Callable,
+        current_page: int,
+        kwargs: dict,
+    ):
+        db = server.api.utils.singletons.db.get_db()
+        return db.store_paginated_query_cache_record(
+            session, user, method.__name__, current_page, kwargs
+        )
 
-    # TODO: add pagination CRUD methods
+    @staticmethod
+    def get_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
+        db = server.api.utils.singletons.db.get_db()
+        return db.get_paginated_query_cache_record(session, key)
+
+    @staticmethod
+    def list_pagination_cache_records(
+        session: sqlalchemy.orm.Session,
+        key: str = None,
+        user: str = None,
+        function: str = None,
+        last_accessed_before: datetime = None,
+        order_by: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
+    ):
+        db = server.api.utils.singletons.db.get_db()
+        return db.list_paginated_query_cache_record(
+            session, key, user, function, last_accessed_before, order_by
+        )
+
+    @staticmethod
+    def delete_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
+        db = server.api.utils.singletons.db.get_db()
+        db.delete_paginated_query_cache_record(session, key)
 
     @staticmethod
     def cleanup_pagination_cache(session: sqlalchemy.orm.Session):
         db = server.api.utils.singletons.db.get_db()
-        db.list_paginated_query_cache_record(session).delete()
+        db.list_paginated_query_cache_record(session, as_query=True).delete()
 
-    def monitor_pagination_cache(self, session: sqlalchemy.orm.Session):
+    @staticmethod
+    def monitor_pagination_cache(session: sqlalchemy.orm.Session):
         # query the pagination cache table, remove records that their last_accessed is older than ttl.
         # if the table is larger than max_size, remove the oldest records.
+        cache_ttl = mlrun.config.config.httpdb.pagination_cache.ttl
+        table_max_size = mlrun.config.config.httpdb.pagination_cache.max_size
+
         db = server.api.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(
-            session, last_accessed_before=datetime.datetime.now() - self._cache_ttl
+            session,
+            last_accessed_before=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=cache_ttl),
+            as_query=True,
         ).delete()
-        table_size = db.list_paginated_query_cache_record(
-            session, order_by_desc=False
-        ).count()
-        if table_size > self._table_max_size:
-            db.list_paginated_query_cache_record(session, order_by_desc=True).limit(
-                table_size - self._table_max_size
-            ).delete()
+
+        all_records_query = db.list_paginated_query_cache_record(session, as_query=True)
+        table_size = all_records_query.count()
+        if table_size > table_max_size:
+            records = all_records_query.limit(table_size - table_max_size)
+            for record in records:
+                db.delete_paginated_query_cache_record(session, record.key)

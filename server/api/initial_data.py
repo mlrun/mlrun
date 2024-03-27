@@ -26,6 +26,7 @@ import sqlalchemy.orm
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.schemas
+import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
 import server.api.db.sqldb.helpers
 import server.api.db.sqldb.models
@@ -110,6 +111,12 @@ def init_data(
         config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+    # Cleanup pagination cache on api startup
+    server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+        create_session()
+    )
+
     logger.info("Initial data created")
 
 

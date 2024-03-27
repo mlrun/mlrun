@@ -4657,6 +4657,7 @@ class SQLDB(DBInterface):
             last_accessed=datetime.now(timezone.utc),
         )
         self._upsert(session, [param_record])
+        return key
 
     def get_paginated_query_cache_record(
         self,
@@ -4672,7 +4673,37 @@ class SQLDB(DBInterface):
         user: str = None,
         function: str = None,
         last_accessed_before: datetime = None,
-        order_by_desc: bool = True,
+        order_by: typing.Optional[mlrun.common.schemas.OrderType] = None,
+        as_query: bool = False,
+    ):
+        query = self._list_paginated_query_cache_record_query(
+            session,
+            key=key,
+            user=user,
+            function=function,
+            last_accessed_before=last_accessed_before,
+            order_by=order_by,
+        )
+        if as_query:
+            return query
+
+        return query.all()
+
+    def delete_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        self._delete(session, PaginationCache, key=key)
+
+    def _list_paginated_query_cache_record_query(
+        self,
+        session,
+        key: str = None,
+        user: str = None,
+        function: str = None,
+        last_accessed_before: datetime = None,
+        order_by: typing.Optional[mlrun.common.schemas.OrderType] = None,
     ):
         query = self._query(session, PaginationCache)
         if key:
@@ -4684,18 +4715,12 @@ class SQLDB(DBInterface):
         if last_accessed_before:
             query = query.filter(PaginationCache.last_accessed < last_accessed_before)
 
-        return query.order_by(
-            PaginationCache.last_accessed.desc()
-            if order_by_desc
-            else PaginationCache.last_accessed.asc()
-        ).all()
+        if order_by:
+            query = query.order_by(
+                order_by.to_order_by_predicate(PaginationCache.last_accessed)
+            )
 
-    def delete_paginated_query_cache_record(
-        self,
-        session,
-        key: str,
-    ):
-        self._delete(session, PaginationCache, key=key)
+        return query
 
     # ---- Utils ----
     def delete_table_records(

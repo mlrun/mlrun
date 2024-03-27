@@ -14,13 +14,13 @@
 
 import time
 from datetime import datetime
-
 from pathlib import Path
 from urllib.parse import urlparse
 
 import oss2
 from fsspec.registry import get_filesystem_class
 
+import mlrun.errors
 from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 
@@ -30,17 +30,17 @@ class OSSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
-        self._temp_credentials = None
-
-        self.headers = None
 
         access_key_id = self._get_secret_or_env("ALIBABA_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("ALIBABA_SECRET_ACCESS_KEY")
         endpoint_url = self._get_secret_or_env("ALIBABA_ENDPOINT_URL")
-        if access_key_id or secret_key:
+        if access_key_id and secret_key and endpoint_url:
             self.auth = oss2.Auth(access_key_id, secret_key)
             self.endpoint_url = endpoint_url
-
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"missing ALIBABA_ACCESS_KEY_ID or ALIBABA_SECRET_ACCESS_KEY or ALIBABA_ENDPOINT_URL in environment"
+            )
 
     @property
     def filesystem(self):
@@ -109,6 +109,11 @@ class OSSStore(DataStore):
             f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
         ]
         return files
+
+    def delete(self, key):
+        bucket, key = self.get_bucket_and_key(key)
+        oss = oss2.Bucket(self.auth, self.endpoint_url, bucket)
+        oss.delete_object(key)
 
 
     def _convert_key_to_remote_path(self, key):

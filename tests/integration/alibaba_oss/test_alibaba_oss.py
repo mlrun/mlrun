@@ -57,24 +57,6 @@ def alibaba_oss_configured(extra_params=None):
 @pytest.mark.skipif(not alibaba_oss_configured(), reason="ALIBABA OSS parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False])
 class TestALIBABAOSS:
-    def _make_target_names(
-        self, prefix, bucket_name, object_dir, object_file, csv_file
-    ):
-        bucket_path = prefix + bucket_name
-        object_path = f"{object_dir}/{object_file}"
-        df_path = f"{object_dir}/{csv_file}"
-        object_url = f"{bucket_path}/{object_path}"
-        res = {
-            "bucket_path": bucket_path,
-            "object_path": object_path,
-            "df_path": df_path,
-            "object_url": object_url,
-            "df_url": f"{bucket_path}/{df_path}",
-            "blob_url": f"{object_url}.blob",
-            "parquet_url": f"{object_url}.parquet",
-            "bucket_path_dir":f"{bucket_path}/{object_dir}"
-        }
-        return res
 
     def setup_method(self, method):
         self._bucket_name = config["env"].get("bucket_name")
@@ -89,39 +71,6 @@ class TestALIBABAOSS:
         self.oss["oss"] = self._make_target_names(
             "oss://", self._bucket_name, object_dir, object_file, csv_file
         )
-
-    def _perform_alibaba_oss_tests(self, use_datastore_profile, secrets=None):
-        param = self.oss["ds"] if use_datastore_profile else self.oss["oss"]
-        logger.info(f'Object URL: {param["object_url"]}')
-
-        data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
-        data_item.put(test_string)
-        df_data_item = mlrun.run.get_dataitem(param["df_url"], secrets=secrets)
-        df_data_item.put(test_df_string)
-
-        response = data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
-
-        response = data_item.get(offset=20)
-        assert response.decode() == test_string[20:], "Partial result not as expected"
-
-        stat = data_item.stat()
-        assert stat.size == len(test_string), "Stat size different than expected"
-
-        dir_list = mlrun.run.get_dataitem(param["bucket_path_dir"]).listdir()
-        assert param["object_path"].split('/')[1] in dir_list, "File not in container dir-list"
-        assert param["df_path"].split('/')[1] in dir_list, "CSV file not in container dir-list"
-
-        upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
-        upload_data_item.upload(test_filename)
-        response = upload_data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
-
-        # Verify as_df() creates a proper DF. Note that the AWS case as_df() works through the fsspec interface, that's
-        # why it's important to test it as well.
-        df = df_data_item.as_df()
-        assert list(df) == ["col1", "col2", "col3"]
-        assert df.shape == (1, 3)
 
     def test_using_env_variables(self, use_datastore_profile):
         # Use "naked" env variables, useful in client-side sdk.
@@ -210,3 +159,55 @@ class TestALIBABAOSS:
                 .reset_index(drop=True)
             )
             assert_frame_equal(tested_df, expected_df)
+
+    def _perform_alibaba_oss_tests(self, use_datastore_profile, secrets=None):
+        param = self.oss["ds"] if use_datastore_profile else self.oss["oss"]
+        logger.info(f'Object URL: {param["object_url"]}')
+
+        data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
+        data_item.put(test_string)
+        df_data_item = mlrun.run.get_dataitem(param["df_url"], secrets=secrets)
+        df_data_item.put(test_df_string)
+
+        response = data_item.get()
+        assert response.decode() == test_string, "Result differs from original test"
+
+        response = data_item.get(offset=20)
+        assert response.decode() == test_string[20:], "Partial result not as expected"
+
+        stat = data_item.stat()
+        assert stat.size == len(test_string), "Stat size different than expected"
+
+        dir_list = mlrun.run.get_dataitem(param["bucket_path_dir"]).listdir()
+        assert param["object_path"].split('/')[1] in dir_list, "File not in container dir-list"
+        assert param["df_path"].split('/')[1] in dir_list, "CSV file not in container dir-list"
+
+        upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
+        upload_data_item.upload(test_filename)
+        response = upload_data_item.get()
+        assert response.decode() == test_string, "Result differs from original test"
+
+        # Verify as_df() creates a proper DF. Note that the AWS case as_df() works through the fsspec interface, that's
+        # why it's important to test it as well.
+        df = df_data_item.as_df()
+        assert list(df) == ["col1", "col2", "col3"]
+        assert df.shape == (1, 3)
+
+    def _make_target_names(
+        self, prefix, bucket_name, object_dir, object_file, csv_file
+    ):
+        bucket_path = prefix + bucket_name
+        object_path = f"{object_dir}/{object_file}"
+        df_path = f"{object_dir}/{csv_file}"
+        object_url = f"{bucket_path}/{object_path}"
+        res = {
+            "bucket_path": bucket_path,
+            "object_path": object_path,
+            "df_path": df_path,
+            "object_url": object_url,
+            "df_url": f"{bucket_path}/{df_path}",
+            "blob_url": f"{object_url}.blob",
+            "parquet_url": f"{object_url}.parquet",
+            "bucket_path_dir":f"{bucket_path}/{object_dir}"
+        }
+        return res

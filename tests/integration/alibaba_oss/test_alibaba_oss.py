@@ -56,7 +56,7 @@ def alibaba_oss_configured(extra_params=None):
 
 @pytest.mark.skipif(not alibaba_oss_configured(), reason="ALIBABA OSS parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False])
-class TestALIBABAOSS:
+class TestAlibabaOssDataStore:
 
     def setup_method(self, method):
         self._bucket_name = config["env"].get("bucket_name")

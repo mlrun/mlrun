@@ -985,7 +985,7 @@ class KubeResource(BaseRuntime):
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
-        super().__init__(metadata, spec)
+        super().__init__(metadata=metadata, spec=spec)
         self.verbose = False
 
     @property

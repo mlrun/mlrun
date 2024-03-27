@@ -97,11 +97,12 @@ async def enable_model_monitoring(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
         )
 
-    return MonitoringDeployment().deploy_monitoring_functions(
+    return MonitoringDeployment(
         project=commons.project,
-        model_monitoring_access_key=model_monitoring_access_key,
-        db_session=commons.db_session,
         auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=model_monitoring_access_key,
+    ).deploy_monitoring_functions(
         image=image,
         base_period=base_period,
     )
@@ -148,11 +149,12 @@ async def update_model_monitoring_controller(
             f"Run `project.enable_model_monitoring()` first."
         )
 
-    return MonitoringDeployment().deploy_model_monitoring_controller(
+    return MonitoringDeployment(
         project=commons.project,
-        model_monitoring_access_key=model_monitoring_access_key,
-        db_session=commons.db_session,
         auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=model_monitoring_access_key,
+    ).deploy_model_monitoring_controller(
         controller_image=image,
         base_period=base_period,
         overwrite=True,

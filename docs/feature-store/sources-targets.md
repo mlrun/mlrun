@@ -66,11 +66,6 @@ Example:
 ```
 from mlrun.datastore.sources import KafkaSource
 
-
-with open('/v3io/bigdata/name.crt') as x: 
-    caCert = x.read()  
-caCert
-
 kafka_source = KafkaSource(
             brokers=['default-tenant.app.vmdev76.lab.iguazeng.com:9092'],
             topics="stocks-topic",

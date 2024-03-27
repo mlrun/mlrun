@@ -1377,14 +1377,7 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
-        # TODO: To correctly maintain the list of artifacts from an exported project,
-        #  we need to maintain the different trees that generated them
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        project_tag = self._get_project_tag()
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
                 import_from = artifact_dict["import_from"]
@@ -1404,6 +1397,15 @@ class MlrunProject(ModelObj):
                     artifact.src_path = path.join(
                         self.spec.get_code_path(), artifact.src_path
                     )
+                producer = self._resolve_artifact_producer(artifact, project_tag)
+                # log the artifact only if it doesn't already exist
+                if (
+                    producer.name != self.metadata.name
+                    and self._resolve_existing_artifact(
+                        artifact,
+                    )
+                ):
+                    continue
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
                 )
@@ -1500,12 +1502,20 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             artifact_path, self.metadata.name
         )
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        producer = self._resolve_artifact_producer(item)
+        if producer.name != self.metadata.name:
+            # the artifact producer is retained, log it only if it doesn't already exist
+            if existing_artifact := self._resolve_existing_artifact(
+                item,
+                tag,
+            ):
+                artifact_key = item if isinstance(item, str) else item.key
+                logger.info(
+                    "Artifact already exists, skipping logging",
+                    key=artifact_key,
+                    tag=tag,
+                )
+                return existing_artifact
         item = am.log_artifact(
             producer,
             item,
@@ -3385,7 +3395,12 @@ class MlrunProject(ModelObj):
         artifact = db.read_artifact(
             key, tag, iter=iter, project=self.metadata.name, tree=tree
         )
-        return dict_to_artifact(artifact)
+
+        # in tests, if an artifact is not found, the db returns None
+        # in real usage, the db should raise an exception
+        if artifact:
+            return dict_to_artifact(artifact)
+        return None
 
     def list_artifacts(
         self,
@@ -3736,6 +3751,18 @@ class MlrunProject(ModelObj):
 
         return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
 
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to delete.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
+
     def _run_authenticated_git_action(
         self,
         action: Callable,
@@ -3812,6 +3839,83 @@ class MlrunProject(ModelObj):
                 f"Path must be absolute or relative to the project code path i.e. "
                 f"<project.spec.get_code_path()>/<{param_name}>)."
             )
+
+    def _resolve_artifact_producer(
+        self,
+        artifact: typing.Union[str, Artifact],
+        project_producer_tag: str = None,
+    ) -> typing.Optional[ArtifactProducer]:
+        """
+        Resolve the artifact producer of the given artifact.
+        If the artifact's producer is a run, the artifact is registered with the original producer.
+        Otherwise, the artifact is registered with the current project as the producer.
+
+        :param artifact:                The artifact to resolve its producer.
+        :param project_producer_tag:    The tag to use for the project as the producer. If not provided, a tag will be
+        generated for the project.
+        :return:                        A tuple of the resolved producer and the resolved artifact.
+        """
+
+        if not isinstance(artifact, str) and artifact.producer:
+            # if the artifact was imported from a yaml file, the producer can be a dict
+            if isinstance(artifact.spec.producer, ArtifactProducer):
+                producer_dict = artifact.spec.producer.get_meta()
+            else:
+                producer_dict = artifact.spec.producer
+
+            if producer_dict.get("kind", "") == "run":
+                return ArtifactProducer(
+                    name=producer_dict.get("name", ""),
+                    kind=producer_dict.get("kind", ""),
+                    project=producer_dict.get("project", ""),
+                    tag=producer_dict.get("tag", ""),
+                )
+
+        # do not retain the artifact's producer, replace it with the project as the producer
+        project_producer_tag = project_producer_tag or self._get_project_tag()
+        return ArtifactProducer(
+            kind="project",
+            name=self.metadata.name,
+            project=self.metadata.name,
+            tag=project_producer_tag,
+        )
+
+    def _resolve_existing_artifact(
+        self,
+        item: typing.Union[str, Artifact],
+        tag: str = None,
+    ) -> typing.Optional[Artifact]:
+        """
+        Check if there is and existing artifact with the given item and tag.
+        If there is, return the existing artifact. Otherwise, return None.
+
+        :param item:    The item (or key) to check if there is an existing artifact for.
+        :param tag:     The tag to check if there is an existing artifact for.
+        :return:        The existing artifact if there is one, otherwise None.
+        """
+        try:
+            if isinstance(item, str):
+                existing_artifact = self.get_artifact(key=item, tag=tag)
+            else:
+                existing_artifact = self.get_artifact(
+                    key=item.key,
+                    tag=item.tag,
+                    iter=item.iter,
+                    tree=item.tree,
+                )
+            if existing_artifact is not None:
+                return existing_artifact.from_dict(existing_artifact)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "No existing artifact was found",
+                key=item if isinstance(item, str) else item.key,
+                tag=tag if isinstance(item, str) else item.tag,
+                tree=None if isinstance(item, str) else item.tree,
+            )
+            return None
+
+    def _get_project_tag(self):
+        return self._get_hexsha() or str(uuid.uuid4())
 
 
 def _set_as_current_default_project(project: MlrunProject):
@@ -3898,6 +4002,18 @@ def _init_function_from_dict(
                 tag=tag,
             )
 
+    elif image and kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        func = new_function(
+            name,
+            command=relative_url,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        if kind != mlrun.runtimes.RuntimeKinds.application:
+            logger.info("Function code not specified, setting entry point to image")
+            func.from_image(image)
     else:
         raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 

@@ -694,7 +694,7 @@ kafka_target = KafkaTarget(
     bootstrap_servers='localhost:9092',
     topic='topic',
 )
-redis_target.write_dataframe(df=kafka_df)
+kafka_target.write_dataframe(df=kafka_df)
 ```
 
 ## Feature store

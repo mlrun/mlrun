@@ -31,10 +31,10 @@ from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_his
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.errors import err_to_str
-from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     batch_dict2timedelta,
+    calculate_inputs_statistics,
     get_monitoring_parquet_path,
     get_stream_path,
 )
@@ -445,13 +445,6 @@ class MonitoringApplicationController:
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
-            labels = endpoint[mm_constants.EventFieldType.LABEL_NAMES]
-            if labels:
-                if isinstance(labels, str):
-                    labels = json.loads(labels)
-                for label in labels:
-                    if label not in list(m_fs.spec.features.keys()):
-                        m_fs.add_feature(fstore.Feature(name=label, value_type="float"))
 
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(

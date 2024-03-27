@@ -15,6 +15,9 @@
 import datetime
 import typing
 
+import numpy as np
+import pandas as pd
+
 import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
@@ -34,10 +37,6 @@ class _BatchDict(typing.TypedDict):
     minutes: int
     hours: int
     days: int
-
-
-class _MLRunNoRunsFoundError(Exception):
-    pass
 
 
 def get_stream_path(
@@ -212,3 +211,45 @@ def update_model_endpoint_last_request(
             endpoint_id=model_endpoint.metadata.uid,
             attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
         )
+
+
+def calculate_inputs_statistics(
+    sample_set_statistics: dict, inputs: pd.DataFrame
+) -> dict:
+    """
+    Calculate the inputs data statistics for drift monitoring purpose.
+
+    :param sample_set_statistics: The sample set (stored end point's dataset to reference) statistics. The bins of the
+                                  histograms of each feature will be used to recalculate the histograms of the inputs.
+    :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
+                                  sample set.
+
+    :returns: The calculated statistics of the inputs data.
+    """
+
+    # Use `DFDataInfer` to calculate the statistics over the inputs:
+    inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
+        df=inputs,
+        options=mlrun.data_types.infer.InferOptions.Histogram,
+    )
+
+    # Recalculate the histograms over the bins that are set in the sample-set of the end point:
+    for feature in inputs_statistics.keys():
+        if feature in sample_set_statistics:
+            counts, bins = np.histogram(
+                inputs[feature].to_numpy(),
+                bins=sample_set_statistics[feature]["hist"][1],
+            )
+            inputs_statistics[feature]["hist"] = [
+                counts.tolist(),
+                bins.tolist(),
+            ]
+        elif "hist" in inputs_statistics[feature]:
+            # Comply with the other common features' histogram length
+            mlrun.common.model_monitoring.helpers.pad_hist(
+                mlrun.common.model_monitoring.helpers.Histogram(
+                    inputs_statistics[feature]["hist"]
+                )
+            )
+
+    return inputs_statistics

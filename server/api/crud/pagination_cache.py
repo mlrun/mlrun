@@ -94,4 +94,5 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         if table_size > table_max_size:
             records = all_records_query.limit(table_size - table_max_size)
             for record in records:
-                db.delete_paginated_query_cache_record(session, record.key)
+                session.delete(record)
+            session.commit()

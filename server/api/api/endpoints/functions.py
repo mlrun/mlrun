@@ -801,6 +801,11 @@ def _deploy_nuclio_runtime(
             function_name=fn.metadata.name,
         )
 
+    serving_to_monitor = fn.kind == RuntimeKinds.serving and fn.spec.track_models
+    if serving_to_monitor:
+        if not mlrun.mlconf.is_ce_mode():
+            _init_serving_function_stream_args(fn=fn)
+
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
         auth_info=auth_info,

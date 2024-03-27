@@ -82,7 +82,7 @@ _DefaultDataDriftAppData = _AppData(
 
 
 class _V3IORecordsChecker:
-    project_name = None
+    project_name: str
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
@@ -94,7 +94,6 @@ class _V3IORecordsChecker:
         cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
             cls._v3io_container
         )
-        cls.project_name = project_name
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
@@ -153,21 +152,21 @@ class _V3IORecordsChecker:
         ).as_df()
 
         is_inputs_saved = inputs.issubset(df.columns)
-        assert is_inputs_saved, "Dataframe does not contains the input columns"
+        assert is_inputs_saved, "Dataframe does not contain the input columns"
         is_output_saved = outputs.issubset(df.columns)
-        assert is_output_saved, "Dataframe does not contains the output columns"
+        assert is_output_saved, "Dataframe does not contain the output columns"
         is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
             df.columns
         )
-        assert is_metadata_saved, "Dataframe does not contains the metadata columns"
+        assert is_metadata_saved, "Dataframe does not contain the metadata columns"
 
     @classmethod
     def _test_v3io_records(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:
+        cls._test_apps_parquet(ep_id, inputs, outputs)
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
-        cls._test_apps_parquet(ep_id, inputs, outputs)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -242,14 +241,20 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     )
                     executor.submit(fn.deploy)
 
-    def _log_model(self, with_training_set: bool) -> None:
+    def _log_model(self, with_training_set: bool) -> typing.Tuple[set[str], set[str]]:
         train_set = None
+        dataset = load_iris()
         if with_training_set:
-            dataset = load_iris()
             train_set = pd.DataFrame(
                 dataset.data,
                 columns=dataset.feature_names,
             )
+            inputs = {
+                mlrun.feature_store.api.norm_column_name(feature)
+                for feature in dataset.feature_names
+            }
+        else:
+            inputs = {f"f{i}" for i in range(len(dataset.feature_names))}
 
         self.project.log_model(
             f"{self.model_name}_{with_training_set}",
@@ -257,6 +262,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             model_file="model.pkl",
             training_set=train_set,
         )
+        outputs = {"p0"}
+
+        return inputs, outputs
 
     @classmethod
     def _deploy_model_serving(
@@ -309,7 +317,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self._log_model(with_training_set)
+        inputs, outputs = self._log_model(with_training_set)
 
         for i in range(len(self.apps_data)):
             if "with_training_set" in self.apps_data[i].kwargs:
@@ -340,17 +348,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._infer(serving_fn, num_events=1, with_training_set=with_training_set)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
-
-        dataset = load_iris()
-        inputs: set = (
-            {
-                mlrun.feature_store.api.norm_column_name(feature)
-                for feature in dataset.feature_names
-            }
-            if with_training_set
-            else {f"f{i}" for i in range(len(dataset.feature_names))}
-        )
-        outputs = {"p0"}
 
         self._test_v3io_records(
             ep_id=self._get_model_endpoint_id(), inputs=inputs, outputs=outputs
@@ -590,7 +587,12 @@ class TestAllKindOfServing(TestMLRunSystem):
             },
         }
 
-    def _log_model(self, model_name, training_set=None, label_column=None) -> None:
+    def _log_model(
+        self,
+        model_name: str,
+        training_set: pd.DataFrame = None,
+        label_column: typing.Union[str, list[str]] = None,
+    ) -> None:
         self.project.log_model(
             model_name,
             model_dir=str((Path(__file__).parent / "assets").absolute()),

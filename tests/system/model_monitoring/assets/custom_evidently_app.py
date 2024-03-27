@@ -135,7 +135,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self,
         evidently_workspace_path: str,
         evidently_project_id: "STR_UUID",
-        with_training_set,
+        with_training_set: bool,
     ) -> None:
         super().__init__(evidently_workspace_path, evidently_project_id)
         self._init_evidently_project()

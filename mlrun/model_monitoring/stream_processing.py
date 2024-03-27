@@ -1240,7 +1240,9 @@ def get_endpoint_record(project: str, endpoint_id: str):
 
 
 def update_monitoring_feature_set(
-    endpoint_record: dict[str, typing.Any], feature_names: list, feature_values: list
+    endpoint_record: dict[str, typing.Any],
+    feature_names: list[str],
+    feature_values: list[typing.Any],
 ):
     monitoring_feature_set = fstore.get_feature_set(
         endpoint_record[

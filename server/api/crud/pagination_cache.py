@@ -76,7 +76,9 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         Monitor the pagination cache and remove records that are older than the cache TTL, and if the cache table
         reached the max size, remove the oldest records.
         """
-        cache_ttl = mlrun.config.config.httpdb.pagination_cache.ttl
+
+        # Using cache TTL + 1 to make sure a zero TTL won't remove records that were just created
+        cache_ttl = mlrun.config.config.httpdb.pagination_cache.ttl + 1
         table_max_size = mlrun.config.config.httpdb.pagination_cache.max_size
 
         db = server.api.utils.singletons.db.get_db()

@@ -37,7 +37,6 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
@@ -194,7 +193,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
-            **({} if self.image is None else {"default_controller_image": self.image}),
+            **({} if self.image is None else {"image": self.image}),
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -233,14 +232,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
-        serving_fn.set_tracking(tracking_policy=TrackingPolicy())
+        serving_fn.set_tracking()
         if cls.image is not None:
-            for attr in (
-                "stream_image",
-                "default_batch_image",
-                "default_controller_image",
-            ):
-                setattr(serving_fn.spec.tracking_policy, attr, cls.image)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
@@ -388,7 +381,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
-            **({} if self.image is None else {"default_controller_image": self.image}),
+            **({} if self.image is None else {"image": self.image}),
         )
 
     def test_inference_feature_set(self) -> None:

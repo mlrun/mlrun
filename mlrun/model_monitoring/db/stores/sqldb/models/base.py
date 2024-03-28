@@ -99,7 +99,7 @@ class ModelEndpointsBaseTable(BaseModel):
 class ApplicationResultBaseTable(BaseModel):
     __tablename__ = FileTargetKind.APP_RESULTS
 
-    uid = Column(EventFieldType.UID, String(32), primary_key=True)
+    uid = Column(EventFieldType.UID, String(120), primary_key=True)
 
     application_name = Column(
         WriterEvent.APPLICATION_NAME,
@@ -120,11 +120,11 @@ class ApplicationResultBaseTable(BaseModel):
 
     start_infer_time = Column(
         WriterEvent.START_INFER_TIME,
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
     )
     end_infer_time = Column(
         WriterEvent.END_INFER_TIME,
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
     )
 
     result_status = Column(WriterEvent.RESULT_STATUS, String(10))

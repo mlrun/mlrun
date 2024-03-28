@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import json
 import typing
 import uuid
 
 import pandas as pd
-import sqlalchemy as db
-from sqlalchemy.sql import text
+import sqlalchemy
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
@@ -42,27 +42,24 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def __init__(
         self,
         project: str,
-        sql_connection_string: str = None,
         secret_provider: typing.Callable = None,
     ):
         """
         Initialize SQL store target object.
 
         :param project:               The name of the project.
-        :param sql_connection_string: Valid connection string or a path to SQL database with model monitoring tables.
         :param secret_provider:       An optional secret provider to get the connection string secret.
         """
 
         super().__init__(project=project)
 
-        self.sql_connection_string = (
-            sql_connection_string
-            or mlrun.model_monitoring.helpers.get_connection_string(
+        self._sql_connection_string = (
+            mlrun.model_monitoring.helpers.get_connection_string(
                 secret_provider=secret_provider
             )
         )
 
-        self._engine = get_engine(dsn=self.sql_connection_string)
+        self._engine = get_engine(dsn=self._sql_connection_string)
 
     def _init_tables(self):
         self._init_model_endpoints_table()
@@ -71,8 +68,8 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     def _init_model_endpoints_table(self):
         self.ModelEndpointsTable = (
-            mlrun.model_monitoring.db.stores.sqldb.models.get_model_endpoints_table(
-                connection_string=self.sql_connection_string
+            mlrun.model_monitoring.db.stores.sqldb.models._get_model_endpoints_table(
+                connection_string=self._sql_connection_string
             )
         )
         self._tables[
@@ -81,8 +78,8 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     def _init_application_results_table(self):
         self.ApplicationResultsTable = (
-            mlrun.model_monitoring.db.stores.sqldb.models.get_application_result_table(
-                connection_string=self.sql_connection_string
+            mlrun.model_monitoring.db.stores.sqldb.models._get_application_result_table(
+                connection_string=self._sql_connection_string
             )
         )
         self._tables[
@@ -90,8 +87,8 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         ] = self.ApplicationResultsTable
 
     def _init_monitoring_schedules_table(self):
-        self.MonitoringSchedulesTable = mlrun.model_monitoring.db.stores.sqldb.models.get_monitoring_schedules_table(
-            connection_string=self.sql_connection_string
+        self.MonitoringSchedulesTable = mlrun.model_monitoring.db.stores.sqldb.models._get_monitoring_schedules_table(
+            connection_string=self._sql_connection_string
         )
         self._tables[
             mlrun.common.schemas.model_monitoring.FileTargetKind.MONITORING_SCHEDULES
@@ -114,7 +111,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _update(
         self,
         attributes: dict[str, typing.Any],
-        table: db.orm.decl_api.DeclarativeMeta,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
         **filtered_values,
     ):
         """
@@ -129,14 +126,14 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         for _filter in filtered_values:
             filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
 
-        with create_session(dsn=self.sql_connection_string) as session:
+        with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the update session query
-            session.query(table).filter(text(*filter_query_)).update(
+            session.query(table).filter(sqlalchemy.sql.text(*filter_query_)).update(
                 attributes, synchronize_session=False
             )
             session.commit()
 
-    def _get(self, table: db.orm.decl_api.DeclarativeMeta, **filtered_values):
+    def _get(self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values):
         """
         Get a record from the SQL table.
 
@@ -146,16 +143,22 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         filter_query_ = []
         for _filter in filtered_values:
             filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
-        with create_session(dsn=self.sql_connection_string) as session:
+        with create_session(dsn=self._sql_connection_string) as session:
             try:
                 # Generate the get query
-                return session.query(table).filter(text(*filter_query_)).one_or_none()
-            except db.exc.ProgrammingError:
+                return (
+                    session.query(table)
+                    .filter(sqlalchemy.sql.text(*filter_query_))
+                    .one_or_none()
+                )
+            except sqlalchemy.exc.ProgrammingError:
                 # Probably table doesn't exist, try to create tables
                 self._create_tables_if_not_exist()
                 return
 
-    def _delete(self, table: db.orm.decl_api.DeclarativeMeta, **filtered_values):
+    def _delete(
+        self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values
+    ):
         """
         Delete records from the SQL table.
 
@@ -164,9 +167,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         filter_query_ = []
         for _filter in filtered_values:
             filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
-        with create_session(dsn=self.sql_connection_string) as session:
+        with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
-            session.query(table).filter(text(*filter_query_)).delete(
+            session.query(table).filter(sqlalchemy.sql.text(*filter_query_)).delete(
                 synchronize_session=False
             )
             session.commit()
@@ -289,7 +292,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         )
 
         # Get the model endpoints records using sqlalchemy ORM
-        with create_session(dsn=self.sql_connection_string) as session:
+        with create_session(dsn=self._sql_connection_string) as session:
             # Generate the list query
             query = session.query(self.ModelEndpointsTable).filter_by(
                 project=self.project
@@ -357,20 +360,24 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_application_results_table()
 
-        # First, try to update an existing result
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=event[
-                mlrun.common.schemas.model_monitoring.WriterEvent.ENDPOINT_ID
-            ],
-            application_name=event[
-                mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME
-            ],
-        )
+        application_filter_dict = {
+            mlrun.common.schemas.model_monitoring.EventFieldType.UID: self._generate_application_result_uid(
+                event
+            )
+        }
 
         application_record = self._get(
             table=self.ApplicationResultsTable, **application_filter_dict
         )
         if application_record:
+            self._convert_to_datetime(
+                event=event,
+                key=mlrun.common.schemas.model_monitoring.WriterEvent.START_INFER_TIME,
+            )
+            self._convert_to_datetime(
+                event=event,
+                key=mlrun.common.schemas.model_monitoring.WriterEvent.END_INFER_TIME,
+            )
             # Update an existing application result
             self._update(
                 attributes=event,
@@ -380,12 +387,30 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         else:
             # Write a new application result
             event[mlrun.common.schemas.model_monitoring.EventFieldType.UID] = (
-                uuid.uuid4().hex
+                application_filter_dict[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.UID
+                ]
             )
+
             self._write(
                 table=mlrun.common.schemas.model_monitoring.FileTargetKind.APP_RESULTS,
                 event=event,
             )
+
+    @staticmethod
+    def _convert_to_datetime(event: dict[str, typing.Any], key: str):
+        if isinstance(event[key], str):
+            event[key] = datetime.datetime.fromisoformat(event[key])
+
+    @staticmethod
+    def _generate_application_result_uid(event: dict[str, typing.Any]) -> str:
+        return (
+            event[mlrun.common.schemas.model_monitoring.WriterEvent.ENDPOINT_ID]
+            + "_"
+            + event[mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME]
+            + "_"
+            + event[mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME]
+        )
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
         """
@@ -485,12 +510,12 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     @staticmethod
     def _filter_values(
-        query: db.orm.query.Query,
-        model_endpoints_table: db.Table,
+        query: sqlalchemy.orm.query.Query,
+        model_endpoints_table: sqlalchemy.Table,
         key_filter: str,
         filtered_values: list,
         combined=True,
-    ) -> db.orm.query.Query:
+    ) -> sqlalchemy.orm.query.Query:
         """Filtering the SQL query object according to the provided filters.
 
         :param query:                 SQLAlchemy ORM query object. Includes the SELECT statements generated by the ORM
@@ -521,7 +546,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             filter_query.append(model_endpoints_table.c[key_filter] == _filter)
 
         # Apply AND operator on the SQL query object with the filters tuple
-        return query.filter(db.and_(*filter_query))
+        return query.filter(sqlalchemy.and_(*filter_query))
 
     @staticmethod
     def _validate_labels(

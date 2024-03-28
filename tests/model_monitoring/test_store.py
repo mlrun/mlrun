@@ -16,6 +16,7 @@
 import string
 import time
 import typing
+import unittest.mock
 from random import choice, randint
 from typing import Optional
 
@@ -34,9 +35,9 @@ SQLstoreObject = typing.TypeVar("SQLstoreObject", bound="StoreBase")
 
 
 class TestSQLStore:
-    _STORE_CONNECTION = "sqlite:///test.db"
     _TEST_PROJECT = "test_model_endpoints"
     _MODEL_ENDPOINT_ID = "some-ep-id"
+    _STORE_CONNECTION = "sqlite:///test.db"
 
     @pytest.fixture()
     def _mock_random_endpoint(
@@ -83,6 +84,26 @@ class TestSQLStore:
         )
 
     @staticmethod
+    @pytest.fixture
+    def event_v2(
+        request: pytest.FixtureRequest,
+        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> _AppResultEvent:
+        return _AppResultEvent(
+            {
+                WriterEvent.ENDPOINT_ID: _mock_random_endpoint.metadata.uid,
+                WriterEvent.START_INFER_TIME: "2023-09-20 14:26:06.501084",
+                WriterEvent.END_INFER_TIME: "2023-09-20 16:26:06.501084",
+                WriterEvent.APPLICATION_NAME: "dummy-app",
+                WriterEvent.RESULT_NAME: "data-drift-0",
+                WriterEvent.RESULT_KIND: 1,
+                WriterEvent.RESULT_VALUE: 5.15,
+                WriterEvent.RESULT_STATUS: 1,
+                WriterEvent.RESULT_EXTRA_DATA: "",
+            }
+        )
+
+    @staticmethod
     @pytest.fixture(autouse=True)
     def init_sql_tables(new_sql_store: SQLstoreObject):
         new_sql_store._create_tables_if_not_exist()
@@ -92,18 +113,23 @@ class TestSQLStore:
     def new_sql_store(cls) -> SQLstoreObject:
         # Generate store object target
         store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
-        sql_store: SQLstoreObject = store_type_object.to_object_store(
-            project=cls._TEST_PROJECT, store_connection=cls._STORE_CONNECTION
-        )
-        yield sql_store
-        list_of_endpoints = sql_store.list_model_endpoints()
-        sql_store.delete_model_endpoints_resources(list_of_endpoints)
-        list_of_endpoints = sql_store.list_model_endpoints()
-        assert (len(list_of_endpoints)) == 0
+        with unittest.mock.patch(
+            "mlrun.model_monitoring.helpers.get_connection_string",
+            return_value=cls._STORE_CONNECTION,
+        ):
+            sql_store: SQLstoreObject = store_type_object.to_object_store(
+                project=cls._TEST_PROJECT
+            )
+            yield sql_store
+            list_of_endpoints = sql_store.list_model_endpoints()
+            sql_store.delete_model_endpoints_resources(list_of_endpoints)
+            list_of_endpoints = sql_store.list_model_endpoints()
+            assert (len(list_of_endpoints)) == 0
 
-    @staticmethod
     def test_sql_write_application_result(
+        cls,
         event: _AppResultEvent,
+        event_v2: _AppResultEvent,
         new_sql_store: SQLstoreObject,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ):
@@ -113,6 +139,17 @@ class TestSQLStore:
         # Write a dummy application result event
         new_sql_store.write_application_result(event=event)
 
+        cls.assert_application_record(event=event, new_sql_store=new_sql_store)
+
+        # Write a 2nd application result event - we expect it to overwrite the existing record
+        new_sql_store.write_application_result(event=event_v2)
+
+        cls.assert_application_record(event=event_v2, new_sql_store=new_sql_store)
+
+    @staticmethod
+    def assert_application_record(
+        event: _AppResultEvent, new_sql_store: SQLstoreObject
+    ):
         application_filter_dict = new_sql_store.filter_endpoint_and_application_name(
             endpoint_id=event[WriterEvent.ENDPOINT_ID],
             application_name=event[WriterEvent.APPLICATION_NAME],
@@ -130,6 +167,10 @@ class TestSQLStore:
         assert (
             application_record.result_value
             == event[mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_VALUE]
+        )
+
+        assert application_record.uid == new_sql_store._generate_application_result_uid(
+            event=event
         )
 
     @staticmethod

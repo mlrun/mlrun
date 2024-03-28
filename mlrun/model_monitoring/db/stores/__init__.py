@@ -34,7 +34,6 @@ class ObjectStoreFactory(enum.Enum):
         self,
         project: str,
         access_key: str = None,
-        store_connection: str = None,
         secret_provider: typing.Callable = None,
     ) -> StoreBase:
         """
@@ -44,11 +43,6 @@ class ObjectStoreFactory(enum.Enum):
         :param access_key:                Access key with permission to the DB table. Note that if access key is None
                                           and the endpoint target is from type KV then the access key will be
                                           retrieved from the environment variable.
-        :param store_connection:          A valid connection string for the store target. Contains several
-                                          key-value pairs that required for the database connection.
-                                          e.g. A root user with password 1234, tries to connect a schema called
-                                          mlrun within a local MySQL DB instance:
-                                          'mysql+pymysql://root:1234@localhost:3306/mlrun_model_monitoring'.
         :param secret_provider:           An optional secret provider to get the connection string secret.
 
         :return: `StoreBase` object.
@@ -70,7 +64,6 @@ class ObjectStoreFactory(enum.Enum):
 
         return SQLStoreBase(
             project=project,
-            sql_connection_string=store_connection,
             secret_provider=secret_provider,
         )
 

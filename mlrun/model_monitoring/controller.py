@@ -68,14 +68,12 @@ class _BatchWindow:
         self._first_request = first_request
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._db = mlrun.model_monitoring.get_store_object(project=self.project)
         self._start = self._get_last_analyzed()
 
     def _get_last_analyzed(self) -> Optional[int]:
-        monitoring_schedules = mlrun.model_monitoring.get_store_object(
-            project=self.project
-        )
         try:
-            last_analyzed = monitoring_schedules.get_last_analyzed(
+            last_analyzed = self._db.get_last_analyzed(
                 endpoint_id=self._endpoint,
                 application_name=self._application,
             )
@@ -117,10 +115,8 @@ class _BatchWindow:
             application=self._application,
             last_analyzed=last_analyzed,
         )
-        monitoring_schedules = mlrun.model_monitoring.get_store_object(
-            project=self.project
-        )
-        monitoring_schedules.update_last_analyzed(
+
+        self._db.update_last_analyzed(
             endpoint_id=self._endpoint,
             application_name=self._application,
             last_analyzed=last_analyzed,

@@ -22,7 +22,7 @@ from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
 from .sqlite import MonitoringSchedulesTable as SQLiteMonitoringSchedulesTable
 
 
-def get_model_endpoints_table(
+def _get_model_endpoints_table(
     connection_string: Optional[str] = None,
 ) -> Union[type[MySQLModelEndpointsTable], type[SQLiteModelEndpointsTable]]:
     """Return ModelEndpointsTable based on the provided connection string"""
@@ -31,7 +31,7 @@ def get_model_endpoints_table(
     return SQLiteModelEndpointsTable
 
 
-def get_application_result_table(
+def _get_application_result_table(
     connection_string: Optional[str] = None,
 ) -> Union[type[MySQLApplicationResultTable], type[SQLiteApplicationResultTable]]:
     """Return ModelEndpointsTable based on the provided connection string"""
@@ -40,7 +40,7 @@ def get_application_result_table(
     return SQLiteApplicationResultTable
 
 
-def get_monitoring_schedules_table(
+def _get_monitoring_schedules_table(
     connection_string: Optional[str] = None,
 ) -> Union[type[MySQLMonitoringSchedulesTable], type[SQLiteMonitoringSchedulesTable]]:
     """Return ModelEndpointsTable based on the provided connection string"""

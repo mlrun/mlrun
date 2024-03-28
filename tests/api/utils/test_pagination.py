@@ -264,7 +264,7 @@ def test_no_pagination(mock_paginated_method, db: sqlalchemy.orm.Session):
     assert len(response) == 5
     assert not pagination_info
 
-    logger.debug("Checking that no cache record was created")
+    logger.info("Checking that no cache record was created")
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
 
 
@@ -325,7 +325,7 @@ def test_pagination_cache_cleanup(mock_paginated_method, db: sqlalchemy.orm.Sess
     logger.info("Checking that all records were removed")
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
 
-    logger.debug("Try to get page with token")
+    logger.info("Try to get page with token")
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         paginator.paginate_request(
             db,

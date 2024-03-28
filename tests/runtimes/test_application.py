@@ -18,6 +18,7 @@ import pathlib
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 
 
 def test_create_application_runtime():
@@ -143,6 +144,16 @@ def test_pre_deploy_validation(sidecars, expected_error_message):
         assert expected_error_message in str(exc.value)
     else:
         fn.pre_deploy_validation()
+
+
+def test_image_enriched_on_build_application_image(remote_builder_mock):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+    )
+    fn._build_application_image()
+    assert fn.spec.image == ".mlrun/func-default-application-test:latest"
+    assert fn.status.state == mlrun.common.schemas.FunctionState.ready
 
 
 def _assert_function_code(fn, file_path=None):

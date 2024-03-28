@@ -593,3 +593,53 @@ def rundb_mock() -> RunDBMock:
         mlrun.get_run_db = orig_get_run_db
         BaseRuntime._get_db = orig_get_db
         config.dbpath = orig_db_path
+
+
+class RemoteBuilderMock:
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func: mlrun.runtimes.BaseRuntime,
+            with_mlrun,
+            mlrun_version_specifier=None,
+            skip_deployed=False,
+            builder_env=None,
+            force_build=False,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                        "build": {
+                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                        },
+                    },
+                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
+                },
+            }
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock

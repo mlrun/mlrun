@@ -51,53 +51,6 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-class RemoteBuilderMock:
-    kind = "http"
-
-    def __init__(self):
-        def _remote_builder_handler(
-            func,
-            with_mlrun,
-            mlrun_version_specifier=None,
-            skip_deployed=False,
-            builder_env=None,
-            force_build=False,
-        ):
-            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
-            # it overrides the mock args - this way the value will remain as it was.
-            return {
-                "ready": True,
-                "data": {
-                    "spec": {
-                        "clone_target_dir": func.spec.clone_target_dir,
-                    },
-                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
-                },
-            }
-
-        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
-
-    def get_build_config_and_target_dir(self):
-        self.remote_builder.assert_called_once()
-        call_args = self.remote_builder.call_args
-
-        build_runtime = call_args.args[0]
-        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
-
-
-@pytest.fixture
-def remote_builder_mock(monkeypatch):
-    builder_mock = RemoteBuilderMock()
-
-    monkeypatch.setattr(
-        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
-    )
-    monkeypatch.setattr(
-        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
-    )
-    return builder_mock
-
-
 def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)

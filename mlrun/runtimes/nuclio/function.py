@@ -543,11 +543,23 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo
+        :param auth_info:  service AuthInfo (deprecated)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :param force_build: set True for force building the image
+        :param force_build: set True for force building the image (deprecated)
         """
-        # todo: verify that the function name is normalized
+        if auth_info:
+            # TODO: remove in 1.9.0
+            warnings.warn(
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                FutureWarning,
+            )
+
+        if force_build:
+            # TODO: remove in 1.9.0
+            warnings.warn(
+                "'force_build' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                FutureWarning,
+            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
@@ -570,9 +582,7 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(
-            self, False, builder_env=builder_env, force_build=force_build
-        )
+        data = db.remote_builder(func=self, with_mlrun=False, builder_env=builder_env)
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 

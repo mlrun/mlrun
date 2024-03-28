@@ -1383,7 +1383,9 @@ class KubeResource(BaseRuntime):
             force_build=force_build,
         )
         self.status = data["data"].get("status", None)
-        self.spec.image = mlrun.utils.get_in(data, "data.spec.image")
+        self.spec.image = mlrun.utils.get_in(
+            data, "data.spec.image"
+        ) or mlrun.utils.get_in(data, "data.spec.build.image")
         self.spec.build.base_image = self.spec.build.base_image or mlrun.utils.get_in(
             data, "data.spec.build.base_image"
         )

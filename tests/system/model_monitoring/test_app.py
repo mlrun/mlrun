@@ -81,6 +81,7 @@ _DefaultDataDriftAppData = _AppData(
 
 
 class _V3IORecordsChecker:
+    project_name: str
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
@@ -136,7 +137,33 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_v3io_records(cls, ep_id: str) -> None:
+    def _test_apps_parquet(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:
+        parquet_apps_directory = (
+            mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
+                mlrun.get_or_create_project(cls.project_name),
+                kind=mm_constants.FileTargetKind.APPS_PARQUET,
+            )
+        )
+        df = ParquetTarget(
+            path=f"{parquet_apps_directory}/key={ep_id}",
+        ).as_df()
+
+        is_inputs_saved = inputs.issubset(df.columns)
+        assert is_inputs_saved, "Dataframe does not contain the input columns"
+        is_output_saved = outputs.issubset(df.columns)
+        assert is_output_saved, "Dataframe does not contain the output columns"
+        is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
+            df.columns
+        )
+        assert is_metadata_saved, "Dataframe does not contain the metadata columns"
+
+    @classmethod
+    def _test_v3io_records(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:
+        cls._test_apps_parquet(ep_id, inputs, outputs)
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
 
@@ -182,18 +209,21 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
+                    "with_training_set": True,
                 },
                 results={"data_drift_test"},
             ),
         ]
-        cls.infer_path = f"v2/models/{cls.model_name}/infer"
 
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
-    def _submit_controller_and_deploy_writer(self) -> None:
+    def _submit_controller_and_deploy_writer(
+        self, deploy_histogram_data_drift_app
+    ) -> None:
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -210,27 +240,41 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     )
                     executor.submit(fn.deploy)
 
-    def _log_model(self) -> None:
+    def _log_model(self, with_training_set: bool) -> tuple[set[str], set[str]]:
+        train_set = None
         dataset = load_iris()
-        train_set = pd.DataFrame(
-            dataset.data,
-            columns=dataset.feature_names,
-        )
+        if with_training_set:
+            train_set = pd.DataFrame(
+                dataset.data,
+                columns=dataset.feature_names,
+            )
+            inputs = {
+                mlrun.feature_store.api.norm_column_name(feature)
+                for feature in dataset.feature_names
+            }
+        else:
+            inputs = {f"f{i}" for i in range(len(dataset.feature_names))}
+
         self.project.log_model(
-            self.model_name,
+            f"{self.model_name}_{with_training_set}",
             model_dir=str((Path(__file__).parent / "assets").absolute()),
             model_file="model.pkl",
             training_set=train_set,
         )
+        outputs = {"p0"}
+
+        return inputs, outputs
 
     @classmethod
-    def _deploy_model_serving(cls) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+    def _deploy_model_serving(
+        cls, with_training_set: bool
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
         )
         serving_fn.add_model(
-            cls.model_name,
-            model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
+            f"{cls.model_name}_{with_training_set}",
+            model_path=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
         )
         serving_fn.set_tracking()
         if cls.image is not None:
@@ -245,9 +289,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
         num_events: int = 10_000,
+        with_training_set: bool = True,
     ) -> None:
         result = serving_fn.invoke(
-            cls.infer_path,
+            f"v2/models/{cls.model_name}_{with_training_set}/infer",
             json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
         )
         assert isinstance(result, dict), "Unexpected result type"
@@ -257,35 +302,49 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "Outputs length does not match inputs"
 
     @classmethod
-    def _get_model_enpoint_id(cls) -> str:
+    def _get_model_endpoint_id(cls) -> str:
         endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
 
-    def test_app_flow(self) -> None:
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_app_flow(self, with_training_set) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self._log_model()
+        inputs, outputs = self._log_model(with_training_set)
+
+        for i in range(len(self.apps_data)):
+            if "with_training_set" in self.apps_data[i].kwargs:
+                self.apps_data[i].kwargs["with_training_set"] = with_training_set
+
+        # workaround for ML-5997
+        if not with_training_set:
+            self.apps_data.pop(0)
 
         with ThreadPoolExecutor() as executor:
-            executor.submit(self._submit_controller_and_deploy_writer)
+            executor.submit(
+                self._submit_controller_and_deploy_writer,
+                deploy_histogram_data_drift_app=with_training_set,  # workaround for ML-5997
+            )
             executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(self._deploy_model_serving)
+            future = executor.submit(self._deploy_model_serving, with_training_set)
 
         serving_fn = future.result()
 
         time.sleep(5)
-        self._infer(serving_fn)
+        self._infer(serving_fn, with_training_set=with_training_set)
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + 2
         )
-        self._infer(serving_fn, num_events=1)
+        self._infer(serving_fn, num_events=1, with_training_set=with_training_set)
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 
-        self._test_v3io_records(ep_id=self._get_model_enpoint_id())
+        self._test_v3io_records(
+            ep_id=self._get_model_endpoint_id(), inputs=inputs, outputs=outputs
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -395,7 +454,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         time.sleep(2.4 * self.app_interval_seconds)
 
-        self._test_v3io_records(self.endpoint_id)
+        self._test_v3io_records(
+            self.endpoint_id, inputs=set(self.columns), outputs=set(self.y_name)
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -485,22 +546,33 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "data_point": "input_str",
                 "schema": ["f0", "p0"],
             },
-            "str_one_to_many": {
+            "str_one_to_one_with_train": {
                 "name": "serving_4",
+                "model_name": "str_one_to_one_with_train",
+                "class_name": "OneToOne",
+                "data_point": "input_str",
+                "schema": ["str_in", "str_out"],
+                "training_set": pd.DataFrame(
+                    data={"str_in": ["str_1", "str_2"], "str_out": ["str_3", "str_4"]}
+                ),
+                "label_column": "str_out",
+            },
+            "str_one_to_many": {
+                "name": "serving_5",
                 "model_name": "str_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": "input_str",
                 "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
             },
             "img_one_to_one": {
-                "name": "serving_5",
+                "name": "serving_6",
                 "model_name": "img_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": random_rgb_image_list,
                 "schema": [f"f{i}" for i in range(600)] + ["p0"],
             },
             "int_and_str_one_to_one": {
-                "name": "serving_6",
+                "name": "serving_7",
                 "model_name": "int_and_str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, "a", 3],
@@ -508,11 +580,18 @@ class TestAllKindOfServing(TestMLRunSystem):
             },
         }
 
-    def _log_model(self, model_name) -> None:
+    def _log_model(
+        self,
+        model_name: str,
+        training_set: pd.DataFrame = None,
+        label_column: typing.Union[str, list[str]] = None,
+    ) -> None:
         self.project.log_model(
             model_name,
             model_dir=str((Path(__file__).parent / "assets").absolute()),
             model_file="model.pkl",
+            training_set=training_set,
+            label_column=label_column,
         )
 
     @classmethod
@@ -581,7 +660,11 @@ class TestAllKindOfServing(TestMLRunSystem):
         futures = []
         with ThreadPoolExecutor() as executor:
             for model_name, model_dict in self.models.items():
-                self._log_model(model_name)
+                self._log_model(
+                    model_name,
+                    training_set=model_dict.get("training_set"),
+                    label_column=model_dict.get("label_column"),
+                )
                 future = executor.submit(self._deploy_model_serving, **model_dict)
                 futures.append(future)
 
@@ -612,4 +695,6 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "is_schema_saved"
             ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
 
-            assert res_dict["has_all_the_events"], "Not all the events were saved"
+            assert res_dict[
+                "has_all_the_events"
+            ], f"For {res_dict['model_name']} Not all the events were saved"

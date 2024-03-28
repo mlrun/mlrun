@@ -25,7 +25,6 @@ You can also create a custom `source` to access various databases or data source
 | [S3/Azure source](#s3-azure-source)                                                            | Batch.                                                                 |       |      |       |
 | {py:meth}`~mlrun.datastore.HttpSource`                                                          |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
 | [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
-| [Confluent Kafka source](#confluent-kafka-source)                                            |Event-based. Sets the kafka source for the flow.          | Y      | N     | N      |
 | {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Kafka source
@@ -136,7 +135,6 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 | [ParquetTarget](#parquet-target)             |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
 | {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
 | [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
-| [RedisTarget](#redis-target)                 |Online. Persists the data in Redis table to its associated storage by key. | Y      | Y     | N      |
 | [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key. | Y      | Y     | N      |
 | [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
 
@@ -204,14 +202,6 @@ It supports low latency data retrieval based on key access, making it ideal for 
 
 The combination of a NoSQL target with the storey engine does not support features of type string with a value containing both quote (') and double-quote (").
 
-## Redis target
-
-```python
-profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
-RedisNoSqlTarget(path="ds://profile-name/a/b")
-```
-
-
 ## RedisNoSql target 
 
 ```{admonition} Note
@@ -236,6 +226,13 @@ You must add the secret as an env-var.
 To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
+
+### RedisNoSql data store profile
+```python
+profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
+RedisNoSqlTarget(path="ds://profile-name/a/b")
+```
+
 
 ## SQL target 
 

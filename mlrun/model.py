@@ -62,6 +62,7 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
+    @mlrun.utils.filter_warnings("ignore", FutureWarning)
     def to_dict(self, fields=None, exclude=None):
         """convert the object to a python dictionary
 

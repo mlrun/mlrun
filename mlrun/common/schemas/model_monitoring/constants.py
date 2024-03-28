@@ -83,12 +83,6 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
-class MonitoringStrEnum(StrEnum):
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
-
-
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
     ERROR_COUNT = EventFieldType.ERROR_COUNT

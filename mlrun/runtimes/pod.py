@@ -1397,7 +1397,11 @@ class KubeResource(BaseRuntime):
                 f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
             )
         if watch and not ready:
-            state = self._build_watch(watch, show_on_failure=show_on_failure)
+            state = self._build_watch(
+                watch=watch,
+                show_on_failure=show_on_failure,
+                mlrun_build=True,
+            )
             ready = state == "ready"
             self.status.state = state
 

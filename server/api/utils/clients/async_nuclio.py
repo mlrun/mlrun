@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import copy
-import re
 import urllib.parse
 from http import HTTPStatus
 

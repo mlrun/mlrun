@@ -58,10 +58,21 @@ class APIGatewayAuthenticator(typing.Protocol):
 
 
 class NoneAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with no authentication.
+    """
+
     pass
 
 
 class BasicAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with basic authentication.
+
+    :param username: (str) The username for basic authentication.
+    :param password: (str) The password for basic authentication.
+    """
+
     def __init__(self, username=None, password=None):
         self._username = username
         self._password = password
@@ -103,6 +114,24 @@ class APIGateway:
         host: Optional[str] = None,
         canary: Optional[list[int]] = None,
     ):
+        """
+        Initialize the APIGateway instance.
+
+        :param project: The project name
+        :param name: The name of the API gateway
+        :param functions: The list of functions associated with the API gateway
+            Can be a list of function names (["my-func1", "my-func2"])
+            or a list or a single entity of
+            :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+
+        :param description: Optional description of the API gateway
+        :param path: Optional path of the API gateway, default value is "/"
+        :param authentication: The authentication for the API gateway of type
+                :py:class:`~mlrun.runtimes.nuclio.api_gateway.BasicAuth`
+        :param host:  The host of the API gateway (optional). If not set, it will be automatically generated
+        :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
+        """
         self.functions = None
         self._validate(
             project=project,
@@ -126,10 +155,23 @@ class APIGateway:
         auth: Optional[tuple[str, str]] = None,
         **kwargs,
     ):
+        """
+        Invoke the API gateway.
+
+        :param method: (str, optional) The HTTP method for the invocation.
+        :param headers: (dict, optional) The HTTP headers for the invocation.
+        :param auth: (Optional[tuple[str, str]], optional) The authentication creds for the invocation if required.
+        :param kwargs: (dict) Additional keyword arguments.
+
+        :return: The response from the API gateway invocation.
+        """
         if not self.invoke_url:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invocation url is not set. Set up gateway's `invoke_url` attribute."
-            )
+            # try to resolve invoke_url before fail
+            self.sync()
+            if not self.invoke_url:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Invocation url is not set. Set up gateway's `invoke_url` attribute."
+                )
         if (
             self.authentication.authentication_mode
             == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
@@ -146,7 +188,27 @@ class APIGateway:
             auth=HTTPBasicAuth(*auth) if auth else None,
         )
 
+    def sync(self):
+        """
+        Synchronize the API gateway from the server.
+        """
+        synced_gateway = mlrun.get_run_db().get_api_gateway(self.name, self.project)
+        synced_gateway = self.from_scheme(synced_gateway)
+
+        self.host = synced_gateway.host
+        self.path = synced_gateway.path
+        self.authentication = synced_gateway.authentication
+        self.functions = synced_gateway.functions
+        self.canary = synced_gateway.canary
+        self.description = synced_gateway.description
+
     def with_basic_auth(self, username: str, password: str):
+        """
+        Set basic authentication for the API gateway.
+
+        :param username: (str) The username for basic authentication.
+        :param password: (str) The password for basic authentication.
+        """
         self.authentication = BasicAuth(username=username, password=password)
 
     @classmethod
@@ -200,6 +262,11 @@ class APIGateway:
     def invoke_url(
         self,
     ):
+        """
+        Get the invoke URL.
+
+        :return: (str) The invoke URL.
+        """
         return urljoin(self.host, self.path)
 
     def _validate(

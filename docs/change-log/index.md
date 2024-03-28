@@ -900,7 +900,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
-
+|ML-6051|After an admin user deletes itself from a project, the user is redirected to the Projects page even though it has no permissions and cannot view any aspects of the project.|
 
 
 ## Limitations

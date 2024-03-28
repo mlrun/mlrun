@@ -224,6 +224,17 @@ class APIGateway:
         ],
         canary: list[int],
     ):
+        """
+        Set canary function for the API gateway
+
+        :param functions: The list of functions associated with the API gateway
+            Can be a list of function names (["my-func1", "my-func2"])
+            or a list of nuclio functions of types
+            :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+        :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
+
+        """
         if len(functions) != 2:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Gateway with canary can be created only with two functions, "

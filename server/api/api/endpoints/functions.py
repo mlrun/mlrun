@@ -407,6 +407,7 @@ async def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
+    mlrun_build: bool = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -428,7 +429,7 @@ async def build_status(
         )
 
     # nuclio deploy status
-    if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
+    if not mlrun_build and fn.get("kind") in RuntimeKinds.nuclio_runtimes():
         return await run_in_threadpool(
             _handle_nuclio_deploy_status,
             db_session,
@@ -723,8 +724,8 @@ def _build_function(
         #  we can simplify the logic here to:
         #  is_nuclio_deploy = fn.kind in RuntimeKinds.nuclio_runtimes() and not force_build
         is_nuclio_deploy = False
-        if fn.kind in set(RuntimeKinds.nuclio_runtimes()).discard(
-            RuntimeKinds.application
+        if fn.kind in set(RuntimeKinds.nuclio_runtimes()).difference(
+            {RuntimeKinds.application}
         ):
             is_nuclio_deploy = True
         elif fn.kind == RuntimeKinds.application and not force_build:

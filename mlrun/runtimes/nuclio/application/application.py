@@ -261,6 +261,8 @@ class ApplicationRuntime(RemoteRuntime):
                 show_on_failure=show_on_failure,
             )
 
+        # TODO: make sure the function state is correct
+        self.status.state = mlrun.common.schemas.FunctionState.deploying
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
         super().deploy(

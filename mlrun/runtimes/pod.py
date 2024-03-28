@@ -1381,6 +1381,7 @@ class KubeResource(BaseRuntime):
             skip_deployed,
             builder_env=builder_env,
             force_build=force_build,
+            mlrun_build=True,
         )
         self.status = data["data"].get("status", None)
         self.spec.image = mlrun.utils.get_in(data, "data.spec.image")
@@ -1405,31 +1406,47 @@ class KubeResource(BaseRuntime):
             raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
-    def _build_watch(self, watch=True, logs=True, show_on_failure=False):
+    def _build_watch(
+        self,
+        watch: bool = True,
+        logs: bool = True,
+        show_on_failure: bool = False,
+        mlrun_build: typing.Optional[bool] = None,
+    ):
         db = self._get_db()
         offset = 0
         try:
-            text, _ = db.get_builder_status(self, 0, logs=logs)
+            text, _ = db.get_builder_status(self, 0, logs=logs, mlrun_build=mlrun_build)
         except mlrun.db.RunDBError:
             raise ValueError("function or build process not found")
 
         def print_log(text):
-            if text and (not show_on_failure or self.status.state == "error"):
+            if text and (
+                not show_on_failure
+                or self.status.state == mlrun.common.schemas.FunctionState.error
+            ):
                 print(text, end="")
 
         print_log(text)
         offset += len(text)
         if watch:
-            while self.status.state in ["pending", "running"]:
+            while self.status.state in [
+                mlrun.common.schemas.FunctionState.pending,
+                mlrun.common.schemas.FunctionState.running,
+            ]:
                 time.sleep(2)
                 if show_on_failure:
                     text = ""
-                    db.get_builder_status(self, 0, logs=False)
-                    if self.status.state == "error":
+                    db.get_builder_status(self, 0, logs=False, mlrun_build=mlrun_build)
+                    if self.status.state == mlrun.common.schemas.FunctionState.error:
                         # re-read the full log on failure
-                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                        text, _ = db.get_builder_status(
+                            self, offset, logs=logs, mlrun_build=mlrun_build
+                        )
                 else:
-                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                    text, _ = db.get_builder_status(
+                        self, offset, logs=logs, mlrun_build=mlrun_build
+                    )
                 print_log(text)
                 offset += len(text)
 

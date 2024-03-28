@@ -14,7 +14,7 @@
 
 import datetime
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
@@ -722,9 +722,11 @@ class RunDBInterface(ABC):
         pass
 
     def enable_model_monitoring(
-        self,
-        project: str,
-        base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        self, project: str, base_period: int = 10, image: str = "mlrun/mlrun"
     ):
         pass
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> dict[str, Any]:
+        raise NotImplementedError

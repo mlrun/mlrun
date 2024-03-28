@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import enum
 import http
 import re
@@ -30,10 +31,12 @@ import semver
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
+import mlrun.utils
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -180,7 +183,7 @@ class HTTPRunDB(RunDBInterface):
         headers=None,
         timeout=45,
         version=None,
-    ):
+    ) -> requests.Response:
         """Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
         Caution:
@@ -198,7 +201,7 @@ class HTTPRunDB(RunDBInterface):
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
 
-        :return: Python HTTP response object
+        :return: `requests.Response` HTTP response object
         """
         url = self.get_base_api_url(path, version)
         kw = {
@@ -3087,21 +3090,35 @@ class HTTPRunDB(RunDBInterface):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-
-        :param project:                  Project name.
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         triggers. By default, the base period is 10 minutes.
-        :param image:                    The image of the model monitoring controller, writer & monitoring
-                                         stream functions, which are real time nuclio functions.
-                                         By default, the image is mlrun/mlrun.
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller, writer & monitoring
+                            stream functions, which are real time nuclio functions.
+                            By default, the image is mlrun/mlrun.
+        :returns:           A dictionary describing the different infra functions information.
         """
+        return self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/enable-model-monitoring",
+            params={"base_period": base_period, "image": image},
+        ).json()
 
-        params = {
-            "base_period": base_period,
-            "image": image,
-        }
-        path = f"projects/{project}/model-monitoring/enable-model-monitoring"
-        self.api_call(method="POST", path=path, params=params)
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> dict[str, typing.Any]:
+        """
+        Deploy the histogram data drift application.
+
+        :param project: Project name.
+        :param image:   The image on which the application will run.
+        :returns:       A dictionary describing the function information.
+        """
+        return self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
+            params={"image": image},
+        ).json()
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]

@@ -66,7 +66,6 @@ class TestSQLStore:
     @staticmethod
     @pytest.fixture
     def event(
-        request: pytest.FixtureRequest,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> _AppResultEvent:
         return _AppResultEvent(
@@ -86,7 +85,6 @@ class TestSQLStore:
     @staticmethod
     @pytest.fixture
     def event_v2(
-        request: pytest.FixtureRequest,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> _AppResultEvent:
         return _AppResultEvent(

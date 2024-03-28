@@ -505,6 +505,9 @@ def build(
         if kfp:
             print("Runtime:")
             pprint(runtime)
+        # use kind = "job" by default if not specified
+        if "kind" not in runtime:
+            runtime["kind"] = "job"
         func = new_function(runtime=runtime)
 
     elif func_url:

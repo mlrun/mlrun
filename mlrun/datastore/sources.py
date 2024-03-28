@@ -854,12 +854,11 @@ class StreamSource(OnlineSource):
         super().__init__(name, attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):
-        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
+        store, _, url = mlrun.store_manager.get_or_create_store(self.path)
         if store.kind != "v3io":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Only profiles that reference the v3io datastore can be used with StreamSource"
             )
-        path = "v3io:/" + path
         storage_options = store.get_storage_options()
         access_key = storage_options.get("v3io_access_key")
         endpoint, stream_path = parse_path(url)
@@ -883,7 +882,7 @@ class StreamSource(OnlineSource):
             kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
-            path,
+            url,
             self.name,
             self.attributes["group"],
             self.attributes["seek_to"],

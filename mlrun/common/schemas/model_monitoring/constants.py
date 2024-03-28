@@ -21,6 +21,12 @@ import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
 
+class MonitoringStrEnum(StrEnum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
 class EventFieldType:
     FUNCTION_URI = "function_uri"
     FUNCTION = "function"
@@ -77,6 +83,26 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
+class MonitoringStrEnum(StrEnum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
+class FeatureSetFeatures(MonitoringStrEnum):
+    LATENCY = EventFieldType.LATENCY
+    ERROR_COUNT = EventFieldType.ERROR_COUNT
+    METRICS = EventFieldType.METRICS
+
+    @classmethod
+    def time_stamp(cls):
+        return EventFieldType.TIMESTAMP
+
+    @classmethod
+    def entity(cls):
+        return EventFieldType.ENDPOINT_ID
+
+
 class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     CURRENT_STATS = "current_stats"
@@ -89,7 +115,7 @@ class ApplicationEvent:
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent(StrEnum):
+class WriterEvent(MonitoringStrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
@@ -100,10 +126,6 @@ class WriterEvent(StrEnum):
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
     CURRENT_STATS = "current_stats"
-
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:
@@ -146,6 +168,9 @@ class ModelMonitoringStoreKinds:
 
 class SchedulingKeys:
     LAST_ANALYZED = "last_analyzed"
+    ENDPOINT_ID = "endpoint_id"
+    APPLICATION_NAME = "application_name"
+    UID = "uid"
 
 
 class FileTargetKind:
@@ -155,6 +180,8 @@ class FileTargetKind:
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
+    APP_RESULTS = "app_results"
+    MONITORING_SCHEDULES = "monitoring_schedules"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -177,9 +204,14 @@ class PrometheusMetric:
     DRIFT_STATUS = "drift_status"
 
 
+class PrometheusEndpoints(MonitoringStrEnum):
+    MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
+    MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
+    MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
+
+
 class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
-    BATCH = "model-monitoring-batch"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     STREAM = "model-monitoring-stream"
 
@@ -188,7 +220,6 @@ class MonitoringFunctionNames:
         return [
             MonitoringFunctionNames.WRITER,
             MonitoringFunctionNames.STREAM,
-            MonitoringFunctionNames.BATCH,
             MonitoringFunctionNames.APPLICATION_CONTROLLER,
         ]
 

@@ -55,7 +55,6 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring.application import (
     ModelMonitoringApplicationBase,
-    PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
@@ -760,6 +759,7 @@ class ProjectSpec(ModelObj):
         default_image=None,
         build=None,
         custom_packagers: list[tuple[str, bool]] = None,
+        default_function_node_selector=None,
     ):
         self.repo = None
 
@@ -799,6 +799,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
+        self.default_function_node_selector = default_function_node_selector or {}
 
     @property
     def source(self) -> str:
@@ -1969,11 +1970,10 @@ class MlrunProject(ModelObj):
             else:
                 first_step = graph.to(class_name=application_class)
             first_step.to(
-                class_name=PushToMonitoringWriter(
-                    project=self.metadata.name,
-                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-                    stream_uri=None,
-                ),
+                class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
+                name="PushToMonitoringWriter",
+                project=self.metadata.name,
+                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
             ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
@@ -3748,6 +3748,18 @@ class MlrunProject(ModelObj):
         """
 
         return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to delete.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
     def _run_authenticated_git_action(
         self,

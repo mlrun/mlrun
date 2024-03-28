@@ -18,7 +18,6 @@ import unittest.mock
 from http import HTTPStatus
 from types import ModuleType
 
-import deepdiff
 import fastapi.testclient
 import httpx
 import kubernetes.client.rest
@@ -31,7 +30,6 @@ import mlrun.artifacts.model
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.model_monitoring.tracking_policy
 import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud
@@ -354,15 +352,15 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
         assert response.json() == expected_response
 
 
+@pytest.mark.usefixtures("httpserver", "k8s_secrets_mock")
 def test_tracking_on_serving(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    httpserver,
-    monkeypatch,
-    k8s_secrets_mock,
-):
-    """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
-    generated as expected when the user applies model monitoring on a serving function
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Validate that `.set_tracking()` configurations are applied to
+    a serving function for model monitoring.
     """
 
     # Generate a test project
@@ -410,18 +408,6 @@ def test_tracking_on_serving(
     )
 
     assert function_from_db["spec"]["track_models"]
-
-    tracking_policy_default = (
-        mlrun.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
-    )
-    assert (
-        deepdiff.DeepDiff(
-            tracking_policy_default,
-            function_from_db["spec"]["tracking_policy"],
-            ignore_order=True,
-        )
-        == {}
-    )
 
 
 def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions: list):

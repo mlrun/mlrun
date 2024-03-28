@@ -41,6 +41,7 @@ class ValueType(str, Enum):
     BYTES = "bytes"
     STRING = "str"
     DATETIME = "datetime"
+    LIST = "List"
     BYTES_LIST = "List[bytes]"
     STRING_LIST = "List[string]"
     INT32_LIST = "List[int32]"
@@ -48,6 +49,7 @@ class ValueType(str, Enum):
     DOUBLE_LIST = "List[float]"
     FLOAT_LIST = "List[float32]"
     BOOL_LIST = "List[bool]"
+    Tuple = "Tuple"
 
 
 def pd_schema_to_value_type(value):
@@ -102,6 +104,8 @@ def python_type_to_value_type(value_type):
         "datetime64[ns]": ValueType.INT64,
         "datetime64[ns, tz]": ValueType.INT64,
         "category": ValueType.STRING,
+        "list": ValueType.LIST,
+        "tuple": ValueType.Tuple,
     }
 
     if type_name in type_map:

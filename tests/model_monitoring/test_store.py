@@ -31,7 +31,7 @@ from mlrun.model_monitoring.db.stores import (  # noqa: F401
 )
 from mlrun.model_monitoring.writer import _AppResultEvent
 
-SQLstoreObject = typing.TypeVar("SQLstoreObject", bound="StoreBase")
+SQLStoreBase = typing.TypeVar("SQLStoreBase", bound="StoreBase")
 
 
 class TestSQLStore:
@@ -105,19 +105,19 @@ class TestSQLStore:
 
     @staticmethod
     @pytest.fixture(autouse=True)
-    def init_sql_tables(new_sql_store: SQLstoreObject):
+    def init_sql_tables(new_sql_store: SQLStoreBase):
         new_sql_store._create_tables_if_not_exist()
 
     @classmethod
     @pytest.fixture
-    def new_sql_store(cls) -> SQLstoreObject:
+    def new_sql_store(cls) -> SQLStoreBase:
         # Generate store object target
         store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
             return_value=cls._STORE_CONNECTION,
         ):
-            sql_store: SQLstoreObject = store_type_object.to_object_store(
+            sql_store: SQLStoreBase = store_type_object.to_object_store(
                 project=cls._TEST_PROJECT
             )
             yield sql_store
@@ -126,11 +126,72 @@ class TestSQLStore:
             list_of_endpoints = sql_store.list_model_endpoints()
             assert (len(list_of_endpoints)) == 0
 
+    def test_sql_target_list_model_endpoints(
+        cls,
+        new_sql_store: SQLStoreBase,
+        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ):
+        """Testing list model endpoint using SQLStoreBase object. In the following test
+        we create two model endpoints and list these endpoints. In addition, this test validates the
+        filter optional operation within the list model endpoints API.
+        """
+
+        new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
+
+        # Validate that there is a single model endpoint
+        list_of_endpoints = new_sql_store.list_model_endpoints()
+        assert len(list_of_endpoints) == 1
+
+        # Generate and write the 2nd model endpoint into the DB table
+        mock_endpoint_2 = _mock_random_endpoint
+        mock_endpoint_2.spec.model = "test_model"
+        mock_endpoint_2.metadata.uid = "12345"
+        new_sql_store.write_model_endpoint(endpoint=mock_endpoint_2.flat_dict())
+
+        # Validate that there are exactly two model endpoints within the DB
+        list_of_endpoints = new_sql_store.list_model_endpoints()
+        assert len(list_of_endpoints) == 2
+
+        # List only the model endpoint that has the model test_model
+        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
+            model="test_model"
+        )
+        assert len(filtered_list_of_endpoints) == 1
+
+    def test_sql_target_patch_endpoint(
+        cls,
+        new_sql_store: SQLStoreBase,
+        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ):
+        """Testing the update of a model endpoint using SQLStoreBase object. In the following
+        test we update attributes within the model endpoint spec and status and then validate that there
+        attributes were actually updated.
+        """
+
+        # Generate and write the model endpoint into the DB table
+        _mock_random_endpoint.metadata.uid = "1234"
+        new_sql_store.write_model_endpoint(_mock_random_endpoint.flat_dict())
+
+        # Generate dictionary of attributes and update the model endpoint
+        updated_attributes = {"model": "test_model", "error_count": 2}
+        new_sql_store.update_model_endpoint(
+            endpoint_id=_mock_random_endpoint.metadata.uid,
+            attributes=updated_attributes,
+        )
+
+        # Validate that these attributes were actually updated
+        endpoint_dict = new_sql_store.get_model_endpoint(
+            endpoint_id=_mock_random_endpoint.metadata.uid
+        )
+
+        assert endpoint_dict["model"] == "test_model"
+        assert endpoint_dict["error_count"] == 2
+
     def test_sql_write_application_result(
         cls,
         event: _AppResultEvent,
         event_v2: _AppResultEvent,
-        new_sql_store: SQLstoreObject,
+        new_sql_store: SQLStoreBase,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ):
         # Generate mock model endpoint
@@ -147,9 +208,7 @@ class TestSQLStore:
         cls.assert_application_record(event=event_v2, new_sql_store=new_sql_store)
 
     @staticmethod
-    def assert_application_record(
-        event: _AppResultEvent, new_sql_store: SQLstoreObject
-    ):
+    def assert_application_record(event: _AppResultEvent, new_sql_store: SQLStoreBase):
         application_filter_dict = new_sql_store.filter_endpoint_and_application_name(
             endpoint_id=event[WriterEvent.ENDPOINT_ID],
             application_name=event[WriterEvent.APPLICATION_NAME],
@@ -176,7 +235,7 @@ class TestSQLStore:
     @staticmethod
     def test_sql_last_analyzed_result(
         event: _AppResultEvent,
-        new_sql_store: SQLstoreObject,
+        new_sql_store: SQLStoreBase,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ):
         # Write mock model endpoint to DB

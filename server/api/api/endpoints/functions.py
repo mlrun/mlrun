@@ -786,15 +786,12 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
 
-        monitoring_deploy = (
-            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
-                project=fn.metadata.project,
-                auth_info=auth_info,
-                db_session=db_session,
-                model_monitoring_access_key=model_monitoring_access_key,
-            )
-        )
-        fn = monitoring_deploy._apply_and_create_stream_trigger(
+        fn = server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+            project=fn.metadata.project,
+            auth_info=auth_info,
+            db_session=db_session,
+            model_monitoring_access_key=model_monitoring_access_key,
+        )._apply_and_create_stream_trigger(
             function=fn,
             function_name=fn.metadata.name,
         )

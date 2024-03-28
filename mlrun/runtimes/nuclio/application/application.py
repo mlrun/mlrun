@@ -249,6 +249,7 @@ class ApplicationRuntime(RemoteRuntime):
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
+            self._fill_credentials()
             self._build_application_image(
                 builder_env=builder_env,
                 force_build=True,

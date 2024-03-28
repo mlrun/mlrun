@@ -723,9 +723,11 @@ def _build_function(
         #  we can simplify the logic here to:
         #  is_nuclio_deploy = fn.kind in RuntimeKinds.nuclio_runtimes() and not force_build
         is_nuclio_deploy = False
-        if (
-            fn.kind == RuntimeKinds.application and not force_build
-        ) or fn.kind in RuntimeKinds.nuclio_runtimes():
+        if fn.kind in set(RuntimeKinds.nuclio_runtimes()).discard(
+            RuntimeKinds.application
+        ):
+            is_nuclio_deploy = True
+        elif fn.kind == RuntimeKinds.application and not force_build:
             is_nuclio_deploy = True
 
         # Enrich runtime with project defaults

@@ -12,16 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from sqlalchemy.ext.declarative import declarative_base
 
-from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
-from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
+from .base import (
+    ApplicationResultBaseTable,
+    ModelEndpointsBaseTable,
+    MonitoringSchedulesBaseTable,
+)
+
+Base = declarative_base()
 
 
-def get_model_endpoints_table(
-    connection_string: Optional[str] = None,
-) -> Union[type[MySQLModelEndpointsTable], type[SQLiteModelEndpointsTable]]:
-    """Return ModelEndpointsTable based on the provided connection string"""
-    if connection_string and "mysql:" in connection_string:
-        return MySQLModelEndpointsTable
-    return SQLiteModelEndpointsTable
+class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
+    pass
+
+
+class ApplicationResultTable(Base, ApplicationResultBaseTable):
+    pass
+
+
+class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):
+    pass

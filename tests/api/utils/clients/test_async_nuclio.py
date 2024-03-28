@@ -59,6 +59,8 @@ async def test_nuclio_get_api_gateway(
         project="default-project",
     )
     api_gateway.with_basic_auth("test", "test")
+    api_gateway.with_canary(["test", "test2"], [20, 80])
+
     request_url = f"{api_url}/api/api_gateways/test-basic"
     mock_aioresponse.get(
         request_url,
@@ -73,8 +75,8 @@ async def test_nuclio_get_api_gateway(
         received_api_gateway.authentication.authentication_mode
         == api_gateway.authentication.authentication_mode
     )
-    assert received_api_gateway.functions == api_gateway.functions
-    assert received_api_gateway.canary == api_gateway.canary
+    assert received_api_gateway.functions == ["test", "test2"]
+    assert received_api_gateway.canary == [20, 80]
 
 
 @pytest.mark.asyncio

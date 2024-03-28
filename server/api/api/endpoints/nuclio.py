@@ -26,7 +26,6 @@ router = APIRouter()
     "/projects/{project}/api-gateways",
     response_model=mlrun.common.schemas.APIGatewaysOutput,
     response_model_exclude_none=True,
-    response_model_exclude_unset=True,
 )
 async def list_api_gateways(
     project: str,

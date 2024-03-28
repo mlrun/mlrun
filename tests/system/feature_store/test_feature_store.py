@@ -4825,7 +4825,7 @@ def verify_purge(fset, targets):
     for target in fset.status.targets:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            store, target_path = driver._get_store_and_path()
+            store, target_path, _ = driver._get_store_and_path()
             filesystem = store.filesystem
             if filesystem is not None:
                 assert filesystem.exists(target_path)
@@ -4838,7 +4838,7 @@ def verify_purge(fset, targets):
     for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            store, target_path = driver._get_store_and_path()
+            store, target_path, _ = driver._get_store_and_path()
             filesystem = store.filesystem
             if filesystem is not None:
                 assert not filesystem.exists(target_path)

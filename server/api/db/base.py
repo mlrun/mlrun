@@ -786,7 +786,8 @@ class DBInterface(ABC):
         user: str = None,
         function: str = None,
         last_accessed_before: datetime = None,
-        order_by_desc: bool = True,
+        order_by: Optional[mlrun.common.schemas.OrderType] = None,
+        as_query: bool = False,
     ):
         raise NotImplementedError
 

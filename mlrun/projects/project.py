@@ -2012,7 +2012,7 @@ class MlrunProject(ModelObj):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-    ) -> None:
+    ) -> dict[str, typing.Any]:
         """
         Deploy model monitoring application controller, writer and stream functions.
         While the main goal of the controller function is to handle the monitoring processing and triggering
@@ -2030,7 +2030,7 @@ class MlrunProject(ModelObj):
                                                 functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
 
-        :returns: model monitoring controller job as a dictionary.
+        :returns:                               Model monitoring functions information as a dictionary.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2041,22 +2041,14 @@ class MlrunProject(ModelObj):
             )
             image = default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.enable_model_monitoring(
+        result = db.enable_model_monitoring(
             project=self.name,
             image=image,
             base_period=base_period,
         )
         if deploy_histogram_data_drift_app:
-            fn = self.set_model_monitoring_function(
-                func=str(
-                    pathlib.Path(__file__).parent.parent
-                    / "model_monitoring/applications/histogram_data_drift.py"
-                ),
-                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
-                application_class="HistogramDataDriftApplication",
-                image=image,
-            )
-            fn.deploy()
+            result |= db.deploy_histogram_data_drift_app(project=self.name, image=image)
+        return result
 
     def update_model_monitoring_controller(
         self,

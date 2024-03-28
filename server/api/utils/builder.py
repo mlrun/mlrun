@@ -458,6 +458,7 @@ def build_image(
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
+            source_dir_to_mount = path.normpath(source_dir_to_mount)
 
         # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
         # in the image, however, it is recommended to use `workdir` instead in such cases

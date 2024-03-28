@@ -31,11 +31,12 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         user: str,
         method: typing.Callable,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         db = server.api.utils.singletons.db.get_db()
         return db.store_paginated_query_cache_record(
-            session, user, method.__name__, current_page, kwargs
+            session, user, method.__name__, current_page, page_size, kwargs
         )
 
     @staticmethod

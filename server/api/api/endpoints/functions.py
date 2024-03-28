@@ -718,16 +718,24 @@ def _build_function(
         run_db = server.api.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
-        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
+        # TODO:  force_build is only used for mlrun build flow, for nuclio runtimes users can specify force_build=True,
+        #  but it is redundant and ignored. Once force_build is removed from RemoteRuntime.deploy() in 1.9.0,
+        #  we can simplify the logic here to:
+        #  is_nuclio_deploy = fn.kind in RuntimeKinds.nuclio_runtimes() and not force_build
+        is_nuclio_deploy = False
+        if (
+            fn.kind == RuntimeKinds.application and not force_build
+        ) or fn.kind in RuntimeKinds.nuclio_runtimes():
+            is_nuclio_deploy = True
 
         # Enrich runtime with project defaults
         launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
         # When runtime is nuclio, building means we deploy the function and not just build its image
         # so we need full enrichment
-        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
 
         fn.save(versioned=False)
-        if is_nuclio_runtime:
+        if is_nuclio_deploy:
             fn: mlrun.runtimes.RemoteRuntime
             fn.pre_deploy_validation()
             fn = _deploy_nuclio_runtime(

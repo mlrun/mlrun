@@ -230,14 +230,28 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
     ):
-        if self.requires_build():
+        """
+        Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
+        Once the image is built, the function is deployed.
+        :param project:                 Project name
+        :param tag:                     Function tag
+        :param verbose:                 Set True for verbose logging
+        :param auth_info:               Service AuthInfo (deprecated)
+        :param builder_env:             Env vars dict for source archive config/credentials
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param force_build:             Set True for force building the application image
+        :param watch:                   Wait for the deployment to complete (and print build logs)
+        :param with_mlrun:              Add the current mlrun package to the container build
+        :param skip_deployed:           Skip the build if we already have an image for the function
+        :param is_kfp:                  Deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: Which mlrun package version to include (if not current)
+        :param show_on_failure:         Show logs only in case of build failure
+        :return: True if the function is ready (deployed)
+        """
+        if self.requires_build() or force_build:
             self._build_application_image(
-                project=project,
-                tag=tag,
-                verbose=verbose,
-                auth_info=auth_info,
                 builder_env=builder_env,
-                force_build=force_build,
+                force_build=True,
                 watch=watch,
                 with_mlrun=with_mlrun,
                 skip_deployed=skip_deployed,
@@ -254,7 +268,6 @@ class ApplicationRuntime(RemoteRuntime):
             verbose,
             auth_info,
             builder_env,
-            force_build,
         )
 
     def with_source_archive(
@@ -280,10 +293,6 @@ class ApplicationRuntime(RemoteRuntime):
 
     def _build_application_image(
         self,
-        project="",
-        tag="",
-        verbose=False,
-        auth_info: AuthInfo = None,
         builder_env: dict = None,
         force_build: bool = False,
         watch=True,
@@ -293,7 +302,17 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
     ):
+        # TODO: decide if is_kfp is needed
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
+        return self._build_image(
+            builder_env=builder_env,
+            force_build=force_build,
+            mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
+            skip_deployed=skip_deployed,
+            watch=watch,
+            with_mlrun=with_mlrun,
+        )
 
     def _ensure_reverse_proxy_configurations(self):
         if self.spec.build.functionSourceCode or self.status.container_image:

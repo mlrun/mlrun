@@ -1368,7 +1368,6 @@ class KubeResource(BaseRuntime):
         builder_env,
         force_build,
         mlrun_version_specifier,
-        ready,
         show_on_failure,
         skip_deployed,
         watch,
@@ -1401,6 +1400,9 @@ class KubeResource(BaseRuntime):
             state = self._build_watch(watch, show_on_failure=show_on_failure)
             ready = state == "ready"
             self.status.state = state
+
+        if watch and not ready:
+            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
     def _build_watch(self, watch=True, logs=True, show_on_failure=False):

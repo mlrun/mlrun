@@ -151,17 +151,17 @@ class KubejobRuntime(KubeResource):
         show_on_failure: bool = False,
         force_build: bool = False,
     ) -> bool:
-        """deploy function, build container with dependencies
+        """Deploy function, build container with dependencies
 
-        :param watch:                   wait for the deploy to complete (and print build logs)
-        :param with_mlrun:              add the current mlrun package to the container build
-        :param skip_deployed:           skip the build if we already have an image for the function
-        :param is_kfp:                  deploy as part of a kfp pipeline
-        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param watch:                   Wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              Add the current mlrun package to the container build
+        :param skip_deployed:           Skip the build if we already have an image for the function
+        :param is_kfp:                  Deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:         show logs only in case of build failure
-        :param force_build:             set True for force building the image, even when no changes were made
+        :param show_on_failure:         Show logs only in case of build failure
+        :param force_build:             Set True for force building the image, even when no changes were made
 
         :return: True if the function is ready (deployed)
         """
@@ -179,22 +179,15 @@ class KubejobRuntime(KubeResource):
         if is_kfp:
             watch = True
 
-        ready = False
-        if self._is_remote_api():
-            ready = self._build_image(
-                builder_env,
-                force_build,
-                mlrun_version_specifier,
-                ready,
-                show_on_failure,
-                skip_deployed,
-                watch,
-                with_mlrun,
-            )
-
-        if watch and not ready:
-            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
-        return ready
+        return self._build_image(
+            builder_env=builder_env,
+            force_build=force_build,
+            mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
+            skip_deployed=skip_deployed,
+            watch=watch,
+            with_mlrun=with_mlrun,
+        )
 
     def deploy_step(
         self,

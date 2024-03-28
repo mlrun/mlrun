@@ -20,10 +20,8 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.model_monitoring.batch
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
-import mlrun.model_monitoring.tracking_policy
 import mlrun.model_monitoring.writer
 import server.api.api.endpoints.functions
 import server.api.api.utils
@@ -34,11 +32,9 @@ import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
-from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
-_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = mlrun.model_monitoring.batch.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
     mlrun.model_monitoring.controller_handler.__file__
 )
@@ -58,9 +54,8 @@ class MonitoringDeployment:
         """
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
          1. model monitoring stream
-         2. model monitoring batch
-         3. model monitoring controller
-         4. model monitoring writer
+         2. model monitoring controller
+         3. model monitoring writer
 
         :param project:                     The name of the project.
         :param auth_info:                   The auth info of the request.
@@ -166,10 +161,7 @@ class MonitoringDeployment:
             overwrite=overwrite,
         )
 
-        fn = self._get_model_monitoring_batch_function(
-            image=controller_image,
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
+        fn = self._get_model_monitoring_controller_function(image=controller_image)
         minutes = base_period
         hours = days = 0
         batch_dict = {
@@ -196,116 +188,6 @@ class MonitoringDeployment:
             "controller_data": fn.to_dict(),
             "controller_ready": ready,
         }
-
-    def deploy_model_monitoring_batch_processing(
-        self,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-        with_schedule: bool = True,
-        overwrite: bool = False,
-        tracking_offset: Seconds = Seconds(0),
-        function_name: str = mm_constants.MonitoringFunctionNames.BATCH,
-    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
-        """
-        Deploying model monitoring batch job.
-        The goal of this job is to identify drift in the data based on the latest batch of events. By default,
-        this job is executed on the hour every hour.
-        Note that if this job was already deployed then you will either have to pass overwrite=True or
-        to delete the old job before deploying a new one.
-
-        :param tracking_policy:             Model monitoring configurations.
-        :param with_schedule:               If true, submit a scheduled batch drift job.
-        :param overwrite:                   If true, overwrite the existing model monitoring batch job.
-        :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
-        :param function_name:               model-monitoring-batch or model-monitoring-controller
-                                            indicates witch one to deploy.
-
-        :return: Model monitoring batch job as a runtime function.
-        """
-        job_valid_names = [
-            mm_constants.MonitoringFunctionNames.BATCH,
-            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        ]
-        if function_name not in job_valid_names:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Model Monitoring batch job can be only within {job_valid_names}"
-            )
-        fn = None
-        if not overwrite:
-            logger.info(
-                f"Checking if {function_name.replace('-',' ')} processing function is already deployed",
-                project=self.project,
-            )
-
-            # Try to list functions that named model monitoring batch
-            # to make sure that this job has not yet been deployed
-            try:
-                fn = server.api.crud.Functions().get_function(
-                    db_session=self.db_session,
-                    name=function_name,
-                    project=self.project,
-                )
-                logger.info(
-                    f"Detected {function_name.replace('-',' ')} processing function already deployed",
-                    project=self.project,
-                )
-
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info(
-                    f"Deploying {function_name.replace('-',' ')} processing function ",
-                    project=self.project,
-                )
-
-        if not fn:
-            # Create a monitoring batch job function object
-            fn = self._get_model_monitoring_batch_function(
-                image=tracking_policy.default_batch_image
-                if function_name == mm_constants.MonitoringFunctionNames.BATCH
-                else tracking_policy.default_controller_image,
-                function_name=function_name,
-            )
-
-            # Save & Get the function uri
-            function_uri = fn.save(versioned=True)
-
-            if with_schedule:
-                if not overwrite:
-                    try:
-                        server.api.utils.scheduler.Scheduler().get_schedule(
-                            db_session=self.db_session,
-                            project=self.project,
-                            name=function_name,
-                        )
-                        logger.info(
-                            f"Already deployed {function_name.replace('-',' ')} scheduled job function ",
-                            project=self.project,
-                        )
-                        return
-                    except mlrun.errors.MLRunNotFoundError:
-                        logger.info(
-                            f"Deploying {function_name.replace('-',' ')} scheduled job function ",
-                            project=self.project,
-                        )
-
-                # Submit batch scheduled job
-                try:
-                    self._submit_schedule_batch_job(
-                        function_uri=function_uri,
-                        tracking_policy=tracking_policy,
-                        tracking_offset=tracking_offset,
-                        function_name=function_name,
-                    )
-                except Exception as exc:
-                    # Delete controller unschedule job
-                    server.api.utils.singletons.db.get_db().delete_function(
-                        session=self.db_session,
-                        project=self.project,
-                        name=fn.metadata.name,
-                    )
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Can't deploy {function_name.replace('-', ' ')} "
-                        f"scheduled job function due to : {mlrun.errors.err_to_str(exc)}",
-                    )
-        return fn
 
     def deploy_model_monitoring_writer_application(
         self, writer_image: str = "mlrun/mlrun"
@@ -395,30 +277,19 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_batch_function(
-        self, image: str, function_name: str = "model-monitoring-batch"
-    ):
+    def _get_model_monitoring_controller_function(self, image: str):
         """
-        Initialize model monitoring batch function.
+        Initialize model monitoring controller function.
 
-        :param image:                       Base docker image to use for building the function container
-        :param function_name:               model-monitoring-batch or model-monitoring-controller
-                                            indicates witch one to create.
-        :return:                            A function object from a mlrun runtime class
+        :param image:         Base docker image to use for building the function container
+        :return:              A function object from a mlrun runtime class
         """
-        filename = (
-            _MONITORING_ORIGINAL_BATCH_FUNCTION_PATH
-            if function_name == mm_constants.MonitoringFunctionNames.BATCH
-            else _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH
-        )
-        # Create job function runtime for the model monitoring batch
+        # Create job function runtime for the controller
         function = mlrun.code_to_function(
-            name=function_name,
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             project=self.project,
-            filename=filename,
-            kind=mlrun.run.RuntimeKinds.job
-            if function_name == mm_constants.MonitoringFunctionNames.BATCH
-            else mlrun.run.RuntimeKinds.nuclio,
+            filename=_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH,
+            kind=mlrun.run.RuntimeKinds.nuclio,
             image=image,
             handler="handler",
         )
@@ -431,7 +302,8 @@ class MonitoringDeployment:
 
         if not mlrun.mlconf.is_ce_mode():
             function = self._apply_access_key_and_mount_function(
-                function=function, function_name=function_name
+                function=function,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             )
 
         # Enrich runtime with the required configurations
@@ -440,103 +312,6 @@ class MonitoringDeployment:
         )
 
         return function
-
-    def _submit_schedule_batch_job(
-        self,
-        function_uri: str,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-        tracking_offset: Seconds = Seconds(0),
-        function_name: str = "model-monitoring-batch",
-    ):
-        """
-        Create a new scheduled monitoring batch job analysis based on the model-monitoring-batch function that has
-        been already registered.
-
-        :param function_uri:    Function URI of the registered model monitoring batch job. This URI includes the
-                                related project name, function name, and hash key.
-        :param tracking_policy: Model monitoring configurations.
-        :param tracking_offset: Offset for the tracking policy (for synchronization with the stream).
-
-        """
-
-        function_uri = function_uri.replace("db://", "")
-
-        task = mlrun.new_task(name=function_name, project=self.project)
-        task.spec.function = function_uri
-
-        schedule, batch_dict = self._generate_schedule_and_interval_dict(
-            function_name=function_name,
-            tracking_policy=tracking_policy,
-            tracking_offset=tracking_offset,
-        )
-
-        task.spec.parameters[mm_constants.EventFieldType.BATCH_INTERVALS_DICT] = (
-            batch_dict
-        )
-
-        data = {
-            "task": task.to_dict(),
-            "schedule": schedule,
-        }
-
-        logger.info(
-            f"Deploying {function_name.replace('-',' ')} processing function",
-            project=self.project,
-        )
-
-        # Add job schedule policy (every hour by default)
-        server.api.api.utils.submit_run_sync(
-            db_session=self.db_session, auth_info=self.auth_info, data=data
-        )
-
-    @classmethod
-    def _generate_schedule_and_interval_dict(
-        cls,
-        function_name: str,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-        tracking_offset: Seconds,
-    ) -> tuple[str, dict[str, int]]:
-        """Generate schedule cron string along with the batch interval dictionary according to the providing
-        function name. As for the model monitoring controller function, the dictionary batch interval is
-        corresponding to the scheduling policy.
-
-        :param tracking_policy: Model monitoring configurations.
-        :param tracking_offset: Offset for the tracking policy (for synchronization with the stream).
-
-        :return: A tuple of:
-         [0] = Schedule cron string
-         [1] = Dictionary of the batch interval.
-        """
-
-        if function_name == mm_constants.MonitoringFunctionNames.BATCH:
-            # Apply batching interval params
-            interval_list = [
-                tracking_policy.default_batch_intervals.minute,
-                tracking_policy.default_batch_intervals.hour,
-                tracking_policy.default_batch_intervals.day,
-            ]
-            (
-                minutes,
-                hours,
-                days,
-            ) = server.api.crud.model_monitoring.helpers.get_batching_interval_param(
-                interval_list
-            )
-            schedule = server.api.crud.model_monitoring.helpers.convert_to_cron_string(
-                tracking_policy.default_batch_intervals,
-                minute_delay=seconds2minutes(tracking_offset),
-            )
-        else:
-            # Apply monitoring controller params
-            minutes = tracking_policy.base_period
-            hours = days = 0
-            schedule = f"*/{tracking_policy.base_period} * * * *"
-        batch_dict = {
-            mm_constants.EventFieldType.MINUTES: minutes,
-            mm_constants.EventFieldType.HOURS: hours,
-            mm_constants.EventFieldType.DAYS: days,
-        }
-        return schedule, batch_dict
 
     def _apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None

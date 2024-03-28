@@ -362,6 +362,8 @@ default_config = {
             # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
+            # size of serving spec to move to config maps
+            "serving_spec_env_cutoff": 4096,
         },
         "logs": {
             "decode": {
@@ -479,6 +481,11 @@ default_config = {
             # if set to true, will log a warning for trying to use run db functionality while in nop db mode
             "verbose": True,
         },
+        "pagination_cache": {
+            "interval": 60,
+            "ttl": 3600,
+            "max_size": 10000,
+        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
@@ -498,7 +505,6 @@ default_config = {
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
-        "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options

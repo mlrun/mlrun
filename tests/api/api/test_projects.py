@@ -1383,9 +1383,15 @@ def _assert_db_resources_in_project(
         # Label doesn't have project attribute
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
-            if cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags":
+            if (
                 # Artifact table is deprecated, we are using ArtifactV2 instead
+                cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
+            ) or (
+                # PaginationCache is not a project-level table
+                cls.__name__ == "PaginationCache"
+            ):
                 continue
+
             number_of_cls_records = (
                 db_session.query(cls).filter_by(project=project).count()
             )

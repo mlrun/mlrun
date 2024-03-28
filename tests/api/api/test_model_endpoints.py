@@ -27,30 +27,27 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
-from mlrun.model_monitoring.stores import (  # noqa: F401
-    ModelEndpointStore,
-    ModelEndpointStoreType,
+from mlrun.model_monitoring.db.stores import (  # noqa: F401
+    ObjectStoreFactory,
+    StoreBase,
 )
 
 TEST_PROJECT = "test_model_endpoints"
-ENDPOINT_STORE_CONNECTION = "sqlite:///test.db"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
 
-# Bound a typing variable for ModelEndpointStore
-KVmodelType = typing.TypeVar("KVmodelType", bound="ModelEndpointStore")
+# Bound a typing variable for StoreBase
+KVmodelType = typing.TypeVar("KVmodelType", bound="StoreBase")
 
 
 def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.ModelEndpointStoreType(
-        value="v3io-nosql"
-    )
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
 
-    endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
+    endpoint_store: KVmodelType = store_type_object.to_object_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
@@ -277,15 +274,13 @@ def test_get_endpoint_features_function():
 
 
 def test_generating_tsdb_paths():
-    """Validate that the TSDB paths for the KVModelEndpointStore object are created as expected. These paths are
+    """Validate that the TSDB paths for the KVStoreBase object are created as expected. These paths are
     usually important when the user call the delete project API and as a result the TSDB resources should be deleted
     """
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
-        value="v3io-nosql"
-    )
-    endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
+    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
+    endpoint_store: KVmodelType = store_type_object.to_object_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
@@ -326,107 +321,6 @@ def _mock_random_endpoint(
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(state=state),
     )
-
-
-def test_sql_target_list_model_endpoints():
-    """Testing list model endpoint using SQLModelEndpointStore object. In the following test
-    we create two model endpoints and list these endpoints. In addition, this test validates the
-    filter optional operation within the list model endpoints API. At the end of this test, we validate
-    that the model endpoints are deleted from the DB.
-    """
-
-    # Generate model endpoint target
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
-        value="sql"
-    )
-    endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, endpoint_store_connection=ENDPOINT_STORE_CONNECTION
-    )
-
-    # First, validate that there are no model endpoints records at the moment
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
-
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert len(list_of_endpoints) == 0
-
-    # Generate and write the 1st model endpoint into the DB table
-    mock_endpoint_1 = _mock_random_endpoint()
-    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_1.flat_dict())
-
-    # Validate that there is a single model endpoint
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert len(list_of_endpoints) == 1
-
-    # Generate and write the 2nd model endpoint into the DB table
-    mock_endpoint_2 = _mock_random_endpoint()
-    mock_endpoint_2.spec.model = "test_model"
-    mock_endpoint_2.metadata.uid = "12345"
-    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_2.flat_dict())
-
-    # Validate that there are exactly two model endpoints within the DB
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert len(list_of_endpoints) == 2
-
-    # List only the model endpoint that has the model test_model
-    filtered_list_of_endpoints = endpoint_store.list_model_endpoints(model="test_model")
-    assert len(filtered_list_of_endpoints) == 1
-
-    # Clean model endpoints from DB
-    endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert (len(list_of_endpoints)) == 0
-
-
-def test_sql_target_patch_endpoint():
-    """Testing the update of a model endpoint using SQLModelEndpointStore object. In the following
-    test we update attributes within the model endpoint spec and status and then validate that there
-    attributes were actually updated.
-    """
-
-    # Generate model endpoint target
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
-        value="sql"
-    )
-    endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, endpoint_store_connection=ENDPOINT_STORE_CONNECTION
-    )
-
-    # First, validate that there are no model endpoints records at the moment
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    if len(list_of_endpoints) > 0:
-        # Delete old model endpoints records
-        endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
-        list_of_endpoints = endpoint_store.list_model_endpoints()
-        assert len(list_of_endpoints) == 0
-
-    # Generate and write the model endpoint into the DB table
-    mock_endpoint = _mock_random_endpoint()
-    mock_endpoint.metadata.uid = "1234"
-    endpoint_store.write_model_endpoint(mock_endpoint.flat_dict())
-
-    # Generate dictionary of attributes and update the model endpoint
-    updated_attributes = {"model": "test_model", "error_count": 2}
-    endpoint_store.update_model_endpoint(
-        endpoint_id=mock_endpoint.metadata.uid, attributes=updated_attributes
-    )
-
-    # Validate that these attributes were actually updated
-    endpoint = endpoint_store.get_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
-
-    # Convert to model endpoint object
-    endpoint = server.api.crud.model_monitoring.model_endpoints.ModelEndpoints._convert_into_model_endpoint_object(
-        endpoint=endpoint
-    )
-    assert endpoint.spec.model == "test_model"
-    assert endpoint.status.error_count == 2
-
-    # Clear model endpoint from DB
-    endpoint_store.delete_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
-
-    # Drop model endpoints test table from DB
-    list_of_endpoints = endpoint_store.list_model_endpoints()
-    endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
 
 
 def test_validate_model_endpoints_schema():

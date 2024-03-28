@@ -34,19 +34,31 @@ def test_get_project(
     project_labels = {
         "some-label": "some-label-value",
     }
+    project_default_node_selector = {"gpu": "true"}
     db.create_project(
         db_session,
         mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name, labels=project_labels
             ),
-            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
+            spec=mlrun.common.schemas.ProjectSpec(
+                description=project_description,
+                default_function_node_selector=project_default_node_selector,
+            ),
         ),
     )
 
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name
     assert project_output.spec.description == project_description
+    assert (
+        deepdiff.DeepDiff(
+            project_default_node_selector,
+            project_output.spec.default_function_node_selector,
+            ignore_order=True,
+        )
+        == {}
+    )
     assert (
         deepdiff.DeepDiff(
             project_labels,

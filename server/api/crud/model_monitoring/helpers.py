@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
-import math
 import typing
 
 import sqlalchemy.orm
@@ -24,16 +23,6 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.schedule
 import mlrun.errors
 import server.api.crud.secrets
-
-Seconds = typing.NewType("Seconds", int)
-Minutes = typing.NewType("Minutes", int)
-
-_SECONDS_IN_MINUTE: Seconds = Seconds(60)
-_MINUTES_IN_HOUR: Minutes = Minutes(60)
-
-
-def seconds2minutes(seconds: Seconds) -> Minutes:
-    return Minutes(math.ceil(seconds / _SECONDS_IN_MINUTE))
 
 
 def get_batching_interval_param(intervals_list: list):
@@ -56,33 +45,6 @@ def get_batching_interval_param(intervals_list: list):
             else float(f"0{interval.partition('/')[-1]}")
             for interval in intervals_list
         ]
-    )
-
-
-def add_minutes_offset(
-    minute: typing.Optional[typing.Union[int, str]],
-    offset: Minutes,
-) -> typing.Optional[typing.Union[int, str]]:
-    """
-    :param minute: the minute specification in the cron schedule, e.g. "0".
-    :param offset: the offset in minutes to add to the cron minute specification.
-    :return: the minute cron with the offset applied (if supported).
-    """
-    if minute and (
-        (isinstance(minute, str) and str.isdigit(minute)) or isinstance(minute, int)
-    ):
-        minute = (int(minute) + offset) % _MINUTES_IN_HOUR
-    return minute
-
-
-def convert_to_cron_string(
-    cron_trigger: mlrun.common.schemas.schedule.ScheduleCronTrigger,
-    minute_delay: Minutes = Minutes(0),
-) -> str:
-    """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
-    return (
-        f"{add_minutes_offset(cron_trigger.minute, minute_delay)} {cron_trigger.hour} {cron_trigger.day} "
-        "* *".replace("None", "*")
     )
 
 
@@ -156,9 +118,7 @@ def get_stream_path(
         project=project,
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
-        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if function_name is mm_constants.MonitoringFunctionNames.STREAM
-        else "",
+        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,

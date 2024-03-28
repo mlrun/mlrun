@@ -27,6 +27,7 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
@@ -900,6 +901,94 @@ def test_import_artifact_using_relative_path():
     assert artifact.spec.db_key == "y"
 
 
+def test_import_artifact_retain_producer(rundb_mock):
+    base_path = tests.conftest.results
+    project_1 = mlrun.new_project(
+        name="project-1", context=f"{base_path}/project_1", save=False
+    )
+    project_2 = mlrun.new_project(
+        name="project-2", context=f"{base_path}/project_2", save=False
+    )
+
+    # create an artifact with a 'run' producer
+    artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
+    run_name = "my-run"
+    run_tag = "some-tag"
+
+    # we set the producer as dict so the export will work
+    artifact.producer = mlrun.artifacts.ArtifactProducer(
+        kind="run",
+        project=project_1.name,
+        name=run_name,
+        tag=run_tag,
+    ).get_meta()
+
+    # export the artifact
+    artifact_path = f"{base_path}/my-artifact.yaml"
+    artifact.export(artifact_path)
+
+    # import the artifact to another project
+    new_key = "y"
+    imported_artifact = project_2.import_artifact(artifact_path, new_key)
+    assert imported_artifact.producer == artifact.producer
+
+    # set the artifact on the first project
+    project_1.set_artifact(artifact.key, artifact)
+    project_1.save()
+
+    # load a new project from the first project's context
+    project_3 = mlrun.load_project(name="project-3", context=project_1.context)
+
+    # make sure the artifact was registered with the original producer
+    # the db key should include the run since it's a run artifact
+    db_key = f"{run_name}_{new_key}"
+    loaded_artifact = project_3.get_artifact(db_key)
+    assert loaded_artifact.producer == artifact.producer
+
+
+def test_replace_exported_artifact_producer(rundb_mock):
+    base_path = tests.conftest.results
+    project_1 = mlrun.new_project(
+        name="project-1", context=f"{base_path}/project_1", save=False
+    )
+    project_2 = mlrun.new_project(
+        name="project-2", context=f"{base_path}/project_2", save=False
+    )
+
+    # create an artifact with a 'project' producer
+    key = "x"
+    artifact = mlrun.artifacts.Artifact(key=key, body="123", is_inline=True)
+
+    # we set the producer as dict so the export will work
+    artifact.producer = mlrun.artifacts.ArtifactProducer(
+        kind="project",
+        project=project_1.name,
+        name=project_1.name,
+    ).get_meta()
+
+    # export the artifact
+    artifact_path = f"{base_path}/my-artifact.yaml"
+    artifact.export(artifact_path)
+
+    # import the artifact to another project
+    new_key = "y"
+    imported_artifact = project_2.import_artifact(artifact_path, new_key)
+    assert imported_artifact.producer != artifact.producer
+    assert imported_artifact.producer["name"] == project_2.name
+
+    # set the artifact on the first project
+    project_1.set_artifact(artifact.key, artifact)
+    project_1.save()
+
+    # load a new project from the first project's context
+    project_3 = mlrun.load_project(name="project-3", context=project_1.context)
+
+    # make sure the artifact was registered with the new project producer
+    loaded_artifact = project_3.get_artifact(key)
+    assert loaded_artifact.producer != artifact.producer
+    assert loaded_artifact.producer["name"] == project_3.name
+
+
 @pytest.mark.parametrize(
     "relative_artifact_path,project_context,expected_path,expected_in_context",
     [
@@ -1576,6 +1665,7 @@ def test_load_project_from_yaml_with_function(context):
         ),
     ],
 )
+@pytest.mark.parametrize("with_basic_auth", [True, False])
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
 def test_create_api_gateway_valid(
     patched_create_api_gateway,
@@ -1584,6 +1674,7 @@ def test_create_api_gateway_valid(
     kind_2,
     canary,
     upstreams,
+    with_basic_auth,
 ):
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
@@ -1595,6 +1686,9 @@ def test_create_api_gateway_valid(
             path="/",
             host="http://gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
+            authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
+            if not with_basic_auth
+            else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
         ),
     )
     project_name = "project-name"
@@ -1624,12 +1718,16 @@ def test_create_api_gateway_valid(
         canary=canary,
         project=project_name,
     )
+    if with_basic_auth:
+        api_gateway.with_basic_auth("test_username", "test_password")
 
     gateway = project.store_api_gateway(api_gateway)
 
     assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
-
-    assert gateway.authentication_mode == "none"
+    if with_basic_auth:
+        assert gateway.authentication.authentication_mode == "basicAuth"
+    else:
+        assert gateway.authentication.authentication_mode == "none"
 
 
 @pytest.mark.parametrize(
@@ -1719,7 +1817,6 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].functions == ["my-func1"]
 
     assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
-    assert gateways[1]._generate_basic_auth("test", "test") == "Basic dGVzdDp0ZXN0"
 
 
 def test_project_create_remote():

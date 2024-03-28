@@ -313,7 +313,40 @@ class LogCollectorClient(
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
 
-    def _retryable_error(self, error_message, retryable_error_patterns) -> bool:
+    async def list_runs_in_progress(
+        self,
+        project: str = None,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> typing.AsyncIterable[str]:
+        """
+        List runs in progress from the log collector service
+        :param project: A project name to filter the runs by. If not provided, all runs in progress will be listed
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: A list of run uids
+        """
+        request = self._log_collector_pb2.ListRunsRequest(
+            project=project,
+        )
+
+        response_stream = self._call_stream("ListRunsInProgress", request)
+        try:
+            async for chunk in response_stream:
+                yield chunk.runUIDs
+        except Exception as exc:
+            msg = "Failed to list runs in progress"
+            if raise_on_error:
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    LogCollectorErrorCode.ErrCodeInternal.value,
+                    mlrun.errors.err_to_str(exc),
+                    msg,
+                )
+            if verbose:
+                logger.warning(msg, error=mlrun.errors.err_to_str(exc))
+
+    @staticmethod
+    def _retryable_error(error_message, retryable_error_patterns) -> bool:
         """
         Check if the error is retryable
         :param error_message: The error message

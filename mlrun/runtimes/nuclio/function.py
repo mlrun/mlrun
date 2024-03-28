@@ -291,6 +291,9 @@ class RemoteRuntime(KubeResource):
     def status(self, status):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
+    def pre_deploy_validation(self):
+        pass
+
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
@@ -603,7 +606,6 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def _wait_for_function_deployment(self, db, verbose=False):
-        text = ""
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
@@ -772,6 +774,9 @@ class RemoteRuntime(KubeResource):
                 mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key
         return runtime_env
+
+    def _get_serving_spec(self):
+        return None
 
     def _get_nuclio_config_spec_env(self):
         env_dict = {}
@@ -957,6 +962,53 @@ class RemoteRuntime(KubeResource):
         if resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
+
+    def with_sidecar(
+        self,
+        name: str = None,
+        image: str = None,
+        ports: typing.Optional[typing.Union[int, list[int]]] = None,
+        command: typing.Optional[str] = None,
+        args: typing.Optional[list[str]] = None,
+    ):
+        """
+        Add a sidecar container to the function pod
+        :param name:    Sidecar container name.
+        :param image:   Sidecar container image.
+        :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
+        :param command: Sidecar container command instead of the image entrypoint.
+        :param args:    Sidecar container command args (requires command to be set).
+        """
+        name = name or f"{self.metadata.name}-sidecar"
+        sidecar = self._set_sidecar(name)
+        if image:
+            sidecar["image"] = image
+
+        ports = mlrun.utils.helpers.as_list(ports)
+        sidecar["ports"] = [
+            {
+                "name": "http",
+                "containerPort": port,
+                "protocol": "TCP",
+            }
+            for port in ports
+        ]
+
+        if command:
+            sidecar["command"] = command
+
+        if args:
+            sidecar["args"] = args
+
+    def _set_sidecar(self, name: str) -> dict:
+        self.spec.config.setdefault("spec.sidecars", [])
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if sidecar["name"] == name:
+                return sidecar
+
+        sidecars.append({"name": name})
+        return sidecars[-1]
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

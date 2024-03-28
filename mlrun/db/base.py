@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import mlrun.common.schemas
-import mlrun.model_monitoring.model_endpoint
+import mlrun.model_monitoring
 
 
 class RunDBError(Exception):
@@ -509,9 +509,7 @@ class RunDBInterface(ABC):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: Union[
-            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
-        ],
+        model_endpoint: Union[mlrun.model_monitoring.ModelEndpoint, dict],
     ):
         pass
 
@@ -630,6 +628,10 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        pass
+
+    @abstractmethod
+    def delete_api_gateway(self, name, project=None):
         pass
 
     def get_builder_status(

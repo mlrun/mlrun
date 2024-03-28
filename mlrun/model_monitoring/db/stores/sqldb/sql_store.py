@@ -476,7 +476,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             **application_filter_dict,
         )
 
-    def delete_last_analyzed(self, endpoint_id: str = "", application_name: str = ""):
+    def _delete_last_analyzed(self, endpoint_id: str = "", application_name: str = ""):
         self._init_monitoring_schedules_table()
 
         application_filter_dict = self.filter_endpoint_and_application_name(
@@ -486,7 +486,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(table=self.MonitoringSchedulesTable, **application_filter_dict)
 
-    def delete_application_result(
+    def _delete_application_result(
         self, endpoint_id: str = "", application_name: str = ""
     ):
         self._init_application_results_table()
@@ -618,10 +618,10 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             ]
 
             # Delete last analyzed records
-            self.delete_last_analyzed(endpoint_id=endpoint_id)
+            self._delete_last_analyzed(endpoint_id=endpoint_id)
 
             # Delete application results records
-            self.delete_application_result(endpoint_id=endpoint_id)
+            self._delete_application_result(endpoint_id=endpoint_id)
 
             # Delete model endpoint record
             self.delete_model_endpoint(endpoint_id=endpoint_id)

@@ -768,6 +768,7 @@ class DBInterface(ABC):
         user: str,
         function: str,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         raise NotImplementedError

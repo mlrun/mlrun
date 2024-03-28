@@ -32,12 +32,13 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
 
     method = server.api.crud.Projects().list_projects
     page = 1
+    page_size = 10
     kwargs = {}
 
     logger.debug("Creating paginated cache records")
     for i in range(3):
         server.api.crud.PaginationCache().store_pagination_cache_record(
-            db, f"user{i}", method, page, kwargs
+            db, f"user{i}", method, page, page_size, kwargs
         )
 
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
@@ -49,7 +50,7 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
 
     logger.debug("Creating new paginated cache record that won't be expired")
     new_key = server.api.crud.PaginationCache().store_pagination_cache_record(
-        db, "user3", method, page, kwargs
+        db, "user3", method, page, page_size, kwargs
     )
 
     logger.debug("Monitoring pagination cache")
@@ -73,11 +74,12 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
 
     method = server.api.crud.Projects().list_projects
     page = 1
+    page_size = 10
     kwargs = {}
 
     logger.debug("Creating old paginated cache record")
     old_key = server.api.crud.PaginationCache().store_pagination_cache_record(
-        db, "user0", method, page, kwargs
+        db, "user0", method, page, page_size, kwargs
     )
 
     logger.debug("Sleeping for 1 second to create time difference between records")
@@ -88,7 +90,7 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
     )
     for i in range(1, max_size):
         server.api.crud.PaginationCache().store_pagination_cache_record(
-            db, f"user{i}", method, page, kwargs
+            db, f"user{i}", method, page, page_size, kwargs
         )
 
     assert (
@@ -98,7 +100,7 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
 
     logger.debug("Creating new paginated cache record to replace the old one")
     new_key = server.api.crud.PaginationCache().store_pagination_cache_record(
-        db, "user3", method, page, kwargs
+        db, "user3", method, page, page_size, kwargs
     )
 
     logger.debug("Monitoring pagination cache")
@@ -127,12 +129,13 @@ def test_pagination_cleanup(db: sqlalchemy.orm.Session):
     """
     method = server.api.crud.Projects().list_projects
     page = 1
+    page_size = 10
     kwargs = {}
 
     logger.debug("Creating paginated cache records")
     for i in range(3):
         server.api.crud.PaginationCache().store_pagination_cache_record(
-            db, f"user{i}", method, page, kwargs
+            db, f"user{i}", method, page, page_size, kwargs
         )
 
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3

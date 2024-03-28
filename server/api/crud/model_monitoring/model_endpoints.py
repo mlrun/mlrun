@@ -102,17 +102,19 @@ class ModelEndpoints:
             if not model_endpoint.spec.algorithm and model_obj.spec.algorithm:
                 model_endpoint.spec.algorithm = model_obj.spec.algorithm
 
+            features = cls._get_features(
+                model=model_obj,
+                run_db=run_db,
+                project=model_endpoint.metadata.project,
+            )
+            model_endpoint.spec.feature_names = [feature.name for feature in features]
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
                 == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 monitoring_feature_set = cls.create_monitoring_feature_set(
-                    features=cls._get_features(
-                        model=model_obj,
-                        run_db=run_db,
-                        project=model_endpoint.metadata.project,
-                    ),
+                    features=features,
                     model_endpoint=model_endpoint,
                     db_session=db_session,
                 )
@@ -126,25 +128,19 @@ class ModelEndpoints:
         # sure to keep a clean version of the names
         if model_endpoint.status.feature_stats:
             logger.info("Feature stats found, cleaning feature names")
-            if model_endpoint.spec.feature_names:
-                # Validate that the length of feature_stats is equal to the length of feature_names and label_names
-                cls._validate_length_features_and_labels(model_endpoint=model_endpoint)
 
-                # Clean feature names in both feature_stats and feature_names
-            (
-                model_endpoint.status.feature_stats,
-                model_endpoint.spec.feature_names,
-            ) = cls._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
+            model_endpoint.status.feature_stats = cls._adjust_stats(
+                model_endpoint=model_endpoint
+            )
 
             logger.info(
-                "Done preparing feature names and stats",
+                "Done preparing stats",
                 feature_names=model_endpoint.spec.feature_names,
             )
 
         # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
         # system
         logger.info("Creating model endpoint", endpoint_id=model_endpoint.metadata.uid)
-
         # Write the new model endpoint
         model_endpoint_store = get_model_endpoint_store(
             project=model_endpoint.metadata.project,
@@ -250,6 +246,9 @@ class ModelEndpoints:
         :return:                  Feature set object for the monitoring of the current model endpoint.
         """
 
+        # append general features
+        for feature in mlrun.common.schemas.model_monitoring.FeatureSetFeatures.list():
+            features.append(mlrun.feature_store.Feature(name=feature))
         # Define a new feature set
         (
             _,
@@ -264,8 +263,10 @@ class ModelEndpoints:
 
         feature_set = mlrun.feature_store.FeatureSet(
             f"monitoring-{serving_function_name}-{model_name}",
-            entities=[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID],
-            timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
+            entities=[
+                mlrun.common.schemas.model_monitoring.FeatureSetFeatures.entity()
+            ],
+            timestamp_key=mlrun.common.schemas.model_monitoring.FeatureSetFeatures.time_stamp(),
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
         # Set the run db instance with the current db session
@@ -338,7 +339,7 @@ class ModelEndpoints:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
-        metrics: typing.List[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -409,12 +410,12 @@ class ModelEndpoints:
         project: str,
         model: str = None,
         function: str = None,
-        labels: typing.List[str] = None,
-        metrics: typing.List[str] = None,
+        labels: list[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
         top_level: bool = False,
-        uids: typing.List[str] = None,
+        uids: list[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
@@ -588,20 +589,16 @@ class ModelEndpoints:
             )
 
     @staticmethod
-    def _adjust_feature_names_and_stats(
+    def _adjust_stats(
         model_endpoint,
-    ) -> typing.Tuple[typing.Dict, typing.List]:
+    ) -> mlrun.common.model_monitoring.helpers.FeatureStats:
         """
-        Create a clean matching version of feature names for both `feature_stats` and `feature_names`. Please note that
-        label names exist only in `feature_stats` and `label_names`.
+        Create a clean version of feature names for `feature_stats`.
 
         :param model_endpoint:    An object representing the model endpoint.
-        :return: A tuple of:
-             [0] = Dictionary of feature stats with cleaned names
-             [1] = List of cleaned feature names
+        :return: A Dictionary of feature stats with cleaned names
         """
         clean_feature_stats = {}
-        clean_feature_names = []
         for feature, stats in model_endpoint.status.feature_stats.items():
             clean_name = mlrun.feature_store.api.norm_column_name(feature)
             clean_feature_stats[clean_name] = stats
@@ -611,14 +608,13 @@ class ModelEndpoints:
                 and clean_name in model_endpoint.spec.label_names
             ):
                 continue
-            clean_feature_names.append(clean_name)
-        return clean_feature_stats, clean_feature_names
+        return clean_feature_stats
 
     @staticmethod
     def _add_real_time_metrics(
         model_endpoint_store: mlrun.model_monitoring.ModelEndpointStore,
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: typing.List[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> mlrun.common.schemas.ModelEndpoint:
@@ -661,7 +657,7 @@ class ModelEndpoints:
 
     @staticmethod
     def _convert_into_model_endpoint_object(
-        endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False
+        endpoint: dict[str, typing.Any], feature_analysis: bool = False
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Create a `ModelEndpoint` object according to a provided model endpoint dictionary.

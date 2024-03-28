@@ -114,6 +114,7 @@ from .model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     Features,
+    FeatureSetFeatures,
     FeatureValues,
     GrafanaColumn,
     GrafanaDataPoint,

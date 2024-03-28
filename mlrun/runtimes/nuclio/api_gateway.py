@@ -149,6 +149,27 @@ class APIGateway:
     def with_basic_auth(self, username: str, password: str):
         self.authentication = BasicAuth(username=username, password=password)
 
+    def with_canary(
+        self,
+        functions: Union[
+            list[str],
+            list[
+                Union[
+                    RemoteRuntime,
+                    ServingRuntime,
+                ]
+            ],
+        ],
+        canary: list[int],
+    ):
+        if len(functions) != 2:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Gateway with canary can be created only with two functions, "
+                f"the number of functions passed is {len(functions)}"
+            )
+        self.functions = self._validate_functions(self.project, functions)
+        self.canary = self._validate_canary(canary)
+
     @classmethod
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
@@ -229,19 +250,23 @@ class APIGateway:
 
         # validating canary
         if canary:
-            if len(self.functions) != len(canary):
+            self._validate_canary(canary)
+
+    def _validate_canary(self, canary: list[int]):
+        if len(self.functions) != len(canary):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function and canary lists lengths do not match"
+            )
+        for canary_percent in canary:
+            if canary_percent < 0 or canary_percent > 100:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Function and canary lists lengths do not match"
+                    "The percentage value must be in the range from 0 to 100"
                 )
-            for canary_percent in canary:
-                if canary_percent < 0 or canary_percent > 100:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "The percentage value must be in the range from 0 to 100"
-                    )
-            if sum(canary) != 100:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The sum of canary function percents should be equal to 100"
-                )
+        if sum(canary) != 100:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The sum of canary function percents should be equal to 100"
+            )
+        return canary
 
     @staticmethod
     def _validate_functions(

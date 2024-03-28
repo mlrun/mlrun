@@ -20,9 +20,12 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.application
+import mlrun.model_monitoring.applications.histogram_data_drift
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
+import mlrun.serving.states
 import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -39,6 +42,9 @@ _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
     mlrun.model_monitoring.controller_handler.__file__
 )
 _MONITORING_WRITER_FUNCTION_PATH = mlrun.model_monitoring.writer.__file__
+_HISTOGRAM_DATA_DRIFT_APP_PATH = (
+    mlrun.model_monitoring.applications.histogram_data_drift.__file__
+)
 
 
 class MonitoringDeployment:
@@ -429,7 +435,7 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology("flow")
+        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer
 
         # Set the project to the serving function
@@ -478,6 +484,58 @@ class MonitoringDeployment:
             except mlrun.errors.MLRunNotFoundError:
                 pass
         logger.info(f"Deploying {function_name} function", project=self.project)
+
+    def deploy_histogram_data_drift_app(self, image: str) -> dict[str, typing.Any]:
+        """
+        Deploy the histogram data drift application.
+
+        :param image: The image on with the function will run.
+        :returns:     A dictionary describing the function and the deployment status.
+        """
+        logger.info("Preparing the histogram data drift function")
+        func = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+                project=self.project,
+                filename=_HISTOGRAM_DATA_DRIFT_APP_PATH,
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=image,
+            ),
+        )
+
+        func.set_label(
+            key=mm_constants.ModelMonitoringAppLabel.KEY,
+            value=mm_constants.ModelMonitoringAppLabel.VAL,
+        )
+
+        if not mlrun.mlconf.is_ce_mode():
+            logger.info("Setting the access key for the histogram data drift function")
+            func.metadata.credentials.access_key = self.model_monitoring_access_key
+            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+            logger.info("Ensured the histogram data drift function auth")
+
+        graph = func.set_topology(mlrun.serving.states.StepKinds.flow)
+        first_step = graph.to(
+            class_name=mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication.__name__
+        )
+        first_step.to(
+            class_name=mlrun.model_monitoring.application.PushToMonitoringWriter(
+                project=self.project,
+                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
+            )
+        ).respond()
+
+        fn, ready = server.api.api.endpoints.functions._build_function(
+            db_session=self.db_session,
+            auth_info=self.auth_info,
+            function=func,
+        )
+        logger.info("Submitted the deployment")
+        return {
+            "histogram_app_data": fn.to_dict(),
+            "histogram_app_ready": ready,
+        }
 
 
 def get_endpoint_features(

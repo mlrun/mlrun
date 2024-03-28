@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
+import warnings
 from typing import Union
 
 import mlrun.common.schemas.schedule
@@ -55,6 +55,12 @@ class TrackingPolicy(mlrun.model.ModelObj):
                                             writer function, which is a real time nuclio functino, will be deployed
                                             with the same image. By default, the image is mlrun/mlrun.
         """
+        warnings.warn(
+            "The `TrackingPolicy` class is deprecated from version 1.7.0 and is not "
+            "used anymore. It will be removed in 1.9.0.",
+            FutureWarning,
+        )
+
         if isinstance(default_batch_intervals, str):
             default_batch_intervals = (
                 mlrun.common.schemas.schedule.ScheduleCronTrigger.from_crontab(

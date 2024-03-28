@@ -15,6 +15,7 @@
 import asyncio
 import collections
 import functools
+import hashlib
 import pathlib
 import re
 import typing
@@ -76,6 +77,7 @@ from server.api.db.sqldb.models import (
     Function,
     HubSource,
     Log,
+    PaginationCache,
     Project,
     Run,
     Schedule,
@@ -4632,6 +4634,74 @@ class SQLDB(DBInterface):
             object=db_object.full_object,
             project=db_object.project,
         )
+
+    # --- Pagination ---
+    def store_paginated_query_cache_record(
+        self,
+        session,
+        user: str,
+        function: str,
+        current_page: int,
+        kwargs: dict,
+    ):
+        # generate key hash from user, function, current_page and kwargs
+        key = hashlib.sha256(
+            f"{user}/{function}/{current_page}/{kwargs}".encode()
+        ).hexdigest()
+        param_record = PaginationCache(
+            key=key,
+            user=user,
+            function=function,
+            current_page=current_page,
+            kwargs=kwargs,
+            last_accessed=datetime.now(timezone.utc),
+        )
+        self._upsert(session, [param_record])
+        return key
+
+    def get_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        return self._query(session, PaginationCache, key=key).one_or_none()
+
+    def list_paginated_query_cache_record(
+        self,
+        session,
+        key: str = None,
+        user: str = None,
+        function: str = None,
+        last_accessed_before: datetime = None,
+        order_by: typing.Optional[mlrun.common.schemas.OrderType] = None,
+        as_query: bool = False,
+    ):
+        query = self._query(session, PaginationCache)
+        if key:
+            query = query.filter(PaginationCache.key == key)
+        if user:
+            query = query.filter(PaginationCache.user == user)
+        if function:
+            query = query.filter(PaginationCache.function == function)
+        if last_accessed_before:
+            query = query.filter(PaginationCache.last_accessed < last_accessed_before)
+
+        if order_by:
+            query = query.order_by(
+                order_by.to_order_by_predicate(PaginationCache.last_accessed)
+            )
+
+        if as_query:
+            return query
+
+        return query.all()
+
+    def delete_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        self._delete(session, PaginationCache, key=key)
 
     # ---- Utils ----
     def delete_table_records(

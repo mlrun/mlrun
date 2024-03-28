@@ -135,7 +135,7 @@ def test_paginate_request(mock_paginated_method, db: sqlalchemy.orm.Session):
         cache_record, auth_info.user_id, paginated_method, 2, page_size
     )
 
-    logger.info("Saving token for next test")
+    logger.info("Saving token for next assert")
     token = pagination_info["token"]
 
     logger.info(
@@ -200,9 +200,9 @@ def test_paginate_other_users_token(mock_paginated_method, db: sqlalchemy.orm.Se
 def test_paginate_no_auth(mock_paginated_method, db: sqlalchemy.orm.Session):
     """
     Test pagination with no auth info.
-    Request paginated method with page and page size, and verify that the correct items are returned.
+    Request paginated method without auth info, verify that the correct items are returned.
     Check the db for the pagination cache record.
-    Request the next page without auth info, and verify that a AccessDeniedError is raised.
+    Request the next page with auth info of some user, and verify that the request is successful.
     """
     page_size = 3
     method_kwargs = {"total_amount": 5}

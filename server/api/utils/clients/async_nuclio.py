@@ -14,6 +14,7 @@
 #
 import copy
 import urllib.parse
+from http import HTTPStatus
 
 import aiohttp
 
@@ -112,6 +113,19 @@ class Client:
             json=body,
         )
 
+    async def delete_api_gateway(self, name: str, project_name: str = None):
+        headers = {}
+
+        if project_name:
+            headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
+
+        return await self._send_request_to_api(
+            method="DELETE",
+            path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=""),
+            headers=headers,
+            json={"metadata": {"name": name}},
+        )
+
     def _set_iguazio_labels(self, nuclio_object, project_name):
         nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
         nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
@@ -119,6 +133,7 @@ class Client:
     async def _ensure_async_session(self):
         if not self._session:
             self._session = mlrun.utils.AsyncClientWithRetry(
+                raise_for_status=False,
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,
@@ -157,6 +172,8 @@ class Client:
                 kwargs,
             )
         else:
+            if response.status == HTTPStatus.NO_CONTENT:
+                return
             return await response.json()
 
     def _handle_error_response(

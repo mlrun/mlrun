@@ -132,7 +132,7 @@ class GoogleCloudStorageStore(DataStore):
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     def get_spark_options(self):
-        res = None
+        res = {}
         st = self.get_storage_options()
         if "token" in st:
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}

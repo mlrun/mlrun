@@ -23,6 +23,7 @@ import uuid
 from typing import Optional, Union
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.helpers
 import mlrun.model_monitoring
 from mlrun.config import config
@@ -311,11 +312,8 @@ class GraphServer(ModelObj):
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
 
-    data = os.environ.get("SERVING_SPEC_ENV", "")
-    if not data:
-        raise MLRunInvalidArgumentError("failed to find spec env var")
-    spec = json.loads(data)
     context.logger.info("Initializing server from spec")
+    spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":
         server.verbose = True

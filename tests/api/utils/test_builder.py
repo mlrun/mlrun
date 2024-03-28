@@ -792,19 +792,26 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
 
 
 @pytest.mark.parametrize(
-    "source,expectation",
+    "source, expectation, expected_v3io_remote",
     [
-        ("v3io://path/some-source.tar.gz", does_not_raise()),
-        ("/path/some-source.tar.gz", does_not_raise()),
-        ("/path/some-source.zip", does_not_raise()),
+        ("v3io:///path/some-source.tar.gz", does_not_raise(), "/path"),
+        ("v3io:///path//./some-source.tar.gz", does_not_raise(), "/path"),
+        (
+            "v3io:///path/to//blank/.././some-source.tar.gz",
+            does_not_raise(),
+            "/path/to",
+        ),
+        ("/path/some-source.tar.gz", does_not_raise(), None),
+        ("/path/some-source.zip", does_not_raise(), None),
         (
             "./relative/some-source",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            None,
         ),
-        ("./", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("./", pytest.raises(mlrun.errors.MLRunInvalidArgumentError), None),
     ],
 )
-def test_builder_source(monkeypatch, source, expectation):
+def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
         "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
@@ -856,6 +863,14 @@ def test_builder_source(monkeypatch, source, expectation):
             assert expected_output_re.match(
                 dockerfile_lines[expected_line_index].strip()
             )
+
+        # assert v3io remote is normalized
+        if expected_v3io_remote:
+            k8s_helper_mock = server.api.utils.singletons.k8s.get_k8s_helper()
+            mount_v3io_args = k8s_helper_mock.create_pod.call_args[0][
+                0
+            ].mount_v3io.call_args
+            assert mount_v3io_args[-1]["remote"] == expected_v3io_remote
 
 
 @pytest.mark.parametrize(

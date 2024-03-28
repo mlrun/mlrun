@@ -252,7 +252,30 @@ ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 - `http_port` &mdash; WebHDFS port
 - `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name is the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name is used. In Spark, this is evaluated at the time that the spark context is created.
 
+You can set `HADOOP_USER_NAME` locally as follows: 
+```python
+import os
+os.environ["HADOOP_USER_NAME"] = "..."
+```
 
+To set it on a function, use:
+```python
+function.spec.env.append({"name": "HADOOP_USER_NAME", "value": "galt"})
+```
+
+In feature store, you can set it via `RunConfig`:
+```python
+from mlrun.feature_store.common import RunConfig
+run_config = RunConfig(
+    local=False,
+    kind="remote-spark",
+    extra_spec={"spec": {"env": [{"name": "HADOOP_USER_NAME", "value": "galt"}]}},
+)
+feature_set.ingest(
+    ...,
+    run_config=run_config
+)
+```
 
 ## S3
 ### S3 credentials and parameters

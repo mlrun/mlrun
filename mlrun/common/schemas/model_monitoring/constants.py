@@ -192,7 +192,6 @@ class PrometheusEndpoints(MonitoringStrEnum):
 
 class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
-    BATCH = "model-monitoring-batch"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     STREAM = "model-monitoring-stream"
 
@@ -201,7 +200,6 @@ class MonitoringFunctionNames:
         return [
             MonitoringFunctionNames.WRITER,
             MonitoringFunctionNames.STREAM,
-            MonitoringFunctionNames.BATCH,
             MonitoringFunctionNames.APPLICATION_CONTROLLER,
         ]
 

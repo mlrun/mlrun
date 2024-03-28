@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -159,3 +159,31 @@ async def update_model_monitoring_controller(
         base_period=base_period,
         overwrite=True,
     )
+
+
+@router.post("/deploy-histogram-data-drift-app")
+def deploy_histogram_data_drift_app(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    image: str = "mlrun/mlrun",
+) -> dict[str, Any]:
+    """
+    Deploy the histogram data drift app on the go.
+
+    :param commons: The common parameters of the request.
+    :param image:   The image of the application, defaults to "mlrun/mlrun".
+    """
+    model_monitoring_access_key = None
+    if not mlrun.mlconf.is_ce_mode():
+        # Generate V3IO Access Key
+        model_monitoring_access_key = process_model_monitoring_secret(
+            commons.db_session,
+            commons.project,
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+        )
+
+    return MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=model_monitoring_access_key,
+    ).deploy_histogram_data_drift_app(image=image)

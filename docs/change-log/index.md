@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.2](#v1-6-2-4-april-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -14,22 +14,20 @@
  
 
 
-## v1.6.2 (4 April 2024)
-
-### Workflows
-| ID          |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-5482|Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](..//concepts/scheduled-jobs.html#scheduling-a-workflow).|
-
+## v1.6.2 (29 March 2024)
 
 ###  Closed issue
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-3521|Can now schedule a workflow without a remote source. | 
-|ML-5763| Log formatter |
-|ML-5776|Concurrent request to project deletion does not fail. |
-|ML-5907|UI: Invite New Members now returns the full list of users.|
-|ML-5977|UI: The Members tab in Project settings npw shows for groups with admin privileges.|
+|ML-5808|Changing the project owner to a user that shares a name with another user is successful.|
+|ML-5982|A user with the 'project security admin' policy can now add her/himself to a project.|
+|ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
+|ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
+|ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
+|ML-5982|A user with 'project security admin' policy can now add her/himself to a project.|
+|ML-6025|A group with 'Project security admin' policy can now see the Members tab of Projects.|
+|ML-6036|Changing the project owner |
+
 
 ## v1.6.1 (29 February 2024)
 

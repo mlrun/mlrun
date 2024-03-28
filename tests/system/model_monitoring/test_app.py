@@ -222,7 +222,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     ) -> None:
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
-            **({} if self.image is None else  {"image": self.image}),
+            **({} if self.image is None else {"image": self.image}),
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
 

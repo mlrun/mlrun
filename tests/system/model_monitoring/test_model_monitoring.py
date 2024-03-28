@@ -247,7 +247,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    def test_basic_model_monitoring(self) -> None:
+    @pytest.mark.parametrize("engine", ["sync", "async"])
+    def test_basic_model_monitoring(self, engine) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
@@ -270,6 +271,11 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
+
+        serving_fn.set_topology(
+            "router",
+            engine=engine,
+        )
 
         # enable model monitoring
         serving_fn.set_tracking()

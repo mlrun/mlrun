@@ -589,8 +589,8 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
-        get_workflow_id_timeout = int(get_workflow_id_timeout) or int(
-            mlrun.mlconf.workflows.timeouts.kfp
+        get_workflow_id_timeout = int(
+            get_workflow_id_timeout or mlrun.mlconf.workflows.timeouts.kfp
         )
 
         # fallback to old notification behavior
@@ -887,7 +887,7 @@ class _RemoteRunner(_PipelineRunner):
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
-                get_workflow_id_timeout,
+                int(get_workflow_id_timeout),
                 logger,
                 False,
                 run_db.get_workflow_id,

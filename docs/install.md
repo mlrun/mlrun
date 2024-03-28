@@ -10,7 +10,7 @@ MLRun has two main components, the service and the client (SDK and UI):
 
 This release of MLRun supports only Python 3.9 for both the server and the client. 
 
-<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
+<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="700"/></p><br>
 
 **In this section**
 - [Deployment options](#deployment-options)

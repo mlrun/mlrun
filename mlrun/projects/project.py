@@ -1845,10 +1845,10 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
-        if name in mm_constants.MonitoringFunctionNames.all():
+        if name in mm_constants.MonitoringFunctionNames.list():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Application name can not be on of the following name : "
-                f"{mm_constants.MonitoringFunctionNames.all()}"
+                f"An application cannot have the following names: "
+                f"{mm_constants.MonitoringFunctionNames.list()}"
             )
         function_object: RemoteRuntime = None
         (

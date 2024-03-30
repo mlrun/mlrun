@@ -398,7 +398,7 @@ class MonitoringDeployment:
         :return: function runtime object with access key and access to system files.
         """
 
-        if function_name in mm_constants.MonitoringFunctionNames.all():
+        if function_name in mm_constants.MonitoringFunctionNames.list():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
                 mm_constants.ProjectSecretKeys.ACCESS_KEY,

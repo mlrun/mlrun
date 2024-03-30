@@ -14,6 +14,7 @@
 
 import json
 import typing
+from pathlib import Path
 
 import nuclio
 import sqlalchemy.orm
@@ -21,7 +22,7 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.application
-import mlrun.model_monitoring.applications.histogram_data_drift
+import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
@@ -42,8 +43,9 @@ _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
     mlrun.model_monitoring.controller_handler.__file__
 )
 _MONITORING_WRITER_FUNCTION_PATH = mlrun.model_monitoring.writer.__file__
-_HISTOGRAM_DATA_DRIFT_APP_PATH = (
-    mlrun.model_monitoring.applications.histogram_data_drift.__file__
+_HISTOGRAM_DATA_DRIFT_APP_PATH = str(
+    Path(mlrun.model_monitoring.applications.__file__).parent
+    / "histogram_data_drift.py"
 )
 
 
@@ -516,9 +518,7 @@ class MonitoringDeployment:
             logger.info("Ensured the histogram data drift function auth")
 
         graph = func.set_topology(mlrun.serving.states.StepKinds.flow)
-        first_step = graph.to(
-            class_name=mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication.__name__
-        )
+        first_step = graph.to(class_name="HistogramDataDriftApplication")
         first_step.to(
             class_name=mlrun.model_monitoring.application.PushToMonitoringWriter(
                 project=self.project,

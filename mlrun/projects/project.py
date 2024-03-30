@@ -2073,20 +2073,10 @@ class MlrunProject(ModelObj):
             image=image,
         )
 
-    def disable_model_monitoring(self):
+    def disable_model_monitoring(self) -> None:
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.WRITER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.STREAM,
-        )
+        for fn_name in mm_constants.MonitoringFunctionNames.list():
+            db.delete_function(project=self.name, name=fn_name)
 
     def set_function(
         self,

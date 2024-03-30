@@ -2073,10 +2073,21 @@ class MlrunProject(ModelObj):
             image=image,
         )
 
-    def disable_model_monitoring(self) -> None:
+    def disable_model_monitoring(
+        self, *, delete_histogram_data_drift_app: bool = True
+    ) -> None:
+        """
+        Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
+
+        :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         for fn_name in mm_constants.MonitoringFunctionNames.list():
             db.delete_function(project=self.name, name=fn_name)
+        if delete_histogram_data_drift_app:
+            db.delete_function(
+                project=self.name, name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+            )
 
     def set_function(
         self,

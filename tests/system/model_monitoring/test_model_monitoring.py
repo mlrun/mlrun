@@ -996,7 +996,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+    image: Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1051,7 +1051,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         feature_names = [feat.name for feat in features]
         assert feature_names == [
             mlrun.feature_store.api.norm_column_name(feat)
-            for feat in itertools.chain(self.columns, [self.y_name],mm_constants.FeatureSetFeatures.list())
+            for feat in itertools.chain(
+                self.columns, [self.y_name], mm_constants.FeatureSetFeatures.list()
+            )
         ]
 
     def test_inference_feature_set(self) -> None:

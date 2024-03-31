@@ -32,6 +32,7 @@ from sklearn.svm import SVC
 
 import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 import mlrun.runtimes.utils
@@ -995,7 +996,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1050,7 +1051,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         feature_names = [feat.name for feat in features]
         assert feature_names == [
             mlrun.feature_store.api.norm_column_name(feat)
-            for feat in self.columns + [self.y_name]
+            for feat in self.columns
+            + [self.y_name]
+            + mm_constants.FeatureSetFeatures.list()
         ]
 
     def test_inference_feature_set(self) -> None:
@@ -1063,9 +1066,10 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             label_column=self.y_name,
         )
 
-        self.project.enable_model_monitoring(
-            **({} if self.image is None else {"image": self.image})
-        )
+        # TODO: activate ad-hoc mode when ML-5792 is done
+        # self.project.enable_model_monitoring(
+        #     **({} if self.image is None else {"image": self.image}),
+        # )
 
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,

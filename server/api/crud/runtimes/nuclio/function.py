@@ -217,6 +217,17 @@ def _compile_function_config(
         else:
             env_dict["SERVING_SPEC_ENV"] = serving_spec
 
+    # resolve sidecars images
+    sidecars = function.spec.config.get("spec.sidecars") or []
+    for sidecar in sidecars:
+        sidecar_image = sidecar.get("image")
+        if sidecar_image:
+            sidecar["image"] = server.api.utils.builder.resolve_and_enrich_image_target(
+                sidecar_image,
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -533,13 +544,15 @@ def _resolve_and_set_base_image(
         or function.spec.build.base_image
     )
     if base_image:
-        base_image = server.api.utils.builder.resolve_image_target(base_image)
+        base_image = server.api.utils.builder.resolve_and_enrich_image_target(
+            base_image,
+            client_version=client_version,
+            client_python_version=client_python_version,
+        )
         mlrun.utils.update_in(
             config,
             "spec.build.baseImage",
-            mlrun.utils.enrich_image_url(
-                base_image, client_version, client_python_version
-            ),
+            base_image,
         )
 
 

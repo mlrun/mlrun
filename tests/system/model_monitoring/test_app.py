@@ -162,7 +162,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         "%y%m%d%H%M"
     )
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.6.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -195,19 +195,17 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
+                    "with_training_set": True,
                 },
                 metrics={"data_drift_test"},
             ),
         ]
-        cls.infer_path = f"v2/models/{cls.model_name}/infer"
         cls.infer_input = cls._generate_infer_input()
         cls.next_window_input = cls._generate_infer_input(num_events=1)
 
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
-    def _submit_controller_and_deploy_writer(
-        self, deploy_histogram_data_drift_app
-    ) -> None:
+    def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
             **({} if self.image is None else {"default_controller_image": self.image}),
@@ -254,7 +252,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     @classmethod
     def _deploy_model_serving(
         cls, with_training_set: bool
-    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+    ) -> mlrun.runtimes.serving.ServingRuntime:
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
         )
@@ -287,7 +285,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             num_events = cls.max_events
         return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
 
-    def test_app_flow(self) -> None:
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
@@ -297,14 +294,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             if "with_training_set" in self.apps_data[i].kwargs:
                 self.apps_data[i].kwargs["with_training_set"] = with_training_set
 
-        # workaround for ML-5997
-        if not with_training_set:
-            self.apps_data.pop(0)
-
         with ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=with_training_set,  # workaround for ML-5997
             )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)
@@ -312,14 +304,19 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self.serving_fn = future.result()
 
         time.sleep(5)
-        self.serving_fn.invoke(self.infer_path, self.infer_input)
+        self.serving_fn.invoke(
+            f"v2/models/{self.model_name}_{with_training_set}/infer", self.infer_input
+        )
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + 2
         )
-        self.serving_fn.invoke(self.infer_path, self.next_window_input)
+        self.serving_fn.invoke(
+            f"v2/models/{self.model_name}_{with_training_set}/infer",
+            self.next_window_input,
+        )
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 
@@ -334,7 +331,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.6.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -442,61 +439,10 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestModelMonitoringInitialize(TestMLRunSystem):
-    project_name = "test-mm-initialize"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-
-    def test_enable_model_monitoring(self) -> None:
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            self.project.update_model_monitoring_controller(
-                image=self.image or "mlrun/mlrun"
-            )
-
-        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
-
-        controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
-        )
-        writer = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.WRITER
-        )
-        stream = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.STREAM
-        )
-
-        controller._wait_for_function_deployment(db=controller._get_db())
-        writer._wait_for_function_deployment(db=writer._get_db())
-        stream._wait_for_function_deployment(db=stream._get_db())
-        assert (
-            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
-                "interval"
-            ]
-            == "10m"
-        )
-
-        self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun", base_period=1
-        )
-        controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            ignore_cache=True,
-        )
-        controller._wait_for_function_deployment(db=controller._get_db())
-        assert (
-            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
-                "interval"
-            ]
-            == "1m"
-        )
-
-
-@TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestAllKindOfServing(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.6.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -578,8 +524,8 @@ class TestAllKindOfServing(TestMLRunSystem):
     @classmethod
     def _deploy_model_serving(
         cls, name: str, model_name: str, class_name: str, **kwargs
-    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = mlrun.code_to_function(
+    ) -> mlrun.runtimes.serving.ServingRuntime:
+        serving_fn: mlrun.runtimes.serving.ServingRuntime = mlrun.code_to_function(
             project=cls.project_name,
             name=name,
             filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
@@ -590,12 +536,18 @@ class TestAllKindOfServing(TestMLRunSystem):
             model_path=f"store://models/{cls.project_name}/{model_name}:latest",
             class_name=class_name,
         )
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(tracking_policy=TrackingPolicy())
         if cls.image is not None:
+            for attr in (
+                "stream_image",
+                "default_batch_image",
+                "default_controller_image",
+            ):
+                setattr(serving_fn.spec.tracking_policy, attr, cls.image)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+        return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
 
     def _test_endpoint(self, model_name, feature_set_uri) -> dict[str, typing.Any]:
         model_dict = self.models[model_name]
@@ -634,9 +586,8 @@ class TestAllKindOfServing(TestMLRunSystem):
 
     def test_all(self) -> None:
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
             base_period=1,
-            deploy_histogram_data_drift_app=False,
+            default_controller_image=self.image or "mlrun/mlrun",
         )
         futures = []
         with ThreadPoolExecutor() as executor:

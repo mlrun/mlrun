@@ -40,9 +40,6 @@ config_file_path = here / "test-google-cloud-storage.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
-# test_filename = here / "test.txt"
-# with open(test_filename) as f:
-#     test_string = f.read()
 
 credential_params = ["credentials_json_file"]
 
@@ -205,7 +202,9 @@ class TestGoogleCloudStorage:
         assert response.decode() == cls.test_string, "Result differs from original test"
 
         response = data_item.get(offset=20)
-        assert response.decode() == cls.test_string[20:], "Partial result not as expected"
+        assert (
+            response.decode() == cls.test_string[20:]
+        ), "Partial result not as expected"
 
         stat = data_item.stat()
         assert stat.size == len(cls.test_string), "Stat size different than expected"

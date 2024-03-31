@@ -199,7 +199,9 @@ class TestGoogleCloudStorage:
         data_item.put(self.test_string)
 
         response = data_item.get()
-        assert response.decode() == self.test_string, "Result differs from original test"
+        assert (
+            response.decode() == self.test_string
+        ), "Result differs from original test"
 
         response = data_item.get(offset=20)
         assert (
@@ -235,7 +237,9 @@ class TestGoogleCloudStorage:
         )
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
-        assert response.decode() == self.test_string, "Result differs from original test"
+        assert (
+            response.decode() == self.test_string
+        ), "Result differs from original test"
 
     @pytest.mark.parametrize(
         "setup_by, use_secrets",

@@ -2748,7 +2748,6 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
-        get_workflow_id_timeout: int = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -2777,8 +2776,6 @@ class MlrunProject(ModelObj):
         :param cleanup_ttl: Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         :param notifications:           List of notifications to send for workflow completion
-        :param get_workflow_id_timeout: Timeout in seconds to wait for the workflow to start and get its ID.
-                                        See mlrun.mlconf.workflows.timeouts for the defaults.
 
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
@@ -2850,7 +2847,6 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
-            get_workflow_id_timeout=get_workflow_id_timeout,
         )
         # run is None when scheduling
         if run and run.state == mlrun.run.RunStatuses.failed:

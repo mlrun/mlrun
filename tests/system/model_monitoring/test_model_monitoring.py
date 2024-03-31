@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import itertools
 import json
 import os
 import pickle
@@ -1051,9 +1051,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         feature_names = [feat.name for feat in features]
         assert feature_names == [
             mlrun.feature_store.api.norm_column_name(feat)
-            for feat in self.columns
-            + [self.y_name]
-            + mm_constants.FeatureSetFeatures.list()
+            for feat in itertools.chain(self.columns, [self.y_name],mm_constants.FeatureSetFeatures.list())
         ]
 
     def test_inference_feature_set(self) -> None:

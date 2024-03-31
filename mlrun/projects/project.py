@@ -55,7 +55,6 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring.application import (
     ModelMonitoringApplicationBase,
-    PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
@@ -1971,11 +1970,10 @@ class MlrunProject(ModelObj):
             else:
                 first_step = graph.to(class_name=application_class)
             first_step.to(
-                class_name=PushToMonitoringWriter(
-                    project=self.metadata.name,
-                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-                    stream_uri=None,
-                ),
+                class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
+                name="PushToMonitoringWriter",
+                project=self.metadata.name,
+                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
             ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"

@@ -895,6 +895,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
         else None
     )
+
     project_name = "pr-kafka-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: Optional[str] = None

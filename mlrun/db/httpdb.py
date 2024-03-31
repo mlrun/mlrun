@@ -1616,19 +1616,21 @@ class HTTPRunDB(RunDBInterface):
         artifact_path=None,
         ops=None,
         cleanup_ttl=None,
+        timeout=60,
     ):
         """Submit a KFP pipeline for execution.
 
-        :param project: The project of the pipeline
-        :param pipeline: Pipeline function or path to .yaml/.zip pipeline file.
-        :param arguments: A dictionary of arguments to pass to the pipeline.
-        :param experiment: A name to assign for the specific experiment.
-        :param run: A name for this specific run.
-        :param namespace: Kubernetes namespace to execute the pipeline in.
-        :param artifact_path: A path to artifacts used by this pipeline.
-        :param ops: Transformers to apply on all ops in the pipeline.
-        :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                            workflow and all its resources are deleted)
+        :param project:         The project of the pipeline
+        :param pipeline:        Pipeline function or path to .yaml/.zip pipeline file.
+        :param arguments:       A dictionary of arguments to pass to the pipeline.
+        :param experiment:      A name to assign for the specific experiment.
+        :param run:             A name for this specific run.
+        :param namespace:       Kubernetes namespace to execute the pipeline in.
+        :param artifact_path:   A path to artifacts used by this pipeline.
+        :param ops:             Transformers to apply on all ops in the pipeline.
+        :param cleanup_ttl:     Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted)
+        :param timeout:         Timeout for the API call.
         """
 
         if isinstance(pipeline, str):
@@ -1670,7 +1672,7 @@ class HTTPRunDB(RunDBInterface):
                 "POST",
                 f"projects/{project}/pipelines",
                 params=params,
-                timeout=20,
+                timeout=timeout,
                 body=data,
                 headers=headers,
             )

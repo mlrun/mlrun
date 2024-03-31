@@ -847,6 +847,7 @@ def _run_pipeline(
     ops=None,
     url=None,
     cleanup_ttl=None,
+    timeout=60,
 ):
     """remote KubeFlow pipeline execution
 
@@ -884,6 +885,7 @@ def _run_pipeline(
         ops=ops,
         artifact_path=artifact_path,
         cleanup_ttl=cleanup_ttl,
+        timeout=timeout,
     )
     logger.info(f"Pipeline run id={pipeline_run_id}, check UI for progress")
     return pipeline_run_id

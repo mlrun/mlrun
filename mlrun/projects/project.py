@@ -2747,40 +2747,35 @@ class MlrunProject(ModelObj):
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
-        """run a workflow using kubeflow pipelines
+        """Run a workflow using kubeflow pipelines
 
-        :param name:      name of the workflow
-        :param workflow_path:
-                          url to a workflow file, if not a project workflow
-        :param arguments:
-                          kubeflow pipelines arguments (parameters)
-        :param artifact_path:
-                          target path/url for workflow artifacts, the string
-                          '{{workflow.uid}}' will be replaced by workflow id
-        :param workflow_handler:
-                          workflow function handler (for running workflow function directly)
-        :param namespace: kubernetes namespace if other than default
-        :param sync:      force functions sync before run
-        :param watch:     wait for pipeline completion
-        :param dirty:     allow running the workflow when the git repo is dirty
-        :param engine:    workflow engine running the workflow.
-                          supported values are 'kfp' (default), 'local' or 'remote'.
-                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
-        :param local:     run local pipeline with local functions (set local=True in function.run())
+        :param name:                Name of the workflow
+        :param workflow_path:       URL to a workflow file, if not a project workflow
+        :param arguments:           Kubeflow pipelines arguments (parameters)
+        :param artifact_path:       Target path/URL for workflow artifacts, the string '{{workflow.uid}}' will be
+                                    replaced by workflow id.
+        :param workflow_handler:    Workflow function handler (for running workflow function directly)
+        :param namespace: Kubernetes namespace if other than default
+        :param sync:      Force functions sync before run
+        :param watch:     Wait for pipeline completion
+        :param dirty:     Allow running the workflow when the git repo is dirty
+        :param engine:    Workflow engine running the workflow.
+                          Supported values are 'kfp' (default), 'local' or 'remote'.
+                          For setting engine for remote running use 'remote:local' or 'remote:kfp'.
+        :param local:     Run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-                          for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          for other engines the source is to validate that the code is up-to-date
-        :param cleanup_ttl:
-                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                          workflow and all its resources are deleted)
-        :param notifications:
-                          list of notifications to send for workflow completion
-        :returns: run id
+                          For using the pre-defined workflow's schedule, set `schedule=True`
+        :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param source:    Remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          For other engines the source is to validate that the code is up-to-date
+        :param cleanup_ttl: Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                            workflow and all its resources are deleted)
+        :param notifications:           List of notifications to send for workflow completion
+
+        :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
         arguments = arguments or {}

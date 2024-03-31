@@ -99,6 +99,26 @@ class FeatureSetFeatures(MonitoringStrEnum):
         return EventFieldType.ENDPOINT_ID
 
 
+class MonitoringStrEnum(StrEnum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
+class FeatureSetFeatures(MonitoringStrEnum):
+    LATENCY = EventFieldType.LATENCY
+    ERROR_COUNT = EventFieldType.ERROR_COUNT
+    METRICS = EventFieldType.METRICS
+
+    @classmethod
+    def time_stamp(cls):
+        return EventFieldType.TIMESTAMP
+
+    @classmethod
+    def entity(cls):
+        return EventFieldType.ENDPOINT_ID
+
+
 class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     START_INFER_TIME = "start_infer_time"

@@ -16,16 +16,14 @@
 
 ## v1.6.2 (29 March 2024)
 
-###  Closed issue
+###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-5808|Fix selecting the project-owner user.|
 |ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
 |ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
 |ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
-|ML-5982|A user with 'project security admin' policy can now add her/himself to a project.|
-|ML-6025|A group with 'Project security admin' policy can now see the Members tab of Projects.|
-|ML-6036|Changing the project owner |
+
 
 
 ## v1.6.1 (29 February 2024)
@@ -864,7 +862,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3143/ML-3432|Cannot delete a remote function from the DB (neither with SDK nor UI).  |NA |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
-
+|ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.1    |
 |ML-3526|Aggregation column order is not always respected (storey engine).| NA | v1.3.0|
 |ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. |NA | v1.3.0|
 |ML-3627|The feature store allows ingestion of string type for the timestamp key resulting in errors when trying to query the offline store with time filtration.|Use only timestamp type.| v1.2.1    |
@@ -900,6 +898,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-6048|UI: An admin user cannot change its role in the project. |   |v1.6.2|
+|ML-6045|UI: If a user-filter has a large number of matches, it may not display all the matching users. |Narrow your search to be sure you get all the matches.|v1.6.2|
 |ML-6051|UI: After an admin user deletes itself from a project, the user stays in the Projects Members page even though it has no permissions and cannot view any aspects of the project.||  NA |v1.6.2|
 
 

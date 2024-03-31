@@ -162,7 +162,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         "%y%m%d%H%M"
     )
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.6.0"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -331,7 +331,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.6.0"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -442,7 +442,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 class TestAllKindOfServing(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.6.0"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:

@@ -196,23 +196,23 @@ class TestGoogleCloudStorage:
         data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options
         )
-        data_item.put(cls.test_string)
+        data_item.put(self.test_string)
 
         response = data_item.get()
-        assert response.decode() == cls.test_string, "Result differs from original test"
+        assert response.decode() == self.test_string, "Result differs from original test"
 
         response = data_item.get(offset=20)
         assert (
-            response.decode() == cls.test_string[20:]
+            response.decode() == self.test_string[20:]
         ), "Partial result not as expected"
 
         stat = data_item.stat()
-        assert stat.size == len(cls.test_string), "Stat size different than expected"
+        assert stat.size == len(self.test_string), "Stat size different than expected"
 
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             data_item.download(temp_file.name)
             content = temp_file.read()
-            assert content == cls.test_string
+            assert content == self.test_string
 
         dir_list = mlrun.run.get_dataitem(
             self._bucket_path, secrets=self.storage_options
@@ -233,9 +233,9 @@ class TestGoogleCloudStorage:
         upload_data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options
         )
-        upload_data_item.upload(cls.test_file)
+        upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
-        assert response.decode() == cls.test_string, "Result differs from original test"
+        assert response.decode() == self.test_string, "Result differs from original test"
 
     @pytest.mark.parametrize(
         "setup_by, use_secrets",

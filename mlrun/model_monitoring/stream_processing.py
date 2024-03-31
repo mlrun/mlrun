@@ -24,6 +24,7 @@ import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.config
 import mlrun.datastore.targets
+import mlrun.feature_store as fstore
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.prometheus
 import mlrun.serving.states
@@ -49,7 +50,7 @@ class EventStreamProcessor:
         parquet_batching_timeout_secs: int,
         parquet_target: str,
         sample_window: int = 10,
-        aggregate_windows: typing.Optional[typing.List[str]] = None,
+        aggregate_windows: typing.Optional[list[str]] = None,
         aggregate_period: str = "30s",
         model_monitoring_access_key: str = None,
     ):
@@ -587,6 +588,8 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         for key in [
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,
+            EventFieldType.PREDICTION,
+            EventFieldType.NAMED_PREDICTIONS,
         ]:
             event.pop(key, None)
 
@@ -629,14 +632,14 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         self.project: str = project
 
         # First and last requests timestamps (value) of each endpoint (key)
-        self.first_request: typing.Dict[str, str] = dict()
-        self.last_request: typing.Dict[str, str] = dict()
+        self.first_request: dict[str, str] = dict()
+        self.last_request: dict[str, str] = dict()
 
         # Number of errors (value) per endpoint (key)
-        self.error_count: typing.Dict[str, int] = collections.defaultdict(int)
+        self.error_count: dict[str, int] = collections.defaultdict(int)
 
         # Set of endpoints in the current events
-        self.endpoints: typing.Set[str] = set()
+        self.endpoints: set[str] = set()
 
     def do(self, full_event):
         event = full_event.body
@@ -745,17 +748,11 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # in list of events. This list will be used as the body for the storey event.
         events = []
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
-            # Validate that inputs are based on numeric values
-            if not self.is_valid(
-                endpoint_id,
-                self.is_list_of_numerics,
-                feature,
-                ["request", "inputs", f"[{i}]"],
-            ):
-                return None
-
             if not isinstance(prediction, list):
                 prediction = [prediction]
+
+            if not isinstance(feature, list):
+                feature = [feature]
 
             events.append(
                 {
@@ -803,18 +800,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
             )
 
-    @staticmethod
-    def is_list_of_numerics(
-        field: typing.List[typing.Union[int, float, dict, list]],
-        dict_path: typing.List[str],
-    ):
-        if all(isinstance(x, int) or isinstance(x, float) for x in field):
-            return True
-        logger.error(
-            f"List does not consist of only numeric values: {field} [Event -> {','.join(dict_path)}]"
-        )
-        return False
-
     def resume_state(self, endpoint_id):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them
@@ -849,7 +834,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         endpoint_id: str,
         validation_function,
         field: typing.Any,
-        dict_path: typing.List[str],
+        dict_path: list[str],
     ):
         if validation_function(field, dict_path):
             return True
@@ -857,7 +842,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         return False
 
 
-def is_not_none(field: typing.Any, dict_path: typing.List[str]):
+def is_not_none(field: typing.Any, dict_path: list[str]):
     if field is not None:
         return True
     logger.error(
@@ -946,9 +931,11 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 return self.label_columns[endpoint_id]
         return None
 
-    def do(self, event: typing.Dict):
+    def do(self, event: dict):
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
+        feature_values = event[EventFieldType.FEATURES]
+        label_values = event[EventFieldType.PREDICTION]
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
             endpoint_record = get_endpoint_record(
@@ -984,6 +971,12 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     },
                 )
 
+                update_monitoring_feature_set(
+                    endpoint_record=endpoint_record,
+                    feature_names=feature_names,
+                    feature_values=feature_values,
+                )
+
             # Similar process with label columns
             if not label_columns and self._infer_columns_from_data:
                 label_columns = self._infer_label_columns_from_data(event)
@@ -1002,6 +995,11 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     endpoint_id=endpoint_id,
                     attributes={EventFieldType.LABEL_NAMES: json.dumps(label_columns)},
                 )
+                update_monitoring_feature_set(
+                    endpoint_record=endpoint_record,
+                    feature_names=label_columns,
+                    feature_values=label_values,
+                )
 
             self.label_columns[endpoint_id] = label_columns
             self.feature_names[endpoint_id] = feature_names
@@ -1019,7 +1017,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
-        feature_values = event[EventFieldType.FEATURES]
         self._map_dictionary_values(
             event=event,
             named_iters=feature_names,
@@ -1029,7 +1026,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         # Add label_name:value pairs along with a mapping dictionary of all of these pairs
         label_names = self.label_columns[endpoint_id]
-        label_values = event[EventFieldType.PREDICTION]
         self._map_dictionary_values(
             event=event,
             named_iters=label_names,
@@ -1045,9 +1041,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
     @staticmethod
     def _map_dictionary_values(
-        event: typing.Dict,
-        named_iters: typing.List,
-        values_iters: typing.List,
+        event: dict,
+        named_iters: list,
+        values_iters: list,
         mapping_dictionary: str,
     ):
         """Adding name-value pairs to event dictionary based on two provided lists of names and values. These pairs
@@ -1082,7 +1078,7 @@ class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
         self.project = project
         self.model_endpoint_store_target = model_endpoint_store_target
 
-    def do(self, event: typing.Dict):
+    def do(self, event: dict):
         update_endpoint_record(
             project=self.project,
             endpoint_id=event.pop(EventFieldType.ENDPOINT_ID),
@@ -1117,7 +1113,7 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.table = table
         self.keys = set()
 
-    def do(self, event: typing.Dict):
+    def do(self, event: dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)
@@ -1241,3 +1237,21 @@ def get_endpoint_record(project: str, endpoint_id: str):
         project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
+
+
+def update_monitoring_feature_set(
+    endpoint_record: dict[str, typing.Any],
+    feature_names: list[str],
+    feature_values: list[typing.Any],
+):
+    monitoring_feature_set = fstore.get_feature_set(
+        endpoint_record[
+            mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
+        ]
+    )
+    for name, val in zip(feature_names, feature_values):
+        monitoring_feature_set.add_feature(
+            fstore.Feature(name=name, value_type=type(val))
+        )
+
+    monitoring_feature_set.save()

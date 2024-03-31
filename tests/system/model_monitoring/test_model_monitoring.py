@@ -32,6 +32,7 @@ from sklearn.svm import SVC
 
 import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 import mlrun.serving.routers
@@ -1028,10 +1029,14 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         feature_set = self._get_monitoring_feature_set()
         features = feature_set.spec.features
         feature_names = [feat.name for feat in features]
-        assert feature_names == [
-            mlrun.feature_store.api.norm_column_name(feat)
-            for feat in self.columns + [self.y_name]
-        ]
+        assert (
+            feature_names
+            == [
+                mlrun.feature_store.api.norm_column_name(feat)
+                for feat in self.columns + [self.y_name]
+            ]
+            + mm_constants.FeatureSetFeatures.list()
+        )
 
     def test_inference_feature_set(self) -> None:
         self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
@@ -1053,7 +1058,6 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             endpoint_id=self.endpoint_id,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
-            trigger_monitoring_job=True,
         )
 
         self._test_feature_names()

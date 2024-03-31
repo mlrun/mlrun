@@ -174,11 +174,6 @@ class KubejobRuntime(KubeResource):
             # clear the image so build will not be skipped
             self.spec.image = ""
 
-        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
-        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
-        if is_kfp:
-            watch = True
-
         return self._build_image(
             builder_env=builder_env,
             force_build=force_build,
@@ -186,6 +181,7 @@ class KubejobRuntime(KubeResource):
             show_on_failure=show_on_failure,
             skip_deployed=skip_deployed,
             watch=watch,
+            is_kfp=is_kfp,
             with_mlrun=with_mlrun,
         )
 

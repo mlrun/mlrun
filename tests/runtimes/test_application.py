@@ -156,6 +156,19 @@ def test_image_enriched_on_build_application_image(remote_builder_mock):
     assert fn.status.state == mlrun.common.schemas.FunctionState.ready
 
 
+def test_application_image_build(remote_builder_mock):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+        requirements=["mock"],
+    )
+    assert fn.requires_build()
+    fn.deploy()
+    _assert_application_post_deploy_spec(
+        fn, ".mlrun/func-default-application-test:latest"
+    )
+
+
 def _assert_function_code(fn, file_path=None):
     file_path = (
         file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]

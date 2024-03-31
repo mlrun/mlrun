@@ -305,7 +305,6 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
     ):
-        # TODO: decide if is_kfp is needed
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
         return self._build_image(
             builder_env=builder_env,
@@ -314,6 +313,7 @@ class ApplicationRuntime(RemoteRuntime):
             show_on_failure=show_on_failure,
             skip_deployed=skip_deployed,
             watch=watch,
+            is_kfp=is_kfp,
             with_mlrun=with_mlrun,
         )
 

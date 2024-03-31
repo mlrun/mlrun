@@ -1371,8 +1371,14 @@ class KubeResource(BaseRuntime):
         show_on_failure,
         skip_deployed,
         watch,
+        is_kfp,
         with_mlrun,
     ):
+        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
+        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
+        if is_kfp:
+            watch = True
+
         db = self._get_db()
         data = db.remote_builder(
             self,

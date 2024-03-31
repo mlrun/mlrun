@@ -618,7 +618,11 @@ class RemoteBuilderMock:
                             "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
                         },
                     },
-                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
+                    "status": {
+                        "state": "ready",
+                        "build_pod": "build-pod",
+                    }
+                    | func.status.to_dict(),
                 },
             }
 
@@ -630,6 +634,17 @@ class RemoteBuilderMock:
 
         build_runtime = call_args.args[0]
         return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+    def get_builder_status(
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
 
 
 @pytest.fixture

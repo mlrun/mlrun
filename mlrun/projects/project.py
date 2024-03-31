@@ -2602,16 +2602,12 @@ class MlrunProject(ModelObj):
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
-        :param name:      Name of the workflow
-        :param workflow_path:
-                          URL to a workflow file, if not a project workflow
-        :param arguments:
-                          Kubeflow pipelines arguments (parameters)
-        :param artifact_path:
-                          Target path/url for workflow artifacts, the string
-                          '{{workflow.uid}}' will be replaced by workflow id
-        :param workflow_handler:
-                          Workflow function handler (for running workflow function directly)
+        :param name:                Name of the workflow
+        :param workflow_path:       URL to a workflow file, if not a project workflow
+        :param arguments:           Kubeflow pipelines arguments (parameters)
+        :param artifact_path:       Target path/URL for workflow artifacts, the string '{{workflow.uid}}' will be
+                                    replaced by workflow id.
+        :param workflow_handler:    Workflow function handler (for running workflow function directly)
         :param namespace: Kubernetes namespace if other than default
         :param sync:      Force functions sync before run
         :param watch:     Wait for pipeline completion
@@ -2624,7 +2620,7 @@ class MlrunProject(ModelObj):
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-                          for using the pre-defined workflow's schedule, set `schedule=True`
+                          For using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
                           Can be a one of:
@@ -2633,12 +2629,11 @@ class MlrunProject(ModelObj):
                           Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
                           (enriched when building a project image with source, see `MlrunProject.build_image`).
                           For other engines the source is used to validate that the code is up-to-date.
-        :param cleanup_ttl:
-                          Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                          Workflow and all its resources are deleted)
-        :param notifications:
-                          List of notifications to send for workflow completion
-        :returns: Run id
+        :param cleanup_ttl: Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                            workflow and all its resources are deleted)
+        :param notifications:           List of notifications to send for workflow completion
+
+        :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
         arguments = arguments or {}

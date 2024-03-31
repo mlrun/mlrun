@@ -67,7 +67,7 @@ def test_list_pipelines_formats(
         mlrun.common.schemas.PipelinesFormat.name_only,
     ]:
         runs = _generate_list_runs_mocks()
-        expected_runs = [run.to_dict() for run in runs]
+        expected_runs = [PipelineRun(run.to_dict()) for run in runs]
         expected_runs = server.api.crud.Pipelines()._format_runs(
             db, expected_runs, format_
         )
@@ -101,11 +101,10 @@ def test_get_pipeline_formats(
         )
         expected_run = server.api.crud.Pipelines()._format_run(
             db,
-            PipelineRun(api_run_detail.to_dict()["run"]),
+            PipelineRun(api_run_detail),
             format_,
-            api_run_detail.to_dict(),
         )
-        _assert_get_pipeline_response(expected_run, response)
+        _assert_get_pipeline_response(expected_run.to_dict(), response)
 
 
 def test_get_pipeline_no_project_opa_validation(
@@ -158,7 +157,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            db, api_run_detail.to_dict()["run"], format_, PipelineRun(api_run_detail)
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -248,7 +247,7 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = server.api.crud.Pipelines()._format_runs(
-        db, [run.to_dict() for run in runs if run.id in expected_runs_ids]
+        db, [PipelineRun(run.to_dict()) for run in runs if run.id in expected_runs_ids]
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None

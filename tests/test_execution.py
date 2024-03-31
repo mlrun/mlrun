@@ -19,6 +19,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.errors
+from mlrun_pipelines.models import PipelineRun
 from tests.conftest import out_path
 
 
@@ -92,7 +93,7 @@ def test_context_from_run_dict(is_api):
 
         # create run object from dict and dict again to mock the run serialization
         run = mlrun.run.RunObject.from_dict(run_dict)
-        context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
+        context = mlrun.MLClientCtx.from_dict(PipelineRun(run.to_dict()), is_api=is_api)
 
         assert context.name == run_dict["metadata"]["name"]
         assert context._project == run_dict["metadata"]["project"]
@@ -145,7 +146,7 @@ def test_context_inputs(rundb_mock, is_api):
 
         # create run object from dict and dict again to mock the run serialization
         run = mlrun.run.RunObject.from_dict(run_dict)
-        context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
+        context = mlrun.MLClientCtx.from_dict(PipelineRun(run.to_dict()), is_api=is_api)
         assert (
             context.get_input("input-key").artifact_url
             == run_dict["spec"]["inputs"]["input-key"]

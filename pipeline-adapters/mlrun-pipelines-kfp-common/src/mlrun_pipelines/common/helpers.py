@@ -142,4 +142,4 @@ class FlexibleMapper(MutableMapping):
         Returns:
             a dict representation of the mapping.
         """
-        return {k: v for k, v in self}
+        return {a: getattr(self, a, None) for a in self}

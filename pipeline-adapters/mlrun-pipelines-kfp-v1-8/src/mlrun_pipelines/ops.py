@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-import json
 import os
 import os.path
 
@@ -34,47 +33,12 @@ from mlrun.utils import get_in
 dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 
-def deploy_op(
+def generate_deployer_pipeline_node(
     name,
     function,
     func_url=None,
-    source="",
-    project="",
-    models: list = None,
-    env: dict = None,
-    tag="",
-    verbose=False,
+    cmd=None,
 ):
-    cmd = ["python", "-m", "mlrun", "deploy"]
-    if source:
-        cmd += ["-s", source]
-    if tag:
-        cmd += ["--tag", tag]
-    if verbose:
-        cmd += ["--verbose"]
-    if project:
-        cmd += ["-p", project]
-
-    if models:
-        for m in models:
-            for key in ["key", "model_path", "model_url", "class_name", "model_url"]:
-                if key in m:
-                    m[key] = str(m[key])  # verify we stringify pipeline params
-            if function.kind == mlrun.runtimes.RuntimeKinds.serving:
-                cmd += ["-m", json.dumps(m)]
-            else:
-                cmd += ["-m", f"{m['key']}={m['model_path']}"]
-
-    if env:
-        for key, val in env.items():
-            cmd += ["--env", f"{key}={val}"]
-
-    if func_url:
-        cmd += ["-f", func_url]
-    else:
-        runtime = f"{function.to_dict()}"
-        cmd += [runtime]
-
     cop = dsl.ContainerOp(
         name=name,
         image=config.kfp_image,

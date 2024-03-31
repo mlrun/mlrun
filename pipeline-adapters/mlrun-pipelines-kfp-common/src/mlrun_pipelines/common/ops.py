@@ -384,6 +384,57 @@ def build_op(
     generate_image_builder_pipeline_node(name, function, func_url, cmd)
 
 
+def deploy_op(
+    name,
+    function,
+    func_url=None,
+    source="",
+    project="",
+    models: list = None,
+    env: dict = None,
+    tag="",
+    verbose=False,
+):
+    from mlrun_pipelines.ops import generate_deployer_pipeline_node
+
+    cmd = ["python", "-m", "mlrun", "deploy"]
+    if source:
+        cmd += ["-s", source]
+    if tag:
+        cmd += ["--tag", tag]
+    if verbose:
+        cmd += ["--verbose"]
+    if project:
+        cmd += ["-p", project]
+
+    if models:
+        for m in models:
+            for key in ["key", "model_path", "model_url", "class_name", "model_url"]:
+                if key in m:
+                    m[key] = str(m[key])  # verify we stringify pipeline params
+            if function.kind == mlrun.runtimes.RuntimeKinds.serving:
+                cmd += ["-m", json.dumps(m)]
+            else:
+                cmd += ["-m", f"{m['key']}={m['model_path']}"]
+
+    if env:
+        for key, val in env.items():
+            cmd += ["--env", f"{key}={val}"]
+
+    if func_url:
+        cmd += ["-f", func_url]
+    else:
+        runtime = f"{function.to_dict()}"
+        cmd += [runtime]
+
+    generate_deployer_pipeline_node(
+        name,
+        function,
+        func_url,
+        cmd,
+    )
+
+
 def get_default_reg():
     if config.httpdb.builder.docker_registry:
         return config.httpdb.builder.docker_registry

@@ -308,15 +308,27 @@ def generate_image_builder_pipeline_node(
     return task
 
 
-def deploy_op(
+def generate_deployer_pipeline_node(
     name,
     function,
     func_url=None,
-    source="",
-    project="",
-    models: list = None,
-    env: dict = None,
-    tag="",
-    verbose=False,
+    cmd=None,
 ):
-    raise NotImplementedError
+    def deploy_function():
+        return dsl.ContainerSpec(
+            image=config.kfp_image,
+            command=cmd,
+        )
+
+    container_component = dsl.component_factory.create_container_component_from_func(
+        deploy_function
+    )
+    task = container_component()
+    task.set_display_name(name)
+
+    add_default_function_resources(task)
+    add_function_node_selection_attributes(function, task)
+    add_annotations(task, PipelineRunType.deploy, function, func_url)
+
+    add_default_env(task)
+    return task

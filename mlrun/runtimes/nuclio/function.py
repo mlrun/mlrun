@@ -26,8 +26,8 @@ import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
 from mlrun_pipelines.common.mounts import VolumeMount
+from mlrun_pipelines.common.ops import deploy_op
 from mlrun_pipelines.mounts import mount_v3io, v3io_cred
-from mlrun_pipelines.ops import deploy_op
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 

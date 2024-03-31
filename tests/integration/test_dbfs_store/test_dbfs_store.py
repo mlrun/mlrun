@@ -78,9 +78,9 @@ class TestDBFSStore:
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         if use_datastore_profile:
-            self._bucket_url = f"ds://{self.profile_name}/{self._bucket_name}"
+            self._dbfs_url = f"ds://{self.profile_name}/{self._bucket_name}"
         else:
-            self._bucket_url = "az://" + self._bucket_name
+            self._dbfs_url = "dbfs://" + self._bucket_name
         setup_dbfs_dirs(
             workspace=self.workspace,
             specific_test_class_dir=self.dbfs_store_dir,

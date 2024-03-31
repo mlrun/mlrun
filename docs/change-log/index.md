@@ -19,8 +19,7 @@
 ###  Closed issue
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-5808|Changing the project owner to a user that shares a name with another user is successful.|
-|ML-5982|A user with the 'project security admin' policy can now add her/himself to a project.|
+|ML-5808|Fix selecting the project-owner user.|
 |ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
 |ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
 |ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
@@ -938,7 +937,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.8.0       |v1.6.1    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_target_dir`
 | v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|

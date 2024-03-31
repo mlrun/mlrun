@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,22 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import typing
 from abc import ABC, abstractmethod
 
 
-class ModelEndpointStore(ABC):
+class StoreBase(ABC):
     """
-    An abstract class to handle the model endpoint in the DB target.
+    An abstract class to handle the store object in the DB target.
     """
 
     def __init__(self, project: str):
         """
-        Initialize a new model endpoint target.
+        Initialize a new store target.
 
-        :param project:             The name of the project.
+        :param project: The name of the project.
         """
         self.project = project
 
@@ -142,4 +141,46 @@ class ModelEndpointStore(ABC):
                  includes timestamps and the values.
         """
 
+        pass
+
+    @abstractmethod
+    def write_application_result(self, event: dict[str, typing.Any]):
+        """
+        Write a new application result event in the target table.
+
+        :param event: An event dictionary that represents the application result, should be corresponded to the
+                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
+                      object.
+        """
+        pass
+
+    @abstractmethod
+    def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
+        """
+        Get the last analyzed time for the provided model endpoint and application.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param application_name: Registered application name.
+
+        :return: Timestamp as a Unix time.
+        :raise:  MLRunNotFoundError if last analyzed value is not found.
+        """
+        pass
+
+    @abstractmethod
+    def update_last_analyzed(
+        self,
+        endpoint_id: str,
+        application_name: str,
+        last_analyzed: int,
+    ):
+        """
+        Update the last analyzed time for the provided model endpoint and application.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param application_name: Registered application name.
+        :param last_analyzed:    Timestamp as a Unix time that represents the last analyzed time of a certain
+                                 application and model endpoint.
+
+        """
         pass

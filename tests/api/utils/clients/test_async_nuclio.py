@@ -54,8 +54,12 @@ async def test_nuclio_get_api_gateway(
     mock_aioresponse,
 ):
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        functions=["test"], name="test-basic", project="default-project"
+        functions=["test"],
+        name="test-basic",
+        project="default-project",
     )
+    api_gateway.with_basic_auth("test", "test")
+    api_gateway.with_canary(["test", "test2"], [20, 80])
 
     request_url = f"{api_url}/api/api_gateways/test-basic"
     mock_aioresponse.get(
@@ -67,9 +71,26 @@ async def test_nuclio_get_api_gateway(
     received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
     assert received_api_gateway.name == api_gateway.name
     assert received_api_gateway.description == api_gateway.description
-    assert received_api_gateway.authentication_mode == api_gateway.authentication_mode
-    assert received_api_gateway.functions == api_gateway.functions
-    assert received_api_gateway.canary == api_gateway.canary
+    assert (
+        received_api_gateway.authentication.authentication_mode
+        == api_gateway.authentication.authentication_mode
+    )
+    assert received_api_gateway.functions == ["test", "test2"]
+    assert received_api_gateway.canary == [20, 80]
+
+
+@pytest.mark.asyncio
+async def test_nuclio_delete_api_gateway(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    request_url = f"{api_url}/api/api_gateways/test-basic"
+    mock_aioresponse.delete(
+        request_url,
+        status=http.HTTPStatus.NO_CONTENT,
+    )
+    nuclio_client.delete_api_gateway("test-basic", "default")
 
 
 @pytest.mark.asyncio

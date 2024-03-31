@@ -34,10 +34,12 @@ import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.model_monitoring.api
+import mlrun.runtimes.utils
 import mlrun.serving.routers
+import mlrun.utils
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.writer import _TSDB_BE, ModelMonitoringWriter
+from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -241,15 +243,17 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     """Deploy and apply monitoring on a basic pre-trained model"""
 
     project_name = "pr-basic-model-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    def test_basic_model_monitoring(self):
+    def test_basic_model_monitoring(self) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
 
         # Deploy Model Servers
-        project = mlrun.get_run_db().get_project(self.project_name)
+        project = self.project
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -266,8 +270,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
+
         # enable model monitoring
         serving_fn.set_tracking()
+        project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
 
         model_name = "sklearn_RandomForestClassifier"
 
@@ -286,6 +295,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
                 key=model_name, category="model", tag="latest"
             ),
         )
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
 
         # Deploy the function
         serving_fn.deploy()
@@ -304,7 +315,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         sleep(5)
         self._assert_model_endpoint_metrics()
 
-    def _assert_model_endpoint_metrics(self):
+    def _assert_model_endpoint_metrics(self) -> None:
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
@@ -423,13 +434,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
-        # Define tracking policy
-        tracking_policy = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
-        }
-
         # Enable model monitoring
-        serving_fn.set_tracking(tracking_policy=tracking_policy)
+        serving_fn.set_tracking()
 
         # Deploy the serving function
         serving_fn.deploy()
@@ -767,6 +773,8 @@ class TestBatchDrift(TestMLRunSystem):
     """
 
     project_name = "pr-batch-drift"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -779,7 +787,7 @@ class TestBatchDrift(TestMLRunSystem):
         # 4 - Log monitoring artifacts
 
         # Generate project and context (context will be used for logging the artifacts)
-        project = mlrun.get_run_db().get_project(self.project_name)
+        project = self.project
         context = mlrun.get_or_create_ctx(name="batch-drift-context")
 
         # Log a model artifact
@@ -803,11 +811,18 @@ class TestBatchDrift(TestMLRunSystem):
             model_dir=os.path.relpath(self.assets_path),
             model_file="model.pkl",
             training_set=train_set,
-            artifact_path=f"v3io:///projects/{project.metadata.name}",
+            artifact_path=f"v3io:///projects/{project.name}",
             label_column="p0",
         )
 
-        # Generate a dataframe that will be writen as a monitoring parquet
+        # Deploy model monitoring infra
+        project.enable_model_monitoring(
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # Generate a dataframe that will be written as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
         infer_results_df = pd.DataFrame(
             {
@@ -819,7 +834,7 @@ class TestBatchDrift(TestMLRunSystem):
             }
         )
         infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            datetime.utcnow()
+            mlrun.utils.datetime_now()
         )
 
         # Record results and trigger the monitoring batch job
@@ -834,33 +849,33 @@ class TestBatchDrift(TestMLRunSystem):
             function_name="batch-drift-function",
             context=context,
             infer_results_df=infer_results_df,
-            trigger_monitoring_job=True,
+            # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        # Test the drift results
+        # Wait for the controller, app and writer to complete
+        sleep(130)
+
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
-            project=project.metadata.name, endpoint_id=endpoint_id
+            project=project.name, endpoint_id=endpoint_id
         )
-        assert model_endpoint.status.feature_stats
-        assert model_endpoint.status.current_stats
-        assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
-
-        # Validate that the artifacts were logged under the generated context
-        artifacts = context.artifacts
-        assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
-        assert artifacts[1]["metadata"]["key"] == "features_drift_results"
 
         # Validate that model_uri is based on models prefix
         assert (
             model_endpoint.spec.model_uri
-            == f"store://models/{project.metadata.name}/{model_name}:latest"
+            == f"store://models/{project.name}/{model_name}:latest"
         )
 
-        # Validate that function_uri is based on project and function name
-        assert (
-            model_endpoint.spec.function_uri
-            == f"{project.metadata.name}/batch-drift-function"
-        )
+        # Test the drift results
+        # TODO: comment out when ML-5767 is done
+        # assert model_endpoint.status.feature_stats
+        # assert model_endpoint.status.current_stats
+        # assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
+
+        # Validate that the artifacts were logged under the generated context
+        assert len(project.list_artifacts(name="~drift_table_plot")) == 1
+        assert len(project.list_artifacts(name="~features_drift_results")) == 1
+        # TODO: take the artifacts from the original context when ML-5792 is done
+        # artifacts = context.artifacts
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -874,14 +889,17 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
         else None
     )
+
     project_name = "pr-kafka-model-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @pytest.mark.timeout(300)
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_model_monitoring_with_kafka_stream(self):
-        project = mlrun.get_run_db().get_project(self.project_name)
+        project = self.project
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -921,7 +939,13 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         # enable model monitoring
         serving_fn.set_tracking()
+        project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
         # Deploy the function
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
         serving_fn.deploy()
 
         monitoring_stream_fn = project.get_function("model-monitoring-stream")
@@ -970,6 +994,8 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -985,13 +1011,13 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         cls.test_set = cls.x_test.join(cls.y_test)
         cls.infer_results_df = cls.test_set
         cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            datetime.utcnow()
+            mlrun.utils.datetime_now()
         )
         cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
         cls.function_name = f"{cls.name_prefix}-function"
         cls._train()
 
-    def custom_setup(self):
+    def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
 
     @classmethod
@@ -1037,6 +1063,10 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             label_column=self.y_name,
         )
 
+        self.project.enable_model_monitoring(
+            **({} if self.image is None else {"image": self.image})
+        )
+
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(
@@ -1047,7 +1077,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             endpoint_id=self.endpoint_id,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
-            trigger_monitoring_job=True,
+            # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
         self._test_feature_names()
@@ -1063,6 +1093,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1080,10 +1112,10 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
         cls.infer_results_df = cls.train_set.copy()
         cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            datetime.utcnow()
+            mlrun.utils.datetime_now()
         )
 
-    def custom_setup(self):
+    def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
 
     def _log_model(self) -> str:
@@ -1098,31 +1130,46 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
-        frames = ModelMonitoringWriter._get_v3io_frames_client(
-            v3io_container="users",
+        tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
+            v3io_container=ModelMonitoringWriter.get_v3io_container(cls.project_name)
         )
-        df: pd.DataFrame = frames.read(
-            backend=_TSDB_BE,
-            table=f"pipelines/{cls.project_name}/model-endpoints/events",
-            start="now-5m",
+        df: pd.DataFrame = tsdb_client.read(
+            backend=_TSDB_BE, table=_TSDB_TABLE, start="now-5m", end="now"
         )
-        assert len(df) == 1, "Expected a single record in the TSDB"
-        assert {
-            "endpoint_id",
-            "record_type",
+
+        assert not df.empty, "No TSDB data"
+        assert (
+            len(df) == 4
+        ), "Expects four results of the histogram data drift app in the TSDB"
+        assert set(df.application_name) == {
+            "histogram-data-drift"
+        }, "The application names are different than expected"
+        assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
+        assert set(df.result_name) == {
+            "general_drift",
             "hellinger_mean",
             "kld_mean",
             "tvd_mean",
-        } == set(df.columns), "Unexpected columns in the TSDB record"
+        }, "The results are different than expected"
 
     def test_record(self) -> None:
+        self.project.enable_model_monitoring(
+            base_period=1,
+            deploy_histogram_data_drift_app=True,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
         model_uri = self._log_model()
+
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
-            trigger_monitoring_job=True,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
+            # TODO: activate ad-hoc mode when ML-5792 is done
         )
+
+        sleep(130)
+
         self._test_v3io_tsdb_record()

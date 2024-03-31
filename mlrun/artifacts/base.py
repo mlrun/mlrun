@@ -88,9 +88,10 @@ class ArtifactSpec(ModelObj):
         "db_key",
         "extra_data",
         "unpackaging_instructions",
+        "producer",
     ]
 
-    _extra_fields = ["annotations", "producer", "sources", "license", "encoding"]
+    _extra_fields = ["annotations", "sources", "license", "encoding"]
     _exclude_fields_from_uid_hash = [
         # if the artifact is first created, it will not have a db_key,
         # exclude it so further updates of the artifacts will have the same hash

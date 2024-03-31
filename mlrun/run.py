@@ -34,7 +34,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
-from mlrun.runtimes.nuclio.serving import serving_subkind
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -58,6 +57,7 @@ from .runtimes import (
 )
 from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
+from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     extend_hub_uri_if_needed,
@@ -425,19 +425,19 @@ def import_function_to_dict(url, secrets=None):
 
 
 def new_function(
-    name: str = "",
-    project: str = "",
-    tag: str = "",
-    kind: str = "",
-    command: str = "",
-    image: str = "",
-    args: list = None,
-    runtime=None,
-    mode=None,
-    handler: str = None,
-    source: str = None,
+    name: Optional[str] = "",
+    project: Optional[str] = "",
+    tag: Optional[str] = "",
+    kind: Optional[str] = "",
+    command: Optional[str] = "",
+    image: Optional[str] = "",
+    args: Optional[list] = None,
+    runtime: Optional[Union[mlrun.runtimes.BaseRuntime, dict]] = None,
+    mode: Optional[str] = None,
+    handler: Optional[str] = None,
+    source: Optional[str] = None,
     requirements: Union[str, list[str]] = None,
-    kfp=None,
+    kfp: Optional[bool] = None,
     requirements_file: str = "",
 ):
     """Create a new ML function from base properties
@@ -535,9 +535,9 @@ def new_function(
     if source:
         runner.spec.build.source = source
     if handler:
-        if kind == RuntimeKinds.serving:
+        if kind in [RuntimeKinds.serving, RuntimeKinds.application]:
             raise MLRunInvalidArgumentError(
-                "cannot set the handler for serving runtime"
+                f"Handler is not supported for {kind} runtime"
             )
         elif kind in RuntimeKinds.nuclio_runtimes():
             runner.spec.function_handler = handler
@@ -575,22 +575,22 @@ def _process_runtime(command, runtime, kind):
 
 
 def code_to_function(
-    name: str = "",
-    project: str = "",
-    tag: str = "",
-    filename: str = "",
-    handler: str = "",
-    kind: str = "",
-    image: str = None,
-    code_output: str = "",
+    name: Optional[str] = "",
+    project: Optional[str] = "",
+    tag: Optional[str] = "",
+    filename: Optional[str] = "",
+    handler: Optional[str] = "",
+    kind: Optional[str] = "",
+    image: Optional[str] = None,
+    code_output: Optional[str] = "",
     embed_code: bool = True,
-    description: str = "",
-    requirements: Union[str, list[str]] = None,
-    categories: list[str] = None,
-    labels: dict[str, str] = None,
-    with_doc: bool = True,
-    ignored_tags=None,
-    requirements_file: str = "",
+    description: Optional[str] = "",
+    requirements: Optional[Union[str, list[str]]] = None,
+    categories: Optional[list[str]] = None,
+    labels: Optional[dict[str, str]] = None,
+    with_doc: Optional[bool] = True,
+    ignored_tags: Optional[str] = None,
+    requirements_file: Optional[str] = "",
 ) -> Union[
     MpiRuntimeV1Alpha1,
     MpiRuntimeV1,
@@ -602,6 +602,7 @@ def code_to_function(
     Spark3Runtime,
     RemoteSparkRuntime,
     DatabricksRuntime,
+    ApplicationRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 
@@ -718,35 +719,34 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels
 
-    def resolve_nuclio_subkind(kind):
-        is_nuclio = kind.startswith("nuclio")
-        subkind = kind[kind.find(":") + 1 :] if is_nuclio and ":" in kind else None
-        if kind == RuntimeKinds.serving:
-            is_nuclio = True
-            subkind = serving_subkind
-        return is_nuclio, subkind
-
     if (
         not embed_code
         and not code_output
         and (not filename or filename.endswith(".ipynb"))
     ):
         raise ValueError(
-            "a valid code file must be specified "
+            "A valid code file must be specified "
             "when not using the embed_code option"
         )
 
     if kind == RuntimeKinds.databricks and not embed_code:
-        raise ValueError("databricks tasks only support embed_code=True")
+        raise ValueError("Databricks tasks only support embed_code=True")
 
-    is_nuclio, subkind = resolve_nuclio_subkind(kind)
+    if kind == RuntimeKinds.application:
+        if handler:
+            raise MLRunInvalidArgumentError(
+                "Handler is not supported for application runtime"
+            )
+        filename, handler = ApplicationRuntime.get_filename_and_handler()
+
+    is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = nuclio.build_file(
         filename,
         name=name,
         handler=handler or "handler",
-        kind=subkind,
+        kind=sub_kind,
         ignored_tags=ignored_tags,
     )
     spec["spec"]["env"].append(
@@ -759,14 +759,14 @@ def code_to_function(
     if not kind and spec_kind not in ["", "Function"]:
         kind = spec_kind.lower()
 
-        # if its a nuclio subkind, redo nb parsing
-        is_nuclio, subkind = resolve_nuclio_subkind(kind)
+        # if its a nuclio sub kind, redo nb parsing
+        is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
         if is_nuclio:
             name, spec, code = nuclio.build_file(
                 filename,
                 name=name,
                 handler=handler or "handler",
-                kind=subkind,
+                kind=sub_kind,
                 ignored_tags=ignored_tags,
             )
 
@@ -780,33 +780,29 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
-        if subkind == serving_subkind:
-            r = ServingRuntime()
-        else:
-            r = RemoteRuntime()
-            r.spec.function_kind = subkind
-        # default_handler is only used in :mlrun subkind, determine the handler to invoke in function.run()
-        r.spec.default_handler = handler if subkind == "mlrun" else ""
-        r.spec.function_handler = (
+        runtime = RuntimeKinds.resolve_nuclio_runtime(kind, sub_kind)
+        # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
+        runtime.spec.default_handler = handler if sub_kind == "mlrun" else ""
+        runtime.spec.function_handler = (
             handler if handler and ":" in handler else get_in(spec, "spec.handler")
         )
         if not embed_code:
-            r.spec.source = filename
+            runtime.spec.source = filename
         nuclio_runtime = get_in(spec, "spec.runtime")
         if nuclio_runtime and not nuclio_runtime.startswith("py"):
-            r.spec.nuclio_runtime = nuclio_runtime
+            runtime.spec.nuclio_runtime = nuclio_runtime
         if not name:
-            raise ValueError("name must be specified")
-        r.metadata.name = name
-        r.spec.build.code_origin = code_origin
-        r.spec.build.origin_filename = filename or (name + ".ipynb")
-        update_common(r, spec)
-        return r
+            raise ValueError("Missing required parameter: name")
+        runtime.metadata.name = name
+        runtime.spec.build.code_origin = code_origin
+        runtime.spec.build.origin_filename = filename or (name + ".ipynb")
+        update_common(runtime, spec)
+        return runtime
 
     if kind is None or kind in ["", "Function"]:
         raise ValueError("please specify the function kind")
     elif kind in RuntimeKinds.all():
-        r = get_runtime_class(kind)()
+        runtime = get_runtime_class(kind)()
     else:
         raise ValueError(f"unsupported runtime ({kind})")
 
@@ -815,10 +811,10 @@ def code_to_function(
     if not name:
         raise ValueError("name must be specified")
     h = get_in(spec, "spec.handler", "").split(":")
-    r.handler = h[0] if len(h) <= 1 else h[1]
-    r.metadata = get_in(spec, "spec.metadata")
-    r.metadata.name = name
-    build = r.spec.build
+    runtime.handler = h[0] if len(h) <= 1 else h[1]
+    runtime.metadata = get_in(spec, "spec.metadata")
+    runtime.metadata.name = name
+    build = runtime.spec.build
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
     build.extra = get_in(spec, "spec.build.extra")
@@ -826,18 +822,18 @@ def code_to_function(
     build.builder_env = get_in(spec, "spec.build.builder_env")
     if not embed_code:
         if code_output:
-            r.spec.command = code_output
+            runtime.spec.command = code_output
         else:
-            r.spec.command = filename
+            runtime.spec.command = filename
 
     build.image = get_in(spec, "spec.build.image")
-    update_common(r, spec)
-    r.prepare_image_for_deploy()
+    update_common(runtime, spec)
+    runtime.prepare_image_for_deploy()
 
     if with_doc:
-        update_function_entry_points(r, code)
-    r.spec.default_handler = handler
-    return r
+        update_function_entry_points(runtime, code)
+    runtime.spec.default_handler = handler
+    return runtime
 
 
 def _run_pipeline(
@@ -851,6 +847,7 @@ def _run_pipeline(
     ops=None,
     url=None,
     cleanup_ttl=None,
+    timeout=60,
 ):
     """remote KubeFlow pipeline execution
 
@@ -888,6 +885,7 @@ def _run_pipeline(
         ops=ops,
         artifact_path=artifact_path,
         cleanup_ttl=cleanup_ttl,
+        timeout=timeout,
     )
     logger.info(f"Pipeline run id={pipeline_run_id}, check UI for progress")
     return pipeline_run_id

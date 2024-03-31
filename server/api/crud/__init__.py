@@ -25,6 +25,7 @@ from .hub import Hub
 from .logs import Logs
 from .model_monitoring import ModelEndpoints
 from .notifications import Notifications
+from .pagination_cache import PaginationCache
 from .pipelines import Pipelines
 from .projects import Projects
 from .runs import Runs

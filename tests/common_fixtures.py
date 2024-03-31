@@ -45,7 +45,6 @@ import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
-from mlrun.runtimes.nuclio.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
@@ -83,6 +82,8 @@ def config_test_base():
 
     # no need to raise error when using nop_db
     mlrun.mlconf.httpdb.nop_db.raise_error = False
+    # deploy status is mocked so no need to sleep
+    mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval = 0
 
     # remove the is_running_as_api cache, so it won't pass between tests
     mlrun.config._is_running_as_api = None
@@ -386,14 +387,13 @@ class RunDBMock:
         force_build=False,
     ):
         function = func.to_dict()
-        status = NuclioStatus(
-            state="ready",
-            nuclio_name="test-nuclio-name",
-        )
+        function.setdefault("status", {})
+        function["status"]["state"] = "ready"
+        function["status"]["nuclio_name"] = "test-nuclio-name"
         self._functions[function["metadata"]["name"]] = function
         return {
             "data": {
-                "status": status.to_dict(),
+                "status": function.get("status"),
                 "metadata": function.get("metadata"),
                 "spec": function.get("spec"),
             }

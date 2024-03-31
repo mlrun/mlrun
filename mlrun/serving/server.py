@@ -353,7 +353,7 @@ def v2_serving_init(context, namespace=None):
 
         async def termination_callback():
             context.logger.info("Termination callback called")
-            await server.wait_for_completion()
+            server.wait_for_completion()
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
@@ -365,7 +365,7 @@ def v2_serving_init(context, namespace=None):
 
         async def drain_callback():
             context.logger.info("Drain callback called")
-            await server.wait_for_completion()
+            server.wait_for_completion()
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )

@@ -15,11 +15,11 @@ import datetime
 import unittest.mock
 
 import pytest
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 import mlrun.artifacts
 import mlrun.errors
-from mlrun_pipelines.models import PipelineRun
 from tests.conftest import out_path
 
 

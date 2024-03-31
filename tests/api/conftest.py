@@ -64,6 +64,7 @@ def api_config_test():
     server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
+    server.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
 
     # we need to override the run db container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed

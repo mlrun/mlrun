@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.2](#v1-6-2-??-march-2024]  |  [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.3](#v1-6-3-4-april-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -10,27 +10,35 @@
 - [v1.0.6](#v1-0-6-16-august-2022) | [v1.0.5](#v1-0-5-11-august-2022) | [v1.0.4](#v1-0-4-13-june-2022) | [v1.0.3](#v1-0-3-7-june-2022) | [v1.0.2](#v1-0-2-19-may-2022) | [v1.0.0](#v1-0-0-22-april-2022)
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
-- [Deprecations](#deprecations-and-removed-code)
+- [Deprecations and removed code](#deprecations-and-removed-code)
+ 
+## v1.6.3 (4 April 2024)
 
-## v1.6.2 (?? March 2024)
+### Workflows
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-3521,5482|Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](..//concepts/scheduled-jobs.html#scheduling-a-workflow).|
 
 
-### Feature store
-| ID     |Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-|ML-5656|Snowflake is now supported as an offline target store. See [Targets](../feature-store/sources-targets.html#targets).|
+###  Closed issue
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-3521|Workflows can now be scheduled without a remote source. | 
+|ML-5763|The log formatter options can now be changed by an env var.|
+|ML-6060|You can now set project- and cluster-level default values to the build flags for nuclio and mlrun builders.|
 
-### Runtimes
 
-| ID     |Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-|ML-5482  |Remote workflows support projects with workflow sources inside the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow).|
+## v1.6.2 (29 March 2024)
 
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-3521|Can now schedule a workflow without a remote source. |
-|ML-5786|
+|ML-5808|Fix selecting the project-owner user.|
+|ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
+|ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
+|ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
+
+
 
 ## v1.6.1 (29 February 2024)
 
@@ -44,7 +52,7 @@
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
-|ML-3618|Integrate MLflow: seamlessly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
+|ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
 |ML-4343|Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
 
 ### Feature store
@@ -902,7 +910,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
-|ML-5776|Concurrent request to project deletion may fail thought first call would gracefully finish the flow, without experiencing any error. Other concurrent requests would not impact the project deletion flow.|NA| v1.6.0|
+|ML-6048|UI: An admin user cannot change its role in the project. |   |v1.6.2|
+|ML-6045|UI: If a user-filter has a large number of matches, it may not display all the matching users. |Narrow your search to be sure you get all the matches.|v1.6.2|
+|ML-6051|UI: After an admin user deletes itself from a project, the user stays in the Projects Members page even though it has no permissions and cannot view any aspects of the project.||  NA |v1.6.2|
 
 
 ## Limitations
@@ -939,7 +949,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.8.0       |v1.6.2   |`FunctionSpec.clone_target_dir`                                                                    | Moved to `ImageBuilder.source_target_dir` |
+| v1.8.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_target_dir`
 | v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|

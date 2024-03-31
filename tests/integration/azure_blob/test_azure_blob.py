@@ -82,7 +82,7 @@ class TestAzureBlob:
         cls.test_dir = "test_mlrun_azure_blob"
         cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
         cls._bucket_name = config["env"].get("AZURE_CONTAINER", None)
-        cls.test_file = here / "test.txt"
+        cls.test_file = join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._azure_fs = None

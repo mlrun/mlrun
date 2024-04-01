@@ -16,7 +16,7 @@ import dataclasses
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union, cast
+from typing import Any, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -25,11 +25,8 @@ import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
-from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.helpers import get_stream_path
 from mlrun.serving.utils import StepToDict
-from mlrun.utils import logger
 
 
 @dataclasses.dataclass
@@ -243,68 +240,3 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         histograms = pd.DataFrame(histograms)
 
         return histograms
-
-
-class PushToMonitoringWriter(StepToDict):
-    kind = "monitoring_application_stream_pusher"
-
-    def __init__(
-        self,
-        project: Optional[str] = None,
-        writer_application_name: Optional[str] = None,
-        stream_uri: Optional[str] = None,
-        name: Optional[str] = None,
-    ):
-        """
-        Class for pushing application results to the monitoring writer stream.
-
-        :param project:                     Project name.
-        :param writer_application_name:     Writer application name.
-        :param stream_uri:                  Stream URI for pushing results.
-        :param name:                        Name of the PushToMonitoringWriter
-                                            instance default to PushToMonitoringWriter.
-        """
-        self.project = project
-        self.application_name_to_push = writer_application_name
-        self.stream_uri = stream_uri or get_stream_path(
-            project=self.project, function_name=self.application_name_to_push
-        )
-        self.output_stream = None
-        self.name = name or "PushToMonitoringWriter"
-
-    def do(self, event: tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
-        """
-        Push application results to the monitoring writer stream.
-
-        :param event: Monitoring result(s) to push and the original event from the controller.
-        """
-        self._lazy_init()
-        application_results, application_event = event
-        metadata = {
-            mm_constant.WriterEvent.APPLICATION_NAME: application_event[
-                mm_constant.ApplicationEvent.APPLICATION_NAME
-            ],
-            mm_constant.WriterEvent.ENDPOINT_ID: application_event[
-                mm_constant.ApplicationEvent.ENDPOINT_ID
-            ],
-            mm_constant.WriterEvent.START_INFER_TIME: application_event[
-                mm_constant.ApplicationEvent.START_INFER_TIME
-            ],
-            mm_constant.WriterEvent.END_INFER_TIME: application_event[
-                mm_constant.ApplicationEvent.END_INFER_TIME
-            ],
-            mm_constant.WriterEvent.CURRENT_STATS: json.dumps(
-                application_event[mm_constant.ApplicationEvent.CURRENT_STATS]
-            ),
-        }
-        for result in application_results:
-            data = result.to_dict()
-            data.update(metadata)
-            logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")
-            self.output_stream.push([data])
-
-    def _lazy_init(self):
-        if self.output_stream is None:
-            self.output_stream = get_stream_pusher(
-                self.stream_uri,
-            )

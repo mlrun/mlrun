@@ -97,7 +97,7 @@ async def enable_model_monitoring(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
         )
 
-    return MonitoringDeployment(
+    MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
@@ -165,7 +165,7 @@ async def update_model_monitoring_controller(
 def deploy_histogram_data_drift_app(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     image: str = "mlrun/mlrun",
-) -> dict[str, Any]:
+) -> None:
     """
     Deploy the histogram data drift app on the go.
 
@@ -181,7 +181,7 @@ def deploy_histogram_data_drift_app(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
         )
 
-    return MonitoringDeployment(
+    MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,

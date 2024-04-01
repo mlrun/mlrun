@@ -723,10 +723,10 @@ class RunDBInterface(ABC):
 
     def enable_model_monitoring(
         self, project: str, base_period: int = 10, image: str = "mlrun/mlrun"
-    ) -> dict[str, Any]:
+    ) -> None:
         raise NotImplementedError
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
-    ) -> dict[str, Any]:
+    ) -> None:
         raise NotImplementedError

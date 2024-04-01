@@ -84,27 +84,21 @@ class MonitoringDeployment:
 
     def deploy_monitoring_functions(
         self, base_period: int = 10, image: str = "mlrun/mlrun"
-    ) -> dict[str, typing.Any]:
+    ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
 
-        :param base_period:                 The time period in minutes in which the model monitoring controller function
-                                            triggers. By default, the base period is 10 minutes.
-        :param image:                       The image of the model monitoring controller, writer & monitoring
-                                            stream functions, which are real time nuclio functino.
-                                            By default, the image is mlrun/mlrun.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller, writer & monitoring
+                            stream functions, which are real time nuclio functino.
+                            By default, the image is mlrun/mlrun.
         """
-        controller_dict = self.deploy_model_monitoring_controller(
+        self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
-
-        writer_dict = self.deploy_model_monitoring_writer_application(
-            writer_image=image
-        )
-
-        stream_dict = self.deploy_model_monitoring_stream_processing(stream_image=image)
-
-        return controller_dict | writer_dict | stream_dict
+        self.deploy_model_monitoring_writer_application(writer_image=image)
+        self.deploy_model_monitoring_stream_processing(stream_image=image)
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun"
@@ -487,12 +481,11 @@ class MonitoringDeployment:
                 pass
         logger.info(f"Deploying {function_name} function", project=self.project)
 
-    def deploy_histogram_data_drift_app(self, image: str) -> dict[str, typing.Any]:
+    def deploy_histogram_data_drift_app(self, image: str) -> None:
         """
         Deploy the histogram data drift application.
 
         :param image: The image on with the function will run.
-        :returns:     A dictionary describing the function and the deployment status.
         """
         logger.info("Preparing the histogram data drift function")
         func = typing.cast(
@@ -526,16 +519,12 @@ class MonitoringDeployment:
             )
         ).respond()
 
-        fn, ready = server.api.api.endpoints.functions._build_function(
+        server.api.api.endpoints.functions._build_function(
             db_session=self.db_session,
             auth_info=self.auth_info,
             function=func,
         )
         logger.info("Submitted the deployment")
-        return {
-            "histogram_app_data": fn.to_dict(),
-            "histogram_app_ready": ready,
-        }
 
 
 def get_endpoint_features(

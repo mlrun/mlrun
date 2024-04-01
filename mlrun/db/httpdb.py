@@ -3081,7 +3081,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ) -> dict[str, typing.Any]:
+    ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
         While the main goal of the controller function is to handle the monitoring processing and triggering
@@ -3096,29 +3096,27 @@ class HTTPRunDB(RunDBInterface):
         :param image:       The image of the model monitoring controller, writer & monitoring
                             stream functions, which are real time nuclio functions.
                             By default, the image is mlrun/mlrun.
-        :returns:           A dictionary describing the different infra functions information.
         """
-        return self.api_call(
+        self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/enable-model-monitoring",
             params={"base_period": base_period, "image": image},
-        ).json()
+        )
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
-    ) -> dict[str, typing.Any]:
+    ) -> None:
         """
         Deploy the histogram data drift application.
 
         :param project: Project name.
         :param image:   The image on which the application will run.
-        :returns:       A dictionary describing the function information.
         """
-        return self.api_call(
+        self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
             params={"image": image},
-        ).json()
+        )
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]

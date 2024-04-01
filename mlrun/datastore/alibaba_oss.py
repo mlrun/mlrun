@@ -21,6 +21,7 @@ import oss2
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
+
 from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 
@@ -39,7 +40,8 @@ class OSSStore(DataStore):
             self.endpoint_url = endpoint_url
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"missing ALIBABA_ACCESS_KEY_ID or ALIBABA_SECRET_ACCESS_KEY or ALIBABA_ENDPOINT_URL in environment"
+                """missing ALIBABA_ACCESS_KEY_ID or ALIBABA_SECRET_ACCESS_KEY
+                or ALIBABA_ENDPOINT_URL in environment"""
             )
 
     @property

@@ -622,8 +622,9 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
-        # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30, "remote": 90},
+        # Default timeout seconds for retrieving workflow id after execution
+        # Remote workflow timeout is the maximum between remote and the inner engine timeout
+        "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},
     },
     "log_collector": {
         "address": "localhost:8282",

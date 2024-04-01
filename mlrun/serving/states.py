@@ -14,7 +14,6 @@
 
 __all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 
-import asyncio
 import os
 import pathlib
 import traceback
@@ -1235,18 +1234,9 @@ class FlowStep(BaseStep):
         """wait for completion of run in async flows"""
 
         if self._controller:
-            if asyncio.iscoroutinefunction(self._controller.await_termination):
-
-                async def terminate_and_await_termination():
-                    if hasattr(self._controller, "terminate"):
-                        await self._controller.terminate()
-                    return await self._controller.await_termination()
-
-                return terminate_and_await_termination()
-            else:
-                if hasattr(self._controller, "terminate"):
-                    self._controller.terminate()
-                return self._controller.await_termination()
+            if hasattr(self._controller, "terminate"):
+                self._controller.terminate()
+            return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz

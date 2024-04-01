@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 
-
-import mlrun
 import tests.system.base
 
 
@@ -24,11 +23,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
     def custom_setup(self):
         super().custom_setup()
-        self.remote_code_dir = mlrun.utils.helpers.template_artifact_path(
-            mlrun.mlconf.artifact_path, self.project_name
-        )
-        self.uploaded_code = False
-        self._vizro_app_code_filename = "/vizro_app.py"
+        self._vizro_app_code_filename = "vizro_app.py"
+        self._files_to_upload = [self._vizro_app_code_filename]
 
     def test_deploy_application(self):
         self._upload_code_to_cluster()
@@ -42,10 +38,14 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.set_internal_application_port(8050)
         # TODO: validate command and args?
         function.spec.command = "gunicorn"
-        function.spec.args = ["app:server", "--bind 0.0.0.0:8050", "--log-level debug"]
+        function.spec.args = [
+            "vizro_app:server",
+            "--bind 0.0.0.0:8050",
+            "--log-level debug",
+        ]
 
         function.with_source_archive(
-            self.remote_code_dir + self._vizro_app_code_filename,
+            os.path.join(self.remote_code_dir, self._vizro_app_code_filename),
             pull_at_runtime=False,
         )
 
@@ -53,13 +53,3 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.deploy(with_mlrun=False)
 
         assert function.invoke("/").status_code == 200
-
-    def _upload_code_to_cluster(self):
-        if not self.uploaded_code:
-            self._logger.debug("Uploading application code to cluster")
-            for file in [
-                self._vizro_app_code_filename,
-            ]:
-                source_path = str(self.assets_path / file)
-                mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
-        self.uploaded_code = True

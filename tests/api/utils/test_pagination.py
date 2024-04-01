@@ -54,6 +54,12 @@ def mock_paginated_method(monkeypatch):
     yield paginated_method
 
 
+@pytest.fixture()
+def cleanup_pagination_cache_on_teardown(db: sqlalchemy.orm.Session):
+    yield
+    server.api.crud.PaginationCache().cleanup_pagination_cache(db)
+
+
 def test_paginated_method():
     """
     Test the above paginated_method function, which is used as a mock for the paginated methods
@@ -88,7 +94,11 @@ def test_paginated_method():
         paginated_method(total_amount, 5, page_size)
 
 
-def test_paginate_request(mock_paginated_method, db: sqlalchemy.orm.Session):
+def test_paginate_request(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
     """
     Test pagination happy flow.
     Request paginated method with page and page size, and verify that the correct items are returned.
@@ -154,7 +164,11 @@ def test_paginate_request(mock_paginated_method, db: sqlalchemy.orm.Session):
     assert cache_record is None
 
 
-def test_paginate_other_users_token(mock_paginated_method, db: sqlalchemy.orm.Session):
+def test_paginate_other_users_token(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
     """
     Test pagination with a token that was created by a different user.
     Request paginated method with page and page size, and verify that the correct items are returned.
@@ -197,7 +211,11 @@ def test_paginate_other_users_token(mock_paginated_method, db: sqlalchemy.orm.Se
         paginator.paginate_request(db, paginated_method, None, pagination_info["token"])
 
 
-def test_paginate_no_auth(mock_paginated_method, db: sqlalchemy.orm.Session):
+def test_paginate_no_auth(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
     """
     Test pagination with no auth info.
     Request paginated method without auth info, verify that the correct items are returned.
@@ -241,7 +259,11 @@ def test_paginate_no_auth(mock_paginated_method, db: sqlalchemy.orm.Session):
     )
 
 
-def test_no_pagination(mock_paginated_method, db: sqlalchemy.orm.Session):
+def test_no_pagination(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
     """
     Test pagination with no page and page size.
     Request paginated method with no page and page size, and verify that all items are returned.
@@ -268,7 +290,11 @@ def test_no_pagination(mock_paginated_method, db: sqlalchemy.orm.Session):
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
 
 
-def test_pagination_not_supported(mock_paginated_method, db: sqlalchemy.orm.Session):
+def test_pagination_not_supported(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
     """
     Test pagination with a method that is not supported.
     Request a method that is not supported for pagination, and verify that a NotImplementedError is raised.
@@ -291,7 +317,11 @@ def test_pagination_not_supported(mock_paginated_method, db: sqlalchemy.orm.Sess
         )
 
 
-def test_pagination_cache_cleanup(mock_paginated_method, db: sqlalchemy.orm.Session):
+def test_pagination_cache_cleanup(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
     """
     Test pagination cache cleanup.
     Create paginated cache records and check that they are removed when calling cleanup_pagination_cache.

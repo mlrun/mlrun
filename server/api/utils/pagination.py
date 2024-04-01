@@ -40,10 +40,6 @@ class PaginatedMethods:
     def get_method(cls, method_name: str) -> typing.Callable:
         return cls._method_map[method_name]
 
-    @staticmethod
-    def get_name(method: typing.Callable) -> str:
-        return method.__name__
-
 
 class Paginator(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):

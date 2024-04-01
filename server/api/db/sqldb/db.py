@@ -4642,20 +4642,29 @@ class SQLDB(DBInterface):
         user: str,
         function: str,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         # generate key hash from user, function, current_page and kwargs
         key = hashlib.sha256(
-            f"{user}/{function}/{current_page}/{kwargs}".encode()
+            f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
-        param_record = PaginationCache(
-            key=key,
-            user=user,
-            function=function,
-            current_page=current_page,
-            kwargs=kwargs,
-            last_accessed=datetime.now(timezone.utc),
-        )
+        existing_record = self.get_paginated_query_cache_record(session, key)
+        if existing_record:
+            existing_record.current_page = current_page
+            existing_record.last_accessed = datetime.now(timezone.utc)
+            param_record = existing_record
+        else:
+            param_record = PaginationCache(
+                key=key,
+                user=user,
+                function=function,
+                current_page=current_page,
+                page_size=page_size,
+                kwargs=kwargs,
+                last_accessed=datetime.now(timezone.utc),
+            )
+
         self._upsert(session, [param_record])
         return key
 

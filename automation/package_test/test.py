@@ -56,9 +56,7 @@ class PackageTester:
             "[azure-key-vault]": {
                 "import_test_command": f"{basic_import}; {azure_key_vault_import}"
             },
-            "[alibaba-oss]": {
-                "import_test_command": f"{basic_import}; {oss_import}"
-            },
+            "[alibaba-oss]": {"import_test_command": f"{basic_import}; {oss_import}"},
             # TODO: this won't actually fail if the requirement is missing
             "[google-cloud-bigquery]": {
                 "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"

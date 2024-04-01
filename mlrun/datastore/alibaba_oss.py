@@ -40,8 +40,7 @@ class OSSStore(DataStore):
             self.endpoint_url = endpoint_url
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                """missing ALIBABA_ACCESS_KEY_ID or ALIBABA_SECRET_ACCESS_KEY
-                or ALIBABA_ENDPOINT_URL in environment"""
+                "missing ALIBABA_ACCESS_KEY_ID or ALIBABA_SECRET_ACCESS_KEY ALIBABA_ENDPOINT_URL in environment"
             )
 
     @property
@@ -65,10 +64,9 @@ class OSSStore(DataStore):
         res = dict(
             endpoint=self._get_secret_or_env("ALIBABA_ENDPOINT_URL"),
             key=self._get_secret_or_env("ALIBABA_ACCESS_KEY_ID"),
-            secret=self._get_secret_or_env("ALIBABA_SECRET_ACCESS_KEY")
+            secret=self._get_secret_or_env("ALIBABA_SECRET_ACCESS_KEY"),
         )
         return self._sanitize_storage_options(res)
-
 
     def get_bucket_and_key(self, key):
         path = self._join(key)[1:]
@@ -83,7 +81,7 @@ class OSSStore(DataStore):
         bucket, key = self.get_bucket_and_key(key)
         oss = oss2.Bucket(self.auth, self.endpoint_url, bucket)
         if size or offset:
-            return oss.get_object(key,byte_range=self.get_range(size, offset)).read()
+            return oss.get_object(key, byte_range=self.get_range(size, offset)).read()
         return oss.get_object(key).read()
 
     def put(self, key, data, append=False):
@@ -116,7 +114,6 @@ class OSSStore(DataStore):
         oss = oss2.Bucket(self.auth, self.endpoint_url, bucket)
         oss.delete_object(key)
 
-
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")
         schema = urlparse(key).scheme
@@ -129,5 +126,5 @@ class OSSStore(DataStore):
     @staticmethod
     def get_range(size, offset):
         if size:
-            return [offset,size]
-        return [offset,None]
+            return [offset, size]
+        return [offset, None]

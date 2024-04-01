@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import os
-import random
 import tempfile
 import uuid
 from pathlib import Path
@@ -25,7 +24,6 @@ from pandas.testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
-
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
@@ -41,7 +39,11 @@ with open(test_filename) as f:
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
 
-credential_params = ["ALIBABA_ACCESS_KEY_ID", "ALIBABA_SECRET_ACCESS_KEY","ALIBABA_ENDPOINT_URL"]
+credential_params = [
+    "ALIBABA_ACCESS_KEY_ID",
+    "ALIBABA_SECRET_ACCESS_KEY",
+    "ALIBABA_ENDPOINT_URL",
+]
 
 
 def alibaba_oss_configured(extra_params=None):
@@ -54,10 +56,11 @@ def alibaba_oss_configured(extra_params=None):
     return True
 
 
-@pytest.mark.skipif(not alibaba_oss_configured(), reason="ALIBABA OSS parameters not configured")
+@pytest.mark.skipif(
+    not alibaba_oss_configured(), reason="ALIBABA OSS parameters not configured"
+)
 @pytest.mark.parametrize("use_datastore_profile", [False])
 class TestAlibabaOssDataStore:
-
     def setup_method(self, method):
         self._bucket_name = config["env"].get("bucket_name")
         self._access_key_id = config["env"].get("ALIBABA_ACCESS_KEY_ID")
@@ -182,8 +185,12 @@ class TestAlibabaOssDataStore:
         assert stat.size == len(test_string), "Stat size different than expected"
 
         dir_list = mlrun.run.get_dataitem(param["bucket_path_dir"]).listdir()
-        assert param["object_path"].split('/')[1] in dir_list, "File not in container dir-list"
-        assert param["df_path"].split('/')[1] in dir_list, "CSV file not in container dir-list"
+        assert (
+            param["object_path"].split("/")[1] in dir_list
+        ), "File not in container dir-list"
+        assert (
+            param["df_path"].split("/")[1] in dir_list
+        ), "CSV file not in container dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
         upload_data_item.upload(test_filename)
@@ -211,6 +218,6 @@ class TestAlibabaOssDataStore:
             "df_url": f"{bucket_path}/{df_path}",
             "blob_url": f"{object_url}.blob",
             "parquet_url": f"{object_url}.parquet",
-            "bucket_path_dir":f"{bucket_path}/{object_dir}"
+            "bucket_path_dir": f"{bucket_path}/{object_dir}",
         }
         return res

@@ -94,6 +94,11 @@ def schema_to_store(schema):
         from .dbfs_store import DBFSStore
 
         return DBFSStore
+
+    elif schema == "oss":
+        from .alibaba_oss import OSSStore
+
+        return OSSStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 

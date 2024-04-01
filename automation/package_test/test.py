@@ -36,6 +36,7 @@ class PackageTester:
         google_cloud_bigquery_import = (
             "from mlrun.datastore.sources import BigQuerySource"
         )
+        oss_import = "import mlrun.datastore.alibaba_oss"
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
         targets_import = "import mlrun.datastore.targets"
         redis_import = "import redis"
@@ -56,6 +57,7 @@ class PackageTester:
             "[azure-key-vault]": {
                 "import_test_command": f"{basic_import}; {azure_key_vault_import}"
             },
+            "[alibaba-oss]": {"import_test_command": f"{basic_import}; {oss_import}"},
             # TODO: this won't actually fail if the requirement is missing
             "[google-cloud-bigquery]": {
                 "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"
@@ -68,7 +70,8 @@ class PackageTester:
             "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {redis_import}; {targets_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import};"
+                + f" {redis_import}; {targets_import}; {oss_import}",
                 "perform_vulnerability_check": True,
             },
             "[mlflow]": {"import_test_command": f"{basic_import}; {mlflow_import}"},

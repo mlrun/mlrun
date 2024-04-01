@@ -20,6 +20,7 @@ import shutil
 import sys
 from sys import executable
 
+import igz_mgmt
 import pandas as pd
 import pytest
 from kfp import dsl
@@ -1066,6 +1067,40 @@ class TestProject(TestMLRunSystem):
             workflow,
             mlrun.run.RunStatuses.failed,
         )
+
+    def test_project_default_function_node_selector(self):
+        project_name = "test-project"
+
+        igz_mgmt.Project.create(
+            self._igz_mgmt_client,
+            name=project_name,
+            owner="admin",
+            default_function_node_selector=[{"name": "type", "value": "general"}],
+        )
+
+        project = self._run_db.get_project(project_name)
+        assert project.spec.default_function_node_selector == {"type": "general"}
+
+        code_path = str(self.assets_path / "sleep.py")
+        func = project.set_function(
+            name="test-func",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        func.spec.node_selector = {"zone": "us-west"}
+
+        # We run the function to ensure node selector enrichment, which doesn't occur during function build,
+        # but at runtime.
+        project.run_function("test-func")
+
+        # Verify that the node selector is correctly enriched
+        result_func = project.get_function("test-func")
+        assert result_func.spec.node_selector == {"type": "general", "zone": "us-west"}
+
+        p = igz_mgmt.Project.get_by_name(self._igz_mgmt_client, project_name)
+        p.delete(self._igz_mgmt_client)
 
     def test_project_build_image(self):
         name = "test-build-image"

@@ -1172,7 +1172,13 @@ def test_function_receives_project_default_function_node_selector():
     proj1 = mlrun.new_project("proj1", save=False)
     default_function_node_selector = {"gpu": "true"}
 
-    non_enriched_function = proj1.set_function(func=func_path, name="func", kind="job", image="mlrun/mlrun", handler="myhandler")
+    non_enriched_function = proj1.set_function(
+        func=func_path,
+        name="func",
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+    )
     assert non_enriched_function.spec.node_selector == {}
 
     proj1.spec.default_function_node_selector = default_function_node_selector
@@ -1181,7 +1187,11 @@ def test_function_receives_project_default_function_node_selector():
 
     # Same check - with a function object
     func1 = mlrun.code_to_function(
-        "func2", kind="job", handler="myhandler", image="mlrun/mlrun", filename=func_path
+        "func2",
+        kind="job",
+        handler="myhandler",
+        image="mlrun/mlrun",
+        filename=func_path,
     )
     proj1.set_function(func1, name="func2")
 

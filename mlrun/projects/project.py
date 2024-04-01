@@ -127,7 +127,7 @@ def new_project(
     save: bool = True,
     overwrite: bool = False,
     parameters: dict = None,
-    default_function_node_selector: dict = None
+    default_function_node_selector: dict = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 

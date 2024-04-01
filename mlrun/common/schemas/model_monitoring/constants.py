@@ -309,3 +309,4 @@ class ControllerPolicy:
 
 
 MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"
+MLRUN_HISTOGRAM_DATA_DRIFT_GENERAL_RESULT_NAME = "general_drift"

@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
     MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+    MLRUN_HISTOGRAM_DATA_DRIFT_GENERAL_RESULT_NAME,
     EventFieldType,
     ResultKindApp,
     ResultStatusApp,
@@ -148,7 +149,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         status = self._value_classifier.value_to_status(value)
         results.append(
             ModelMonitoringApplicationResult(
-                name="general_drift",
+                name=MLRUN_HISTOGRAM_DATA_DRIFT_GENERAL_RESULT_NAME,
                 value=value,
                 kind=self.METRIC_KIND,
                 status=status,

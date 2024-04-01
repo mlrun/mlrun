@@ -14,6 +14,7 @@
 #
 import copy
 import urllib.parse
+from http import HTTPStatus
 
 import aiohttp
 
@@ -37,7 +38,6 @@ class Client:
         self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
-        self._nuclio_domain = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
 
     async def __aenter__(self):
         await self._ensure_async_session()
@@ -91,13 +91,12 @@ class Client:
         self._enrich_nuclio_api_gateway(
             project_name=project_name,
             api_gateway=api_gateway,
-            api_gateway_name=api_gateway_name,
         )
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
 
-        body = api_gateway.dict(exclude_unset=True, exclude_none=True)
+        body = api_gateway.dict(exclude_none=True)
         method = "POST" if create else "PUT"
         path = (
             NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=api_gateway_name)
@@ -112,6 +111,19 @@ class Client:
             json=body,
         )
 
+    async def delete_api_gateway(self, name: str, project_name: str = None):
+        headers = {}
+
+        if project_name:
+            headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
+
+        return await self._send_request_to_api(
+            method="DELETE",
+            path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=""),
+            headers=headers,
+            json={"metadata": {"name": name}},
+        )
+
     def _set_iguazio_labels(self, nuclio_object, project_name):
         nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
         nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
@@ -119,6 +131,7 @@ class Client:
     async def _ensure_async_session(self):
         if not self._session:
             self._session = mlrun.utils.AsyncClientWithRetry(
+                raise_for_status=False,
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,
@@ -157,6 +170,8 @@ class Client:
                 kwargs,
             )
         else:
+            if response.status == HTTPStatus.NO_CONTENT:
+                return
             return await response.json()
 
     def _handle_error_response(
@@ -186,14 +201,7 @@ class Client:
     def _enrich_nuclio_api_gateway(
         self,
         project_name: str,
-        api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
-        if not api_gateway.spec.host:
-            api_gateway.spec.host = (
-                f"{api_gateway_name}-{project_name}."
-                f"{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
-            )
-
         return api_gateway

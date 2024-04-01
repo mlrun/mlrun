@@ -16,13 +16,13 @@ import dataclasses
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
 
 import mlrun.common.helpers
-import mlrun.common.schemas.model_monitoring
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
@@ -84,8 +84,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,
-                sample_df_stats: pd.DataFrame,
-                feature_stats: pd.DataFrame,
+                sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+                feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
                 start_infer_time: pd.Timestamp,
                 end_infer_time: pd.Timestamp,
                 schedule_time: pd.Timestamp,
@@ -93,7 +93,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 endpoint_id: str,
                 output_stream_uri: str,
             ) -> ModelMonitoringApplicationResult:
-                self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
+                self.context.log_artifact(TableArtifact("sample_df_stats", df=self.dict_to_histogram(sample_df_stats)))
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
@@ -126,14 +126,16 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         return results, event
 
     def _lazy_init(self, app_name: str):
-        self.context = self._create_context_for_logging(app_name=app_name)
+        self.context = cast(
+            mlrun.MLClientCtx, self._create_context_for_logging(app_name=app_name)
+        )
 
     @abstractmethod
     def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         sample_df: pd.DataFrame,
         start_infer_time: pd.Timestamp,
         end_infer_time: pd.Timestamp,
@@ -147,8 +149,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         Implement this method with your custom monitoring logic.
 
         :param application_name:         (str) the app name
-        :param sample_df_stats:         (pd.DataFrame) The new sample distribution DataFrame.
-        :param feature_stats:           (pd.DataFrame) The train sample distribution DataFrame.
+        :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
+        :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
         :param sample_df:               (pd.DataFrame) The new sample DataFrame.
         :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
         :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
@@ -167,8 +169,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         event: dict[str, Any],
     ) -> tuple[
         str,
-        pd.DataFrame,
-        pd.DataFrame,
+        mlrun.common.model_monitoring.helpers.FeatureStats,
+        mlrun.common.model_monitoring.helpers.FeatureStats,
         pd.DataFrame,
         pd.Timestamp,
         pd.Timestamp,
@@ -184,8 +186,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
 
         :return: A tuple of:
                      [0] = (str) application name
-                     [1] = (pd.DataFrame) current input statistics
-                     [2] = (pd.DataFrame) train statistics
+                     [1] = (dict) current input statistics
+                     [2] = (dict) train statistics
                      [3] = (pd.DataFrame) current input data
                      [4] = (pd.Timestamp) start time of the monitoring schedule
                      [5] = (pd.Timestamp) end time of the monitoring schedule
@@ -197,12 +199,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
-            cls._dict_to_histogram(
-                json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS])
-            ),
-            cls._dict_to_histogram(
-                json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS])
-            ),
+            json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS]),
+            json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS]),
             ParquetTarget(
                 path=event[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
             ).as_df(start_time=start_time, end_time=end_time, time_column="timestamp"),
@@ -223,7 +221,9 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         return context
 
     @staticmethod
-    def _dict_to_histogram(histogram_dict: dict[str, dict[str, Any]]) -> pd.DataFrame:
+    def dict_to_histogram(
+        histogram_dict: mlrun.common.model_monitoring.helpers.FeatureStats,
+    ) -> pd.DataFrame:
         """
         Convert histogram dictionary to pandas DataFrame with feature histograms as columns
 

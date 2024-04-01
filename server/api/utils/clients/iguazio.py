@@ -561,13 +561,24 @@ class Client(
         params = {"include": "owner"}
         if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
-        return self._send_request_to_api(
-            "GET",
-            f"projects/__name__/{name}",
-            "Failed getting project from Iguazio",
-            session,
-            params=params,
-        )
+        try:
+            return self._send_request_to_api(
+                "GET",
+                f"projects/__name__/{name}",
+                "Failed getting project from Iguazio",
+                session,
+                params=params,
+            )
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._logger.debug(
+                "Project not found in Iguazio",
+                name=name,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
 
     def _get_project_from_iguazio(
         self, session: str, name: str, include_owner_session: bool = False

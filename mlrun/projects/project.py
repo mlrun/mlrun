@@ -55,7 +55,6 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring.application import (
     ModelMonitoringApplicationBase,
-    PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
@@ -1384,14 +1383,7 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
-        # TODO: To correctly maintain the list of artifacts from an exported project,
-        #  we need to maintain the different trees that generated them
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        project_tag = self._get_project_tag()
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
                 import_from = artifact_dict["import_from"]
@@ -1411,6 +1403,15 @@ class MlrunProject(ModelObj):
                     artifact.src_path = path.join(
                         self.spec.get_code_path(), artifact.src_path
                     )
+                producer = self._resolve_artifact_producer(artifact, project_tag)
+                # log the artifact only if it doesn't already exist
+                if (
+                    producer.name != self.metadata.name
+                    and self._resolve_existing_artifact(
+                        artifact,
+                    )
+                ):
+                    continue
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
                 )
@@ -1507,12 +1508,20 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             artifact_path, self.metadata.name
         )
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        producer = self._resolve_artifact_producer(item)
+        if producer.name != self.metadata.name:
+            # the artifact producer is retained, log it only if it doesn't already exist
+            if existing_artifact := self._resolve_existing_artifact(
+                item,
+                tag,
+            ):
+                artifact_key = item if isinstance(item, str) else item.key
+                logger.info(
+                    "Artifact already exists, skipping logging",
+                    key=artifact_key,
+                    tag=tag,
+                )
+                return existing_artifact
         item = am.log_artifact(
             producer,
             item,
@@ -1968,11 +1977,10 @@ class MlrunProject(ModelObj):
             else:
                 first_step = graph.to(class_name=application_class)
             first_step.to(
-                class_name=PushToMonitoringWriter(
-                    project=self.metadata.name,
-                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-                    stream_uri=None,
-                ),
+                class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
+                name="PushToMonitoringWriter",
+                project=self.metadata.name,
+                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
             ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
@@ -2746,40 +2754,41 @@ class MlrunProject(ModelObj):
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
-        """run a workflow using kubeflow pipelines
+        """Run a workflow using kubeflow pipelines
 
-        :param name:      name of the workflow
-        :param workflow_path:
-                          url to a workflow file, if not a project workflow
-        :param arguments:
-                          kubeflow pipelines arguments (parameters)
-        :param artifact_path:
-                          target path/url for workflow artifacts, the string
-                          '{{workflow.uid}}' will be replaced by workflow id
-        :param workflow_handler:
-                          workflow function handler (for running workflow function directly)
-        :param namespace: kubernetes namespace if other than default
-        :param sync:      force functions sync before run
-        :param watch:     wait for pipeline completion
-        :param dirty:     allow running the workflow when the git repo is dirty
-        :param engine:    workflow engine running the workflow.
-                          supported values are 'kfp' (default), 'local' or 'remote'.
-                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
-        :param local:     run local pipeline with local functions (set local=True in function.run())
+        :param name:                Name of the workflow
+        :param workflow_path:       URL to a workflow file, if not a project workflow
+        :param arguments:           Kubeflow pipelines arguments (parameters)
+        :param artifact_path:       Target path/URL for workflow artifacts, the string '{{workflow.uid}}' will be
+                                    replaced by workflow id.
+        :param workflow_handler:    Workflow function handler (for running workflow function directly)
+        :param namespace: Kubernetes namespace if other than default
+        :param sync:      Force functions sync before run
+        :param watch:     Wait for pipeline completion
+        :param dirty:     Allow running the workflow when the git repo is dirty
+        :param engine:    Workflow engine running the workflow.
+                          Supported values are 'kfp' (default), 'local' or 'remote'.
+                          For setting engine for remote running use 'remote:local' or 'remote:kfp'.
+        :param local:     Run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          for other engines the source is to validate that the code is up-to-date
+        :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          Can be a one of:
+                            1. Remote URL which is loaded dynamically to the workflow runner.
+                            2. A path to the project's context on the workflow runner's image.
+                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                          (enriched when building a project image with source, see `MlrunProject.build_image`).
+                          For other engines the source is used to validate that the code is up-to-date.
         :param cleanup_ttl:
-                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                          workflow and all its resources are deleted)
+                          Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          Workflow and all its resources are deleted)
         :param notifications:
-                          list of notifications to send for workflow completion
-        :returns: run id
+                          List of notifications to send for workflow completion
+        :returns: Run id
         """
 
         arguments = arguments or {}
@@ -3178,6 +3187,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         builder_env: dict = None,
         extra_args: str = None,
+        source_code_target_dir: str = None,
     ):
         """specify builder configuration for the project
 
@@ -3198,6 +3208,8 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param source_code_target_dir: Path on the image where source code would be extracted
+            (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
@@ -3221,6 +3233,7 @@ class MlrunProject(ModelObj):
             overwrite=overwrite_build_params,
             builder_env=builder_env,
             extra_args=extra_args,
+            source_code_target_dir=source_code_target_dir,
         )
 
         if set_as_default and image != self.default_image:
@@ -3267,7 +3280,7 @@ class MlrunProject(ModelObj):
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
@@ -3335,6 +3348,11 @@ class MlrunProject(ModelObj):
                 force_build=True,
             )
 
+            # Get the enriched target dir from the function
+            self.spec.build.source_code_target_dir = (
+                function.spec.build.source_code_target_dir
+            )
+
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(
                 name=function.metadata.name
@@ -3392,7 +3410,12 @@ class MlrunProject(ModelObj):
         artifact = db.read_artifact(
             key, tag, iter=iter, project=self.metadata.name, tree=tree
         )
-        return dict_to_artifact(artifact)
+
+        # in tests, if an artifact is not found, the db returns None
+        # in real usage, the db should raise an exception
+        if artifact:
+            return dict_to_artifact(artifact)
+        return None
 
     def list_artifacts(
         self,
@@ -3743,6 +3766,18 @@ class MlrunProject(ModelObj):
 
         return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
 
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to delete.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
+
     def _run_authenticated_git_action(
         self,
         action: Callable,
@@ -3819,6 +3854,83 @@ class MlrunProject(ModelObj):
                 f"Path must be absolute or relative to the project code path i.e. "
                 f"<project.spec.get_code_path()>/<{param_name}>)."
             )
+
+    def _resolve_artifact_producer(
+        self,
+        artifact: typing.Union[str, Artifact],
+        project_producer_tag: str = None,
+    ) -> typing.Optional[ArtifactProducer]:
+        """
+        Resolve the artifact producer of the given artifact.
+        If the artifact's producer is a run, the artifact is registered with the original producer.
+        Otherwise, the artifact is registered with the current project as the producer.
+
+        :param artifact:                The artifact to resolve its producer.
+        :param project_producer_tag:    The tag to use for the project as the producer. If not provided, a tag will be
+        generated for the project.
+        :return:                        A tuple of the resolved producer and the resolved artifact.
+        """
+
+        if not isinstance(artifact, str) and artifact.producer:
+            # if the artifact was imported from a yaml file, the producer can be a dict
+            if isinstance(artifact.spec.producer, ArtifactProducer):
+                producer_dict = artifact.spec.producer.get_meta()
+            else:
+                producer_dict = artifact.spec.producer
+
+            if producer_dict.get("kind", "") == "run":
+                return ArtifactProducer(
+                    name=producer_dict.get("name", ""),
+                    kind=producer_dict.get("kind", ""),
+                    project=producer_dict.get("project", ""),
+                    tag=producer_dict.get("tag", ""),
+                )
+
+        # do not retain the artifact's producer, replace it with the project as the producer
+        project_producer_tag = project_producer_tag or self._get_project_tag()
+        return ArtifactProducer(
+            kind="project",
+            name=self.metadata.name,
+            project=self.metadata.name,
+            tag=project_producer_tag,
+        )
+
+    def _resolve_existing_artifact(
+        self,
+        item: typing.Union[str, Artifact],
+        tag: str = None,
+    ) -> typing.Optional[Artifact]:
+        """
+        Check if there is and existing artifact with the given item and tag.
+        If there is, return the existing artifact. Otherwise, return None.
+
+        :param item:    The item (or key) to check if there is an existing artifact for.
+        :param tag:     The tag to check if there is an existing artifact for.
+        :return:        The existing artifact if there is one, otherwise None.
+        """
+        try:
+            if isinstance(item, str):
+                existing_artifact = self.get_artifact(key=item, tag=tag)
+            else:
+                existing_artifact = self.get_artifact(
+                    key=item.key,
+                    tag=item.tag,
+                    iter=item.iter,
+                    tree=item.tree,
+                )
+            if existing_artifact is not None:
+                return existing_artifact.from_dict(existing_artifact)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "No existing artifact was found",
+                key=item if isinstance(item, str) else item.key,
+                tag=tag if isinstance(item, str) else item.tag,
+                tree=None if isinstance(item, str) else item.tree,
+            )
+            return None
+
+    def _get_project_tag(self):
+        return self._get_hexsha() or str(uuid.uuid4())
 
 
 def _set_as_current_default_project(project: MlrunProject):
@@ -3905,6 +4017,18 @@ def _init_function_from_dict(
                 tag=tag,
             )
 
+    elif image and kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        func = new_function(
+            name,
+            command=relative_url,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        if kind != mlrun.runtimes.RuntimeKinds.application:
+            logger.info("Function code not specified, setting entry point to image")
+            func.from_image(image)
     else:
         raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 

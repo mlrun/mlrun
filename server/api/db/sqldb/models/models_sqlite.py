@@ -571,6 +571,18 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class PaginationCache(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "pagination_cache"
+
+        key = Column(
+            String(255, collation=SQLCollationUtil.collation()), primary_key=True
+        )
+        user = Column(String(255, collation=SQLCollationUtil.collation()))
+        function = Column(String(255, collation=SQLCollationUtil.collation()))
+        current_page = Column(Integer)
+        kwargs = Column(JSON)
+        last_accessed = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

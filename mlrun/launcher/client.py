@@ -47,9 +47,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         If build is needed, set the image as the base_image for the build.
         If image is not given set the default one.
         """
-        if runtime.kind in set(
-            mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-        ).difference(set(mlrun.runtimes.RuntimeKinds.application)):
+        if runtime.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
             return
 
         require_build = runtime.requires_build()

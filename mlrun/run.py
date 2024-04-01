@@ -535,7 +535,7 @@ def new_function(
     if source:
         runner.spec.build.source = source
     if handler:
-        if kind in [RuntimeKinds.serving, RuntimeKinds.application]:
+        if kind in RuntimeKinds.handlerless_runtimes():
             raise MLRunInvalidArgumentError(
                 f"Handler is not supported for {kind} runtime"
             )

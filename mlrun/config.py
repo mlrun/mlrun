@@ -240,6 +240,7 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/mlrun",
+            "application": "python:3.9-slim",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options

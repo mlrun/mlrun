@@ -155,6 +155,21 @@ class RuntimeKinds:
         ]
 
     @staticmethod
+    def pure_nuclio_deployed_runtimes():
+        return [
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
+        ]
+
+    @staticmethod
+    def handlerless_runtimes():
+        return [
+            RuntimeKinds.serving,
+            RuntimeKinds.application,
+        ]
+
+    @staticmethod
     def local_runtimes():
         return [
             RuntimeKinds.local,

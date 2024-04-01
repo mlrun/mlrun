@@ -223,7 +223,6 @@ class ApplicationRuntime(RemoteRuntime):
         auth_info: AuthInfo = None,
         builder_env: dict = None,
         force_build: bool = False,
-        watch=True,
         with_mlrun=None,
         skip_deployed=False,
         is_kfp=False,
@@ -253,7 +252,7 @@ class ApplicationRuntime(RemoteRuntime):
             self._build_application_image(
                 builder_env=builder_env,
                 force_build=True,
-                watch=watch,
+                watch=True,
                 with_mlrun=with_mlrun,
                 skip_deployed=skip_deployed,
                 is_kfp=is_kfp,

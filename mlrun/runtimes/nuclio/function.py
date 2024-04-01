@@ -543,9 +543,9 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo (deprecated)
+        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :param force_build: set True for force building the image (deprecated)
+        :param force_build: set True for force building the image (deprecated and ignored)
         """
         if auth_info:
             # TODO: remove in 1.9.0

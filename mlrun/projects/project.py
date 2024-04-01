@@ -2077,6 +2077,7 @@ class MlrunProject(ModelObj):
         self, *, delete_histogram_data_drift_app: bool = True
     ) -> None:
         """
+        Note: This method is currently not advised for use. See ML-3432.
         Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
 
         :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.

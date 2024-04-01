@@ -58,8 +58,9 @@ class TestDBFSStore:
         env_params = cls.config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param
-        cls.test_dir = "/dbfs_store"
-        cls.run_dir = f"{MLRUN_ROOT_DIR}{cls.test_dir}"
+        cls.class_dir = "/dbfs_store"
+        cls.test_dir = f"{MLRUN_ROOT_DIR}{cls.class_dir}"
+        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
         cls.workspace = WorkspaceClient()
         cls.profile_name = "dbfs_ds_profile"
 
@@ -71,6 +72,11 @@ class TestDBFSStore:
             name=cls.profile_name,
             endpoint_url=env_params["DATABRICKS_HOST"],
             token=env_params["DATABRICKS_TOKEN"],
+        )
+        setup_dbfs_dirs(
+            workspace=cls.workspace,
+            specific_test_class_dir=cls.class_dir,
+            subdirs=[],
         )
 
     @pytest.fixture(autouse=True)
@@ -87,18 +93,13 @@ class TestDBFSStore:
                 os.environ[key] = env_param
         self.run_dir_url = f"{self.prefix_url}{self.run_dir}"
         self.object_url = self.run_dir_url + self.object_file
-        setup_dbfs_dirs(
-            workspace=self.workspace,
-            specific_test_class_dir=self.test_dir,
-            subdirs=[],
-        )
         register_temporary_client_datastore_profile(self.profile)
         store_manager.reset_secrets()
 
     @classmethod
     def teardown_class(cls):
         teardown_dbfs_dirs(
-            workspace=cls.workspace, specific_test_class_dir=cls.test_dir
+            workspace=cls.workspace, specific_test_class_dir=cls.class_dir
         )
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])

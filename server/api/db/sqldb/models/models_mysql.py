@@ -633,6 +633,7 @@ with warnings.catch_warnings():
         user = Column(String(255, collation=SQLCollationUtil.collation()))
         function = Column(String(255, collation=SQLCollationUtil.collation()))
         current_page = Column(Integer)
+        page_size = Column(Integer)
         kwargs = Column(JSON)
         last_accessed = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),

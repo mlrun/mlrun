@@ -203,7 +203,11 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
             json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS]),
             ParquetTarget(
                 path=event[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
-            ).as_df(start_time=start_time, end_time=end_time, time_column="timestamp"),
+            ).as_df(
+                start_time=start_time,
+                end_time=end_time,
+                time_column=mm_constant.EventFieldType.TIMESTAMP,
+            ),
             start_time,
             end_time,
             pd.Timestamp(event[mm_constant.ApplicationEvent.LAST_REQUEST]),

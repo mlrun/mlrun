@@ -172,6 +172,22 @@ def get_nuclio_deploy_status(
         return state, address, name, last_log_timestamp, text, function_status
 
 
+def pure_nuclio_deployed_restricted():
+    def decorator(callback):
+        def wrapper(function, *args, **kwargs):
+            if (
+                function
+                not in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
+            ):
+                return
+
+            return callback(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def _compile_function_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     client_version: str = None,
@@ -233,9 +249,8 @@ def _compile_function_config(
         external_source_env=external_source_env_dict,
         config=function.spec.config,
     )
-    nuclio_spec.cmd = function.spec.build.commands or []
 
-    _resolve_and_set_build_requirements(function, nuclio_spec)
+    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
     _resolve_and_set_nuclio_runtime(
         function, nuclio_spec, client_version, client_python_version
     )
@@ -357,6 +372,12 @@ def _resolve_and_set_nuclio_runtime(
             nuclio_runtime = "python:3.6"
 
     nuclio_spec.set_config("spec.runtime", nuclio_runtime)
+
+
+@pure_nuclio_deployed_restricted()
+def _resolve_and_set_build_requirements_and_commands(function, nuclio_spec):
+    nuclio_spec.cmd = function.spec.build.commands or []
+    _resolve_and_set_build_requirements(function, nuclio_spec)
 
 
 def _resolve_and_set_build_requirements(function, nuclio_spec):
@@ -535,6 +556,7 @@ def _set_source_code_and_handler(function, config):
         )
 
 
+@pure_nuclio_deployed_restricted()
 def _resolve_and_set_base_image(
     function, config, client_version, client_python_version
 ):

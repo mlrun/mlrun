@@ -628,6 +628,8 @@ def code_to_function(
     - mpijob: run distributed Horovod jobs over the MPI job operator
     - spark: run distributed Spark job using Spark Kubernetes Operator
     - remote-spark: run distributed Spark job on remote Spark service
+    - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+    - application: run a long living application (e.g. a web server, UI, etc.)
 
     Learn more about [Kinds of function (runtimes)](../concepts/functions-overview.html).
 

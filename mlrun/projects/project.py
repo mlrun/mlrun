@@ -2021,10 +2021,11 @@ class MlrunProject(ModelObj):
             image = default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
-            project=self.name, image=image, base_period=base_period
+            project=self.name,
+            image=image,
+            base_period=base_period,
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
-        if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image, db=db)
 
     def deploy_histogram_data_drift_app(
         self,

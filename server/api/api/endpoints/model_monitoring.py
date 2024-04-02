@@ -71,6 +71,7 @@ async def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
+    deploy_histogram_data_drift_app: bool = True,
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -86,6 +87,7 @@ async def enable_model_monitoring(
     :param image:       The image of the model monitoring controller, writer & monitoring
                         stream functions, which are real time nuclio functions.
                         By default, the image is mlrun/mlrun.
+    :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
     """
 
     model_monitoring_access_key = None
@@ -105,6 +107,7 @@ async def enable_model_monitoring(
     ).deploy_monitoring_functions(
         image=image,
         base_period=base_period,
+        deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
     )
 
 

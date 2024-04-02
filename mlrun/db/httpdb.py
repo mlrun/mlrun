@@ -3081,6 +3081,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -3096,11 +3097,16 @@ class HTTPRunDB(RunDBInterface):
         :param image:       The image of the model monitoring controller, writer & monitoring
                             stream functions, which are real time nuclio functions.
                             By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/enable-model-monitoring",
-            params={"base_period": base_period, "image": image},
+            params={
+                "base_period": base_period,
+                "image": image,
+                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            },
         )
 
     def deploy_histogram_data_drift_app(

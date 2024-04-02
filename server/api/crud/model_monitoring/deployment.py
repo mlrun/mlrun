@@ -84,7 +84,10 @@ class MonitoringDeployment:
         self._max_parquet_save_interval = max_parquet_save_interval
 
     def deploy_monitoring_functions(
-        self, base_period: int = 10, image: str = "mlrun/mlrun"
+        self,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -94,12 +97,15 @@ class MonitoringDeployment:
         :param image:       The image of the model monitoring controller, writer & monitoring
                             stream functions, which are real time nuclio functino.
                             By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         """
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
         self.deploy_model_monitoring_writer_application(writer_image=image)
         self.deploy_model_monitoring_stream_processing(stream_image=image)
+        if deploy_histogram_data_drift_app:
+            self.deploy_histogram_data_drift_app(image=image)
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun"

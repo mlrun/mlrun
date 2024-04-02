@@ -1120,9 +1120,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.model_name = "clf_model"
 
         cls.infer_results_df = cls.train_set.copy()
-        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            mlrun.utils.datetime_now()
-        )
 
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
@@ -1136,6 +1133,16 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             artifact_path=f"v3io:///projects/{self.project_name}",
         )
         return model.uri
+
+    def _wait_for_deployments(self) -> None:
+        for fn_name in [
+            mm_constants.MonitoringFunctionNames.STREAM,
+            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            mm_constants.MonitoringFunctionNames.WRITER,
+            mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+        ]:
+            fn = self.project.get_function(key=fn_name)
+            fn._wait_for_function_deployment(db=fn._get_db())
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
@@ -1167,6 +1174,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
         )
+
+        self._wait_for_deployments()
 
         model_uri = self._log_model()
 

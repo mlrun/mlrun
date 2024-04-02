@@ -176,12 +176,12 @@ def pure_nuclio_deployed_restricted():
     def decorator(callback):
         def wrapper(function, *args, **kwargs):
             if (
-                function
+                function.kind
                 not in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
             ):
                 return
 
-            return callback(*args, **kwargs)
+            return callback(function, *args, **kwargs)
 
         return wrapper
 

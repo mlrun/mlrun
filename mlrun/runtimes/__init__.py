@@ -166,6 +166,7 @@ class RuntimeKinds:
     def handlerless_runtimes():
         return [
             RuntimeKinds.serving,
+            # Application runtime handler is internal reverse proxy
             RuntimeKinds.application,
         ]
 

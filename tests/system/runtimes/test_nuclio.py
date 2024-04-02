@@ -582,3 +582,37 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert run_result.state() == "completed", "wrong state"
         # accuracy = max(p1) * 2, stop where accuracy > 9
         assert run_result.output("accuracy") == 10, "unexpected results"
+
+
+@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
+    project_name = "nuclio-mlrun-gateways"
+
+    def _deploy_function(self, replicas=1, suffix=""):
+        filename = str(self.assets_path / "handler.py")
+        fn = mlrun.code_to_function(
+            filename=filename,
+            name=f"nuclio-mlrun-{suffix}",
+            kind="nuclio:mlrun",
+            image="mlrun/mlrun",
+            handler="my_func",
+        )
+        # replicas * workers need to match or exceed parallel_runs
+        fn.spec.replicas = replicas
+        fn.with_http(workers=1)
+        fn.deploy()
+        return fn
+
+    def _prepare_two_functions(self):
+        f1 = self._deploy_function(suffix="1")
+        f2 = self._deploy_function(suffix="2")
+        return f1, f2
+
+    def test_basic_api_gateway_flow(self):
+        f1, f2 = self._prepare_two_functions()
+        project = mlrun.get_or_create_project(self.project_name)
+        api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            project=self.project_name, functions=f1, name="test-gateway"
+        )
+        api_gateway = project.store_api_gateway(api_gateway)
+        res = api_gateway.invoke()

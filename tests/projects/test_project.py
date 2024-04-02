@@ -1684,7 +1684,7 @@ def test_create_api_gateway_valid(
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
             path="/",
-            host="http://gateway-f1-f2-project-name.some-domain.com",
+            host="gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
             authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
             if not with_basic_auth

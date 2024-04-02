@@ -22,8 +22,8 @@ import pandas as pd
 
 import mlrun.artifacts
 import mlrun.common.helpers
+import mlrun.common.schemas.model_monitoring.constants as mm_consts
 import mlrun.feature_store
-from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitoringMode
 from mlrun.data_types.infer import InferOptions, get_df_stats
 from mlrun.utils import datetime_now, logger
 
@@ -46,7 +46,7 @@ def get_or_create_model_endpoint(
     sample_set_statistics: dict[str, typing.Any] = None,
     drift_threshold: float = None,
     possible_drift_threshold: float = None,
-    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
+    monitoring_mode: mm_consts.ModelMonitoringMode = mm_consts.ModelMonitoringMode.disabled,
     db_session=None,
 ) -> ModelEndpoint:
     """
@@ -126,7 +126,7 @@ def record_results(
     context: typing.Optional[mlrun.MLClientCtx] = None,
     infer_results_df: typing.Optional[pd.DataFrame] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
-    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
+    monitoring_mode: mm_consts.ModelMonitoringMode = mm_consts.ModelMonitoringMode.enabled,
     # Deprecated arguments:
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
@@ -280,7 +280,7 @@ def _model_endpoint_validations(
     # drift and possible drift thresholds
     if drift_threshold:
         current_drift_threshold = model_endpoint.spec.monitor_configuration.get(
-            EventFieldType.DRIFT_DETECTED_THRESHOLD,
+            mm_consts.EventFieldType.DRIFT_DETECTED_THRESHOLD,
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected,
         )
         if current_drift_threshold != drift_threshold:
@@ -291,7 +291,7 @@ def _model_endpoint_validations(
 
     if possible_drift_threshold:
         current_possible_drift_threshold = model_endpoint.spec.monitor_configuration.get(
-            EventFieldType.POSSIBLE_DRIFT_THRESHOLD,
+            mm_consts.EventFieldType.POSSIBLE_DRIFT_THRESHOLD,
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift,
         )
         if current_possible_drift_threshold != possible_drift_threshold:
@@ -330,14 +330,14 @@ def write_monitoring_df(
         )
 
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
-    if EventFieldType.TIMESTAMP not in infer_results_df.columns:
+    if mm_consts.EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = infer_datetime
+        infer_results_df[mm_consts.EventFieldType.TIMESTAMP] = infer_datetime
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
-    infer_results_df[EventFieldType.ENDPOINT_ID] = endpoint_id
-    infer_results_df.set_index(EventFieldType.ENDPOINT_ID, inplace=True)
+    infer_results_df[mm_consts.EventFieldType.ENDPOINT_ID] = endpoint_id
+    infer_results_df.set_index(mm_consts.EventFieldType.ENDPOINT_ID, inplace=True)
 
     monitoring_feature_set.ingest(source=infer_results_df, overwrite=False)
 
@@ -353,7 +353,7 @@ def _generate_model_endpoint(
     sample_set_statistics: dict[str, typing.Any],
     drift_threshold: float,
     possible_drift_threshold: float,
-    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
+    monitoring_mode: mm_consts.ModelMonitoringMode = mm_consts.ModelMonitoringMode.disabled,
 ) -> ModelEndpoint:
     """
     Write a new model endpoint record.
@@ -392,11 +392,11 @@ def _generate_model_endpoint(
     model_endpoint.spec.model_class = "drift-analysis"
     if drift_threshold:
         model_endpoint.spec.monitor_configuration[
-            EventFieldType.DRIFT_DETECTED_THRESHOLD
+            mm_consts.EventFieldType.DRIFT_DETECTED_THRESHOLD
         ] = drift_threshold
     if possible_drift_threshold:
         model_endpoint.spec.monitor_configuration[
-            EventFieldType.POSSIBLE_DRIFT_THRESHOLD
+            mm_consts.EventFieldType.POSSIBLE_DRIFT_THRESHOLD
         ] = possible_drift_threshold
 
     model_endpoint.spec.monitoring_mode = monitoring_mode

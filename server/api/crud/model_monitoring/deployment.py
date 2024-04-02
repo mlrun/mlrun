@@ -21,6 +21,7 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.api
 import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller_handler
@@ -487,20 +488,25 @@ class MonitoringDeployment:
 
         :param image: The image on with the function will run.
         """
-        project_obj = mlrun.load_project(name=self.project)
         logger.info("Preparing the histogram data drift function")
-        func = project_obj.create_model_monitoring_function(
+        func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+            project=self.project,
             func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
             name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
             application_class="HistogramDataDriftApplication",
             image=image,
         )
 
-        # if not mlrun.mlconf.is_ce_mode():
-        #     logger.info("Setting the access key for the histogram data drift function")
-        #     func.metadata.credentials.access_key = self.model_monitoring_access_key
-        #     server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
-        #     logger.info("Ensured the histogram data drift function auth")
+        if not mlrun.mlconf.is_ce_mode():
+            logger.info("Setting the access key for the histogram data drift function")
+            func.metadata.credentials.access_key = self.model_monitoring_access_key
+            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+            logger.info("Ensured the histogram data drift function auth")
+
+        func.set_label(
+            mm_constants.ModelMonitoringAppLabel.KEY,
+            mm_constants.ModelMonitoringAppLabel.VAL,
+        )
 
         server.api.api.endpoints.functions._build_function(
             db_session=self.db_session, auth_info=self.auth_info, function=func

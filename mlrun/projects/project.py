@@ -1946,18 +1946,16 @@ class MlrunProject(ModelObj):
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
             kind = mlrun.run.RuntimeKinds.serving
-            function_object = (
-                mlrun.model_monitoring.api._create_model_monitoring_function_base(
-                    project=self.name,
-                    func=func,
-                    application_class=application_class,
-                    name=name,
-                    image=image,
-                    tag=tag,
-                    requirements=requirements,
-                    requirements_file=requirements_file,
-                    **application_kwargs,
-                )
+            func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+                project=self.name,
+                func=func,
+                application_class=application_class,
+                name=name,
+                image=image,
+                tag=tag,
+                requirements=requirements,
+                requirements_file=requirements_file,
+                **application_kwargs,
             )
         elif isinstance(func, str) and isinstance(handler, str):
             kind = mlrun.run.RuntimeKinds.nuclio

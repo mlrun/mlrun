@@ -1926,14 +1926,16 @@ class MlrunProject(ModelObj):
 
     def _instantiate_model_monitoring_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
-        name: str = None,
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
+        application_class: typing.Union[
+            str, ModelMonitoringApplicationBase, None
+        ] = None,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        with_repo: typing.Optional[bool] = None,
+        tag: typing.Optional[str] = None,
+        requirements: typing.Union[str, list[str], None] = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.BaseRuntime, dict]:

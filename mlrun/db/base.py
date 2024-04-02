@@ -14,7 +14,7 @@
 
 import datetime
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 import mlrun.common.schemas
 import mlrun.model_monitoring

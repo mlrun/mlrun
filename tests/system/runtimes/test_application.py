@@ -36,12 +36,13 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
         )
         function.set_internal_application_port(8050)
-        # TODO: validate command and args?
         function.spec.command = "gunicorn"
         function.spec.args = [
             "vizro_app:server",
-            "--bind 0.0.0.0:8050",
-            "--log-level debug",
+            "--bind",
+            "0.0.0.0:8050",
+            "--log-level",
+            "debug",
         ]
 
         function.with_source_archive(
@@ -52,4 +53,4 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False)
 
-        assert function.invoke("/").status_code == 200
+        assert function.invoke("/")

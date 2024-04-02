@@ -99,9 +99,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _setup_df_dir(self, file_format, reader):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(
-            self.assets_path, f"test_data.{file_format}"
-        )  # TODO change to data store convention
+        df1_path = join(self.assets_path, f"test_data.{file_format}")
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
         #  upload
@@ -118,18 +116,6 @@ class TestV3ioDataStore(TestMLRunSystem):
             reader(df1_path),
             reader(df2_path),
         )
-
-    def _setup_secrets(self, use_datastore_profile, use_secrets_as_parameters):
-        secrets = {}
-        if use_secrets_as_parameters:
-            os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
-            #  Verify that we are using the profile secret:
-            secrets = (
-                {"V3IO_ACCESS_KEY": "wrong_token"}
-                if use_datastore_profile
-                else {"V3IO_ACCESS_KEY": self.token}
-            )
-        return secrets
 
     def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
         tempfile_1_path = join(tmp_path, "tempfile_1")
@@ -234,7 +220,16 @@ class TestV3ioDataStore(TestMLRunSystem):
     def test_put_get_and_download(
         self, use_datastore_profile, use_secrets_as_parameters
     ):
-        secrets = self._setup_secrets(use_datastore_profile, use_secrets_as_parameters)
+        secrets = {}
+        if use_secrets_as_parameters:
+            os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
+            #  Verify that we are using the profile secret:
+            secrets = (
+                {"V3IO_ACCESS_KEY": "wrong_token"}
+                if use_datastore_profile
+                else {"V3IO_ACCESS_KEY": self.token}
+            )
+
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(self.test_string)
         response = data_item.get()
@@ -309,15 +304,12 @@ class TestV3ioDataStore(TestMLRunSystem):
         reader: callable,
         reader_args: dict,
     ):
-        secrets = self._setup_secrets(use_datastore_profile)
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(
-            self.assets_path, f"test_data.{file_format}"
-        )  # TODO fix filename
+        local_file_path = join(self.assets_path, f"test_data.{file_format}")
 
         source = reader(local_file_path, **reader_args)
-        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url)
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
@@ -339,9 +331,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     ):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(
-            self.assets_path, f"test_data.{file_format}"
-        )  # TODO fix filename
+        local_file_path = join(self.assets_path, f"test_data.{file_format}")
 
         source = reader(local_file_path, **reader_args)
 

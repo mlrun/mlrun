@@ -100,7 +100,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = join(
-            self.assets_path, f"testdata_short.{file_format}"
+            self.assets_path, f"test_data.{file_format}"
         )  # TODO change to data store convention
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
@@ -313,7 +313,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(
-            self.assets_path, f"testdata_short.{file_format}"
+            self.assets_path, f"test_data.{file_format}"
         )  # TODO fix filename
 
         source = reader(local_file_path, **reader_args)
@@ -340,7 +340,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(
-            self.assets_path, f"testdata_short.{file_format}"
+            self.assets_path, f"test_data.{file_format}"
         )  # TODO fix filename
 
         source = reader(local_file_path, **reader_args)

@@ -44,6 +44,7 @@ import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
+import mlrun.serving
 import mlrun.utils.regex
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
@@ -1949,20 +1950,23 @@ class MlrunProject(ModelObj):
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
-            kind = "serving"
+            kind = mlrun.run.RuntimeKinds.serving
             if func is None:
                 func = ""
-            func = mlrun.code_to_function(
-                filename=func,
-                name=name,
-                project=self.metadata.name,
-                tag=tag,
-                kind=kind,
-                image=image,
-                requirements=requirements,
-                requirements_file=requirements_file,
+            func = typing.cast(
+                mlrun.runtimes.ServingRuntime,
+                mlrun.code_to_function(
+                    filename=func,
+                    name=name,
+                    project=self.name,
+                    tag=tag,
+                    kind=kind,
+                    image=image,
+                    requirements=requirements,
+                    requirements_file=requirements_file,
+                ),
             )
-            graph = func.set_topology("flow")
+            graph = func.set_topology(mlrun.serving.states.StepKinds.flow)
             if isinstance(application_class, str):
                 first_step = graph.to(
                     class_name=application_class, **application_kwargs
@@ -1976,7 +1980,7 @@ class MlrunProject(ModelObj):
                 writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
             ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
-            kind = "nuclio"
+            kind = mlrun.run.RuntimeKinds.nuclio
 
         (
             resolved_function_name,

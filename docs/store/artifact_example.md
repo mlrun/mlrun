@@ -1,26 +1,15 @@
 (data-items)=
-# Artifact Types
+# Logging Artifacts
 
-MLRun support logging a couple of artifact types in this page you will see examples of how to log different artifacts in MLRun.
-```{admonition} Artifact Types Supported by MLRun
-    mlrun.artifacts.Artifact - Artifcat
-    mlrun.artifacts.DirArtifact - Directory
-    mlrun.artifacts.LinkArtifact - Link
-    mlrun.artifacts.PlotArtifact - Plot
-    mlrun.artifacts.ChartArtifact - Chart
-    mlrun.artifacts.TableArtifact - Table
-    mlrun.artifacts.PlotlyArtifact - Plotly
-    mlrun.artifacts.BokehArtifact - Bokeh
-```
-for logging artifacts types we will use the [log_artifact](https://docs.mlrun.org/en/latest/api/mlrun.execution.html#mlrun.execution.MLClientCtx.log_artifact) method, this method can be used by the Project object or the context object if using in a run.
+For logging artifacts that are not models and datasets we will use the [log_artifact](https://docs.mlrun.org/en/latest/api/mlrun.execution.html#mlrun.execution.MLClientCtx.log_artifact) method.
+
+This method can be used by the Project object or the context object if the user log artifact in runtime.
 ```{admonition} Note
-This Page will cover example for all artifcats types execpt Models and Datasets. this is becuase for model and dataset you can find example in the See also section.
+This page will cover logging non models and datasets artifacts, for those artifacts types please check the see also section. 
 ```
 **In this section**
 - [Example logging an artifact](#logging-artifact)
 - [Example logging a directory artifact](#logging-directory-artifact)
-- [Example logging a Plotly artifact](#logging-plotly-artifact)
-
 
 **See also:**
 - {ref}`working-with-data-and-model-artifacts`
@@ -79,9 +68,5 @@ project.log_artifact("plotly-art",
     local_path="./artifact_directory/",
     labels={"Dir":"dir-example"})
 ```
-### Logging a Link Artifact
-....
-
-### Logging a Plot Artifact
 
 

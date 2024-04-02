@@ -37,7 +37,7 @@ def test_create_application_runtime_with_command(rundb_mock):
         "application-test", kind="application", image="mlrun/mlrun", command="echo"
     )
     fn.deploy()
-    assert fn.spec.config["spec.sidecars"][0]["command"] == "echo"
+    assert fn.spec.config["spec.sidecars"][0]["command"] == ["echo"]
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.status.application_image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"

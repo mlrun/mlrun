@@ -41,7 +41,6 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
-import mlrun.model_monitoring.api
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
@@ -1941,6 +1940,8 @@ class MlrunProject(ModelObj):
         requirements_file: str = "",
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.BaseRuntime, dict]:
+        import mlrun.model_monitoring.api
+
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:

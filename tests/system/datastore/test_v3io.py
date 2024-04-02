@@ -41,9 +41,9 @@ class TestV3ioDataStore(TestMLRunSystem):
     def setup_class(cls):
         super().setup_class()
         cls.test_file_path = str(cls.get_assets_path() / "test.txt")
-        test_parquet_path = str(cls.get_assets_path() / "testdata_short.parquet")
-        test_csv_path = str(cls.get_assets_path() / "testdata_short.csv")
-        test_json_path = str(cls.get_assets_path() / "testdata_short.json")
+        test_parquet_path = str(cls.get_assets_path() / "test_data.parquet")
+        test_csv_path = str(cls.get_assets_path() / "test_data.csv")
+        test_json_path = str(cls.get_assets_path() / "test_data.json")
         cls.df_paths = {
             "parquet": test_parquet_path,
             "csv": test_csv_path,

@@ -1257,7 +1257,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_read_csv(self):
         source = CSVSource(
             "mycsv",
-            path=os.path.relpath(str(self.assets_path / "testdata_short.csv")),
+            path=os.path.relpath(str(self.assets_path / "test_data.csv")),
             parse_dates=["date_of_birth"],
         )
         stocks_set = fstore.FeatureSet(

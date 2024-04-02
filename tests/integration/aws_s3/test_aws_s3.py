@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 import os
-import random
 import uuid
 from os.path import abspath, dirname, join
 from pathlib import Path
 
 import dask.dataframe as dd
+import fsspec
 import pandas as pd
 import pytest
 import yaml
@@ -26,6 +26,7 @@ from pandas.testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore import store_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileS3,
     register_temporary_client_datastore_profile,
@@ -37,10 +38,6 @@ here = Path(__file__).absolute().parent
 config_file_path = here / "test-aws-s3.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
-
-test_filename = here / "test.txt"
-with open(test_filename) as f:
-    test_string = f.read()
 
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
@@ -61,12 +58,10 @@ def aws_s3_configured(extra_params=None):
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
-    def _make_target_names(
-        self, prefix, bucket_name, object_dir, object_file, csv_file
-    ):
-        bucket_path = prefix + bucket_name
-        object_path = f"{object_dir}/{object_file}"
-        df_path = f"{object_dir}/{csv_file}"
+    def _make_target_names(self, prefix, object_file, csv_file):
+        bucket_path = prefix + self._bucket_name
+        object_path = f"{self.run_dir}/{object_file}"
+        df_path = f"{self.run_dir}/{csv_file}"
         object_url = f"{bucket_path}/{object_path}"
         res = {
             "bucket_path": bucket_path,
@@ -75,41 +70,64 @@ class TestAwsS3:
             "object_url": object_url,
             "df_url": f"{bucket_path}/{df_path}",
             "blob_url": f"{object_url}.blob",
-            "parquet_url": f"{object_url}.parquet",
         }
         return res
 
-    def setup_class(self):
-        self.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
-        # TODO move setup to here from setup_method
+    @classmethod
+    def setup_class(cls):
+        cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
+        cls._bucket_name = config["env"].get("bucket_name")
+        cls._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
+        cls._secret_access_key = config["env"].get("AWS_SECRET_ACCESS_KEY")
+        cls.profile_name = "s3ds_profile"
+        cls.test_dir = "/test_mlrun_s3"
+        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
+        cls.test_file = join(cls.assets_path, "test.txt")
+        with open(cls.test_file) as f:
+            cls.test_string = f.read()
+        cls._fs = fsspec.filesystem(
+            "s3", anon=False, key=cls._access_key_id, secret=cls._secret_access_key
+        )
+
+    @classmethod
+    def teardown_class(cls):
+        test_dir = f"{cls._bucket_name}{cls.test_dir}"
+        if not cls._fs:
+            return
+        if cls._fs.exists(test_dir):
+            cls._fs.delete(test_dir, recursive=True)
+            logger.debug("test directory has been cleaned.")
 
     def setup_method(self, method):
-        self._bucket_name = config["env"].get("bucket_name")
-        self._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
-        self._secret_access_key = config["env"].get("AWS_SECRET_ACCESS_KEY")
-
-        object_dir = "test_mlrun_s3_objects"
-        object_file = f"file_{random.randint(0, 1000)}.txt"
-        csv_file = f"file_{random.randint(0,1000)}.csv"
+        object_file = f"file_{uuid.uuid4()}.txt"
+        csv_file = f"file_{uuid.uuid4()}.csv"
 
         self.s3 = {}
-        self.s3["s3"] = self._make_target_names(
-            "s3://", self._bucket_name, object_dir, object_file, csv_file
-        )
+        self.s3["s3"] = self._make_target_names("s3://", object_file, csv_file)
         self.s3["ds"] = self._make_target_names(
-            "ds://s3ds_profile/", self._bucket_name, object_dir, object_file, csv_file
+            f"ds://{self.profile_name}/", object_file, csv_file
         )
-        profile = DatastoreProfileS3(
-            name="s3ds_profile",
+        store_manager.reset_secrets()
+        self.profile = DatastoreProfileS3(
+            name=self.profile_name,
             access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
         )
-        register_temporary_client_datastore_profile(profile)
+        register_temporary_client_datastore_profile(self.profile)
+
+    @pytest.fixture(autouse=True)
+    def setup_before_each_test(self, use_datastore_profile):
+        if use_datastore_profile:
+            os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
+            os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
+        else:
+            os.environ["AWS_ACCESS_KEY_ID"] = self._access_key_id
+            os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
 
     def _setup_df_dir(self, use_datastore_profile, file_format, reader):
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
         directory = f"/{file_format}s_{uuid.uuid4()}"
-        s3_directory_url = param["bucket_path"] + directory
+        s3_directory_url = param["bucket_path"] + self.run_dir + directory
         df1_path = join(self.assets_path, f"test_data.{file_format}")
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
@@ -125,31 +143,38 @@ class TestAwsS3:
         )
 
     def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
+        #  TODO split to smaller tests, like datastore's tests convention.
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
         logger.info(f'Object URL: {param["object_url"]}')
 
         data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
-        data_item.put(test_string)
+        data_item.put(self.test_string)
         df_data_item = mlrun.run.get_dataitem(param["df_url"], secrets=secrets)
         df_data_item.put(test_df_string)
 
         response = data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
+        assert (
+            response.decode() == self.test_string
+        ), "Result differs from original test"
 
         response = data_item.get(offset=20)
-        assert response.decode() == test_string[20:], "Partial result not as expected"
+        assert (
+            response.decode() == self.test_string[20:]
+        ), "Partial result not as expected"
 
         stat = data_item.stat()
-        assert stat.size == len(test_string), "Stat size different than expected"
+        assert stat.size == len(self.test_string), "Stat size different than expected"
 
         dir_list = mlrun.run.get_dataitem(param["bucket_path"]).listdir()
         assert param["object_path"] in dir_list, "File not in container dir-list"
         assert param["df_path"] in dir_list, "CSV file not in container dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
-        upload_data_item.upload(test_filename)
+        upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
+        assert (
+            response.decode() == self.test_string
+        ), "Result differs from original test"
 
         # Verify as_df() creates a proper DF. Note that the AWS case as_df() works through the fsspec interface, that's
         # why it's important to test it as well.
@@ -246,7 +271,7 @@ class TestAwsS3:
         for p in credential_params:
             os.environ[p] = config["env"][p]
         filename = f"/df_{uuid.uuid4()}.{file_format}"
-        file_url = param["bucket_path"] + filename
+        file_url = param["bucket_path"] + self.run_dir + filename
 
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)
@@ -275,7 +300,7 @@ class TestAwsS3:
         for p in credential_params:
             os.environ[p] = config["env"][p]
         filename = f"/df_{uuid.uuid4()}.{file_format}"
-        file_url = param["bucket_path"] + filename
+        file_url = param["bucket_path"] + self.run_dir + filename
 
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
         source = reader(local_file_path, **reader_args)

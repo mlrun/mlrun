@@ -487,42 +487,23 @@ class MonitoringDeployment:
 
         :param image: The image on with the function will run.
         """
+        project_obj = mlrun.load_project(name=self.project)
         logger.info("Preparing the histogram data drift function")
-        func = typing.cast(
-            mlrun.runtimes.ServingRuntime,
-            mlrun.code_to_function(
-                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
-                project=self.project,
-                filename=_HISTOGRAM_DATA_DRIFT_APP_PATH,
-                kind=mlrun.run.RuntimeKinds.serving,
-                image=image,
-            ),
+        func = project_obj.create_model_monitoring_function(
+            func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
+            name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+            application_class="HistogramDataDriftApplication",
+            image=image,
         )
 
-        func.set_label(
-            key=mm_constants.ModelMonitoringAppLabel.KEY,
-            value=mm_constants.ModelMonitoringAppLabel.VAL,
-        )
-
-        if not mlrun.mlconf.is_ce_mode():
-            logger.info("Setting the access key for the histogram data drift function")
-            func.metadata.credentials.access_key = self.model_monitoring_access_key
-            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
-            logger.info("Ensured the histogram data drift function auth")
-
-        graph = func.set_topology(mlrun.serving.states.StepKinds.flow)
-        first_step = graph.to(class_name="HistogramDataDriftApplication")
-        first_step.to(
-            class_name=mlrun.model_monitoring.application.PushToMonitoringWriter(
-                project=self.project,
-                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            )
-        ).respond()
+        # if not mlrun.mlconf.is_ce_mode():
+        #     logger.info("Setting the access key for the histogram data drift function")
+        #     func.metadata.credentials.access_key = self.model_monitoring_access_key
+        #     server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+        #     logger.info("Ensured the histogram data drift function auth")
 
         server.api.api.endpoints.functions._build_function(
-            db_session=self.db_session,
-            auth_info=self.auth_info,
-            function=func,
+            db_session=self.db_session, auth_info=self.auth_info, function=func
         )
         logger.info("Submitted the deployment")
 

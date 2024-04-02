@@ -1070,37 +1070,49 @@ class TestProject(TestMLRunSystem):
 
     def test_project_default_function_node_selector(self):
         project_name = "test-project"
+        function_name = "test-func"
+        project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
 
         igz_mgmt.Project.create(
             self._igz_mgmt_client,
             name=project_name,
             owner="admin",
-            default_function_node_selector=[{"name": "type", "value": "general"}],
+            default_function_node_selector=[
+                {"name": project_label_name, "value": project_label_val}
+            ],
         )
 
         project = self._run_db.get_project(project_name)
-        assert project.spec.default_function_node_selector == {"type": "general"}
+        assert project.spec.default_function_node_selector == {
+            project_label_name: project_label_val
+        }
 
         code_path = str(self.assets_path / "sleep.py")
         func = project.set_function(
-            name="test-func",
+            name=function_name,
             func=code_path,
             kind="job",
             image="mlrun/mlrun",
             handler="handler",
         )
-        func.spec.node_selector = {"zone": "us-west"}
+        func.spec.node_selector = {function_label_name: function_label_val}
 
         # We run the function to ensure node selector enrichment, which doesn't occur during function build,
         # but at runtime.
-        project.run_function("test-func")
+        project.run_function(function_name)
 
         # Verify that the node selector is correctly enriched
-        result_func = project.get_function("test-func")
-        assert result_func.spec.node_selector == {"type": "general", "zone": "us-west"}
+        result_func = project.get_function(function_name)
+        assert result_func.spec.node_selector == {
+            project_label_name: project_label_val,
+            function_label_name: function_label_val,
+        }
 
-        p = igz_mgmt.Project.get_by_name(self._igz_mgmt_client, project_name)
-        p.delete(self._igz_mgmt_client)
+        self._run_db.delete_project(
+            name=project_name,
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade,
+        )
 
     def test_project_build_image(self):
         name = "test-build-image"

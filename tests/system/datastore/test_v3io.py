@@ -63,8 +63,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         cls.test_dir_url = "v3io://" + cls.test_dir
         cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.profile_name = "v3io_ds_profile"
+        cls.token = os.environ.get("V3IO_ACCESS_KEY")
         cls.profile = DatastoreProfileV3io(
-            name=cls.profile_name, v3io_access_key=os.environ.get("V3IO_ACCESS_KEY")
+            name=cls.profile_name, v3io_access_key=cls.token
         )
 
     @classmethod
@@ -84,22 +85,16 @@ class TestV3ioDataStore(TestMLRunSystem):
         mlrun.datastore.store_manager.reset_secrets()
         self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self._object_url = self.run_dir_url + object_file  # TODO use or delete
+        self._object_url = self.run_dir_url + object_file
         register_temporary_client_datastore_profile(self.profile)
-        self.storage_options = {}
+        if use_datastore_profile:
+            os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
+        else:
+            os.environ["V3IO_ACCESS_KEY"] = self.token
 
     @staticmethod
     def _skip_set_environment():
         return True
-
-    def _get_data_item(self, secrets={}, file_extension="txt", sub_dir=None):
-        if not sub_dir:
-            object_url = f"{self.run_dir_url}/file_{uuid.uuid4()}.{file_extension}"
-        else:
-            object_url = (
-                f"{self.run_dir_url}/{sub_dir}/file_{uuid.uuid4()}.{file_extension}"
-            )
-        return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
 
     def _setup_df_dir(self, file_format, reader):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
@@ -124,6 +119,18 @@ class TestV3ioDataStore(TestMLRunSystem):
             reader(df2_path),
         )
 
+    def _setup_secrets(self, use_datastore_profile, use_secrets_as_parameters):
+        secrets = {}
+        if use_secrets_as_parameters:
+            os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
+            #  Verify that we are using the profile secret:
+            secrets = (
+                {"V3IO_ACCESS_KEY": "wrong_token"}
+                if use_datastore_profile
+                else {"V3IO_ACCESS_KEY": self.token}
+            )
+        return secrets
+
     def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
         tempfile_1_path = join(tmp_path, "tempfile_1")
         tempfile_2_path = join(tmp_path, "tempfile_2")
@@ -133,7 +140,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             file_size = 20 * 1024 * 1024  # 20MB
             data = os.urandom(file_size)
             f.write(data)
-        data_item, object_url = self._get_data_item()
+        data_item = mlrun.run.get_dataitem(self._object_url)
         self._logger.debug(
             f"test_v3io_large_object_upload - finished to write locally in {time.time() - first_start_time} seconds"
         )
@@ -164,7 +171,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         # Do the test again, this time exercising the v3io datastore _upload() loop
         self._logger.debug("Exercising the v3io _upload() loop")
         os.remove(tempfile_2_path)
-        object_path = urlparse(object_url).path
+        object_path = urlparse(self._object_url).path
         start_time = time.time()
         data_item.store._upload(object_path, tempfile_1_path, max_chunk_size=100 * 1024)
         self._logger.debug(
@@ -194,8 +201,8 @@ class TestV3ioDataStore(TestMLRunSystem):
     def test_v3io_large_object_put(self, use_datastore_profile):
         file_size = 20 * 1024 * 1024  # 20MB
         generated_buffer = bytearray(os.urandom(file_size))
-        data_item, object_url = self._get_data_item()
-        object_path = urlparse(object_url).path
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        object_path = urlparse(self._object_url).path
 
         first_start_time = time.time()
         data_item.put(generated_buffer)
@@ -223,8 +230,12 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"test_v3io_large_object_put: total time: {time.time() - first_start_time} seconds"
         )
 
-    def test_put_get_and_download(self, use_datastore_profile):
-        data_item, _ = self._get_data_item()
+    @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
+    def test_put_get_and_download(
+        self, use_datastore_profile, use_secrets_as_parameters
+    ):
+        secrets = self._setup_secrets(use_datastore_profile, use_secrets_as_parameters)
+        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(self.test_string)
         response = data_item.get()
         assert response.decode() == self.test_string
@@ -248,7 +259,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert response.decode() == self.test_string + self.test_string
 
     def test_stat(self, use_datastore_profile):
-        data_item, _ = self._get_data_item()
+        data_item = mlrun.run.get_dataitem(self._object_url)
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
@@ -268,13 +279,13 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert all(item in actual_dir_content for item in ["test_dir/", filename])
 
     def test_upload(self, use_datastore_profile):
-        data_item, _ = self._get_data_item()
+        data_item = mlrun.run.get_dataitem(self._object_url)
         data_item.upload(self.test_file_path)
         response = data_item.get()
         assert response.decode() == self.test_string
 
     def test_rm(self, use_datastore_profile):
-        data_item, _ = self._get_data_item()
+        data_item = mlrun.run.get_dataitem(self._object_url)
         data_item.upload(self.test_file_path)
         data_item.stat()
         data_item.delete()
@@ -298,6 +309,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         reader: callable,
         reader_args: dict,
     ):
+        secrets = self._setup_secrets(use_datastore_profile)
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(
@@ -305,8 +317,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         )  # TODO fix filename
 
         source = reader(local_file_path, **reader_args)
-
-        upload_data_item = mlrun.run.get_dataitem(dataframe_url)
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=secrets)
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
@@ -314,8 +325,8 @@ class TestV3ioDataStore(TestMLRunSystem):
     @pytest.mark.parametrize(
         "file_format, reader, reader_args",
         [
-            # ("parquet", dd.read_parquet, {}),
-            # ("csv", dd.read_csv, {}),
+            ("parquet", dd.read_parquet, {}),
+            ("csv", dd.read_csv, {}),
             ("json", dd.read_json, {"orient": "values"}),
         ],
     )

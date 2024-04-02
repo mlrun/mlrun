@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import getpass
 import glob
@@ -40,6 +41,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.model_monitoring.api
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
@@ -1943,34 +1945,19 @@ class MlrunProject(ModelObj):
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
             kind = mlrun.run.RuntimeKinds.serving
-            if func is None:
-                func = ""
-            func = typing.cast(
-                mlrun.runtimes.ServingRuntime,
-                mlrun.code_to_function(
-                    filename=func,
-                    name=name,
+            function_object = (
+                mlrun.model_monitoring.api._create_model_monitoring_function_base(
                     project=self.name,
-                    tag=tag,
-                    kind=kind,
+                    func=func,
+                    application_class=application_class,
+                    name=name,
                     image=image,
+                    tag=tag,
                     requirements=requirements,
                     requirements_file=requirements_file,
-                ),
-            )
-            graph = func.set_topology(mlrun.serving.states.StepKinds.flow)
-            if isinstance(application_class, str):
-                first_step = graph.to(
-                    class_name=application_class, **application_kwargs
+                    **application_kwargs,
                 )
-            else:
-                first_step = graph.to(class_name=application_class)
-            first_step.to(
-                class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
-                name="PushToMonitoringWriter",
-                project=self.metadata.name,
-                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ).respond()
+            )
         elif isinstance(func, str) and isinstance(handler, str):
             kind = mlrun.run.RuntimeKinds.nuclio
 

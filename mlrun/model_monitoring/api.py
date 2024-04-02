@@ -24,6 +24,8 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_consts
 import mlrun.feature_store
+import mlrun.model_monitoring.application
+import mlrun.serving
 from mlrun.data_types.infer import InferOptions, get_df_stats
 from mlrun.utils import datetime_now, logger
 
@@ -580,3 +582,50 @@ def log_result(
         key="batch_id",
         value=batch_id,
     )
+
+
+def _create_model_monitoring_function_base(
+    *,
+    project: str,
+    func: typing.Union[str, None] = None,
+    application_class: typing.Union[
+        str, mlrun.model_monitoring.application.ModelMonitoringApplicationBase, None
+    ] = None,
+    name: typing.Optional[str] = None,
+    image: typing.Optional[str] = None,
+    tag: typing.Optional[str] = None,
+    requirements: typing.Union[str, list[str], None] = None,
+    requirements_file: str = "",
+    **application_kwargs,
+) -> mlrun.runtimes.ServingRuntime:
+    """
+    Note: this is an internal API only.
+    This function does not set the labels or mounts v3io.
+    """
+    if func is None:
+        func = ""
+    func_obj = typing.cast(
+        mlrun.runtimes.ServingRuntime,
+        mlrun.code_to_function(
+            filename=func,
+            name=name,
+            project=project,
+            tag=tag,
+            kind=mlrun.run.RuntimeKinds.serving,
+            image=image,
+            requirements=requirements,
+            requirements_file=requirements_file,
+        ),
+    )
+    graph = func_obj.set_topology(mlrun.serving.states.StepKinds.flow)
+    if isinstance(application_class, str):
+        first_step = graph.to(class_name=application_class, **application_kwargs)
+    else:
+        first_step = graph.to(class_name=application_class)
+    first_step.to(
+        class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
+        name="PushToMonitoringWriter",
+        project=project,
+        writer_application_name=mm_consts.MonitoringFunctionNames.WRITER,
+    ).respond()
+    return func_obj

@@ -1868,16 +1868,6 @@ class MlrunProject(ModelObj):
             requirements_file,
             **application_kwargs,
         )
-        models_names = "all"
-        function_object.set_label(
-            mm_constants.ModelMonitoringAppLabel.KEY,
-            mm_constants.ModelMonitoringAppLabel.VAL,
-        )
-        function_object.set_label("models", models_names)
-
-        if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.mount_v3io())
-
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
 

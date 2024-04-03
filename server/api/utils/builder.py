@@ -1066,19 +1066,7 @@ def _resolve_function_image_name(function, image: typing.Optional[str] = None) -
                         f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
                     )
         return image
-    return _generate_function_image_name(project, name, tag)
-
-
-def _generate_function_image_name(project: str, name: str, tag: str) -> str:
-    _, repository = mlrun.utils.get_parsed_docker_registry()
-    repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
-    return mlrun.runtimes.utils.fill_function_image_name_template(
-        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
-        repository,
-        project,
-        name,
-        tag,
-    )
+    return mlrun.utils.helpers.generate_function_image_name(project, name, tag)
 
 
 def _resolve_function_image_secret(

@@ -93,7 +93,7 @@ def build_image(
         overwrite_build_params=overwrite_build_params,
         mlrun_version_specifier=mlrun_version_specifier,
         builder_env=builder_env,
-        extra_args=extra_args,
+        extra_args=extra_args or build.extra_args,
         force_build=True,
     )
 
@@ -109,7 +109,7 @@ def build_image(
             exc=mlrun.errors.err_to_str(exc),
         )
 
-    return result
+    return result, function
 
 
 def resolve_spark_operator_version():

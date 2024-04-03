@@ -614,15 +614,14 @@ class RemoteBuilderMock:
                 "data": {
                     "spec": {
                         "clone_target_dir": func.spec.clone_target_dir,
-                        "build": {
-                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
-                        },
+                        "image": func.spec.build.image
+                        or f".mlrun/func-{func.metadata.project}-{func.metadata.name}:{func.metadata.tag or 'latest'}",
                     },
-                    "status": {
+                    "status": func.status.to_dict()
+                    | {
                         "state": "ready",
                         "build_pod": "build-pod",
-                    }
-                    | func.status.to_dict(),
+                    },
                 },
             }
 

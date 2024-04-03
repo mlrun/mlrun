@@ -616,6 +616,22 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        pass
+
+    @abstractmethod
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        pass
+
+    @abstractmethod
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        pass
+
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",

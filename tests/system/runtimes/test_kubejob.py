@@ -276,7 +276,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "val-with-artifact",
         ]
 
-    @pytest.mark.enterprise
     @pytest.mark.parametrize("local", [True, False])
     def test_log_artifact_with_run_function(self, local):
         train_path = str(self.assets_path / "log_artifact.py")

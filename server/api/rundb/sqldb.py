@@ -776,6 +776,19 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        raise NotImplementedError()
+
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        raise NotImplementedError()
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        raise NotImplementedError()
+
     def list_project_secrets(
         self,
         project: str,

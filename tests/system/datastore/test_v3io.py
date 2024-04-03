@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import os
-import random
 import subprocess
 import tempfile
+import time
 import uuid
 from urllib.parse import urlparse
 
@@ -86,59 +86,72 @@ class TestV3ioDataStore(TestMLRunSystem):
         uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
         uploaded_data_item.upload(second_file_path)
 
-    @pytest.mark.skip(
-        reason="Skipping this test as it hangs when running against the CI system. ML-5598"
-    )
     def test_v3io_large_object_upload(self, tmp_path):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
-
+        first_start_time = time.time()
         with open(tempfile_1_path, "wb") as f:
             file_size = 20 * 1024 * 1024  # 20MB
-            f.truncate(file_size)
-            r = random.Random(123)
-            for i in range(min(100, file_size)):
-                offset = r.randint(0, file_size - 1)
-                f.seek(offset)
-                f.write(bytearray([i]))
+            data = os.urandom(file_size)
+            f.write(data)
         data_item, object_url = self._get_data_item()
-
-        try:
-            self._logger.debug(
-                "Exercising the DataItem upload flow",
-                tempfile_1_path=tempfile_1_path,
-                tempfile_2_path=tempfile_2_path,
-            )
-            data_item.upload(tempfile_1_path)
-            data_item.download(tempfile_2_path)
-
-            cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
-            stdout, stderr = cmp_process.communicate()
-            assert (
-                cmp_process.returncode == 0
-            ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
-
-            # Do the test again, this time exercising the v3io datastore _upload() loop
-            self._logger.debug("Exercising the v3io _upload() loop")
-            os.remove(tempfile_2_path)
-            object_path = urlparse(object_url).path
-            data_item.store._upload(
-                object_path, tempfile_1_path, max_chunk_size=100 * 1024
-            )
-
-            self._logger.debug("Downloading the object")
-            data_item.download(tempfile_2_path)
-
-            cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
-            stdout, stderr = cmp_process.communicate()
-            assert (
-                cmp_process.returncode == 0
-            ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
-
-        finally:
-            # cleanup (local files are cleaned by the TempDir destructor)
-            data_item.delete()
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished to write locally in {time.time() - first_start_time} seconds"
+        )
+        self._logger.debug(
+            "Exercising the DataItem upload flow",
+            tempfile_1_path=tempfile_1_path,
+            tempfile_2_path=tempfile_2_path,
+        )
+        start_time = time.time()
+        data_item.upload(tempfile_1_path)
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished to upload in {time.time() - start_time} seconds"
+        )
+        start_time = time.time()
+        data_item.download(tempfile_2_path)
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished to download locally in {time.time() - start_time} seconds"
+        )
+        start_time = time.time()
+        cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
+        stdout, stderr = cmp_process.communicate()
+        assert (
+            cmp_process.returncode == 0
+        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished cmp 1 in {time.time() - start_time} seconds"
+        )
+        # Do the test again, this time exercising the v3io datastore _upload() loop
+        self._logger.debug("Exercising the v3io _upload() loop")
+        os.remove(tempfile_2_path)
+        object_path = urlparse(object_url).path
+        start_time = time.time()
+        data_item.store._upload(object_path, tempfile_1_path, max_chunk_size=100 * 1024)
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished to upload with store directly in"
+            f" {time.time() - start_time} seconds"
+        )
+        self._logger.debug("Downloading the object")
+        start_time = time.time()
+        data_item.download(tempfile_2_path)
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished to download in the second time in"
+            f" {time.time() - start_time} seconds"
+        )
+        start_time = time.time()
+        cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
+        stdout, stderr = cmp_process.communicate()
+        assert (
+            cmp_process.returncode == 0
+        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished cmp 2 in {time.time() - start_time} seconds"
+        )
+        self._logger.debug(
+            f"total time of test_v3io_large_object_upload {time.time() - first_start_time}"
+        )
 
     def test_v3io_large_object_put(self):
         file_size = 20 * 1024 * 1024  # 20MB
@@ -146,13 +159,31 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item, object_url = self._get_data_item()
         object_path = urlparse(object_url).path
 
+        first_start_time = time.time()
         data_item.put(generated_buffer)
+        self._logger.debug(
+            f"test_v3io_large_object_put: put finished in : {time.time() - first_start_time} seconds"
+        )
+        start_time = time.time()
         returned_buffer = data_item.get()
+        self._logger.debug(
+            f"test_v3io_large_object_put: first get finished in : {time.time() - start_time} seconds"
+        )
         assert returned_buffer == generated_buffer
-
+        start_time = time.time()
         data_item.store._put(object_path, generated_buffer, max_chunk_size=100 * 1024)
+        self._logger.debug(
+            f"test_v3io_large_object_put: store put finished in : {time.time() - start_time} seconds"
+        )
+        start_time = time.time()
         returned_buffer = data_item.get()
+        self._logger.debug(
+            f"test_v3io_large_object_put: second get finished in : {time.time() - start_time} seconds"
+        )
         assert returned_buffer == generated_buffer
+        self._logger.debug(
+            f"test_v3io_large_object_put: total time: {time.time() - first_start_time} seconds"
+        )
 
     def test_put_get_and_download(self):
         data_item, _ = self._get_data_item()

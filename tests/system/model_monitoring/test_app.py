@@ -294,7 +294,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-record-results"
+    project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None

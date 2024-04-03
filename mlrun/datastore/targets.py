@@ -456,7 +456,7 @@ class BaseStoreTarget(DataTargetBase):
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        return store, url
+        return store, resolved_store_path, url
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -508,7 +508,7 @@ class BaseStoreTarget(DataTargetBase):
             )
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             storage_options = store.get_storage_options()
             df = df.repartition(partition_size="100MB")
             try:
@@ -529,7 +529,7 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
             file_system = store.filesystem
             if file_system.protocol == "file":
@@ -696,7 +696,7 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         store.rm(target_path, recursive=True)
 
     def as_df(
@@ -876,7 +876,7 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
 
         storage_options = store.get_storage_options()
         if storage_options and self.storage_options:
@@ -929,9 +929,7 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
-        store, path, url = mlrun.store_manager.get_or_create_store(
-            self.get_target_path()
-        )
+        store, path, url = self._get_store_and_path()
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -1050,7 +1048,7 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
@@ -1065,9 +1063,7 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        store, path, url = mlrun.store_manager.get_or_create_store(
-            self.get_target_path()
-        )
+        store, path, url = self._get_store_and_path()
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -1310,7 +1306,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             storage_options = store.get_storage_options()
             access_key = storage_options.get("v3io_access_key", access_key)
 
@@ -1332,7 +1328,7 @@ class NoSqlTarget(NoSqlBaseTarget):
     def get_table_object(self):
         from storey import Table, V3ioDriver
 
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         endpoint, uri = parse_path(target_path)
         storage_options = store.get_storage_options()
         access_key = storage_options.get("v3io_access_key")
@@ -1344,7 +1340,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         storage_options = store.get_storage_options()
         store_access_key = storage_options.get("v3io_access_key")
         env_access_key = self._secrets.get(
@@ -1356,7 +1352,7 @@ class NoSqlTarget(NoSqlBaseTarget):
                 "Spark will disregard the store-provided key."
             )
         spark_options = {
-            "path": store.spark_url + target_path,
+            "path": store.spark_url + path_in_store,
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1449,10 +1445,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
-        store, path = self._get_store_and_path()
+        store, path_in_store, path = self._get_store_and_path()
         return {
             "key.column": "_spark_object_name",
-            "table": "{" + store.spark_url + path,
+            "table": "{" + path_in_store,
             "format": "org.apache.spark.sql.redis",
             "host": parsed_endpoint.hostname,
             "port": parsed_endpoint.port,
@@ -1500,7 +1496,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        store, path = self._get_store_and_path()
+        store, path_in_store, path = self._get_store_and_path()
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
         endpoint, uri = parse_path(path)
@@ -1654,7 +1650,7 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         storage_options = store.get_storage_options()
         access_key = storage_options.get("v3io_access_key", access_key)
 

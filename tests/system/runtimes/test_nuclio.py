@@ -598,7 +598,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self._create_api_gateway_and_wait_for_availability(
             api_gateway=api_gateway
         )
-        res = api_gateway.invoke()
+        res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 
@@ -607,7 +607,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self._create_api_gateway_and_wait_for_availability(
             api_gateway=api_gateway, auth=("test", "test")
         )
-        res = api_gateway.invoke(auth=("test", "test"))
+        res = api_gateway.invoke(auth=("test", "test"), verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 
@@ -616,7 +616,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self._create_api_gateway_and_wait_for_availability(
             api_gateway=api_gateway
         )
-        res = api_gateway.invoke()
+        res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
 
     def _get_basic_gateway(self):
@@ -649,7 +649,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         retry = 0
         while retry < max_retries:
             retry += 1
-            result = api_gateway.invoke(auth=auth)
+            result = api_gateway.invoke(auth=auth, verify=False)
             if result.status_code == 404:
                 time.sleep(timeout)
                 continue

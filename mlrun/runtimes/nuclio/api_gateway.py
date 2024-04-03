@@ -301,7 +301,7 @@ class APIGateway:
         :return: (str) The invoke URL.
         """
         if not self.host.startswith("http"):
-            self.host = f"http://{self.host}"
+            self.host = f"https://{self.host}"
         return urljoin(self.host, self.path)
 
     def _validate(

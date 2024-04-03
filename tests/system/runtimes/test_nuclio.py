@@ -632,6 +632,14 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
     def test_basic_api_gateway_flow(self):
         api_gateway = self._get_basic_gateway()
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
+        res = api_gateway.invoke()
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
         api_gateway.with_basic_auth("test", "test")
         api_gateway = self._create_api_gateway_and_wait_for_availability(
             api_gateway=api_gateway, auth=("test", "test")

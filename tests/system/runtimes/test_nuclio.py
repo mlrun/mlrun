@@ -616,7 +616,9 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         fn.deploy()
         return fn
 
-    def _create_api_gateway_and_wait_for_availability(self, api_gateway, auth=None, max_retries=5, timeout=1):
+    def _create_api_gateway_and_wait_for_availability(
+        self, api_gateway, auth=None, max_retries=5, timeout=1
+    ):
         api_gateway = self.project.store_api_gateway(api_gateway)
         retry = 0
         while retry < max_retries:
@@ -630,20 +632,26 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
     def test_basic_api_gateway_flow(self):
         api_gateway = self._get_basic_gateway()
-        api_gateway = self._create_api_gateway_and_wait_for_availability(api_gateway=api_gateway)
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
         res = api_gateway.invoke()
         assert res.status_code == 200
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_basic_auth("test", "test")
-        api_gateway = self._create_api_gateway_and_wait_for_availability(api_gateway=api_gateway, auth=("test", "test"))
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway, auth=("test", "test")
+        )
         res = api_gateway.invoke(auth=("test", "test"))
         assert res.status_code == 200
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
-        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50,50])
-        api_gateway = self._create_api_gateway_and_wait_for_availability(api_gateway=api_gateway)
+        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
         res = api_gateway.invoke()
         assert res.status_code == 200

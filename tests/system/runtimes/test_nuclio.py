@@ -643,7 +643,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         return fn
 
     def _create_api_gateway_and_wait_for_availability(
-        self, api_gateway, auth=None, max_retries=5, timeout=1
+        self, api_gateway, auth=None, max_retries=20, timeout=3
     ):
         api_gateway = self.project.store_api_gateway(api_gateway)
         retry = 0

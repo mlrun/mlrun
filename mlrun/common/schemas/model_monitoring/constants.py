@@ -204,18 +204,10 @@ class PrometheusEndpoints(MonitoringStrEnum):
     MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
 
 
-class MonitoringFunctionNames:
-    WRITER = "model-monitoring-writer"
-    APPLICATION_CONTROLLER = "model-monitoring-controller"
+class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
-
-    @staticmethod
-    def all():
-        return [
-            MonitoringFunctionNames.WRITER,
-            MonitoringFunctionNames.STREAM,
-            MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        ]
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
+    WRITER = "model-monitoring-writer"
 
 
 @dataclass

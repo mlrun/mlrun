@@ -247,7 +247,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    def test_basic_model_monitoring(self) -> None:
+    @pytest.mark.parametrize("engine", ["sync", "async"])
+    def test_basic_model_monitoring(self, engine) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
@@ -270,6 +271,11 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
+
+        serving_fn.set_topology(
+            "router",
+            engine=engine,
+        )
 
         # enable model monitoring
         serving_fn.set_tracking()
@@ -1114,9 +1120,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.model_name = "clf_model"
 
         cls.infer_results_df = cls.train_set.copy()
-        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            mlrun.utils.datetime_now()
-        )
 
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
@@ -1130,6 +1133,16 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             artifact_path=f"v3io:///projects/{self.project_name}",
         )
         return model.uri
+
+    def _wait_for_deployments(self) -> None:
+        for fn_name in [
+            mm_constants.MonitoringFunctionNames.STREAM,
+            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            mm_constants.MonitoringFunctionNames.WRITER,
+            mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+        ]:
+            fn = self.project.get_function(key=fn_name)
+            fn._wait_for_function_deployment(db=fn._get_db())
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
@@ -1161,6 +1174,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
         )
+
+        self._wait_for_deployments()
 
         model_uri = self._log_model()
 

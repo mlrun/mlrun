@@ -619,7 +619,6 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         res = api_gateway.invoke()
         assert res.status_code == 200
 
-
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(
             project=self.project_name, functions=self.f1, name=self.gw_name

@@ -262,10 +262,12 @@ class APIGateway:
         upstreams = (
             [
                 mlrun.common.schemas.APIGatewayUpstream(
-                    nucliofunction={"name": function_name},
-                    percentage=percentage,
-                )
-                for function_name, percentage in zip(self.functions, self.canary)
+                    nucliofunction={"name": self.functions[0]},
+                    percentage=self.canary[0],
+                ),
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": self.functions[1]},
+                ),
             ]
             if self.canary
             else [

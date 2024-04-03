@@ -650,7 +650,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         while retry < max_retries:
             retry += 1
             result = api_gateway.invoke(auth=auth, verify=False)
-            if result.status_code == 404:
+            if not result.ok:
                 time.sleep(timeout)
                 continue
             else:

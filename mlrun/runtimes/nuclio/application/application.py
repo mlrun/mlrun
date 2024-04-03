@@ -272,7 +272,7 @@ class ApplicationRuntime(RemoteRuntime):
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
-        self._configure_mlrun_build_with_sourc(
+        self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,
             pull_at_runtime=pull_at_runtime,

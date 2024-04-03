@@ -38,7 +38,7 @@ on:
         type: choice
         options: [ 'bump-rc', 'stable' ]
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,models,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,jupyter,test'
         required: false
         default: ''
       skip_publish_pypi:

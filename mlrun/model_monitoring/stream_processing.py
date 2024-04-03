@@ -24,7 +24,9 @@ import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.config
 import mlrun.datastore.targets
+import mlrun.feature_store as fstore
 import mlrun.feature_store.steps
+import mlrun.model_monitoring.db
 import mlrun.model_monitoring.prometheus
 import mlrun.serving.states
 import mlrun.utils
@@ -36,6 +38,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     FileTargetKind,
     ModelEndpointTarget,
     ProjectSecretKeys,
+    PrometheusEndpoints,
 )
 from mlrun.utils import logger
 
@@ -183,11 +186,11 @@ class EventStreamProcessor:
         # Step 2 - Filter out events with '-' in the path basename from going forward
         # through the next steps of the stream graph
         def apply_storey_filter_stream_events():
-            # Remove none values from each event
+            # Filter events with Prometheus endpoints path
             graph.add_step(
                 "storey.Filter",
                 "filter_stream_event",
-                _fn="('-' not in event.path.split('/')[-1])",
+                _fn=f"(event.path not in {PrometheusEndpoints.list()})",
                 full_event=True,
             )
 
@@ -933,6 +936,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     def do(self, event: dict):
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
+        feature_values = event[EventFieldType.FEATURES]
+        label_values = event[EventFieldType.PREDICTION]
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
             endpoint_record = get_endpoint_record(
@@ -968,6 +973,12 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     },
                 )
 
+                update_monitoring_feature_set(
+                    endpoint_record=endpoint_record,
+                    feature_names=feature_names,
+                    feature_values=feature_values,
+                )
+
             # Similar process with label columns
             if not label_columns and self._infer_columns_from_data:
                 label_columns = self._infer_label_columns_from_data(event)
@@ -986,6 +997,11 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     endpoint_id=endpoint_id,
                     attributes={EventFieldType.LABEL_NAMES: json.dumps(label_columns)},
                 )
+                update_monitoring_feature_set(
+                    endpoint_record=endpoint_record,
+                    feature_names=label_columns,
+                    feature_values=label_values,
+                )
 
             self.label_columns[endpoint_id] = label_columns
             self.feature_names[endpoint_id] = feature_names
@@ -1003,7 +1019,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
-        feature_values = event[EventFieldType.FEATURES]
         self._map_dictionary_values(
             event=event,
             named_iters=feature_names,
@@ -1013,7 +1028,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         # Add label_name:value pairs along with a mapping dictionary of all of these pairs
         label_names = self.label_columns[endpoint_id]
-        label_values = event[EventFieldType.PREDICTION]
         self._map_dictionary_values(
             event=event,
             named_iters=label_names,
@@ -1139,10 +1153,10 @@ class EventRouting(mlrun.feature_store.steps.MapClass):
         self.project: str = project
 
     def do(self, event):
-        if event.path == "/model-monitoring-metrics":
+        if event.path == PrometheusEndpoints.MODEL_MONITORING_METRICS:
             # Return a parsed Prometheus registry file
             event.body = mlrun.model_monitoring.prometheus.get_registry()
-        elif event.path == "/monitoring-batch-metrics":
+        elif event.path == PrometheusEndpoints.MONITORING_BATCH_METRICS:
             # Update statistical metrics
             for event_metric in event.body:
                 mlrun.model_monitoring.prometheus.write_drift_metrics(
@@ -1151,7 +1165,7 @@ class EventRouting(mlrun.feature_store.steps.MapClass):
                     metric=event_metric[EventFieldType.METRIC],
                     value=event_metric[EventFieldType.VALUE],
                 )
-        elif event.path == "/monitoring-drift-status":
+        elif event.path == PrometheusEndpoints.MONITORING_DRIFT_STATUS:
             # Update drift status
             mlrun.model_monitoring.prometheus.write_drift_status(
                 project=self.project,
@@ -1211,7 +1225,7 @@ def update_endpoint_record(
     endpoint_id: str,
     attributes: dict,
 ):
-    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
+    model_endpoint_store = mlrun.model_monitoring.get_store_object(
         project=project,
     )
 
@@ -1221,7 +1235,25 @@ def update_endpoint_record(
 
 
 def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
+    model_endpoint_store = mlrun.model_monitoring.get_store_object(
         project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
+
+
+def update_monitoring_feature_set(
+    endpoint_record: dict[str, typing.Any],
+    feature_names: list[str],
+    feature_values: list[typing.Any],
+):
+    monitoring_feature_set = fstore.get_feature_set(
+        endpoint_record[
+            mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
+        ]
+    )
+    for name, val in zip(feature_names, feature_values):
+        monitoring_feature_set.add_feature(
+            fstore.Feature(name=name, value_type=type(val))
+        )
+
+    monitoring_feature_set.save()

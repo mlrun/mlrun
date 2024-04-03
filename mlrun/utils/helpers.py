@@ -1405,6 +1405,18 @@ def as_number(field_name, field_value):
 
 
 def filter_warnings(action, category):
+    """
+    Decorator to filter warnings
+
+    Example::
+        @filter_warnings("ignore", FutureWarning)
+        def my_function():
+            pass
+
+    :param action:      one of "error", "ignore", "always", "default", "module", or "once"
+    :param category:    a class that the warning must be a subclass of
+    """
+
     def decorator(function):
         def wrapper(*args, **kwargs):
             # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.

@@ -124,6 +124,7 @@ from .model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     Features,
+    FeatureSetFeatures,
     FeatureValues,
     GrafanaColumn,
     GrafanaDataPoint,
@@ -139,6 +140,7 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
+    PrometheusEndpoints,
     TimeSeriesTarget,
 )
 from .notification import (

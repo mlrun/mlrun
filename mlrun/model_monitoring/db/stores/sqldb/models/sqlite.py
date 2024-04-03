@@ -12,23 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sqlalchemy.dialects.mysql
-from sqlalchemy import Column
 from sqlalchemy.ext.declarative import declarative_base
 
-from mlrun.common.schemas.model_monitoring import EventFieldType
-
-from .base import ModelEndpointsBaseTable
+from .base import (
+    ApplicationResultBaseTable,
+    ModelEndpointsBaseTable,
+    MonitoringSchedulesBaseTable,
+)
 
 Base = declarative_base()
 
 
 class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
-    first_request = Column(
-        EventFieldType.FIRST_REQUEST,
-        sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
-    )
-    last_request = Column(
-        EventFieldType.LAST_REQUEST,
-        sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
-    )
+    pass
+
+
+class ApplicationResultTable(Base, ApplicationResultBaseTable):
+    pass
+
+
+class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):
+    pass

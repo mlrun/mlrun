@@ -507,7 +507,7 @@ default_config = {
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
+        # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
@@ -622,8 +622,9 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
-        # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30, "remote": 90},
+        # Default timeout seconds for retrieving workflow id after execution
+        # Remote workflow timeout is the maximum between remote and the inner engine timeout
+        "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},
     },
     "log_collector": {
         "address": "localhost:8282",

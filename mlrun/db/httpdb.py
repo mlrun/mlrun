@@ -1384,7 +1384,6 @@ class HTTPRunDB(RunDBInterface):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
-        mlrun_build: Optional[bool] = None,
     ):
         """Retrieve the status of a build operation currently in progress.
 
@@ -1394,8 +1393,6 @@ class HTTPRunDB(RunDBInterface):
         :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
                                     later than this parameter.
         :param verbose:             Add verbose logs into the output.
-        :param mlrun_build:         Whether the build is an MLRun build. If not provided, will be inferred from the
-                                    function kind.
 
         :returns: The following parameters:
 
@@ -1415,8 +1412,6 @@ class HTTPRunDB(RunDBInterface):
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            if mlrun_build is not None:
-                params["mlrun_build"] = mlrun_build
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
             logger.error(f"error getting build status: {err_to_str(err)}")

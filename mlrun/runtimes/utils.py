@@ -56,6 +56,62 @@ class _ContextStore:
 global_context = _ContextStore()
 
 
+def build_image(
+    build: mlrun.model.ImageBuilder,
+    source: str = None,
+    load_source_on_run: bool = False,
+    target_dir: str = None,
+    overwrite_build_params: bool = False,
+    mlrun_version_specifier: str = None,
+    builder_env: dict = None,
+    extra_args: str = None,
+):
+    """
+    Helper function to build an image using the provided build parameters and source code.
+    Since building an image is coupled with having a function, this function will create a temporary function
+    to build the image and then delete it.
+    """
+    function: mlrun.runtimes.KubejobRuntime = mlrun.new_function(
+        "mlrun--image--builder", kind="job"
+    )
+
+    if source and not load_source_on_run:
+        function.with_source_archive(
+            source=source,
+            target_dir=target_dir or build.source_code_target_dir,
+            pull_at_runtime=False,
+        )
+
+    result = mlrun.projects.build_function(
+        function=function,
+        with_mlrun=build.with_mlrun,
+        image=build.image,
+        base_image=build.base_image,
+        commands=build.commands,
+        secret_name=build.secret,
+        requirements=build.requirements,
+        overwrite_build_params=overwrite_build_params,
+        mlrun_version_specifier=mlrun_version_specifier,
+        builder_env=builder_env,
+        extra_args=extra_args,
+        force_build=True,
+    )
+
+    # Get the enriched target dir from the function
+    build.source_code_target_dir = function.spec.build.source_code_target_dir
+
+    try:
+        mlrun.db.get_run_db().delete_function(name=function.metadata.name)
+    except Exception as exc:
+        logger.warning(
+            f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
+            " To remove the function, attempt to manually delete it.",
+            exc=mlrun.errors.err_to_str(exc),
+        )
+
+    return result
+
+
 def resolve_spark_operator_version():
     try:
         regex = re.compile("spark-([23])")
@@ -415,34 +471,6 @@ def get_func_selector(project, name=None, tag=None):
         s.append(f"{mlrun_key}function={name}")
         s.append(f"{mlrun_key}tag={tag or 'latest'}")
     return s
-
-
-class k8s_resource:
-    kind = ""
-    per_run = False
-    per_function = False
-    k8client = None
-
-    def deploy_function(self, function):
-        pass
-
-    def release_function(self, function):
-        pass
-
-    def submit_run(self, function, runobj):
-        pass
-
-    def get_object(self, name, namespace=None):
-        return None
-
-    def get_status(self, name, namespace=None):
-        return None
-
-    def del_object(self, name, namespace=None):
-        pass
-
-    def get_pods(self, name, namespace=None, master=False):
-        return {}
 
 
 def enrich_function_from_dict(function, function_dict):

@@ -641,7 +641,6 @@ class RunDBInterface(ABC):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
-        mlrun_build: Optional[bool] = None,
     ):
         pass
 

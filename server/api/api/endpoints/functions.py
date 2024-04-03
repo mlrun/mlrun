@@ -407,7 +407,6 @@ async def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    mlrun_build: bool = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -429,7 +428,7 @@ async def build_status(
         )
 
     # nuclio deploy status
-    if not mlrun_build and fn.get("kind") in RuntimeKinds.nuclio_runtimes():
+    if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
         return await run_in_threadpool(
             _handle_nuclio_deploy_status,
             db_session,
@@ -719,24 +718,16 @@ def _build_function(
         run_db = server.api.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
-        # TODO:  force_build is only used for mlrun build flow, for nuclio runtimes users can specify force_build=True,
-        #  but it is redundant and ignored. Once force_build is removed from RemoteRuntime.deploy() in 1.9.0,
-        #  we can simplify the logic here to:
-        #  is_nuclio_deploy = fn.kind in RuntimeKinds.nuclio_runtimes() and not force_build
-        is_nuclio_deploy = False
-        if fn.kind in RuntimeKinds.pure_nuclio_deployed_runtimes():
-            is_nuclio_deploy = True
-        elif fn.kind == RuntimeKinds.application and not force_build:
-            is_nuclio_deploy = True
+        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
 
         # Enrich runtime with project defaults
         launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
         # When runtime is nuclio, building means we deploy the function and not just build its image
         # so we need full enrichment
-        launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
 
         fn.save(versioned=False)
-        if is_nuclio_deploy:
+        if is_nuclio_runtime:
             fn: mlrun.runtimes.RemoteRuntime
             fn.pre_deploy_validation()
             fn = _deploy_nuclio_runtime(

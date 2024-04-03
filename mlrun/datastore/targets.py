@@ -1407,6 +1407,26 @@ class StreamTarget(BaseStoreTarget):
 
 
 class KafkaTarget(BaseStoreTarget):
+    """Kafka target storage driver, used to materialize feature set/vector data into kafka topics.
+
+    example::
+
+        # define target
+        kafka_target = KafkaTarget(
+            "kafka",
+            path='my_topic',
+            bootstrap_servers='localhost:9092'
+        )
+
+        # ingest
+        stocks_set.ingest(stocks, [kafka_target])
+
+    :param name:        optional, target name.
+    :param path:        optional, topic name e.g. 'my_topic' or 'v3io:///{topic}'
+    :param bootstrap_servers:   optional, kafka broker e.g. 'localhost:9092'
+    :param producer_options:    optional, addition options/setting for producer
+    """
+
     kind = TargetTypes.kafka
     is_table = False
     is_online = False
@@ -1417,8 +1437,8 @@ class KafkaTarget(BaseStoreTarget):
     def __init__(
         self,
         *args,
-        bootstrap_servers=None,
-        producer_options=None,
+        bootstrap_servers = None,
+        producer_options = None,
         **kwargs,
     ):
         attrs = {}

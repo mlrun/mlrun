@@ -593,6 +593,33 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         self.f1 = self._deploy_function(suffix="1")
         self.f2 = self._deploy_function(suffix="2")
 
+    def test_basic_api_gateway_flow(self):
+        api_gateway = self._get_basic_gateway()
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
+        res = api_gateway.invoke()
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_basic_auth("test", "test")
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway, auth=("test", "test")
+        )
+        res = api_gateway.invoke(auth=("test", "test"))
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
+        res = api_gateway.invoke()
+        assert res.status_code == 200
+
+
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(
             project=self.project_name, functions=self.f1, name=self.gw_name
@@ -629,29 +656,3 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
                 continue
             else:
                 return api_gateway
-
-    def test_basic_api_gateway_flow(self):
-        api_gateway = self._get_basic_gateway()
-        api_gateway = self._create_api_gateway_and_wait_for_availability(
-            api_gateway=api_gateway
-        )
-        res = api_gateway.invoke()
-        assert res.status_code == 200
-        self._cleanup_gateway()
-
-        api_gateway = self._get_basic_gateway()
-        api_gateway.with_basic_auth("test", "test")
-        api_gateway = self._create_api_gateway_and_wait_for_availability(
-            api_gateway=api_gateway, auth=("test", "test")
-        )
-        res = api_gateway.invoke(auth=("test", "test"))
-        assert res.status_code == 200
-        self._cleanup_gateway()
-
-        api_gateway = self._get_basic_gateway()
-        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
-        api_gateway = self._create_api_gateway_and_wait_for_availability(
-            api_gateway=api_gateway
-        )
-        res = api_gateway.invoke()
-        assert res.status_code == 200

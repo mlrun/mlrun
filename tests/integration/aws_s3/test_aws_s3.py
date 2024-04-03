@@ -143,7 +143,7 @@ class TestAwsS3:
         )
 
     def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
-        #  TODO split to smaller tests, like datastore's tests convention.
+        #  TODO split to smaller tests, according to datastore's tests convention.
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
         logger.info(f'Object URL: {param["object_url"]}')
 

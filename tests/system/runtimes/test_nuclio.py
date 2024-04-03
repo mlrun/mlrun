@@ -587,32 +587,63 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-gateways"
+    gw_name = "test-gateway"
+
+    def custom_setup(self):
+        self.f1 = self._deploy_function(suffix="1")
+        self.f2 = self._deploy_function(suffix="2")
+
+    def _get_basic_gateway(self):
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            project=self.project_name, functions=self.f1, name=self.gw_name
+        )
+
+    def _cleanup_gateway(self):
+        self.project.delete_api_gateway(self.gw_name)
 
     def _deploy_function(self, replicas=1, suffix=""):
-        filename = str(self.assets_path / "handler.py")
+        filename = str(self.assets_path / "nuclio_function.py")
+
         fn = mlrun.code_to_function(
             filename=filename,
             name=f"nuclio-mlrun-{suffix}",
-            kind="nuclio:mlrun",
-            image="mlrun/mlrun",
-            handler="my_func",
+            kind="nuclio",
+            image="python:3.9",
+            handler="handler",
         )
-        # replicas * workers need to match or exceed parallel_runs
         fn.spec.replicas = replicas
         fn.with_http(workers=1)
         fn.deploy()
         return fn
 
-    def _prepare_two_functions(self):
-        f1 = self._deploy_function(suffix="1")
-        f2 = self._deploy_function(suffix="2")
-        return f1, f2
+    def _create_api_gateway_and_wait_for_availability(
+        self, api_gateway, auth=None, max_retries=5, timeout=1
+    ):
+        api_gateway = self.project.store_api_gateway(api_gateway)
+        retry = 0
+        while retry < max_retries:
+            retry += 1
+            result = api_gateway.invoke(auth=auth)
+            if result.status_code == 404:
+                time.sleep(timeout)
+                continue
+            else:
+                return api_gateway
 
     def test_basic_api_gateway_flow(self):
-        f1, f2 = self._prepare_two_functions()
-        project = mlrun.get_or_create_project(self.project_name)
-        api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            project=self.project_name, functions=f1, name="test-gateway"
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_basic_auth("test", "test")
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway, auth=("test", "test")
         )
-        api_gateway = project.store_api_gateway(api_gateway)
+        res = api_gateway.invoke(auth=("test", "test"))
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
         res = api_gateway.invoke()
+        assert res.status_code == 200

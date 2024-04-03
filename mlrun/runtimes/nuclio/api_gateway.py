@@ -85,7 +85,7 @@ class BasicAuth(APIGatewayAuthenticator):
         self,
     ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
         return {
-            "authentication": mlrun.common.schemas.APIGatewayBasicAuth(
+            "basicAuth": mlrun.common.schemas.APIGatewayBasicAuth(
                 username=self._username, password=self._password
             )
         }

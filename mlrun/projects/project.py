@@ -1408,7 +1408,10 @@ class MlrunProject(ModelObj):
                 ):
                     continue
                 artifact_manager.log_artifact(
-                    producer, artifact, artifact_path=artifact_path
+                    producer,
+                    artifact,
+                    artifact_path=artifact_path,
+                    project=self.metadata.name,
                 )
 
     def _get_artifact_manager(self):
@@ -1528,6 +1531,7 @@ class MlrunProject(ModelObj):
             upload=upload,
             labels=labels,
             target_path=target_path,
+            project=self.metadata.name,
             **kwargs,
         )
         return item
@@ -3850,7 +3854,7 @@ class MlrunProject(ModelObj):
         :return:                        A tuple of the resolved producer and the resolved artifact.
         """
 
-        if not isinstance(artifact, str) and artifact.producer:
+        if not isinstance(artifact, str) and artifact.spec.producer:
             # if the artifact was imported from a yaml file, the producer can be a dict
             if isinstance(artifact.spec.producer, ArtifactProducer):
                 producer_dict = artifact.spec.producer.get_meta()
@@ -3863,6 +3867,7 @@ class MlrunProject(ModelObj):
                     kind=producer_dict.get("kind", ""),
                     project=producer_dict.get("project", ""),
                     tag=producer_dict.get("tag", ""),
+                    is_retained=True,
                 )
 
         # do not retain the artifact's producer, replace it with the project as the producer

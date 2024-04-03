@@ -87,7 +87,7 @@ legacy_artifact_types = {
 
 
 class ArtifactProducer:
-    def __init__(self, kind, project, name, tag=None, owner=None):
+    def __init__(self, kind, project, name, tag=None, owner=None, is_retained=False):
         self.kind = kind
         self.project = project
         self.name = name
@@ -96,6 +96,7 @@ class ArtifactProducer:
         self.uri = "/"
         self.iteration = 0
         self.inputs = {}
+        self.is_retained = is_retained
 
     def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
@@ -180,11 +181,12 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
+        project=None,
         **kwargs,
     ) -> Artifact:
         """
         Log an artifact to the DB and upload it to the artifact store.
-        :param producer: The producer of the artifact, the producer depends from where the artifact is being logged.
+        :param producer: The producer of the artifact, the producer depends on where the artifact is being logged.
         :param item: The artifact to log.
         :param body: The body of the artifact.
         :param target_path: The target path of the artifact. (cannot be a relative path)
@@ -202,6 +204,7 @@ class ArtifactManager:
         :param labels: Labels to add to the artifact.
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
+        :param project: The project to log the artifact to. If not provided, will use the producer's project.
         :param kwargs: Arguments to pass to the artifact class.
         :return: The logged artifact.
         """
@@ -226,7 +229,7 @@ class ArtifactManager:
 
         if db_key is None:
             # set the default artifact db key
-            if producer.kind == "run":
+            if producer.kind == "run" and not getattr(producer, "is_retained", False):
                 # When the producer's type is "run,"
                 # we generate a different db_key than the one we obtained in the request.
                 # As a result, a new artifact for the requested key will be created,
@@ -251,7 +254,7 @@ class ArtifactManager:
             item.labels.update({"workflow-id": item.producer.get("workflow")})
 
         item.iter = producer.iteration
-        project = producer.project
+        project = project or producer.project
         item.project = project
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
@@ -303,7 +306,7 @@ class ArtifactManager:
                 item.upload(artifact_path=artifact_path)
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item)
+            self._log_to_db(db_key, project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(

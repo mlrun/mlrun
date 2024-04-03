@@ -1043,7 +1043,7 @@ def generate_target_path(item: Artifact, artifact_path, producer):
     artifact_path = artifact_path or ""
     if artifact_path and not artifact_path.endswith("/"):
         artifact_path += "/"
-    if producer.kind == "run":
+    if producer.kind == "run" and not getattr(producer, "is_retained", False):
         artifact_path += f"{producer.name}/{item.iter or 0}/"
 
     suffix = "/"

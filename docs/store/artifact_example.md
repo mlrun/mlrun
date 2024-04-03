@@ -3,10 +3,8 @@
 
 For logging artifacts that are not models and datasets we will use the [log_artifact](https://docs.mlrun.org/en/latest/api/mlrun.execution.html#mlrun.execution.MLClientCtx.log_artifact) method.
 
-This method can be used by the Project object or the context object if the user log artifact in runtime.
-```{admonition} Note
-This page will cover logging non models and datasets artifacts, for those artifacts types please check the see also section. 
-```
+This method can be used by the Project object or the context object when logging an artifact in runtime .e.g job.
+
 **In this section**
 - [Example logging an artifact](#logging-artifact)
 - [Example logging a directory artifact](#logging-directory-artifact)
@@ -18,8 +16,7 @@ This page will cover logging non models and datasets artifacts, for those artifa
 - [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
 
 ### Logging Artifact
-***Note -*** when using `log_artifact` and not specifying the artifact object to a file by default the artifact type is 
-`mlrun.artifacts.Artifact`
+***Simple example***
 ```python
     project.log_artifact(
         "some-data",
@@ -28,9 +25,11 @@ This page will cover logging non models and datasets artifacts, for those artifa
         labels={"Test": "label-test"},
     )
 ```
-In addition, `log_artifact` can use to log many kind of files for example `html`,`pkl`.
-for log a file that is not a `.txt` file you can simply point to the file from you local_path or use the body as the artifact content by using the `body` flag.
-for example how to log a plotly figure using `log_artifact` to a `html` file:
+In addition, `log_artifact` can use to log many kinds of files for example `html`,`pkl` and more.
+for log a file that is not a `.txt` file you can simply use the local file path using the `local_path` flag or use the `body` flag to dumps the object to log.
+you can see below an example how to log a plotly figure using `log_artifact` to a `html` file:
+
+***Log plotly object as an html file***
 ```python
 import plotly.graph_objects as go
 import numpy as np
@@ -58,8 +57,17 @@ project.log_artifact("plotly-art",
                      body=fig.to_html(),
                      format="html")
 ```
+### Logging an Plotly Artifacts 
+Below an example how to easily log a plotly artifact that can be done using `mlrun.artifacts.PlotlyArtifact` object. 
+```python
+    plotly_artifact = mlrun.artifacts.PlotlyArtifact(figure=fig, key="sin_x")
+    context.log_artifact(plotly_artifact)
+```
 
-### Logging an Artifact Directory
+```{admonition} Note
+Please note that for every object thier is a diffrent way to dumbs to convert the object to be log the artifact using the body flag
+```
+### Logging an Directory Artifact 
 ***Note -*** when using `log_artifact` and not specifying the artifact object and pointing to a directory by default the artifact type is 
 `mlrun.artifacts.DirArtifact`
 ```python
@@ -68,5 +76,6 @@ project.log_artifact("plotly-art",
     local_path="./artifact_directory/",
     labels={"Dir":"dir-example"})
 ```
+
 
 

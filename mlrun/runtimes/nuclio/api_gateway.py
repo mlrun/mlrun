@@ -266,6 +266,8 @@ class APIGateway:
                     percentage=self.canary[0],
                 ),
                 mlrun.common.schemas.APIGatewayUpstream(
+                    # do not set percent for the second function,
+                    # so we can define which function to display as a primary one in UI
                     nucliofunction={"name": self.functions[1]},
                 ),
             ]

@@ -1723,7 +1723,7 @@ def test_create_api_gateway_valid(
 
     gateway = project.store_api_gateway(api_gateway)
 
-    assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if with_basic_auth:
         assert gateway.authentication.authentication_mode == "basicAuth"
     else:

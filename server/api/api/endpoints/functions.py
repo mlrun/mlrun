@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import base64  # noqa: F401
+
 import os
 import traceback
 from distutils.util import strtobool
@@ -52,7 +51,6 @@ from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime
-from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
@@ -788,15 +786,12 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
 
-        monitoring_deploy = (
-            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
-                project=fn.metadata.project,
-                auth_info=auth_info,
-                db_session=db_session,
-                model_monitoring_access_key=model_monitoring_access_key,
-            )
-        )
-        fn = monitoring_deploy._apply_and_create_stream_trigger(
+        fn = server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+            project=fn.metadata.project,
+            auth_info=auth_info,
+            db_session=db_session,
+            model_monitoring_access_key=model_monitoring_access_key,
+        )._apply_and_create_stream_trigger(
             function=fn,
             function_name=fn.metadata.name,
         )
@@ -921,13 +916,6 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )
-
-
-def _get_function_env_var(fn: ServingRuntime, var_name: str):
-    for env_var in fn.spec.env:
-        if get_item_name(env_var) == var_name:
-            return env_var
-    return None
 
 
 def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):

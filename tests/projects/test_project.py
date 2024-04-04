@@ -939,10 +939,8 @@ def test_import_artifact_retain_producer(rundb_mock):
     # load a new project from the first project's context
     project_3 = mlrun.load_project(name="project-3", context=project_1.context)
 
-    # make sure the artifact was registered with the original producer
-    # the db key should include the run since it's a run artifact
-    db_key = f"{run_name}_{new_key}"
-    loaded_artifact = project_3.get_artifact(db_key)
+    # make sure the artifact was registered with the new key
+    loaded_artifact = project_3.get_artifact(new_key)
     assert loaded_artifact.producer == artifact.producer
 
 

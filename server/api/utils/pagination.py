@@ -55,7 +55,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
         token: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = mlconf.httpdb.pagination.default_page_size,
+        page_size: typing.Optional[int] = None,
         **method_kwargs,
     ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
         """
@@ -99,7 +99,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
         token: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = mlconf.httpdb.pagination.default_page_size,
+        page_size: typing.Optional[int] = None,
         **method_kwargs,
     ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
         if not PaginatedMethods.method_is_supported(method):
@@ -110,6 +110,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         if page_size is None and token is None:
             self._logger.debug("No token or page size provided, returning all records")
             return method(**method_kwargs), {}
+
+        page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
         token, page, page_size, method, method_kwargs = (
             self._create_or_update_pagination_cache_record(

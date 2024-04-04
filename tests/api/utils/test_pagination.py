@@ -368,6 +368,104 @@ def test_pagination_cache_cleanup(
         )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "permitted_items,target_page",
+    [
+        (
+            [
+                # page 1
+                "item0",
+                "item1",
+                "item2",
+                "item3",
+            ],
+            1,
+        ),
+        (
+            [
+                # page 1
+                "item2",
+                "item3",
+                # page 2
+                "item4",
+                "item5",
+            ],
+            2,
+        ),
+        (
+            [
+                # page 1
+                "item0",
+                "item1",
+                # page 2
+                "item4",
+                # page 3
+                "item8",
+            ],
+            3,
+        ),
+        (
+            [
+                # page 1
+                "item0",
+                "item1",
+                # page 2
+                "item7",
+                # page 3
+                "item8",
+                "item9",
+            ],
+            3,
+        ),
+        (
+            ["item0"],
+            5,  # only 1 item, we will go all the way to the end of the pagination adding 0 items each time
+        ),
+    ],
+)
+async def test_paginate_permission_filtered_request(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+    permitted_items,
+    target_page,
+):
+    """
+    Test paginate_permission_filtered_request.
+    Request paginated method with page 1 and page size 4.
+    The filter function will filter out the items that are not permitted. And the result should contain only the
+    permitted items. With a minimum result of page size 4 (unless there are fewer items).
+    """
+
+    async def filter_(items):
+        return [item for item in items if item["name"] in permitted_items]
+
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 4
+    method_kwargs = {"total_amount": 20}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        1,
+        page_size,
+        **method_kwargs,
+    )
+
+    assert len(response) == len(permitted_items)
+    for i, item in enumerate(permitted_items):
+        assert response[i]["name"] == item
+    assert pagination_info["token"] is not None
+    assert pagination_info["page"] == target_page
+    assert pagination_info["page_size"] == page_size
+
+
 def _assert_paginated_response(
     response, pagination_info, page, page_size, expected_items
 ):

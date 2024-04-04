@@ -548,6 +548,7 @@ default_config = {
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
             "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",

@@ -46,6 +46,48 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         self._logger = logger.get_child("paginator")
         self._pagination_cache = server.api.crud.PaginationCache()
 
+    async def paginate_permission_filtered_request(
+        self,
+        session: sqlalchemy.orm.Session,
+        method: typing.Callable,
+        filter_: typing.Callable,
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+        token: typing.Optional[str] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+        **method_kwargs,
+    ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
+        """
+        Paginate a request and filter the results based on the provided filter function.
+        If the result of the filter has fewer items than the page size, the pagination will request more items until
+        the page size is reached.
+        There is an option here to overflow and to receive more items than the page size.
+        And actually the maximum number of items that can be returned is page_size * 2 - 1.
+        """
+        last_pagination_info = {}
+        current_page = page
+        result = []
+
+        while len(result) < page_size:
+            new_result, pagination_info = self.paginate_request(
+                session,
+                method,
+                auth_info,
+                token,
+                current_page,
+                page_size,
+                **method_kwargs,
+            )
+            if not pagination_info:
+                # no more results
+                break
+            last_pagination_info = pagination_info
+            new_result = await filter_(new_result)
+            result.extend(new_result)
+            current_page = pagination_info["page"] + 1
+
+        return result, last_pagination_info
+
     def paginate_request(
         self,
         session: sqlalchemy.orm.Session,

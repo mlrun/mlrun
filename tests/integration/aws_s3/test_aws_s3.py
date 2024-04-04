@@ -83,7 +83,7 @@ class TestAwsS3:
             return
         if cls._fs.exists(test_dir):
             cls._fs.delete(test_dir, recursive=True)
-            logger.debug("test directory has been cleaned.")
+            logger.debug("test directory has been deleted.")
 
     def setup_method(self, method):
         store_manager.reset_secrets()

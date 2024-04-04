@@ -97,7 +97,7 @@ class TestAzureBlob:
             return
         if cls._azure_fs.exists(test_dir):
             cls._azure_fs.delete(test_dir, recursive=True)
-            logger.debug("test directory has been cleaned.")
+            logger.debug("test directory has been deleted.")
 
     @classmethod
     def create_fs(cls, storage_options):

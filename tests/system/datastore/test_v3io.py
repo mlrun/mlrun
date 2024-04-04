@@ -74,7 +74,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         try:
             dir_data_item.delete(recursive=True)
         except Exception:
-            cls._logger.warning(f"failed to delete test directory {cls.test_dir_url} in test_v3io.py.")
+            cls._logger.warning(
+                f"failed to delete test directory {cls.test_dir_url} in test_v3io.py."
+            )
         super().teardown_class()
 
     @pytest.fixture(autouse=True)

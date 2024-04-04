@@ -108,7 +108,9 @@ class TestAzureBlob:
                 azure_fs.info(cls._bucket_name)  # in order to check connection ...
                 cls._azure_fs = azure_fs
             except Exception:
-                logger.warning(f"failed to create azure file system in test_azure_blob.py.")
+                logger.warning(
+                    "failed to create azure file system in test_azure_blob.py."
+                )
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile, auth_method):

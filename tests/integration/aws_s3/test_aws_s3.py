@@ -13,9 +13,8 @@
 # limitations under the License.
 #
 import os
+import os.path
 import uuid
-from os.path import abspath, dirname, join
-from pathlib import Path
 
 import dask.dataframe as dd
 import fsspec
@@ -34,10 +33,10 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
-here = Path(__file__).absolute().parent
-config_file_path = here / "test-aws-s3.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+here = os.path.dirname(__file__)
+config_file_path = os.path.join(here, "test-aws-s3.yml")
+with open(config_file_path) as yaml_file:
+    config = yaml.safe_load(yaml_file)
 
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
@@ -58,24 +57,11 @@ def aws_s3_configured(extra_params=None):
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
-    # def _make_target_names(self, prefix, object_file, csv_file):
-    #     bucket_path = prefix + self._bucket_name
-    #     object_path = f"{self.run_dir}/{object_file}"
-    #     df_path = f"{self.run_dir}/{csv_file}"
-    #     object_url = f"{bucket_path}/{object_path}"
-    #     res = {
-    #         "bucket_path": bucket_path,
-    #         "object_path": object_path,
-    #         "df_path": df_path,
-    #         "object_url": object_url,
-    #         "df_url": f"{bucket_path}/{df_path}",
-    #         "blob_url": f"{object_url}.blob",
-    #     }
-    #     return res
-
     @classmethod
     def setup_class(cls):
-        cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
+        cls.assets_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "assets"
+        )
         cls.env = config["env"]
         cls._bucket_name = cls.env.get("bucket_name")
         cls._access_key_id = cls.env.get("AWS_ACCESS_KEY_ID")
@@ -83,7 +69,7 @@ class TestAwsS3:
         cls.profile_name = "s3ds_profile"
         cls.test_dir = "/test_mlrun_s3"
         cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
-        cls.test_file = join(cls.assets_path, "test.txt")
+        cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._fs = fsspec.filesystem(
@@ -260,7 +246,7 @@ class TestAwsS3:
     ):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
         source = pd_reader(local_file_path, **reader_args)
         upload_data_item = mlrun.run.get_dataitem(dataframe_url)
@@ -285,8 +271,8 @@ class TestAwsS3:
     ):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
         dt1 = mlrun.run.get_dataitem(

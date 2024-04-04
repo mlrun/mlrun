@@ -23,6 +23,7 @@ import pandas as pd
 import pytest
 import yaml
 from adlfs.spec import AzureBlobFileSystem
+from pandas._testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
@@ -106,27 +107,6 @@ class TestAzureBlob:
                 cls._azure_fs = azure_fs
             except Exception:
                 pass
-
-    def _setup_df_dir(self, use_datastore_profile, file_format, reader):
-        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
-        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
-
-        # upload
-        dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
-        )
-        dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}", secrets=self.storage_options
-        )
-        dt1.upload(src_path=df1_path)
-        dt2.upload(src_path=df2_path)
-        return (
-            mlrun.run.get_dataitem(dataframes_url),
-            reader(df1_path),
-            reader(df2_path),
-        )
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile, auth_method):
@@ -230,26 +210,26 @@ class TestAzureBlob:
         ), "Result differs from original test"
 
     @pytest.mark.parametrize(
-        "file_format, reader, reader_args",
+        "file_format, pd_reader, dd_reader, reader_args",
         [
-            ("parquet", pd.read_parquet, {}),
-            ("csv", pd.read_csv, {}),
-            ("json", pd.read_json, {"orient": "values"}),
+            ("parquet", pd.read_parquet, dd.read_parquet, {}),
+            ("csv", pd.read_csv, dd.read_csv, {}),
+            ("json", pd.read_json, dd.read_json, {"orient": "records"}),
         ],
     )
     def test_as_df(
         self,
-        use_datastore_profile,
-        auth_method,
+        use_datastore_profile: bool,
         file_format: str,
-        reader: callable,
+        pd_reader: callable,
+        dd_reader: callable,
         reader_args: dict,
     ):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
-        source = reader(local_file_path, **reader_args)
 
+        source = pd_reader(local_file_path, **reader_args)
         upload_data_item = mlrun.run.get_dataitem(
             dataframe_url, secrets=self.storage_options
         )
@@ -257,72 +237,53 @@ class TestAzureBlob:
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
 
-    @pytest.mark.parametrize(
-        "file_format, reader, reader_args",
-        [
-            ("parquet", dd.read_parquet, {}),
-            ("csv", dd.read_csv, {}),
-            ("json", dd.read_json, {"orient": "values"}),
-        ],
-    )
-    def test_as_df_dd(
-        self,
-        use_datastore_profile,
-        auth_method,
-        file_format,
-        reader,
-        reader_args,
-    ):
-        filename = f"df_{uuid.uuid4()}.{file_format}"
-        dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(self.assets_path, f"test_data.{file_format}")
-        source = reader(local_file_path, **reader_args)
-
-        upload_data_item = mlrun.run.get_dataitem(
-            dataframe_url, secrets=self.storage_options
-        )
-        upload_data_item.upload(local_file_path)
+        # dd
+        source = dd_reader(local_file_path, **reader_args)
         response = upload_data_item.as_df(**reader_args, df_module=dd)
         dd.assert_eq(source, response)
 
     @pytest.mark.parametrize(
-        "file_format, reader, reset_index",
+        "file_format, pd_reader, dd_reader, reset_index",
         [
-            ("parquet", pd.read_parquet, False),
-            ("csv", pd.read_csv, True),
+            ("parquet", pd.read_parquet, dd.read_parquet, False),
+            ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
     def test_as_df_directory(
-        self, use_datastore_profile, auth_method, file_format, reader, reset_index
+        self,
+        use_datastore_profile,
+        auth_method,
+        file_format,
+        pd_reader,
+        dd_reader,
+        reset_index,
     ):
-        dt_dir, df1, df2 = self._setup_df_dir(
-            use_datastore_profile=use_datastore_profile,
-            file_format=file_format,
-            reader=reader,
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
+        df1_path = join(self.assets_path, f"test_data.{file_format}")
+        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+
+        # upload
+        dt1 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
         )
+        dt2 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df2.{file_format}", secrets=self.storage_options
+        )
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        dt_dir = mlrun.run.get_dataitem(dataframes_url, secrets=self.storage_options)
+        df1 = pd_reader(df1_path)
+        df2 = pd_reader(df2_path)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
         tested_df = dt_dir.as_df(format=file_format)
         if reset_index:
             tested_df = tested_df.sort_values("ID").reset_index(drop=True)
-        expected_df = pd.concat([df1, df2], ignore_index=True)
-        pd.testing.assert_frame_equal(tested_df, expected_df)
+        assert_frame_equal(tested_df, expected_df)
 
-    @pytest.mark.parametrize(
-        "file_format, reader, reset_index",
-        [
-            ("parquet", dd.read_parquet, False),
-            ("csv", dd.read_csv, True),
-        ],
-    )
-    def test_as_df_directory_dd(
-        self, use_datastore_profile, file_format, reader, reset_index
-    ):
-        dt_dir, df1, df2 = self._setup_df_dir(
-            use_datastore_profile=use_datastore_profile,
-            file_format=file_format,
-            reader=reader,
-        )
-        tested_df = dt_dir.as_df(format=file_format, df_module=dd)
-        if reset_index:
-            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
-        expected_df = dd.concat([df1, df2], axis=0)
-        dd.assert_eq(tested_df, expected_df)
+        # dd
+        dd_df1 = dd_reader(df1_path)
+        dd_df2 = dd_reader(df2_path)
+        expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
+        tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
+        dd.assert_eq(tested_dd_df, expected_dd_df)

@@ -226,7 +226,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         secrets = {}
         if use_secrets_as_parameters:
             os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
-            #  Verify that we are using the profile secret:
+            # Verify that we are using the profile secret:
             secrets = (
                 {"V3IO_ACCESS_KEY": "wrong_token"}
                 if use_datastore_profile

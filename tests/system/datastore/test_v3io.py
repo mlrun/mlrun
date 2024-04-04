@@ -87,6 +87,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         object_file = f"/file_{uuid.uuid4()}.txt"
         self._object_url = self.run_dir_url + object_file
         register_temporary_client_datastore_profile(self.profile)
+
+        # We give priority to profiles, then to secrets, and finally to environment variables.
+        # We want to ensure that we test these priorities in the correct order.
         if use_datastore_profile:
             os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
         else:

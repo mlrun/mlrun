@@ -20,6 +20,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
+from mlrun import mlconf
 from mlrun.utils import logger
 
 
@@ -54,7 +55,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
         token: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = mlconf.httpdb.pagination.default_page_size,
         **method_kwargs,
     ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
         """
@@ -68,7 +69,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         current_page = page
         result = []
 
-        while len(result) < page_size:
+        while not page_size or len(result) < page_size:
             new_result, pagination_info = self.paginate_request(
                 session,
                 method,
@@ -78,13 +79,16 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
+            new_result = await filter_(new_result)
+            result.extend(new_result)
+
             if not pagination_info:
                 # no more results
                 break
+
             last_pagination_info = pagination_info
-            new_result = await filter_(new_result)
-            result.extend(new_result)
-            current_page = pagination_info["page"] + 1
+            current_page = last_pagination_info["page"] + 1
+            page_size = last_pagination_info["page_size"]
 
         return result, last_pagination_info
 
@@ -95,7 +99,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
         token: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = mlconf.httpdb.pagination.default_page_size,
         **method_kwargs,
     ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
         if not PaginatedMethods.method_is_supported(method):

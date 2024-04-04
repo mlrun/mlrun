@@ -78,8 +78,8 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         """
 
         # Using cache TTL + 1 to make sure a zero TTL won't remove records that were just created
-        cache_ttl = mlrun.config.config.httpdb.pagination_cache.ttl + 1
-        table_max_size = mlrun.config.config.httpdb.pagination_cache.max_size
+        cache_ttl = mlrun.config.config.httpdb.pagination.pagination_cache.ttl + 1
+        table_max_size = mlrun.config.config.httpdb.pagination.pagination_cache.max_size
 
         db = server.api.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(

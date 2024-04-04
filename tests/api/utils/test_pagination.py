@@ -466,6 +466,38 @@ async def test_paginate_permission_filtered_request(
     assert pagination_info["page_size"] == page_size
 
 
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_no_pagination(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Test paginate_permission_filtered_request with no pagination.
+    Request paginated method with no page and page size, and verify that all items are returned.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    method_kwargs = {"total_amount": 5}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def filter_(items):
+        return items
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        None,
+        None,
+        **method_kwargs,
+    )
+    assert len(response) == 5
+    assert not pagination_info
+
+
 def _assert_paginated_response(
     response, pagination_info, page, page_size, expected_items
 ):

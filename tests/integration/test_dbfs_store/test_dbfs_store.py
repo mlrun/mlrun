@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 import os
+import os.path
 import tempfile
 import uuid
-from os.path import abspath, dirname, join
 from pathlib import Path
 
 import dask.dataframe as dd
@@ -55,7 +55,9 @@ class TestDBFSStore:
 
     @classmethod
     def setup_class(cls):
-        cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
+        cls.assets_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "assets"
+        )
         env_params = cls.config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param
@@ -65,7 +67,7 @@ class TestDBFSStore:
         cls.workspace = WorkspaceClient()
         cls.profile_name = "dbfs_ds_profile"
 
-        cls.test_file = join(cls.assets_path, "test.txt")
+        cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
 
@@ -187,7 +189,7 @@ class TestDBFSStore:
     ):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
         source = pd_reader(local_file_path, **reader_args)
         upload_data_item = mlrun.run.get_dataitem(dataframe_url)
@@ -212,8 +214,8 @@ class TestDBFSStore:
     ):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
         dt1 = mlrun.run.get_dataitem(

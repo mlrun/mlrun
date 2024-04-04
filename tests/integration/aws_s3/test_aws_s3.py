@@ -58,27 +58,28 @@ def aws_s3_configured(extra_params=None):
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
-    def _make_target_names(self, prefix, object_file, csv_file):
-        bucket_path = prefix + self._bucket_name
-        object_path = f"{self.run_dir}/{object_file}"
-        df_path = f"{self.run_dir}/{csv_file}"
-        object_url = f"{bucket_path}/{object_path}"
-        res = {
-            "bucket_path": bucket_path,
-            "object_path": object_path,
-            "df_path": df_path,
-            "object_url": object_url,
-            "df_url": f"{bucket_path}/{df_path}",
-            "blob_url": f"{object_url}.blob",
-        }
-        return res
+    # def _make_target_names(self, prefix, object_file, csv_file):
+    #     bucket_path = prefix + self._bucket_name
+    #     object_path = f"{self.run_dir}/{object_file}"
+    #     df_path = f"{self.run_dir}/{csv_file}"
+    #     object_url = f"{bucket_path}/{object_path}"
+    #     res = {
+    #         "bucket_path": bucket_path,
+    #         "object_path": object_path,
+    #         "df_path": df_path,
+    #         "object_url": object_url,
+    #         "df_url": f"{bucket_path}/{df_path}",
+    #         "blob_url": f"{object_url}.blob",
+    #     }
+    #     return res
 
     @classmethod
     def setup_class(cls):
         cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
-        cls._bucket_name = config["env"].get("bucket_name")
-        cls._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
-        cls._secret_access_key = config["env"].get("AWS_SECRET_ACCESS_KEY")
+        cls.env = config["env"]
+        cls._bucket_name = cls.env.get("bucket_name")
+        cls._access_key_id = cls.env.get("AWS_ACCESS_KEY_ID")
+        cls._secret_access_key = cls.env.get("AWS_SECRET_ACCESS_KEY")
         cls.profile_name = "s3ds_profile"
         cls.test_dir = "/test_mlrun_s3"
         cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
@@ -99,14 +100,6 @@ class TestAwsS3:
             logger.debug("test directory has been cleaned.")
 
     def setup_method(self, method):
-        object_file = f"file_{uuid.uuid4()}.txt"
-        csv_file = f"file_{uuid.uuid4()}.csv"
-
-        self.s3 = {}
-        self.s3["s3"] = self._make_target_names("s3://", object_file, csv_file)
-        self.s3["ds"] = self._make_target_names(
-            f"ds://{self.profile_name}/", object_file, csv_file
-        )
         store_manager.reset_secrets()
         self.profile = DatastoreProfileS3(
             name=self.profile_name,
@@ -119,39 +112,29 @@ class TestAwsS3:
     def setup_before_each_test(self, use_datastore_profile):
         # We give priority to profiles, then to secrets, and finally to environment variables.
         # We want to ensure that we test these priorities in the correct order.
+        mlrun.datastore.store_manager.reset_secrets()
+
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
+            prefix_path = f"ds://{self.profile_name}/"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self._access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
-
-    def _setup_df_dir(self, use_datastore_profile, file_format, reader):
-        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
-        directory = f"/{file_format}s_{uuid.uuid4()}"
-        s3_directory_url = param["bucket_path"] + self.run_dir + directory
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
-
-        # upload
-        dt1 = mlrun.run.get_dataitem(s3_directory_url + f"/df1.{file_format}")
-        dt2 = mlrun.run.get_dataitem(s3_directory_url + f"/df2.{file_format}")
-        dt1.upload(src_path=df1_path)
-        dt2.upload(src_path=df2_path)
-        return (
-            mlrun.run.get_dataitem(s3_directory_url),
-            reader(df1_path),
-            reader(df2_path),
-        )
+            prefix_path = "s3://"
+        self._bucket_path = f"{prefix_path}{self._bucket_name}"
+        self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
+        object_file = f"/file_{uuid.uuid4()}.txt"
+        self._object_url = self.run_dir_url + object_file
 
     def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
         #  TODO split to smaller tests, according to datastore's tests convention.
-        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
-        logger.info(f'Object URL: {param["object_url"]}')
+        logger.info(f"Object URL: {self._object_url}")
 
-        data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
+        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(self.test_string)
-        df_data_item = mlrun.run.get_dataitem(param["df_url"], secrets=secrets)
+        df_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.csv"
+        df_data_item = mlrun.run.get_dataitem(df_url, secrets=secrets)
         df_data_item.put(test_df_string)
 
         response = data_item.get()
@@ -167,11 +150,17 @@ class TestAwsS3:
         stat = data_item.stat()
         assert stat.size == len(self.test_string), "Stat size different than expected"
 
-        dir_list = mlrun.run.get_dataitem(param["bucket_path"]).listdir()
-        assert param["object_path"] in dir_list, "File not in container dir-list"
-        assert param["df_path"] in dir_list, "CSV file not in container dir-list"
+        dir_list = mlrun.run.get_dataitem(self.run_dir_url).listdir()
 
-        upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
+        assert (
+            self._object_url.replace(f"{self.run_dir_url}/", "") in dir_list
+        ), "File not in container dir-list"
+        assert (
+            df_url.replace(f"{self.run_dir_url}/", "") in dir_list
+        ), "CSV file not in container dir-list"
+
+        blob_url = f"{self.run_dir_url}/file_{uuid.uuid4()}.blob"
+        upload_data_item = mlrun.run.get_dataitem(blob_url)
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
         assert (
@@ -201,7 +190,7 @@ class TestAwsS3:
     def test_using_env_variables(self, use_datastore_profile):
         # Use "naked" env variables, useful in client-side sdk.
         for param in credential_params:
-            os.environ[param] = config["env"][param]
+            os.environ[param] = self.env[param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         self._perform_aws_s3_tests(use_datastore_profile)
@@ -216,7 +205,7 @@ class TestAwsS3:
             os.environ.pop(param, None)
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        secrets = {param: config["env"][param] for param in credential_params}
+        secrets = {param: self.env[param] for param in credential_params}
         self._perform_aws_s3_tests(use_datastore_profile, secrets=secrets)
 
     @pytest.mark.skipif(
@@ -227,7 +216,7 @@ class TestAwsS3:
         params = credential_params.copy()
         params.append("MLRUN_AWS_ROLE_ARN")
         for param in params:
-            os.environ[param] = config["env"][param]
+            os.environ[param] = self.env[param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         self._perform_aws_s3_tests(use_datastore_profile)
@@ -244,7 +233,7 @@ class TestAwsS3:
         params = credential_params.copy()
         params.append("AWS_PROFILE")
         for param in params:
-            os.environ[param] = config["env"][param]
+            os.environ[param] = self.env[param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         self._perform_aws_s3_tests(use_datastore_profile)
@@ -254,106 +243,72 @@ class TestAwsS3:
             os.environ.pop(param)
 
     @pytest.mark.parametrize(
-        "file_format, reader, reader_args",
+        "file_format, pd_reader, dd_reader, reader_args",
         [
-            ("parquet", pd.read_parquet, {}),
-            ("csv", pd.read_csv, {}),
-            ("json", pd.read_json, {"orient": "values"}),
+            ("parquet", pd.read_parquet, dd.read_parquet, {}),
+            ("csv", pd.read_csv, dd.read_csv, {}),
+            ("json", pd.read_json, dd.read_json, {"orient": "records"}),
         ],
     )
     def test_as_df(
         self,
-        use_datastore_profile,
+        use_datastore_profile: bool,
         file_format: str,
-        reader: callable,
+        pd_reader: callable,
+        dd_reader: callable,
         reader_args: dict,
     ):
-        # A more advanced test of the as_df function that includes Parquet, CSV, and JSON files.
-        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
-        for p in credential_params:
-            os.environ[p] = config["env"][p]
-        filename = f"/df_{uuid.uuid4()}.{file_format}"
-        file_url = param["bucket_path"] + self.run_dir + filename
-
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = join(self.assets_path, f"test_data.{file_format}")
-        source = reader(local_file_path, **reader_args)
 
-        upload_data_item = mlrun.run.get_dataitem(file_url)
+        source = pd_reader(local_file_path, **reader_args)
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url)
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
 
-    @pytest.mark.parametrize(
-        "file_format, reader, reader_args",
-        [
-            ("parquet", dd.read_parquet, {}),
-            ("csv", dd.read_csv, {}),
-            ("json", dd.read_json, {"orient": "values"}),
-        ],
-    )
-    def test_as_df_dd(
-        self,
-        use_datastore_profile,
-        file_format: str,
-        reader: callable,
-        reader_args: dict,
-    ):
-        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
-        for p in credential_params:
-            os.environ[p] = config["env"][p]
-        filename = f"/df_{uuid.uuid4()}.{file_format}"
-        file_url = param["bucket_path"] + self.run_dir + filename
-
-        local_file_path = join(self.assets_path, f"test_data.{file_format}")
-        source = reader(local_file_path, **reader_args)
-
-        upload_data_item = mlrun.run.get_dataitem(file_url)
-        upload_data_item.upload(local_file_path)
-        response = upload_data_item.as_df(df_module=dd, **reader_args)
+        # dd
+        source = dd_reader(local_file_path, **reader_args)
+        response = upload_data_item.as_df(**reader_args, df_module=dd)
         dd.assert_eq(source, response)
 
     @pytest.mark.parametrize(
-        "file_format, reader, reset_index",
+        "file_format, pd_reader, dd_reader, reset_index",
         [
-            ("parquet", pd.read_parquet, False),
-            ("csv", pd.read_csv, True),
+            ("parquet", pd.read_parquet, dd.read_parquet, False),
+            ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
     def test_as_df_directory(
-        self, use_datastore_profile, file_format, reader, reset_index
+        self, use_datastore_profile, file_format, pd_reader, dd_reader, reset_index
     ):
-        for p in credential_params:
-            os.environ[p] = config["env"][p]
-        dt_dir, df1, df2 = self._setup_df_dir(
-            use_datastore_profile=use_datastore_profile,
-            file_format=file_format,
-            reader=reader,
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
+        df1_path = join(self.assets_path, f"test_data.{file_format}")
+        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+
+        # upload
+        dt1 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df1.{file_format}",
         )
+        dt2 = mlrun.run.get_dataitem(
+            dataframes_url + f"/df2.{file_format}",
+        )
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        dt_dir = mlrun.run.get_dataitem(dataframes_url)
+        df1 = pd_reader(df1_path)
+        df2 = pd_reader(df2_path)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
         tested_df = dt_dir.as_df(format=file_format)
         if reset_index:
             tested_df = tested_df.sort_values("ID").reset_index(drop=True)
-        expected_df = pd.concat([df1, df2], ignore_index=True)
         assert_frame_equal(tested_df, expected_df)
 
-    @pytest.mark.parametrize(
-        "file_format, reader, reset_index",
-        [
-            ("parquet", dd.read_parquet, False),
-            ("csv", dd.read_csv, True),
-        ],
-    )
-    def test_as_df_directory_dd(
-        self, use_datastore_profile, file_format, reader, reset_index
-    ):
-        for p in credential_params:
-            os.environ[p] = config["env"][p]
-        dt_dir, df1, df2 = self._setup_df_dir(
-            use_datastore_profile=use_datastore_profile,
-            file_format=file_format,
-            reader=reader,
-        )
-        tested_df = dt_dir.as_df(format=file_format, df_module=dd)
-        if reset_index:
-            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
-        expected_df = dd.concat([df1, df2], axis=0)
-        dd.assert_eq(tested_df, expected_df)
+        # dd
+        dd_df1 = dd_reader(df1_path)
+        dd_df2 = dd_reader(df2_path)
+        expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
+        tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
+        dd.assert_eq(tested_dd_df, expected_dd_df)

@@ -14,10 +14,9 @@
 #
 import json
 import os
+import os.path
 import tempfile
 import uuid
-from os.path import abspath, dirname, join
-from pathlib import Path
 
 import dask.dataframe as dd
 import fsspec
@@ -35,10 +34,10 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.utils import logger
 
-here = Path(__file__).absolute().parent
-config_file_path = here / "test-google-cloud-storage.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+here = os.path.dirname(__file__)
+config_file_path = os.path.join(here, "test-google-cloud-storage.yml")
+with open(config_file_path) as yaml_file:
+    config = yaml.safe_load(yaml_file)
 
 
 credential_params = ["credentials_json_file"]
@@ -67,7 +66,9 @@ class TestGoogleCloudStorage:
 
     @classmethod
     def setup_class(cls):
-        cls.assets_path = join(dirname(dirname(abspath(__file__))), "assets")
+        cls.assets_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "assets"
+        )
         cls._bucket_name = config["env"].get("bucket_name")
         cls.test_dir = "test_mlrun_gcs_objects"
         cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
@@ -77,7 +78,7 @@ class TestGoogleCloudStorage:
             "credentials_file": cls._setup_by_google_credentials_file,
             "serialized_json": cls._setup_by_serialized_json_content,
         }
-        cls.test_file = join(cls.assets_path, "test.txt")
+        cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         try:
@@ -247,7 +248,7 @@ class TestGoogleCloudStorage:
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
         source = pd_reader(local_file_path, **reader_args)
         upload_data_item = mlrun.run.get_dataitem(
@@ -282,8 +283,8 @@ class TestGoogleCloudStorage:
         )
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
         dt1 = mlrun.run.get_dataitem(

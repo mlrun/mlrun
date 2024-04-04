@@ -509,9 +509,26 @@ async def test_paginate_permission_filtered_with_token(
     Request paginated method with page 1 and page size 4.
     Then use the token to request the next filtered page.
     """
+    permitted_items = [
+        # page 1
+        "item0",
+        "item1",
+        "item2",
+        "item3",
+        # page 2
+        "item4",
+        "item7",
+        # page 3
+        "item8",
+        "item9",
+        "item10",
+        "item11",
+        # page 4
+        "item12",
+    ]
 
     async def filter_(items):
-        return items
+        return [item for item in items if item["name"] in permitted_items]
 
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     page_size = 4
@@ -540,8 +557,17 @@ async def test_paginate_permission_filtered_with_token(
         db, paginated_method, filter_, auth_info, token
     )
     _assert_paginated_response(
-        response, pagination_info, 2, page_size, ["item4", "item5", "item6", "item7"]
+        response,
+        pagination_info,
+        3,
+        page_size,
+        ["item4", "item7", "item8", "item9", "item10", "item11"],
     )
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db, paginated_method, filter_, auth_info, token
+    )
+    _assert_paginated_response(response, pagination_info, 5, page_size, ["item12"])
 
 
 def _assert_paginated_response(

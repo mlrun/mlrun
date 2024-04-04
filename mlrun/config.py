@@ -481,10 +481,13 @@ default_config = {
             # if set to true, will log a warning for trying to use run db functionality while in nop db mode
             "verbose": True,
         },
-        "pagination_cache": {
-            "interval": 60,
-            "ttl": 3600,
-            "max_size": 10000,
+        "pagination": {
+            "default_page_size": 20,
+            "pagination_cache": {
+                "interval": 60,
+                "ttl": 3600,
+                "max_size": 10000,
+            },
         },
     },
     "model_endpoint_monitoring": {

@@ -503,7 +503,7 @@ def _start_periodic_runs_monitoring():
 
 
 def _start_periodic_pagination_cache_monitoring():
-    interval = int(config.httpdb.pagination_cache.interval)
+    interval = int(config.httpdb.pagination.pagination_cache.interval)
     if interval > 0:
         logger.info("Starting periodic pagination cache monitoring", interval=interval)
         run_function_periodically(

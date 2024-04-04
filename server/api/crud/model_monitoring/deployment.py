@@ -14,15 +14,20 @@
 
 import json
 import typing
+from pathlib import Path
 
 import nuclio
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.api
+import mlrun.model_monitoring.application
+import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
+import mlrun.serving.states
 import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -39,6 +44,10 @@ _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
     mlrun.model_monitoring.controller_handler.__file__
 )
 _MONITORING_WRITER_FUNCTION_PATH = mlrun.model_monitoring.writer.__file__
+_HISTOGRAM_DATA_DRIFT_APP_PATH = str(
+    Path(mlrun.model_monitoring.applications.__file__).parent
+    / "histogram_data_drift.py"
+)
 
 
 class MonitoringDeployment:
@@ -75,28 +84,28 @@ class MonitoringDeployment:
         self._max_parquet_save_interval = max_parquet_save_interval
 
     def deploy_monitoring_functions(
-        self, base_period: int = 10, image: str = "mlrun/mlrun"
-    ) -> dict[str, typing.Any]:
+        self,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
 
-        :param base_period:                 The time period in minutes in which the model monitoring controller function
-                                            triggers. By default, the base period is 10 minutes.
-        :param image:                       The image of the model monitoring controller, writer & monitoring
-                                            stream functions, which are real time nuclio functino.
-                                            By default, the image is mlrun/mlrun.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller, writer & monitoring
+                            stream functions, which are real time nuclio functino.
+                            By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         """
-        controller_dict = self.deploy_model_monitoring_controller(
+        self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
-
-        writer_dict = self.deploy_model_monitoring_writer_application(
-            writer_image=image
-        )
-
-        stream_dict = self.deploy_model_monitoring_stream_processing(stream_image=image)
-
-        return controller_dict | writer_dict | stream_dict
+        self.deploy_model_monitoring_writer_application(writer_image=image)
+        self.deploy_model_monitoring_stream_processing(stream_image=image)
+        if deploy_histogram_data_drift_app:
+            self.deploy_histogram_data_drift_app(image=image)
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun"
@@ -390,7 +399,7 @@ class MonitoringDeployment:
         :return: function runtime object with access key and access to system files.
         """
 
-        if function_name in mm_constants.MonitoringFunctionNames.all():
+        if function_name in mm_constants.MonitoringFunctionNames.list():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
                 mm_constants.ProjectSecretKeys.ACCESS_KEY,
@@ -429,7 +438,7 @@ class MonitoringDeployment:
         )
 
         # Create writer monitoring serving graph
-        graph = function.set_topology("flow")
+        graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer
 
         # Set the project to the serving function
@@ -478,6 +487,37 @@ class MonitoringDeployment:
             except mlrun.errors.MLRunNotFoundError:
                 pass
         logger.info(f"Deploying {function_name} function", project=self.project)
+
+    def deploy_histogram_data_drift_app(self, image: str) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param image: The image on with the function will run.
+        """
+        logger.info("Preparing the histogram data drift function")
+        func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+            project=self.project,
+            func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
+            name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+            application_class="HistogramDataDriftApplication",
+            image=image,
+        )
+
+        if not mlrun.mlconf.is_ce_mode():
+            logger.info("Setting the access key for the histogram data drift function")
+            func.metadata.credentials.access_key = self.model_monitoring_access_key
+            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+            logger.info("Ensured the histogram data drift function auth")
+
+        func.set_label(
+            mm_constants.ModelMonitoringAppLabel.KEY,
+            mm_constants.ModelMonitoringAppLabel.VAL,
+        )
+
+        server.api.api.endpoints.functions._build_function(
+            db_session=self.db_session, auth_info=self.auth_info, function=func
+        )
+        logger.info("Submitted the deployment")
 
 
 def get_endpoint_features(

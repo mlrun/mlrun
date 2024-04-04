@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import getpass
 import glob
@@ -44,6 +45,7 @@ import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
+import mlrun.serving
 import mlrun.utils.regex
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
@@ -1845,10 +1847,10 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
-        if name in mm_constants.MonitoringFunctionNames.all():
+        if name in mm_constants.MonitoringFunctionNames.list():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Application name can not be on of the following name : "
-                f"{mm_constants.MonitoringFunctionNames.all()}"
+                f"An application cannot have the following names: "
+                f"{mm_constants.MonitoringFunctionNames.list()}"
             )
         function_object: RemoteRuntime = None
         (
@@ -1867,16 +1869,6 @@ class MlrunProject(ModelObj):
             requirements_file,
             **application_kwargs,
         )
-        models_names = "all"
-        function_object.set_label(
-            mm_constants.ModelMonitoringAppLabel.KEY,
-            mm_constants.ModelMonitoringAppLabel.VAL,
-        )
-        function_object.set_label("models", models_names)
-
-        if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.mount_v3io())
-
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
 
@@ -1935,48 +1927,38 @@ class MlrunProject(ModelObj):
 
     def _instantiate_model_monitoring_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
-        name: str = None,
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
+        application_class: typing.Union[
+            str, ModelMonitoringApplicationBase, None
+        ] = None,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        with_repo: typing.Optional[bool] = None,
+        tag: typing.Optional[str] = None,
+        requirements: typing.Union[str, list[str], None] = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.BaseRuntime, dict]:
+        import mlrun.model_monitoring.api
+
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
-            kind = "serving"
-            if func is None:
-                func = ""
-            func = mlrun.code_to_function(
-                filename=func,
+            kind = mlrun.run.RuntimeKinds.serving
+            func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+                project=self.name,
+                func=func,
+                application_class=application_class,
                 name=name,
-                project=self.metadata.name,
-                tag=tag,
-                kind=kind,
                 image=image,
+                tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                **application_kwargs,
             )
-            graph = func.set_topology("flow")
-            if isinstance(application_class, str):
-                first_step = graph.to(
-                    class_name=application_class, **application_kwargs
-                )
-            else:
-                first_step = graph.to(class_name=application_class)
-            first_step.to(
-                class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
-                name="PushToMonitoringWriter",
-                project=self.metadata.name,
-                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
-            kind = "nuclio"
+            kind = mlrun.run.RuntimeKinds.nuclio
 
         (
             resolved_function_name,
@@ -1994,12 +1976,10 @@ class MlrunProject(ModelObj):
             requirements,
             requirements_file,
         )
-        models_names = "all"
         function_object.set_label(
             mm_constants.ModelMonitoringAppLabel.KEY,
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
-        function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
             function_object.apply(mlrun.mount_v3io())
@@ -2029,8 +2009,6 @@ class MlrunProject(ModelObj):
                                                 stream & histogram data drift functions, which are real time nuclio
                                                 functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-
-        :returns: model monitoring controller job as a dictionary.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2045,18 +2023,24 @@ class MlrunProject(ModelObj):
             project=self.name,
             image=image,
             base_period=base_period,
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
-        if deploy_histogram_data_drift_app:
-            fn = self.set_model_monitoring_function(
-                func=str(
-                    pathlib.Path(__file__).parent.parent
-                    / "model_monitoring/applications/histogram_data_drift.py"
-                ),
-                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
-                application_class="HistogramDataDriftApplication",
-                image=image,
-            )
-            fn.deploy()
+
+    def deploy_histogram_data_drift_app(
+        self,
+        *,
+        image: str = "mlrun/mlrun",
+        db: Optional[mlrun.db.RunDBInterface] = None,
+    ) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param image: The image on which the application will run.
+        :param db:    An optional DB object.
+        """
+        if db is None:
+            db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.deploy_histogram_data_drift_app(project=self.name, image=image)
 
     def update_model_monitoring_controller(
         self,
@@ -2081,20 +2065,22 @@ class MlrunProject(ModelObj):
             image=image,
         )
 
-    def disable_model_monitoring(self):
+    def disable_model_monitoring(
+        self, *, delete_histogram_data_drift_app: bool = True
+    ) -> None:
+        """
+        Note: This method is currently not advised for use. See ML-3432.
+        Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
+
+        :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.WRITER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.STREAM,
-        )
+        for fn_name in mm_constants.MonitoringFunctionNames.list():
+            db.delete_function(project=self.name, name=fn_name)
+        if delete_histogram_data_drift_app:
+            db.delete_function(
+                project=self.name, name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+            )
 
     def set_function(
         self,

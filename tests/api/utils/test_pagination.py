@@ -498,6 +498,52 @@ async def test_paginate_permission_filtered_no_pagination(
     assert not pagination_info
 
 
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_with_token(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Test paginate_permission_filtered_request with token.
+    Request paginated method with page 1 and page size 4.
+    Then use the token to request the next filtered page.
+    """
+
+    async def filter_(items):
+        return items
+
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 4
+    method_kwargs = {"total_amount": 20}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        1,
+        page_size,
+        **method_kwargs,
+    )
+
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2", "item3"]
+    )
+
+    token = pagination_info["token"]
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db, paginated_method, filter_, auth_info, token
+    )
+    _assert_paginated_response(
+        response, pagination_info, 2, page_size, ["item4", "item5", "item6", "item7"]
+    )
+
+
 def _assert_paginated_response(
     response, pagination_info, page, page_size, expected_items
 ):

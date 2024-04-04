@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import os
+import os.path
 import subprocess
 import tempfile
 import time
 import uuid
-from os.path import join
 from urllib.parse import urlparse
 
 import dask.dataframe as dd
@@ -102,8 +102,8 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _setup_df_dir(self, file_format, reader):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
         dt1 = mlrun.run.get_dataitem(
@@ -121,8 +121,8 @@ class TestV3ioDataStore(TestMLRunSystem):
         )
 
     def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
-        tempfile_1_path = join(tmp_path, "tempfile_1")
-        tempfile_2_path = join(tmp_path, "tempfile_2")
+        tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
+        tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
         first_start_time = time.time()
         with open(tempfile_1_path, "wb") as f:
@@ -310,7 +310,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     ):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
-        local_file_path = join(self.assets_path, f"test_data.{file_format}")
+        local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
         source = pd_reader(local_file_path, **reader_args)
         upload_data_item = mlrun.run.get_dataitem(dataframe_url)
@@ -335,8 +335,8 @@ class TestV3ioDataStore(TestMLRunSystem):
     ):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = join(self.assets_path, f"test_data.{file_format}")
-        df2_path = join(self.assets_path, f"additional_data.{file_format}")
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
         dt1 = mlrun.run.get_dataitem(

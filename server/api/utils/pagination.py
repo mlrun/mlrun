@@ -65,7 +65,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         And actually the maximum number of items that can be returned is page_size * 2 - 1.
         """
         last_pagination_info = {}
-        current_page = page or 1
+        current_page = page
         result = []
 
         while len(result) < page_size:
@@ -84,7 +84,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             last_pagination_info = pagination_info
             new_result = await filter_(new_result)
             result.extend(new_result)
-            current_page += 1
+            current_page = pagination_info["page"] + 1
 
         return result, last_pagination_info
 

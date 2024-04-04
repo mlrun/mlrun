@@ -2,12 +2,11 @@
 
 # Model monitoring and alerts
 
-In v1.6.0. MLRun introduces a new paradigm of model monitoring. The legacy mode and the new mode are both supported. The legacy 
-mode is based on batch 
-
 The MLRun's model monitoring service includes built-in model monitoring and reporting capabilities. With monitoring you get
 out-of-the-box analysis of:
 
+- **Continuous Assessment**: Model monitoring involves the continuous assessment of deployed machine learning models in real-time. 
+   It's a proactive approach to ensure that models remain accurate and reliable as they interact with live data.
 - **Model performance**: machine learning models train on data. It is important you know how well they perform in production.
   When you analyze the model performance, it is important you monitor not just the overall model performance, but also the
   feature-level performance. This gives you better insights for the reasons behind a particular result.
@@ -29,5 +28,6 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 
 model-monitoring
 model-monitoring-deployment
+model-monitoring-flow
 monitoring-models
 ```

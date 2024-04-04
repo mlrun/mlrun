@@ -133,7 +133,7 @@ class TestAwsS3:
         df1_path = join(self.assets_path, f"test_data.{file_format}")
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
-        #  upload
+        # upload
         dt1 = mlrun.run.get_dataitem(s3_directory_url + f"/df1.{file_format}")
         dt2 = mlrun.run.get_dataitem(s3_directory_url + f"/df2.{file_format}")
         dt1.upload(src_path=df1_path)

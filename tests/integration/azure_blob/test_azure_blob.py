@@ -113,7 +113,7 @@ class TestAzureBlob:
         df1_path = join(self.assets_path, f"test_data.{file_format}")
         df2_path = join(self.assets_path, f"additional_data.{file_format}")
 
-        #  upload
+        # upload
         dt1 = mlrun.run.get_dataitem(
             dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
         )

@@ -57,6 +57,7 @@ def my_func(context):
     return np.nan
 
 
+
 def test_serialization():
     function = mlrun.new_function(name="test_serialization", kind="job")
     base_task = new_task(artifact_path=out_path, handler=my_func)

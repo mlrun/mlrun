@@ -3,13 +3,6 @@
 
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-**In this section**
-- [Shared data stores](#shared-data-stores)
-- [Storage credentials and parameters](#storage-credentials-and-parameters)
-- [Using data store profiles](#using-data-store-profiles)
-   
-## Shared data stores
-
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
@@ -22,6 +15,18 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
+
+=======
+**In this section**
+- [Storage credentials and parameters](#storage-credentials-and-parameters)
+- [Data store profiles](#data-store-profiles)
+- [Azure data store](#azure-data-store)
+- [Databricks file system](#databricks-file-system)
+- [Google cloud storage](#google-cloud-storage)
+- [S3](#s3)
+- [V3IO](#v3io)
+- [OSS](#OSS)
+
 
 ## Storage credentials and parameters
 Data stores might require connection credentials. These can be provided through environment variables 
@@ -300,12 +305,14 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
+## OSS
+### OSS credentials and parameters
 
+* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
+  parameters
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use. example: "https://oss-cn-hangzhou.aliyuncs.com"
 
-
-
-
-### See also
+## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
 - {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`

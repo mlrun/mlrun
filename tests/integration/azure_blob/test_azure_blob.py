@@ -165,7 +165,7 @@ class TestAzureBlob:
             data_item.put("just checking!", append=True)
 
         response = data_item.get()
-        assert  response.decode() == self.test_string
+        assert response.decode() == self.test_string
 
         response = data_item.get(offset=20)
         assert response.decode() == self.test_string[20:]

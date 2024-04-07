@@ -802,9 +802,9 @@ def _deploy_nuclio_runtime(
 
         if serving_to_monitor:
             if not mlrun.mlconf.is_ce_mode():
-                if not monitoring_deployment.monitoring_stream_has_the_new_stream_trigger():
+                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
                     monitoring_deployment.deploy_model_monitoring_stream_processing(
-                        overwrite=True  # the stream will deploy with `mlrun/mlrun` image
+                        overwrite=True
                     )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(

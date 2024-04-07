@@ -130,7 +130,13 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
-
+            if overwrite and stream_image == "mlrun/mlrun":
+                prev_function = server.api.crud.Functions().get_function(
+                    name=mm_constants.MonitoringFunctionNames.STREAM,
+                    db_session=self.db_session,
+                    project=self.project,
+                )
+                stream_image = prev_function["spec"]["build"]["baseImage"]
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
@@ -526,7 +532,7 @@ class MonitoringDeployment:
         )
         logger.info("Submitted the deployment")
 
-    def monitoring_stream_has_the_new_stream_trigger(self) -> bool:
+    def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
         """
         Check if the monitoring stream function has the new stream trigger.
 

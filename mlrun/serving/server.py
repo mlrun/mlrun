@@ -77,7 +77,9 @@ class _StreamContext:
                 # Update the stream path to the log stream value
                 stream_uri = log_stream.format(project=project)
 
-            self.output_stream = get_stream_pusher(stream_uri)
+            stream_args = parameters.get("stream_args", {})
+
+            self.output_stream = get_stream_pusher(stream_uri, **stream_args)
 
 
 class GraphServer(ModelObj):

@@ -68,6 +68,9 @@ class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton
     def get(self, key):
         return self._data.get(key, None)
 
+    def remove(self, key):
+        self._data.pop(key, None)
+
 
 class DatastoreProfileBasic(DatastoreProfile):
     type: str = pydantic.Field("basic")

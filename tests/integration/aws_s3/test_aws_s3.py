@@ -67,7 +67,7 @@ class TestAwsS3:
         cls._secret_access_key = cls.env.get("AWS_SECRET_ACCESS_KEY")
         cls.profile_name = "s3ds_profile"
         cls.test_dir = "/test_mlrun_s3"
-        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
+        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
@@ -110,7 +110,7 @@ class TestAwsS3:
         self._bucket_path = f"{prefix_path}{self._bucket_name}"
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self._object_url = self.run_dir_url + object_file
+        self._object_url = f"{self.run_dir_url}{object_file}"
 
     def _perform_aws_s3_tests(self, secrets=None):
         #  TODO split to smaller tests, according to datastore's tests convention.
@@ -268,11 +268,9 @@ class TestAwsS3:
 
         # upload
         dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}",
+            f"{dataframes_url}/df1.{file_format}",
         )
-        dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}",
-        )
+        dt2 = mlrun.run.get_dataitem(f"{dataframes_url}/df2.{file_format}")
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)
         dt_dir = mlrun.run.get_dataitem(dataframes_url)

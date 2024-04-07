@@ -59,7 +59,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         with open(cls.test_file_path) as f:
             cls.test_string = f.read()
         cls.test_dir = "/bigdata/v3io_tests"
-        cls.test_dir_url = "v3io://" + cls.test_dir
+        cls.test_dir_url = f"v3io://{cls.test_dir}"
         cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.profile_name = "v3io_ds_profile"
         cls.token = os.environ.get("V3IO_ACCESS_KEY")
@@ -86,7 +86,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         mlrun.datastore.store_manager.reset_secrets()
         self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self._object_url = self.run_dir_url + object_file
+        self._object_url = f"{self.run_dir_url}{object_file}"
         register_temporary_client_datastore_profile(self.profile)
 
         # We give priority to profiles, then to secrets, and finally to environment variables.
@@ -100,28 +100,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _skip_set_environment():
         return True
 
-    def _setup_df_dir(self, file_format, reader):
-        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
-        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
-        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
-        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
-
-        # upload
-        dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}",
-        )
-        dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}",
-        )
-        dt1.upload(src_path=df1_path)
-        dt2.upload(src_path=df2_path)
-        return (
-            mlrun.run.get_dataitem(dataframes_url),
-            reader(df1_path),
-            reader(df2_path),
-        )
-
-    def test_v3io_large_object_upload(self, use_datastore_profile, tmp_path):
+    def test_v3io_large_object_upload(self, tmp_path):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
@@ -267,10 +246,10 @@ class TestV3ioDataStore(TestMLRunSystem):
         dir_base_item = mlrun.datastore.store_manager.object(self.run_dir_url)
         filename = f"test_file_{uuid.uuid4()}.txt"
         file_item = mlrun.datastore.store_manager.object(
-            self.run_dir_url + "/" + filename
+            f"{self.run_dir_url}/{filename}"
         )
         file_item_deep = mlrun.datastore.store_manager.object(
-            self.run_dir_url + f"/test_dir/test_file_{uuid.uuid4()}.txt"
+            f"{self.run_dir_url}/test_dir/test_file_{uuid.uuid4()}.txt"
         )
         file_item.put("test")
         file_item_deep.put("test")
@@ -338,10 +317,10 @@ class TestV3ioDataStore(TestMLRunSystem):
 
         # upload
         dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}",
+            f"{dataframes_url}/df1.{file_format}",
         )
         dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}",
+            f"{dataframes_url}/df2.{file_format}",
         )
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)

@@ -71,7 +71,7 @@ class TestGoogleCloudStorage:
         )
         cls._bucket_name = config["env"].get("bucket_name")
         cls.test_dir = "test_mlrun_gcs_objects"
-        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
+        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.profile_name = "gcs_profile"
         cls.credentials_path = config["env"].get("credentials_json_file")
         cls.setup_mapping = {
@@ -113,7 +113,7 @@ class TestGoogleCloudStorage:
         self._bucket_path = (
             f"ds://{self.profile_name}/{self._bucket_name}"
             if use_datastore_profile
-            else "gcs://" + self._bucket_name
+            else f"gcs://{self._bucket_name}"
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
         self._object_url = f"{self.run_dir_url}{object_file}"
@@ -281,10 +281,10 @@ class TestGoogleCloudStorage:
 
         # upload
         dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
+            f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options
         )
         dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}", secrets=self.storage_options
+            f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options
         )
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)

@@ -82,7 +82,7 @@ class TestAzureBlob:
         )
         cls.profile_name = "azure_blob_ds_profile"
         cls.test_dir = "test_mlrun_azure_blob"
-        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
+        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls._bucket_name = config["env"].get("AZURE_CONTAINER", None)
         cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
@@ -119,7 +119,7 @@ class TestAzureBlob:
         if use_datastore_profile:
             self._bucket_url = f"ds://{self.profile_name}/{self._bucket_name}"
         else:
-            self._bucket_url = "az://" + self._bucket_name
+            self._bucket_url = f"az://{self._bucket_name}"
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{self.object_file}"
 
@@ -252,10 +252,10 @@ class TestAzureBlob:
 
         # upload
         dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}", secrets=self.storage_options
+            f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options
         )
         dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}", secrets=self.storage_options
+            f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options
         )
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)

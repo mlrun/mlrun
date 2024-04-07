@@ -62,7 +62,7 @@ class TestDBFSStore:
             os.environ[key] = env_param
         cls.class_dir = "/dbfs_store"
         cls.test_dir = f"{MLRUN_ROOT_DIR}{cls.class_dir}"
-        cls.run_dir = cls.test_dir + f"/run_{uuid.uuid4()}"
+        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
         cls.workspace = WorkspaceClient()
         cls.profile_name = "dbfs_ds_profile"
 
@@ -216,11 +216,9 @@ class TestDBFSStore:
 
         # upload
         dt1 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df1.{file_format}",
+            f"{dataframes_url}/df1.{file_format}",
         )
-        dt2 = mlrun.run.get_dataitem(
-            dataframes_url + f"/df2.{file_format}",
-        )
+        dt2 = mlrun.run.get_dataitem(f"{dataframes_url}/df2.{file_format}")
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)
         dt_dir = mlrun.run.get_dataitem(dataframes_url)

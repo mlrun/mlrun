@@ -104,13 +104,8 @@ class TestAzureBlob:
         #  Create filesystem object only once - for teardown_class method.
         if not cls._azure_fs:
             azure_fs = AzureBlobFileSystem(storage_options)
-            try:
-                azure_fs.info(cls._bucket_name)  # in order to check connection ...
-                cls._azure_fs = azure_fs
-            except Exception:
-                logger.warning(
-                    "failed to create azure file system in test_azure_blob.py."
-                )
+            azure_fs.info(cls._bucket_name)  # in order to check connection ...
+            cls._azure_fs = azure_fs
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile, auth_method):

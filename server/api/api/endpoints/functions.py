@@ -50,7 +50,7 @@ from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_pre
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime
+from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
@@ -1024,9 +1024,13 @@ def create_model_monitoring_stream(
             container=container,
             endpoint=config.v3io_api,
         )
+        if monitoring_application:
+            access_key = access_key
+        else:
+            access_key = os.environ.get("V3IO_ACCESS_KEY")
 
         v3io_client = v3io.dataplane.Client(
-            endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+            endpoint=config.v3io_api, access_key=access_key
         )
         stream_args = (
             config.model_endpoint_monitoring.application_stream_args
@@ -1039,9 +1043,7 @@ def create_model_monitoring_stream(
             shard_count=stream_args.shard_count,
             retention_period_hours=stream_args.retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key
-            if monitoring_application
-            else os.environ.get("V3IO_ACCESS_KEY"),
+            access_key=access_key,
         )
 
         if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):

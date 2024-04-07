@@ -353,17 +353,17 @@ class MonitoringDeployment:
                     topics=[topic],
                 )
                 function = stream_source.add_nuclio_trigger(function)
-
+            stream_under_projects = "projects" in stream_path
             if not mlrun.mlconf.is_ce_mode():
                 if stream_path.startswith("v3io://"):
                     server.api.api.endpoints.functions.create_model_monitoring_stream(
                         project=self.project,
-                        monitoring_application="projects" in stream_path,
+                        monitoring_application=stream_under_projects,
                         stream_path=stream_path,
                         access_key=self.model_monitoring_access_key,
                     )
                     kwargs = {}
-                    if function_name != mm_constants.MonitoringFunctionNames.STREAM:
+                    if stream_under_projects:
                         kwargs["access_key"] = self.model_monitoring_access_key
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"
@@ -548,11 +548,15 @@ class MonitoringDeployment:
             return True
 
         if (
-            function.spec.config.get(
+            function["spec"]["config"].get(
                 f"spec.triggers.monitoring_{mm_constants.MonitoringFunctionNames.STREAM}_trigger_1"
             )
             is None
         ):
+            logger.info(
+                "The stream function needs to be updated with the new stream trigger",
+                project=self.project,
+            )
             return False
         return True
 

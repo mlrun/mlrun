@@ -188,7 +188,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"total time of test_v3io_large_object_upload {time.time() - first_start_time}"
         )
 
-    def test_v3io_large_object_put(self, use_datastore_profile):
+    def test_v3io_large_object_put(self):
         file_size = 20 * 1024 * 1024  # 20MB
         generated_buffer = bytearray(os.urandom(file_size))
         data_item = mlrun.run.get_dataitem(self._object_url)
@@ -257,13 +257,13 @@ class TestV3ioDataStore(TestMLRunSystem):
         response = data_item.get()
         assert response.decode() == self.test_string + self.test_string
 
-    def test_stat(self, use_datastore_profile):
+    def test_stat(self):
         data_item = mlrun.run.get_dataitem(self._object_url)
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
-    def test_list_dir(self, use_datastore_profile):
+    def test_list_dir(self):
         dir_base_item = mlrun.datastore.store_manager.object(self.run_dir_url)
         filename = f"test_file_{uuid.uuid4()}.txt"
         file_item = mlrun.datastore.store_manager.object(
@@ -277,13 +277,13 @@ class TestV3ioDataStore(TestMLRunSystem):
         actual_dir_content = dir_base_item.listdir()
         assert all(item in actual_dir_content for item in ["test_dir/", filename])
 
-    def test_upload(self, use_datastore_profile):
+    def test_upload(self):
         data_item = mlrun.run.get_dataitem(self._object_url)
         data_item.upload(self.test_file_path)
         response = data_item.get()
         assert response.decode() == self.test_string
 
-    def test_rm(self, use_datastore_profile):
+    def test_rm(self):
         data_item = mlrun.run.get_dataitem(self._object_url)
         data_item.upload(self.test_file_path)
         data_item.stat()
@@ -303,7 +303,6 @@ class TestV3ioDataStore(TestMLRunSystem):
     )
     def test_as_df(
         self,
-        use_datastore_profile: bool,
         file_format: str,
         pd_reader: callable,
         dd_reader: callable,
@@ -331,9 +330,7 @@ class TestV3ioDataStore(TestMLRunSystem):
             ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
-    def test_as_df_directory(
-        self, use_datastore_profile, file_format, pd_reader, dd_reader, reset_index
-    ):
+    def test_as_df_directory(self, file_format, pd_reader, dd_reader, reset_index):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")

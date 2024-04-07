@@ -257,7 +257,7 @@ class TestGoogleCloudStorage:
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
 
-        # dd
+        # dask
         source = dd_reader(local_file_path, **reader_args)
         response = upload_data_item.as_df(**reader_args, df_module=dd)
         dd.assert_eq(source, response)
@@ -303,7 +303,7 @@ class TestGoogleCloudStorage:
             tested_df = tested_df.sort_values("ID").reset_index(drop=True)
         pd.testing.assert_frame_equal(tested_df, expected_df)
 
-        # dd
+        # dask
         dd_df1 = dd_reader(df1_path)
         dd_df2 = dd_reader(df2_path)
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)

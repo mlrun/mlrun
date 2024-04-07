@@ -130,13 +130,13 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
-            if overwrite and stream_image == "mlrun/mlrun":
+            if overwrite and not stream_image.startswith("mlrun/mlrun"):
                 prev_function = server.api.crud.Functions().get_function(
                     name=mm_constants.MonitoringFunctionNames.STREAM,
                     db_session=self.db_session,
                     project=self.project,
                 )
-                stream_image = prev_function["spec"]["build"]["baseImage"]
+                stream_image = prev_function["spec"]["image"]
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )

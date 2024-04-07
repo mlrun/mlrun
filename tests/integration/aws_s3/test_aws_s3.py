@@ -95,10 +95,10 @@ class TestAwsS3:
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
-        # We give priority to profiles, then to secrets, and finally to environment variables.
-        # We want to ensure that we test these priorities in the correct order.
         mlrun.datastore.store_manager.reset_secrets()
 
+        # We give priority to profiles, then to secrets, and finally to environment variables.
+        # We want to ensure that we test these priorities in the correct order.
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"

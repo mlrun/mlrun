@@ -30,6 +30,7 @@ from mlrun.datastore import store_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileGCS,
     register_temporary_client_datastore_profile,
+    remove_temporary_client_datastore_profile,
 )
 from mlrun.utils import logger
 
@@ -108,6 +109,7 @@ class TestGoogleCloudStorage:
         self._object_path = f"{self.run_dir}{object_file}"
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         os.environ.pop("GCP_CREDENTIALS", None)
+        remove_temporary_client_datastore_profile(self.profile_name)
         self._bucket_path = (
             f"ds://{self.profile_name}/{self._bucket_name}"
             if use_datastore_profile

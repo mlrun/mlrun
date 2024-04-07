@@ -20,6 +20,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
+from mlrun import mlconf
 from mlrun.utils import logger
 
 
@@ -46,6 +47,51 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         self._logger = logger.get_child("paginator")
         self._pagination_cache = server.api.crud.PaginationCache()
 
+    async def paginate_permission_filtered_request(
+        self,
+        session: sqlalchemy.orm.Session,
+        method: typing.Callable,
+        filter_: typing.Callable,
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+        token: typing.Optional[str] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+        **method_kwargs,
+    ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
+        """
+        Paginate a request and filter the results based on the provided filter function.
+        If the result of the filter has fewer items than the page size, the pagination will request more items until
+        the page size is reached.
+        There is an option here to overflow and to receive more items than the page size.
+        And actually the maximum number of items that can be returned is page_size * 2 - 1.
+        """
+        last_pagination_info = {}
+        current_page = page
+        result = []
+
+        while not page_size or len(result) < page_size:
+            new_result, pagination_info = self.paginate_request(
+                session,
+                method,
+                auth_info,
+                token,
+                current_page,
+                page_size,
+                **method_kwargs,
+            )
+            new_result = await filter_(new_result)
+            result.extend(new_result)
+
+            if not pagination_info:
+                # no more results
+                break
+
+            last_pagination_info = pagination_info
+            current_page = last_pagination_info["page"] + 1
+            page_size = last_pagination_info["page_size"]
+
+        return result, last_pagination_info
+
     def paginate_request(
         self,
         session: sqlalchemy.orm.Session,
@@ -64,6 +110,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         if page_size is None and token is None:
             self._logger.debug("No token or page size provided, returning all records")
             return method(**method_kwargs), {}
+
+        page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
         token, page, page_size, method, method_kwargs = (
             self._create_or_update_pagination_cache_record(

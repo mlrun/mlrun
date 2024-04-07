@@ -104,8 +104,8 @@ class TestGoogleCloudStorage:
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         store_manager.reset_secrets()
-        object_file = f"file_{uuid.uuid4()}.txt"
-        self._object_path = self.run_dir + "/" + object_file
+        object_file = f"/file_{uuid.uuid4()}.txt"
+        self._object_path = f"{self.run_dir}{object_file}"
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         os.environ.pop("GCP_CREDENTIALS", None)
         self._bucket_path = (
@@ -114,7 +114,7 @@ class TestGoogleCloudStorage:
             else "gcs://" + self._bucket_name
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
-        self._object_url = self.run_dir_url + "/" + object_file
+        self._object_url = f"{self.run_dir_url}{object_file}"
         logger.info(f"Object URL: {self._object_url}")
         self.storage_options = {}
 

@@ -108,7 +108,7 @@ class TestAzureBlob:
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile, auth_method):
-        self.object_file = f"file_{uuid.uuid4()}.txt"
+        self.object_file = f"/file_{uuid.uuid4()}.txt"
         store_manager.reset_secrets()
         self.storage_options = {}
         for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
@@ -121,7 +121,7 @@ class TestAzureBlob:
         else:
             self._bucket_url = "az://" + self._bucket_name
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
-        self.object_url = self.run_dir_url + "/" + self.object_file
+        self.object_url = f"{self.run_dir_url}{self.object_file}"
 
         if not test_params:
             pytest.skip(f"Auth method {auth_method} not configured.")
@@ -184,7 +184,7 @@ class TestAzureBlob:
         # Check dir list for container
         blob_item = mlrun.run.get_dataitem(self._bucket_url, self.storage_options)
         dir_list = blob_item.listdir()  # can take a lot of time to big buckets.
-        assert self.run_dir + "/" + self.object_file in dir_list
+        assert f"{self.run_dir}/{self.object_file}" in dir_list
 
         # Check dir list for folder in container
         dir_dataitem = mlrun.run.get_dataitem(self.run_dir_url, self.storage_options)

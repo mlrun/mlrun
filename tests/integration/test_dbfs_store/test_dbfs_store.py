@@ -94,7 +94,7 @@ class TestDBFSStore:
             for key, env_param in env_params.items():
                 os.environ[key] = env_param
         self.run_dir_url = f"{self.prefix_url}{self.run_dir}"
-        self.object_url = self.run_dir_url + self.object_file
+        self.object_url = f"{self.run_dir_url}{self.object_file}"
         register_temporary_client_datastore_profile(self.profile)
         store_manager.reset_secrets()
 

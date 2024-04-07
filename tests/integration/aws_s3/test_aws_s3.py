@@ -123,34 +123,24 @@ class TestAwsS3:
         df_data_item.put(test_df_string)
 
         response = data_item.get()
-        assert (
-            response.decode() == self.test_string
-        ), "Result differs from original test"
+        assert response.decode() == self.test_string
 
         response = data_item.get(offset=20)
-        assert (
-            response.decode() == self.test_string[20:]
-        ), "Partial result not as expected"
+        assert response.decode() == self.test_string[20:]
 
         stat = data_item.stat()
-        assert stat.size == len(self.test_string), "Stat size different than expected"
+        assert stat.size == len(self.test_string)
 
         dir_list = mlrun.run.get_dataitem(self.run_dir_url).listdir()
 
-        assert (
-            self._object_url.replace(f"{self.run_dir_url}/", "") in dir_list
-        ), "File not in container dir-list"
-        assert (
-            df_url.replace(f"{self.run_dir_url}/", "") in dir_list
-        ), "CSV file not in container dir-list"
+        assert self._object_url.replace(f"{self.run_dir_url}/", "") in dir_list
+        assert df_url.replace(f"{self.run_dir_url}/", "") in dir_list
 
         blob_url = f"{self.run_dir_url}/file_{uuid.uuid4()}.blob"
         upload_data_item = mlrun.run.get_dataitem(blob_url)
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
-        assert (
-            response.decode() == self.test_string
-        ), "Result differs from original test"
+        assert response.decode() == self.test_string
 
         # Verify as_df() creates a proper DF. Note that the AWS case as_df() works through the fsspec interface, that's
         # why it's important to test it as well.

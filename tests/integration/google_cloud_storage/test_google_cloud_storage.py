@@ -175,17 +175,13 @@ class TestGoogleCloudStorage:
         data_item.put(self.test_string)
 
         response = data_item.get()
-        assert (
-            response.decode() == self.test_string
-        ), "Result differs from original test"
+        assert response.decode() == self.test_string
 
         response = data_item.get(offset=20)
-        assert (
-            response.decode() == self.test_string[20:]
-        ), "Partial result not as expected"
+        assert response.decode() == self.test_string[20:]
 
         stat = data_item.stat()
-        assert stat.size == len(self.test_string), "Stat size different than expected"
+        assert stat.size == len(self.test_string)
 
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             data_item.download(temp_file.name)
@@ -195,14 +191,12 @@ class TestGoogleCloudStorage:
         dir_list = mlrun.run.get_dataitem(
             self._bucket_path, secrets=self.storage_options
         ).listdir()
-        assert self._object_path in dir_list, "File not in container dir-list"
+        assert self._object_path in dir_list
         listdir_dataitem_parent = mlrun.run.get_dataitem(
             os.path.dirname(self._object_url), secrets=self.storage_options
         )
         listdir_parent = listdir_dataitem_parent.listdir()
-        assert (
-            os.path.basename(self._object_path) in listdir_parent
-        ), "File not in parent dir-list"
+        assert os.path.basename(self._object_path) in listdir_parent
 
         data_item.delete()
         listdir_parent = listdir_dataitem_parent.listdir()
@@ -213,9 +207,7 @@ class TestGoogleCloudStorage:
         )
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
-        assert (
-            response.decode() == self.test_string
-        ), "Result differs from original test"
+        assert response.decode() == self.test_string
 
     @pytest.mark.parametrize(
         "setup_by, use_secrets",

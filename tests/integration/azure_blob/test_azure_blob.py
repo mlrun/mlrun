@@ -165,21 +165,17 @@ class TestAzureBlob:
             data_item.put("just checking!", append=True)
 
         response = data_item.get()
-        assert (
-            response.decode() == self.test_string
-        ), "Result differs from original test"
+        assert  response.decode() == self.test_string
 
         response = data_item.get(offset=20)
-        assert (
-            response.decode() == self.test_string[20:]
-        ), "Partial result not as expected"
+        assert response.decode() == self.test_string[20:]
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             data_item.download(temp_file.name)
             content = temp_file.read()
             assert content == self.test_string
 
         stat = data_item.stat()
-        assert stat.size == len(self.test_string), "Stat size different than expected"
+        assert stat.size == len(self.test_string)
 
     def test_list_dir(self):
         file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
@@ -188,13 +184,11 @@ class TestAzureBlob:
         # Check dir list for container
         blob_item = mlrun.run.get_dataitem(self._bucket_url, self.storage_options)
         dir_list = blob_item.listdir()  # can take a lot of time to big buckets.
-        assert (
-            self.run_dir + "/" + self.object_file in dir_list
-        ), "File not in container dir-list"
+        assert self.run_dir + "/" + self.object_file in dir_list
 
         # Check dir list for folder in container
         dir_dataitem = mlrun.run.get_dataitem(self.run_dir_url, self.storage_options)
-        assert self.object_file in dir_dataitem.listdir(), "File not in folder dir-list"
+        assert self.object_file in dir_dataitem.listdir()
         file_dataitem.delete()
         assert self.object_file not in dir_dataitem.listdir()
 
@@ -203,9 +197,7 @@ class TestAzureBlob:
         upload_data_item.upload(self.test_file)
 
         response = upload_data_item.get()
-        assert (
-            response.decode() == self.test_string
-        ), "Result differs from original test"
+        assert response.decode() == self.test_string
 
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reader_args",
@@ -217,7 +209,6 @@ class TestAzureBlob:
     )
     def test_as_df(
         self,
-        use_datastore_profile: bool,
         file_format: str,
         pd_reader: callable,
         dd_reader: callable,

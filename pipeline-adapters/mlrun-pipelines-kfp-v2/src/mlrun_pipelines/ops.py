@@ -30,7 +30,7 @@ from mlrun.utils import get_in, logger
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):
-    workflow = run.workflow_manifest
+    workflow = run._workflow_manifest
     if not workflow:
         return None, project, None
 

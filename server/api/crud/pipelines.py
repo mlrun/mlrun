@@ -303,12 +303,12 @@ class Pipelines(
     def _format_run(
         self,
         db_session: sqlalchemy.orm.Session,
-        run: dict,
+        run: PipelineRun,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
     ) -> dict:
-        run["project"] = self.resolve_project_from_pipeline(run)
+        run.project = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
-            return run
+            return run.to_dict()
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
             return mlrun.utils.helpers.format_run(run, with_project=True)
 
@@ -376,7 +376,7 @@ class Pipelines(
         return None
 
     def resolve_project_from_pipeline(self, pipeline: PipelineRun):
-        return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest)
+        return self.resolve_project_from_workflow_manifest(pipeline._workflow_manifest)
 
     @staticmethod
     def _get_experiment_id_from_run(run: dict) -> str:

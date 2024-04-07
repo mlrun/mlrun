@@ -104,7 +104,7 @@ def test_get_pipeline_formats(
             PipelineRun(api_run_detail),
             format_,
         )
-        _assert_get_pipeline_response(expected_run.to_dict(), response)
+        _assert_get_pipeline_response(expected_run, response)
 
 
 def test_get_pipeline_no_project_opa_validation(
@@ -157,7 +157,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, PipelineRun(api_run_detail)
+            db, PipelineRun(api_run_detail), format_
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -313,6 +313,7 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
             id="id1",
             name="run1",
             description="desc1",
+            created_at="0001-01-01 00:00:00+00:00",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
                 pipeline_id="pipe_id1",
                 workflow_manifest=workflow_manifest,

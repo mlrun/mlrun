@@ -113,8 +113,8 @@ class FlexibleMapper(MutableMapping):
 
     def __iter__(self) -> Iterator[str]:
         """
-        Returns an iterator over the keys of the mapping. It yields keys from both the class
-        attributes and _external_data dict.
+        Returns an iterator over the keys of the mapping. It yields keys only from the class
+        attributes and not the _external_data dict.
 
         Returns
             an iterator over the keys.
@@ -136,8 +136,7 @@ class FlexibleMapper(MutableMapping):
 
     def to_dict(self) -> dict:
         """
-        Converts the mapping to a dict. This method combines both the class attributes
-        and the _external_data dict into a single dict, but it doesn't flatten _external_data
+        Converts the mapping to a dict. This method follows the attribute rules defined on __iter__
 
         Returns:
             a dict representation of the mapping.

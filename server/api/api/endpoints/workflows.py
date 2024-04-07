@@ -231,7 +231,7 @@ async def submit_workflow(
     return mlrun.common.schemas.WorkflowResponse(
         project=project.metadata.name,
         name=workflow_spec.name,
-        status=status,
+        status=str(status),
         run_id=run_uid,
         schedule=workflow_spec.schedule,
     )

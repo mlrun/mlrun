@@ -14,7 +14,7 @@
 #
 
 import json
-from typing import Any
+from typing import Any, Union
 
 from kfp.dsl import ContainerOp
 from kfp_server_api.models.api_run_detail import ApiRunDetail
@@ -25,8 +25,11 @@ PipelineNodeWrapper = ContainerOp
 
 
 class PipelineManifest(FlexibleMapper):
-    def __init__(self, workflow_manifest: str, pipeline_manifest: str = "{}"):
-        main_manifest = json.loads(workflow_manifest or "{}")
+    def __init__(self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"):
+        try:
+            main_manifest = json.loads(workflow_manifest)
+        except TypeError:
+            main_manifest = workflow_manifest
         if pipeline_manifest:
             pipeline_manifest = json.loads(pipeline_manifest)
             main_manifest["status"] = pipeline_manifest.get("status", {})
@@ -45,9 +48,9 @@ class PipelineRun(FlexibleMapper):
             )
         else:
             super().__init__(external_data)
-            self._workflow_manifest = PipelineManifest(
-                self._external_data.get("pipeline_spec", {}).get("workflow_manifest"),
-            )
+            pipeline_spec = self._external_data.get("pipeline_spec", None) or {}
+            workflow_manifest = pipeline_spec.get("workflow_manifest", None) or {}
+            self._workflow_manifest = PipelineManifest(workflow_manifest)
 
     @property
     def id(self):
@@ -104,10 +107,6 @@ class PipelineRun(FlexibleMapper):
     @finished_at.setter
     def finished_at(self, finished_at):
         self._external_data["finished_at"] = finished_at
-
-    @property
-    def workflow_manifest(self) -> PipelineManifest:
-        return self._workflow_manifest
 
 
 class PipelineExperiment(FlexibleMapper):

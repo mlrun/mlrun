@@ -42,6 +42,7 @@ from dateutil import parser
 from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 import mlrun.common.helpers
@@ -1264,7 +1265,7 @@ def is_link_artifact(artifact):
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
-def format_run(run: dict, with_project=False) -> dict:
+def format_run(run: PipelineRun, with_project=False) -> dict:
     fields = [
         "id",
         "name",

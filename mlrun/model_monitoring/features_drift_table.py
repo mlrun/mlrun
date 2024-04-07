@@ -19,6 +19,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 # A type for representing a drift result, a tuple of the status and the drift mean:
 DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
@@ -112,6 +113,11 @@ class FeaturesDriftTablePlot:
         :return: The full path to the html file of the plot.
         """
         # Plot the drift table:
+        features = [
+            feature
+            for feature in features
+            if feature not in mm_constants.FeatureSetFeatures.list()
+        ]
         figure = self._plot(
             features=features,
             sample_set_statistics=sample_set_statistics,

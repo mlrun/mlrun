@@ -20,6 +20,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
+from mlrun import mlconf
 from mlrun.utils import logger
 
 
@@ -68,7 +69,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         current_page = page
         result = []
 
-        while len(result) < page_size:
+        while not page_size or len(result) < page_size:
             new_result, pagination_info = self.paginate_request(
                 session,
                 method,
@@ -78,13 +79,16 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
+            new_result = await filter_(new_result)
+            result.extend(new_result)
+
             if not pagination_info:
                 # no more results
                 break
+
             last_pagination_info = pagination_info
-            new_result = await filter_(new_result)
-            result.extend(new_result)
-            current_page = pagination_info["page"] + 1
+            current_page = last_pagination_info["page"] + 1
+            page_size = last_pagination_info["page_size"]
 
         return result, last_pagination_info
 
@@ -106,6 +110,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         if page_size is None and token is None:
             self._logger.debug("No token or page size provided, returning all records")
             return method(**method_kwargs), {}
+
+        page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
         token, page, page_size, method, method_kwargs = (
             self._create_or_update_pagination_cache_record(

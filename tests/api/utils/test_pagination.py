@@ -466,6 +466,110 @@ async def test_paginate_permission_filtered_request(
     assert pagination_info["page_size"] == page_size
 
 
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_no_pagination(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Test paginate_permission_filtered_request with no pagination.
+    Request paginated method with no page and page size, and verify that all items are returned.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    method_kwargs = {"total_amount": 5}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def filter_(items):
+        return items
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        None,
+        None,
+        **method_kwargs,
+    )
+    assert len(response) == 5
+    assert not pagination_info
+
+
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_with_token(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Test paginate_permission_filtered_request with token.
+    Request paginated method with page 1 and page size 4.
+    Then use the token to request the next filtered page.
+    """
+    permitted_items = [
+        # page 1
+        "item0",
+        "item1",
+        "item2",
+        "item3",
+        # page 2
+        "item4",
+        "item7",
+        # page 3
+        "item8",
+        "item9",
+        "item10",
+        "item11",
+        # page 4
+        "item12",
+    ]
+
+    async def filter_(items):
+        return [item for item in items if item["name"] in permitted_items]
+
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 4
+    method_kwargs = {"total_amount": 20}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        1,
+        page_size,
+        **method_kwargs,
+    )
+
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2", "item3"]
+    )
+
+    token = pagination_info["token"]
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db, paginated_method, filter_, auth_info, token
+    )
+    _assert_paginated_response(
+        response,
+        pagination_info,
+        3,
+        page_size,
+        ["item4", "item7", "item8", "item9", "item10", "item11"],
+    )
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db, paginated_method, filter_, auth_info, token
+    )
+    _assert_paginated_response(response, pagination_info, 5, page_size, ["item12"])
+
+
 def _assert_paginated_response(
     response, pagination_info, page, page_size, expected_items
 ):

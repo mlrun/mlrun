@@ -75,16 +75,15 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
     reason="AZURE_CONTAINER is not set",
 )
 class TestAzureBlob:
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    profile_name = "azure_blob_ds_profile"
+    test_dir = "test_mlrun_azure_blob"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    _bucket_name = config["env"].get("AZURE_CONTAINER", None)
+    test_file = os.path.join(assets_path, "test.txt")
+
     @classmethod
     def setup_class(cls):
-        cls.assets_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets"
-        )
-        cls.profile_name = "azure_blob_ds_profile"
-        cls.test_dir = "test_mlrun_azure_blob"
-        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
-        cls._bucket_name = config["env"].get("AZURE_CONTAINER", None)
-        cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._azure_fs = None

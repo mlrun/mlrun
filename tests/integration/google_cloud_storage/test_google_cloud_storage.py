@@ -58,27 +58,26 @@ def google_cloud_storage_configured():
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    _bucket_name = config["env"].get("bucket_name")
+    test_dir = "test_mlrun_gcs_objects"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    profile_name = "gcs_profile"
+    credentials_path = config["env"].get("credentials_json_file")
+    test_file = os.path.join(assets_path, "test.txt")
+
     @classmethod
     def clean_test_directory(cls):
+        cls.setup_mapping = {
+            "credentials_file": cls._setup_by_google_credentials_file,
+            "serialized_json": cls._setup_by_serialized_json_content,
+        }
         full_test_dir = f"{cls._bucket_name}/{cls.test_dir}/"
         if cls._gcs_fs.exists(full_test_dir):
             cls._gcs_fs.delete(full_test_dir, recursive=True)
 
     @classmethod
     def setup_class(cls):
-        cls.assets_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets"
-        )
-        cls._bucket_name = config["env"].get("bucket_name")
-        cls.test_dir = "test_mlrun_gcs_objects"
-        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
-        cls.profile_name = "gcs_profile"
-        cls.credentials_path = config["env"].get("credentials_json_file")
-        cls.setup_mapping = {
-            "credentials_file": cls._setup_by_google_credentials_file,
-            "serialized_json": cls._setup_by_serialized_json_content,
-        }
-        cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         try:

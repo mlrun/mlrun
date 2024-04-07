@@ -16,7 +16,6 @@ import os
 import os.path
 import tempfile
 import uuid
-from pathlib import Path
 
 import dask.dataframe as dd
 import pandas as pd
@@ -41,32 +40,31 @@ from tests.datastore.databricks_utils import (
 
 @pytest.mark.skipif(
     not is_databricks_configured(
-        Path(__file__).absolute().parent / "test-dbfs-store.yml"
+        os.path.join(os.path.dirname(__file__), "test-dbfs-store.yml")
     ),
     reason="DBFS storage parameters not configured",
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestDBFSStore:
-    here = Path(__file__).absolute().parent
-    config_file_path = here / "test-dbfs-store.yml"
-    with config_file_path.open() as fp:
-        config = yaml.safe_load(fp)
+    class_dir = "/dbfs_store"
+    test_dir = f"{MLRUN_ROOT_DIR}{class_dir}"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    profile_name = "dbfs_ds_profile"
+    here = os.path.dirname(__file__)
+    config_file_path = os.path.join(here, "test-dbfs-store.yml")
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    test_file = os.path.join(assets_path, "test.txt")
 
     @classmethod
     def setup_class(cls):
-        cls.assets_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets"
-        )
+        with open(cls.config_file_path) as yaml_file:
+            cls.config = yaml.safe_load(yaml_file)
+
         env_params = cls.config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param
-        cls.class_dir = "/dbfs_store"
-        cls.test_dir = f"{MLRUN_ROOT_DIR}{cls.class_dir}"
-        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
-        cls.workspace = WorkspaceClient()
-        cls.profile_name = "dbfs_ds_profile"
 
-        cls.test_file = os.path.join(cls.assets_path, "test.txt")
+        cls.workspace = WorkspaceClient()
         with open(cls.test_file) as f:
             cls.test_string = f.read()
 

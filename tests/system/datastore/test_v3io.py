@@ -36,33 +36,35 @@ from tests.system.base import TestMLRunSystem
 @pytest.mark.enterprise
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestV3ioDataStore(TestMLRunSystem):
+    test_dir = "/bigdata/v3io_tests"
+    test_dir_url = f"v3io://{test_dir}"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    profile_name = "v3io_ds_profile"
+
     @classmethod
     def setup_class(cls):
         super().setup_class()
-        cls.test_file_path = str(cls.get_assets_path() / "test.txt")
-        test_parquet_path = str(cls.get_assets_path() / "test_data.parquet")
-        test_csv_path = str(cls.get_assets_path() / "test_data.csv")
-        test_json_path = str(cls.get_assets_path() / "test_data.json")
+        cls.token = os.environ.get("V3IO_ACCESS_KEY")
+        assets_path = str(cls.get_assets_path())
+        cls.test_file_path = os.path.join(assets_path, "test.txt")
+        test_parquet_path = os.path.join(assets_path, "test_data.parquet")
+        test_csv_path = os.path.join(assets_path, "test_data.csv")
+        test_json_path = os.path.join(assets_path, "test_data.json")
         cls.df_paths = {
             "parquet": test_parquet_path,
             "csv": test_csv_path,
             "json": test_json_path,
         }
-        test_additional_parquet_path = str(
-            cls.get_assets_path() / "additional_data.parquet"
+        test_additional_parquet_path = os.path.join(
+            assets_path, "additional_data.parquet"
         )
-        test_additional_csv_path = str(cls.get_assets_path() / "additional_data.csv")
+        test_additional_csv_path = os.path.join(assets_path, "additional_data.csv")
         cls.additional_df_paths = {
             "parquet": test_additional_parquet_path,
             "csv": test_additional_csv_path,
         }
         with open(cls.test_file_path) as f:
             cls.test_string = f.read()
-        cls.test_dir = "/bigdata/v3io_tests"
-        cls.test_dir_url = f"v3io://{cls.test_dir}"
-        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
-        cls.profile_name = "v3io_ds_profile"
-        cls.token = os.environ.get("V3IO_ACCESS_KEY")
         cls.profile = DatastoreProfileV3io(
             name=cls.profile_name, v3io_access_key=cls.token
         )

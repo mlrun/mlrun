@@ -56,19 +56,18 @@ def aws_s3_configured(extra_params=None):
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    env = config["env"]
+    _bucket_name = env.get("bucket_name")
+    _access_key_id = env.get("AWS_ACCESS_KEY_ID")
+    _secret_access_key = env.get("AWS_SECRET_ACCESS_KEY")
+    profile_name = "s3ds_profile"
+    test_dir = "/test_mlrun_s3"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    test_file = os.path.join(assets_path, "test.txt")
+
     @classmethod
     def setup_class(cls):
-        cls.assets_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets"
-        )
-        cls.env = config["env"]
-        cls._bucket_name = cls.env.get("bucket_name")
-        cls._access_key_id = cls.env.get("AWS_ACCESS_KEY_ID")
-        cls._secret_access_key = cls.env.get("AWS_SECRET_ACCESS_KEY")
-        cls.profile_name = "s3ds_profile"
-        cls.test_dir = "/test_mlrun_s3"
-        cls.run_dir = f"{cls.test_dir}/run_{uuid.uuid4()}"
-        cls.test_file = os.path.join(cls.assets_path, "test.txt")
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._fs = fsspec.filesystem(

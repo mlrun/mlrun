@@ -556,6 +556,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 .PHONY: run-api
 run-api: api ## Run mlrun api (dockerized)
+	docker rm mlrun-api --force || true
 	docker run \
 		--name mlrun-api \
 		--detach \

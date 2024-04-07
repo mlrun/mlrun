@@ -154,7 +154,7 @@ class TestAzureBlob:
             raise ValueError("auth_method not known")
         self.create_fs(storage_options=self.storage_options)
 
-    def test_azure_blob(self, use_datastore_profile, auth_method):
+    def test_azure_blob(self):
         data_item = mlrun.run.get_dataitem(
             self.object_url, secrets=self.storage_options
         )
@@ -181,7 +181,7 @@ class TestAzureBlob:
         stat = data_item.stat()
         assert stat.size == len(self.test_string), "Stat size different than expected"
 
-    def test_list_dir(self, use_datastore_profile, auth_method):
+    def test_list_dir(self):
         file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
@@ -198,7 +198,7 @@ class TestAzureBlob:
         file_dataitem.delete()
         assert self.object_file not in dir_dataitem.listdir()
 
-    def test_blob_upload(self, use_datastore_profile, auth_method):
+    def test_blob_upload(self):
         upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         upload_data_item.upload(self.test_file)
 
@@ -249,8 +249,6 @@ class TestAzureBlob:
     )
     def test_as_df_directory(
         self,
-        use_datastore_profile,
-        auth_method,
         file_format,
         pd_reader,
         dd_reader,

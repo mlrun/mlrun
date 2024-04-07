@@ -112,7 +112,7 @@ class TestAwsS3:
         object_file = f"/file_{uuid.uuid4()}.txt"
         self._object_url = self.run_dir_url + object_file
 
-    def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
+    def _perform_aws_s3_tests(self, secrets=None):
         #  TODO split to smaller tests, according to datastore's tests convention.
         logger.info(f"Object URL: {self._object_url}")
 
@@ -158,7 +158,7 @@ class TestAwsS3:
         assert list(df) == ["col1", "col2", "col3"]
         assert df.shape == (1, 3)
 
-    def test_project_secrets_credentials(self, use_datastore_profile):
+    def test_project_secrets_credentials(self):
         # This simulates running a job in a pod with project-secrets assigned to it
         for param in credential_params:
             os.environ.pop(param, None)
@@ -166,45 +166,49 @@ class TestAwsS3:
                 "env"
             ][param]
 
-        self._perform_aws_s3_tests(use_datastore_profile)
+        self._perform_aws_s3_tests()
 
         # cleanup
         for param in credential_params:
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param))
 
-    def test_using_env_variables(self, use_datastore_profile):
+    def test_using_env_variables(self):
         # Use "naked" env variables, useful in client-side sdk.
         for param in credential_params:
             os.environ[param] = self.env[param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests(use_datastore_profile)
+        self._perform_aws_s3_tests()
 
         # cleanup
         for param in credential_params:
             os.environ.pop(param)
 
-    def test_using_dataitem_secrets(self, use_datastore_profile):
+    def test_using_dataitem_secrets(
+        self,
+    ):
         # make sure no other auth method is configured
         for param in credential_params:
             os.environ.pop(param, None)
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         secrets = {param: self.env[param] for param in credential_params}
-        self._perform_aws_s3_tests(use_datastore_profile, secrets=secrets)
+        self._perform_aws_s3_tests(secrets=secrets)
 
     @pytest.mark.skipif(
         not aws_s3_configured(extra_params=["MLRUN_AWS_ROLE_ARN"]),
         reason="Role ARN not configured",
     )
-    def test_using_role_arn(self, use_datastore_profile):
+    def test_using_role_arn(
+        self,
+    ):
         params = credential_params.copy()
         params.append("MLRUN_AWS_ROLE_ARN")
         for param in params:
             os.environ[param] = self.env[param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests(use_datastore_profile)
+        self._perform_aws_s3_tests()
 
         # cleanup
         for param in params:
@@ -214,14 +218,16 @@ class TestAwsS3:
         not aws_s3_configured(extra_params=["AWS_PROFILE"]),
         reason="AWS profile not configured",
     )
-    def test_using_profile(self, use_datastore_profile):
+    def test_using_profile(
+        self,
+    ):
         params = credential_params.copy()
         params.append("AWS_PROFILE")
         for param in params:
             os.environ[param] = self.env[param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests(use_datastore_profile)
+        self._perform_aws_s3_tests()
 
         # cleanup
         for param in params:
@@ -237,7 +243,6 @@ class TestAwsS3:
     )
     def test_as_df(
         self,
-        use_datastore_profile: bool,
         file_format: str,
         pd_reader: callable,
         dd_reader: callable,
@@ -265,9 +270,7 @@ class TestAwsS3:
             ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
-    def test_as_df_directory(
-        self, use_datastore_profile, file_format, pd_reader, dd_reader, reset_index
-    ):
+    def test_as_df_directory(self, file_format, pd_reader, dd_reader, reset_index):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")

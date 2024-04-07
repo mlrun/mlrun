@@ -23,7 +23,6 @@ from urllib.parse import urlparse
 import dask.dataframe as dd
 import pandas as pd
 import pytest
-from pandas._testing import assert_frame_equal
 
 import mlrun.datastore
 from mlrun.datastore.datastore_profile import (
@@ -356,7 +355,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         tested_df = dt_dir.as_df(format=file_format)
         if reset_index:
             tested_df = tested_df.sort_values("id").reset_index(drop=True)
-        assert_frame_equal(tested_df, expected_df)
+        pd.testing.assert_frame_equal(tested_df, expected_df)
 
         # dd
         dd_df1 = dd_reader(df1_path)

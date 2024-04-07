@@ -21,7 +21,6 @@ import fsspec
 import pandas as pd
 import pytest
 import yaml
-from pandas.testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
@@ -290,7 +289,7 @@ class TestAwsS3:
         tested_df = dt_dir.as_df(format=file_format)
         if reset_index:
             tested_df = tested_df.sort_values("ID").reset_index(drop=True)
-        assert_frame_equal(tested_df, expected_df)
+        pd.testing.assert_frame_equal(tested_df, expected_df)
 
         # dd
         dd_df1 = dd_reader(df1_path)

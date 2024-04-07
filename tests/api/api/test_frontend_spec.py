@@ -232,11 +232,13 @@ def test_get_frontend_spec_feature_store_data_prefixes(
     feature_store_data_prefix_default = "feature-store-data-prefix-default"
     feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
     feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
+    feature_store_data_prefix_dsnosql = "feature-store-data-prefix-dsnosql"
     mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
     mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
     mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
         feature_store_data_prefix_redisnosql
     )
+    mlrun.mlconf.feature_store.data_prefixes.dsnosql = feature_store_data_prefix_dsnosql
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
@@ -251,4 +253,8 @@ def test_get_frontend_spec_feature_store_data_prefixes(
     assert (
         frontend_spec.feature_store_data_prefixes["redisnosql"]
         == feature_store_data_prefix_redisnosql
+    )
+    assert (
+        frontend_spec.feature_store_data_prefixes["dsnosql"]
+        == feature_store_data_prefix_dsnosql
     )

@@ -463,3 +463,7 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
     It's beneficial for testing purposes.
     """
     TemporaryClientDatastoreProfiles().add(profile)
+
+
+def remove_temporary_client_datastore_profile(profile_name: str):
+    TemporaryClientDatastoreProfiles().remove(profile_name)

@@ -22,11 +22,16 @@ __all__ = [
     "handler",
     "ArtifactType",
     "get_secret_or_env",
+    "mount_v3io",
+    "v3io_cred",
+    "auto_mount",
+    "VolumeMount",
 ]
 
 from os import environ, path
 
 import dotenv
+import mlrun_pipelines
 
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
@@ -63,6 +68,11 @@ from .secrets import get_secret_or_env
 from .utils.version import Version
 
 __version__ = Version().get()["version"]
+
+VolumeMount = mlrun_pipelines.common.mounts
+mount_v3io = mlrun_pipelines.mounts.mount_v3io
+v3io_cred = mlrun_pipelines.mounts.v3io_cred
+auto_mount = mlrun_pipelines.mounts.auto_mount
 
 
 def get_version():

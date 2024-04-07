@@ -184,13 +184,13 @@ class TestAzureBlob:
         # Check dir list for container
         blob_item = mlrun.run.get_dataitem(self._bucket_url, self.storage_options)
         dir_list = blob_item.listdir()  # can take a lot of time to big buckets.
-        assert f"{self.run_dir}/{self.object_file}" in dir_list
+        assert f"{self.run_dir}{self.object_file}" in dir_list
 
         # Check dir list for folder in container
         dir_dataitem = mlrun.run.get_dataitem(self.run_dir_url, self.storage_options)
-        assert self.object_file in dir_dataitem.listdir()
+        assert self.object_file.split("/")[-1] in dir_dataitem.listdir()
         file_dataitem.delete()
-        assert self.object_file not in dir_dataitem.listdir()
+        assert self.object_file.split("/")[-1] not in dir_dataitem.listdir()
 
     def test_blob_upload(self):
         upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)

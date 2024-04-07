@@ -25,7 +25,9 @@ PipelineNodeWrapper = ContainerOp
 
 
 class PipelineManifest(FlexibleMapper):
-    def __init__(self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"):
+    def __init__(
+        self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"
+    ):
         try:
             main_manifest = json.loads(workflow_manifest)
         except TypeError:

@@ -40,9 +40,9 @@ import semver
 import yaml
 from dateutil import parser
 from deprecated import deprecated
+from mlrun_pipelines.models import PipelineRun
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
-from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 import mlrun.common.helpers

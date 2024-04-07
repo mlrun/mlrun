@@ -137,14 +137,14 @@ class TestDBFSStore:
             content = temp_file.read()
             assert content == self.test_string
 
-    def test_stat(self, use_datastore_profile):
+    def test_stat(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
     #
-    def test_list_dir(self, use_datastore_profile):
+    def test_list_dir(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
         file_name_length = len(self.object_url.split("/")[-1]) + 1
@@ -154,14 +154,14 @@ class TestDBFSStore:
         dir_list = dir_dataitem.listdir()
         assert self.object_url.split("/")[-1] in dir_list
 
-    def test_upload(self, use_datastore_profile):
+    def test_upload(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file)
         response = data_item.get()
         assert response.decode() == self.test_string
 
     #
-    def test_rm(self, use_datastore_profile):
+    def test_rm(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file)
         data_item.stat()
@@ -208,9 +208,7 @@ class TestDBFSStore:
             ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
-    def test_as_df_directory(
-        self, use_datastore_profile, file_format, pd_reader, dd_reader, reset_index
-    ):
+    def test_as_df_directory(self, file_format, pd_reader, dd_reader, reset_index):
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")

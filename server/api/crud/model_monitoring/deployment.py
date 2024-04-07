@@ -130,7 +130,7 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
-            if overwrite and not stream_image.startswith("mlrun/mlrun"):
+            if overwrite and stream_image.startswith("mlrun/mlrun"):
                 prev_function = server.api.crud.Functions().get_function(
                     name=mm_constants.MonitoringFunctionNames.STREAM,
                     db_session=self.db_session,

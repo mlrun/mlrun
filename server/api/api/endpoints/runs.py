@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import datetime
-import typing
 import uuid
 from http import HTTPStatus
 
@@ -25,6 +24,7 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
+import server.api.utils.fastapi
 import server.api.utils.pagination
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
@@ -187,14 +187,15 @@ async def delete_run(
     deprecated=True,
     description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
+    dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)],
 )
-@router.get("/projects/{project}/runs")
+@router.get(
+    "/projects/{project}/runs", dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)]
+)
 async def list_runs(
     project: str = None,
-    page_token: typing.Optional[str] = Query(None, alias="page-token"),
-    page: typing.Optional[int] = Query(None, ge=1),
-    page_size: typing.Optional[int] = Query(None, ge=1, alias="page-size"),
-    query: mlrun.common.schemas.runs.ListRunsRequest = Depends(),
+    query: mlrun.common.schemas.ListRunsRequest = Depends(),
+    pagination: mlrun.common.schemas.PaginationInfo = Depends(),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -223,9 +224,9 @@ async def list_runs(
         server.api.crud.Runs().list_runs,
         _filter_runs,
         auth_info,
-        token=page_token,
-        page=page,
-        page_size=page_size,
+        token=pagination.page_token,
+        page=pagination.page,
+        page_size=pagination.page_size,
         name=query.name,
         uid=query.uid,
         project=project,

@@ -16,7 +16,7 @@ import typing
 
 import pydantic
 
-from .constants import OrderType, RunPartitionByField
+from .constants import OrderType, RunPartitionByField, SortField
 
 
 class RunIdentifier(pydantic.BaseModel):
@@ -42,21 +42,9 @@ class ListRunsRequest(pydantic.BaseModel):
     start_time_to: typing.Optional[str]
     last_update_time_from: typing.Optional[str]
     last_update_time_to: typing.Optional[str]
-    partition_by: typing.Optional[RunPartitionByField] = pydantic.Field(
-        None, alias="partition-by"
-    )
-    rows_per_partition: typing.Optional[int] = pydantic.Field(
-        1, alias="rows-per-partition", gt=0
-    )
-    partition_sort_by: typing.Optional[str] = pydantic.Field(
-        None, alias="partition-sort-by"
-    )
-    partition_order: typing.Optional[OrderType] = pydantic.Field(
-        OrderType.desc, alias="partition-order"
-    )
-    max_partitions: typing.Optional[int] = pydantic.Field(
-        0, alias="max-partitions", ge=0
-    )
-    with_notifications: typing.Optional[bool] = pydantic.Field(
-        None, alias="with-notifications"
-    )
+    partition_by: typing.Optional[RunPartitionByField] = pydantic.Field(None)
+    rows_per_partition: typing.Optional[int] = pydantic.Field(1, gt=0)
+    partition_sort_by: typing.Optional[SortField] = pydantic.Field(None)
+    partition_order: typing.Optional[OrderType] = pydantic.Field(OrderType.desc)
+    max_partitions: typing.Optional[int] = pydantic.Field(0, ge=0)
+    with_notifications: typing.Optional[bool] = pydantic.Field(None)

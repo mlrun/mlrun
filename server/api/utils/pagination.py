@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import asyncio
 import typing
 
 import pydantic
 import sqlalchemy.orm
-from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
+import server.api.utils.asyncio
 from mlrun import mlconf
 from mlrun.utils import logger
 
@@ -91,7 +90,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
-            new_result = await self._call_or_await_method(False, filter_, new_result)
+            new_result = await server.api.utils.asyncio.await_or_call_in_threadpool(
+                filter_, new_result
+            )
             result.extend(new_result)
 
             if not pagination_info:
@@ -121,8 +122,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
         if page_size is None and token is None:
             self._logger.debug("No token or page size provided, returning all records")
-            return await self._call_or_await_method(
-                True, method, session, **method_kwargs
+            return await server.api.utils.asyncio.await_or_call_in_threadpool(
+                method, session, **method_kwargs
             ), {}
 
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
@@ -146,8 +147,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size=page_size,
                 method=method.__name__,
             )
-            return await self._call_or_await_method(
-                True, method, session, **method_kwargs, page=page, page_size=page_size
+            return await server.api.utils.asyncio.await_or_call_in_threadpool(
+                method, session, **method_kwargs, page=page, page_size=page_size
             ), {
                 "token": token,
                 "page": page,
@@ -214,13 +215,3 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             kwargs=serialized_kwargs,
         )
         return token, page, page_size, method, serialized_kwargs
-
-    @staticmethod
-    async def _call_or_await_method(
-        in_thread_pool: bool, method: typing.Callable, *args, **kwargs
-    ) -> typing.Any:
-        if asyncio.iscoroutinefunction(method):
-            return await method(*args, **kwargs)
-        if in_thread_pool:
-            return await run_in_threadpool(method, *args, **kwargs)
-        return method(*args, **kwargs)

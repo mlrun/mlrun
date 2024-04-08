@@ -601,9 +601,7 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
         {
             "page": 4,
             "page-size": 10,
-            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
-            "partition-sort-by": mlrun.common.schemas.SortField.updated,
-            "partition-order": mlrun.common.schemas.OrderType.desc,
+            "sort": True,
         },
         0,
         project=project,

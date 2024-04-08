@@ -151,6 +151,7 @@ from .notification import (
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pagination import PaginationInfo
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,

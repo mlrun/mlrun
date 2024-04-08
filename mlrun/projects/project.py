@@ -2090,7 +2090,7 @@ class MlrunProject(ModelObj):
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
-        kind: str = "",
+        kind: str = "job",
         image: str = None,
         handler: str = None,
         with_repo: bool = None,

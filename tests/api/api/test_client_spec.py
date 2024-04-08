@@ -51,11 +51,14 @@ def test_client_spec(
     feature_store_data_prefix_default = "feature-store-data-prefix-default"
     feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
     feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
+    feature_store_data_prefix_dsnosql = "feature-store-data-prefix-dsnosql"
     mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
     mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
+    mlrun.mlconf.feature_store.data_prefixes.dsnosql = feature_store_data_prefix_dsnosql
     mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
         feature_store_data_prefix_redisnosql
     )
+
     mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         mlrun.common.schemas.SecurityContextEnrichmentModes.override
     )
@@ -127,6 +130,9 @@ def test_client_spec(
     )
     assert response_body["feature_store_data_prefixes"]["redisnosql"] == (
         feature_store_data_prefix_redisnosql
+    )
+    assert response_body["feature_store_data_prefixes"]["dsnosql"] == (
+        feature_store_data_prefix_dsnosql
     )
     assert response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release

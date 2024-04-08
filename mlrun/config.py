@@ -481,10 +481,13 @@ default_config = {
             # if set to true, will log a warning for trying to use run db functionality while in nop db mode
             "verbose": True,
         },
-        "pagination_cache": {
-            "interval": 60,
-            "ttl": 3600,
-            "max_size": 10000,
+        "pagination": {
+            "default_page_size": 20,
+            "pagination_cache": {
+                "interval": 60,
+                "ttl": 3600,
+                "max_size": 10000,
+            },
         },
     },
     "model_endpoint_monitoring": {
@@ -548,6 +551,7 @@ default_config = {
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
             "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",

@@ -34,7 +34,6 @@ from sqlalchemy.orm import Session
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.runtimes.nuclio.function
@@ -48,12 +47,12 @@ import server.api.utils.singletons.project_member
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.errors import MLRunRuntimeError, err_to_str
+from mlrun.errors import err_to_str
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime
+from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
-from server.api.crud.secrets import Secrets, SecretsClientType
+from server.api.api.endpoints.nuclio import _deploy_nuclio_runtime
 from server.api.utils.builder import build_runtime
 from server.api.utils.singletons.scheduler import get_scheduler
 
@@ -405,7 +404,6 @@ async def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    mlrun_build: bool = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -427,7 +425,7 @@ async def build_status(
         )
 
     # nuclio deploy status
-    if not mlrun_build and fn.get("kind") in RuntimeKinds.nuclio_runtimes():
+    if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
         return await run_in_threadpool(
             _handle_nuclio_deploy_status,
             db_session,
@@ -717,19 +715,12 @@ def _build_function(
         run_db = server.api.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
-        # TODO:  force_build is only used for mlrun build flow, for nuclio runtimes users can specify force_build=True,
-        #  but it is redundant and ignored. Once force_build is removed from RemoteRuntime.deploy() in 1.9.0,
-        #  we can simplify the logic here to:
-        #  is_nuclio_deploy = fn.kind in RuntimeKinds.nuclio_runtimes() and not force_build
-        is_nuclio_deploy = False
-        if fn.kind in RuntimeKinds.pure_nuclio_deployed_runtimes():
-            is_nuclio_deploy = True
-        elif fn.kind == RuntimeKinds.application and not force_build:
-            is_nuclio_deploy = True
+        # TODO:  nuclio deploy moved to new endpoint, this flow is about to be deprecated
+        is_nuclio_deploy = fn.kind in RuntimeKinds.pure_nuclio_deployed_runtimes()
 
         # Enrich runtime with project defaults
         launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        # When runtime is nuclio, building means we deploy the function and not just build its image
+        # When runtime is nuclio, building means we deploy the function and not just build its image,
         # so we need full enrichment
         launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
 
@@ -776,48 +767,6 @@ def _build_function(
             reason=f"Runtime error: {err_to_str(err)}",
         )
     return fn, ready
-
-
-def _deploy_nuclio_runtime(
-    auth_info, builder_env, client_python_version, client_version, db_session, fn
-):
-    monitoring_application = (
-        fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-        == mm_constants.ModelMonitoringAppLabel.VAL
-    )
-    if monitoring_application:
-        if not mlrun.mlconf.is_ce_mode():
-            model_monitoring_access_key = process_model_monitoring_secret(
-                db_session,
-                fn.metadata.project,
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-            )
-        else:
-            model_monitoring_access_key = None
-
-        fn = server.api.crud.model_monitoring.deployment.MonitoringDeployment(
-            project=fn.metadata.project,
-            auth_info=auth_info,
-            db_session=db_session,
-            model_monitoring_access_key=model_monitoring_access_key,
-        )._apply_and_create_stream_trigger(
-            function=fn,
-            function_name=fn.metadata.name,
-        )
-
-    serving_to_monitor = fn.kind == RuntimeKinds.serving and fn.spec.track_models
-    if serving_to_monitor:
-        if not mlrun.mlconf.is_ce_mode():
-            _init_serving_function_stream_args(fn=fn)
-
-    server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
-        fn,
-        auth_info=auth_info,
-        client_version=client_version,
-        client_python_version=client_python_version,
-        builder_env=builder_env,
-    )
-    return fn
 
 
 def _parse_start_function_body(db_session, data):
@@ -927,64 +876,6 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         )
 
 
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
-    # The expected result of this method is an access-key placed in an internal project-secret.
-    # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
-    # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
-    # (which is the recommended option for users) is to retrieve a new access-key from the project owner and use it.
-    logger.info(
-        "Getting project secret", project_name=project_name, namespace=config.namespace
-    )
-    provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    secret_value = Secrets().get_project_secret(
-        project_name,
-        provider,
-        secret_key,
-        allow_secrets_from_k8s=True,
-    )
-    user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_client_project_secret_key(
-        SecretsClientType.model_monitoring, secret_key
-    )
-
-    if not user_provided_key:
-        secret_value = Secrets().get_project_secret(
-            project_name,
-            provider,
-            internal_key_name,
-            allow_secrets_from_k8s=True,
-            allow_internal_secrets=True,
-        )
-        if not secret_value:
-            project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
-                db_session, project_name
-            )
-
-            secret_value = project_owner.access_key
-            if not secret_value:
-                raise MLRunRuntimeError(
-                    f"No model monitoring access key. Failed to generate one for owner of project {project_name}",
-                )
-
-            logger.info(
-                "Filling model monitoring access-key from project owner",
-                project_name=project_name,
-                project_owner=project_owner.username,
-            )
-
-    secrets = mlrun.common.schemas.SecretsData(
-        provider=provider, secrets={internal_key_name: secret_value}
-    )
-    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
-    if user_provided_key:
-        logger.info(
-            "Deleting user-provided access-key - replaced with an internal secret"
-        )
-        Secrets().delete_project_secret(project_name, provider, secret_key)
-
-    return secret_value
-
-
 def _is_nuclio_deploy_status_changed(
     previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
 ) -> bool:
@@ -1049,21 +940,3 @@ def create_model_monitoring_stream(
 
         if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
             response.raise_for_status([409, 204])
-
-
-def _init_serving_function_stream_args(fn: ServingRuntime):
-    logger.debug("Initializing serving function stream args")
-    if "stream_args" in fn.spec.parameters:
-        logger.debug("Adding access key to pipelines stream args")
-        if "access_key" not in fn.spec.parameters["stream_args"]:
-            logger.debug("pipelines access key added to stream args")
-            fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(
-                "V3IO_ACCESS_KEY"
-            )
-    else:
-        logger.debug("pipelines access key added to stream args")
-        fn.spec.parameters["stream_args"] = {
-            "access_key": os.environ.get("V3IO_ACCESS_KEY")
-        }
-
-    fn.save(versioned=True)

@@ -1434,7 +1434,6 @@ class KubeResource(BaseRuntime):
             state = self._build_watch(
                 watch=watch,
                 show_on_failure=show_on_failure,
-                mlrun_build=True,
             )
             ready = state == "ready"
             self.status.state = state
@@ -1448,7 +1447,6 @@ class KubeResource(BaseRuntime):
         watch: bool = True,
         logs: bool = True,
         show_on_failure: bool = False,
-        mlrun_build: typing.Optional[bool] = None,
     ):
         db = self._get_db()
         offset = 0
@@ -1474,16 +1472,12 @@ class KubeResource(BaseRuntime):
                 time.sleep(2)
                 if show_on_failure:
                     text = ""
-                    db.get_builder_status(self, 0, logs=False, mlrun_build=mlrun_build)
+                    db.get_builder_status(self, 0, logs=False)
                     if self.status.state == mlrun.common.schemas.FunctionState.error:
                         # re-read the full log on failure
-                        text, _ = db.get_builder_status(
-                            self, offset, logs=logs, mlrun_build=mlrun_build
-                        )
+                        text, _ = db.get_builder_status(self, offset, logs=logs)
                 else:
-                    text, _ = db.get_builder_status(
-                        self, offset, logs=logs, mlrun_build=mlrun_build
-                    )
+                    text, _ = db.get_builder_status(self, offset, logs=logs)
                 print_log(text)
                 offset += len(text)
 

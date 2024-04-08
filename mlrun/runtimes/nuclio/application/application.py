@@ -235,11 +235,10 @@ class ApplicationRuntime(RemoteRuntime):
         :param project:                 Project name
         :param tag:                     Function tag
         :param verbose:                 Set True for verbose logging
-        :param auth_info:               Service AuthInfo (deprecated)
+        :param auth_info:               Service AuthInfo (deprecated and ignored)
         :param builder_env:             Env vars dict for source archive config/credentials
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param force_build:             Set True for force building the application image
-        :param watch:                   Wait for the deployment to complete (and print build logs)
         :param with_mlrun:              Add the current mlrun package to the container build
         :param skip_deployed:           Skip the build if we already have an image for the function
         :param is_kfp:                  Deploy as part of a kfp pipeline
@@ -251,7 +250,7 @@ class ApplicationRuntime(RemoteRuntime):
             self._fill_credentials()
             self._build_application_image(
                 builder_env=builder_env,
-                force_build=True,
+                force_build=force_build,
                 watch=True,
                 with_mlrun=with_mlrun,
                 skip_deployed=skip_deployed,

@@ -1343,21 +1343,7 @@ class HTTPRunDB(RunDBInterface):
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         :param force_build:   Force building the image, even when no changes were made
         """
-        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
-            "s3://"
-        )
-        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
-        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
-            logger.warning(
-                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
-                "keys. Only the permissions granted to the platform's configured secret will take affect "
-                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
-                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
-                source=func.spec.build.source,
-                load_source_on_run=func.spec.build.load_source_on_run,
-                default_docker_registry=config.httpdb.builder.docker_registry,
-            )
-
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
         try:
             req = {
                 "function": func.to_dict(),
@@ -1380,6 +1366,53 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        """
+        Deploy a Nuclio function.
+        :param func:            Function to build.
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+        """
+        func.metadata.project = func.metadata.project or config.default_project
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
+        try:
+            req = {
+                "function": func.to_dict(),
+            }
+            if builder_env:
+                req["builder_env"] = builder_env
+            _path = f"projects/{func.metadata.project}/functions/{func.metadata.name}/deploy"
+            resp = self.api_call("POST", _path, json=req)
+        except OSError as err:
+            logger.error(f"error submitting deploy task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.error(f"bad resp!!\n{resp.text}")
+            raise ValueError("bad function run response")
+
+        return resp.json()
+
+    @staticmethod
+    def warn_on_s3_and_ecr_permissions_conflict(func):
+        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
+            "s3://"
+        )
+        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
+        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
+            logger.warning(
+                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
+                "keys. Only the permissions granted to the platform's configured secret will take affect "
+                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
+                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
+                source=func.spec.build.source,
+                load_source_on_run=func.spec.build.load_source_on_run,
+                default_docker_registry=config.httpdb.builder.docker_registry,
+            )
+
     def get_builder_status(
         self,
         func: BaseRuntime,
@@ -1387,7 +1420,6 @@ class HTTPRunDB(RunDBInterface):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
-        mlrun_build: Optional[bool] = None,
     ):
         """Retrieve the status of a build operation currently in progress.
 
@@ -1397,8 +1429,6 @@ class HTTPRunDB(RunDBInterface):
         :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
                                     later than this parameter.
         :param verbose:             Add verbose logs into the output.
-        :param mlrun_build:         Whether the build is an MLRun build. If not provided, will be inferred from the
-                                    function kind.
 
         :returns: The following parameters:
 
@@ -1418,8 +1448,6 @@ class HTTPRunDB(RunDBInterface):
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            if mlrun_build is not None:
-                params["mlrun_build"] = mlrun_build
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
             logger.error(f"error getting build status: {err_to_str(err)}")

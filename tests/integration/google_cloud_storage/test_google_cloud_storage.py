@@ -168,7 +168,7 @@ class TestGoogleCloudStorage:
     def test_perform_google_cloud_storage_tests(
         self, use_datastore_profile, setup_by, use_secrets
     ):
-        #  TODO split to smaller tests by datastore conventions.
+        # TODO: split to smaller tests by datastore conventions
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options

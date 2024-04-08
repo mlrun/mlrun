@@ -18,10 +18,10 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import mlrun.config
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.utils.singletons.db
+from mlrun import mlconf
 
 
 class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
@@ -31,11 +31,12 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         user: str,
         method: typing.Callable,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         db = server.api.utils.singletons.db.get_db()
         return db.store_paginated_query_cache_record(
-            session, user, method.__name__, current_page, kwargs
+            session, user, method.__name__, current_page, page_size, kwargs
         )
 
     @staticmethod
@@ -77,8 +78,8 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         """
 
         # Using cache TTL + 1 to make sure a zero TTL won't remove records that were just created
-        cache_ttl = mlrun.config.config.httpdb.pagination_cache.ttl + 1
-        table_max_size = mlrun.config.config.httpdb.pagination_cache.max_size
+        cache_ttl = mlconf.httpdb.pagination.pagination_cache.ttl + 1
+        table_max_size = mlconf.httpdb.pagination.pagination_cache.max_size
 
         db = server.api.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(

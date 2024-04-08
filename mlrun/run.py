@@ -389,6 +389,8 @@ def import_function_to_dict(url, secrets=None):
     code = get_in(runtime, "spec.build.functionSourceCode")
     update_in(runtime, "metadata.build.code_origin", url)
     cmd = code_file = get_in(runtime, "spec.command", "")
+    # use kind = "job" by default if not specified
+    runtime.setdefault("kind", "job")
     if " " in cmd:
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
@@ -847,6 +849,7 @@ def _run_pipeline(
     ops=None,
     url=None,
     cleanup_ttl=None,
+    timeout=60,
 ):
     """remote KubeFlow pipeline execution
 
@@ -884,6 +887,7 @@ def _run_pipeline(
         ops=ops,
         artifact_path=artifact_path,
         cleanup_ttl=cleanup_ttl,
+        timeout=timeout,
     )
     logger.info(f"Pipeline run id={pipeline_run_id}, check UI for progress")
     return pipeline_run_id
@@ -961,7 +965,7 @@ def wait_for_pipeline_completion(
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
-    message = resp["run"].get("message", "")
+    message = resp["run"].get("message", "") if resp else ""
     if expected_statuses:
         if status not in expected_statuses:
             raise RuntimeError(

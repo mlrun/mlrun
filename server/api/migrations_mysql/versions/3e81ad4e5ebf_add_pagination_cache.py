@@ -41,6 +41,7 @@ def upgrade():
             "function", sa.String(length=255, collation="utf8_bin"), nullable=True
         ),
         sa.Column("current_page", sa.Integer(), nullable=True),
+        sa.Column("page_size", sa.Integer(), nullable=True),
         sa.Column("kwargs", sa.JSON(), nullable=True),
         sa.Column("last_accessed", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("key"),

@@ -38,6 +38,10 @@ This runs the job every hour. An excellent resource for generating Cron schedule
 
 ## Scheduling a workflow
 
+```{admonition} Note
+Tech Preview
+```
+
 After loading the project (`load_project`), run the project with the scheduled workflow:
 
 ```

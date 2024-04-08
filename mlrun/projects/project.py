@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import getpass
 import glob
@@ -44,6 +45,7 @@ import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
+import mlrun.serving
 import mlrun.utils.regex
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
@@ -1845,10 +1847,10 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
-        if name in mm_constants.MonitoringFunctionNames.all():
+        if name in mm_constants.MonitoringFunctionNames.list():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Application name can not be on of the following name : "
-                f"{mm_constants.MonitoringFunctionNames.all()}"
+                f"An application cannot have the following names: "
+                f"{mm_constants.MonitoringFunctionNames.list()}"
             )
         function_object: RemoteRuntime = None
         (
@@ -1867,16 +1869,6 @@ class MlrunProject(ModelObj):
             requirements_file,
             **application_kwargs,
         )
-        models_names = "all"
-        function_object.set_label(
-            mm_constants.ModelMonitoringAppLabel.KEY,
-            mm_constants.ModelMonitoringAppLabel.VAL,
-        )
-        function_object.set_label("models", models_names)
-
-        if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.mount_v3io())
-
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
 
@@ -1935,48 +1927,38 @@ class MlrunProject(ModelObj):
 
     def _instantiate_model_monitoring_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
-        name: str = None,
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
+        application_class: typing.Union[
+            str, ModelMonitoringApplicationBase, None
+        ] = None,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        with_repo: typing.Optional[bool] = None,
+        tag: typing.Optional[str] = None,
+        requirements: typing.Union[str, list[str], None] = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.BaseRuntime, dict]:
+        import mlrun.model_monitoring.api
+
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
-            kind = "serving"
-            if func is None:
-                func = ""
-            func = mlrun.code_to_function(
-                filename=func,
+            kind = mlrun.run.RuntimeKinds.serving
+            func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+                project=self.name,
+                func=func,
+                application_class=application_class,
                 name=name,
-                project=self.metadata.name,
-                tag=tag,
-                kind=kind,
                 image=image,
+                tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                **application_kwargs,
             )
-            graph = func.set_topology("flow")
-            if isinstance(application_class, str):
-                first_step = graph.to(
-                    class_name=application_class, **application_kwargs
-                )
-            else:
-                first_step = graph.to(class_name=application_class)
-            first_step.to(
-                class_name="mlrun.model_monitoring.application.PushToMonitoringWriter",
-                name="PushToMonitoringWriter",
-                project=self.metadata.name,
-                writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
-            kind = "nuclio"
+            kind = mlrun.run.RuntimeKinds.nuclio
 
         (
             resolved_function_name,
@@ -1994,12 +1976,10 @@ class MlrunProject(ModelObj):
             requirements,
             requirements_file,
         )
-        models_names = "all"
         function_object.set_label(
             mm_constants.ModelMonitoringAppLabel.KEY,
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
-        function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
             function_object.apply(mlrun.mount_v3io())
@@ -2029,8 +2009,6 @@ class MlrunProject(ModelObj):
                                                 stream & histogram data drift functions, which are real time nuclio
                                                 functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-
-        :returns: model monitoring controller job as a dictionary.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2045,18 +2023,24 @@ class MlrunProject(ModelObj):
             project=self.name,
             image=image,
             base_period=base_period,
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
-        if deploy_histogram_data_drift_app:
-            fn = self.set_model_monitoring_function(
-                func=str(
-                    pathlib.Path(__file__).parent.parent
-                    / "model_monitoring/applications/histogram_data_drift.py"
-                ),
-                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
-                application_class="HistogramDataDriftApplication",
-                image=image,
-            )
-            fn.deploy()
+
+    def deploy_histogram_data_drift_app(
+        self,
+        *,
+        image: str = "mlrun/mlrun",
+        db: Optional[mlrun.db.RunDBInterface] = None,
+    ) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param image: The image on which the application will run.
+        :param db:    An optional DB object.
+        """
+        if db is None:
+            db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.deploy_histogram_data_drift_app(project=self.name, image=image)
 
     def update_model_monitoring_controller(
         self,
@@ -2081,26 +2065,28 @@ class MlrunProject(ModelObj):
             image=image,
         )
 
-    def disable_model_monitoring(self):
+    def disable_model_monitoring(
+        self, *, delete_histogram_data_drift_app: bool = True
+    ) -> None:
+        """
+        Note: This method is currently not advised for use. See ML-3432.
+        Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
+
+        :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.WRITER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.STREAM,
-        )
+        for fn_name in mm_constants.MonitoringFunctionNames.list():
+            db.delete_function(project=self.name, name=fn_name)
+        if delete_histogram_data_drift_app:
+            db.delete_function(
+                project=self.name, name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+            )
 
     def set_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
-        kind: str = "",
+        kind: str = "job",
         image: str = None,
         handler: str = None,
         with_repo: bool = None,
@@ -2747,40 +2733,41 @@ class MlrunProject(ModelObj):
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
-        """run a workflow using kubeflow pipelines
+        """Run a workflow using kubeflow pipelines
 
-        :param name:      name of the workflow
-        :param workflow_path:
-                          url to a workflow file, if not a project workflow
-        :param arguments:
-                          kubeflow pipelines arguments (parameters)
-        :param artifact_path:
-                          target path/url for workflow artifacts, the string
-                          '{{workflow.uid}}' will be replaced by workflow id
-        :param workflow_handler:
-                          workflow function handler (for running workflow function directly)
-        :param namespace: kubernetes namespace if other than default
-        :param sync:      force functions sync before run
-        :param watch:     wait for pipeline completion
-        :param dirty:     allow running the workflow when the git repo is dirty
-        :param engine:    workflow engine running the workflow.
-                          supported values are 'kfp' (default), 'local' or 'remote'.
-                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
-        :param local:     run local pipeline with local functions (set local=True in function.run())
+        :param name:                Name of the workflow
+        :param workflow_path:       URL to a workflow file, if not a project workflow
+        :param arguments:           Kubeflow pipelines arguments (parameters)
+        :param artifact_path:       Target path/URL for workflow artifacts, the string '{{workflow.uid}}' will be
+                                    replaced by workflow id.
+        :param workflow_handler:    Workflow function handler (for running workflow function directly)
+        :param namespace: Kubernetes namespace if other than default
+        :param sync:      Force functions sync before run
+        :param watch:     Wait for pipeline completion
+        :param dirty:     Allow running the workflow when the git repo is dirty
+        :param engine:    Workflow engine running the workflow.
+                          Supported values are 'kfp' (default), 'local' or 'remote'.
+                          For setting engine for remote running use 'remote:local' or 'remote:kfp'.
+        :param local:     Run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          for other engines the source is to validate that the code is up-to-date
+        :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          Can be a one of:
+                            1. Remote URL which is loaded dynamically to the workflow runner.
+                            2. A path to the project's context on the workflow runner's image.
+                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                          (enriched when building a project image with source, see `MlrunProject.build_image`).
+                          For other engines the source is used to validate that the code is up-to-date.
         :param cleanup_ttl:
-                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                          workflow and all its resources are deleted)
+                          Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          Workflow and all its resources are deleted)
         :param notifications:
-                          list of notifications to send for workflow completion
-        :returns: run id
+                          List of notifications to send for workflow completion
+        :returns: Run id
         """
 
         arguments = arguments or {}
@@ -3179,6 +3166,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         builder_env: dict = None,
         extra_args: str = None,
+        source_code_target_dir: str = None,
     ):
         """specify builder configuration for the project
 
@@ -3199,6 +3187,8 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param source_code_target_dir: Path on the image where source code would be extracted
+            (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
@@ -3222,6 +3212,7 @@ class MlrunProject(ModelObj):
             overwrite=overwrite_build_params,
             builder_env=builder_env,
             extra_args=extra_args,
+            source_code_target_dir=source_code_target_dir,
         )
 
         if set_as_default and image != self.default_image:
@@ -3268,7 +3259,7 @@ class MlrunProject(ModelObj):
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
@@ -3334,6 +3325,11 @@ class MlrunProject(ModelObj):
                 builder_env=builder_env,
                 extra_args=extra_args,
                 force_build=True,
+            )
+
+            # Get the enriched target dir from the function
+            self.spec.build.source_code_target_dir = (
+                function.spec.build.source_code_target_dir
             )
 
         try:

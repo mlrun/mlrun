@@ -673,9 +673,7 @@ class TestAllKindOfServing(TestMLRunSystem):
 
         futures_2 = []
         with ThreadPoolExecutor() as executor:
-            self.db = mlrun.model_monitoring.get_model_endpoint_store(
-                project=self.project_name
-            )
+            self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
             endpoints = self.db.list_model_endpoints()
             for endpoint in endpoints:
                 future = executor.submit(

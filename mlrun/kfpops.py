@@ -112,10 +112,7 @@ def write_kfpmeta(struct):
 
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
-    metadata = {
-        "outputs": output_artifacts
-        + [{"type": "markdown", "storage": "inline", "source": text}]
-    }
+    metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
     with open(os.path.join(KFPMETA_DIR, "mlpipeline-ui-metadata.json"), "w") as f:
         json.dump(metadata, f)
 

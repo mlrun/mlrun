@@ -3,7 +3,7 @@
 
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-MLRun supports multiple data stores. ((Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.)
+MLRun supports multiple data stores. (Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.)
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
@@ -79,7 +79,7 @@ remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
 ## Data store profiles
 
 ```{admonition} Notes
-- Datastore profiles are not part of a project export/import.
+Datastore profiles are not part of a project export/import.
 ```
 
 You can use a data store profile to manage datastore credentials. A data store profile 
@@ -257,6 +257,16 @@ You can set `HADOOP_USER_NAME` locally as follows:
 ```python
 import os
 os.environ["HADOOP_USER_NAME"] = "..."
+```
+
+To register an HDFS datastore profile and use it as described in [Data store profiles](#data-store-profiles), use:
+```python
+DatastoreProfileHdfs(
+    name="my-hdfs",
+    host=os.getenv("HDFS_HOST"),
+    port=int(os.getenv("HDFS_PORT")),
+    http_port=int(os.getenv("HDFS_HTTP_PORT")),
+)
 ```
 
 To set it on a function, use:

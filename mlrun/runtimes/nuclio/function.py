@@ -616,7 +616,7 @@ class RemoteRuntime(KubeResource):
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
             try:
-                text, last_log_timestamp = db.get_builder_status(
+                text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
             except mlrun.db.RunDBError:

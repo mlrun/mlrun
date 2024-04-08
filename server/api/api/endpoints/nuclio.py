@@ -18,7 +18,7 @@ import typing
 from http import HTTPStatus
 
 import sqlalchemy.orm
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
@@ -31,6 +31,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
@@ -342,6 +343,49 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
     return secret_value
 
 
+def create_model_monitoring_stream(
+    project: str,
+    stream_path: str,
+    monitoring_application: bool = None,
+    access_key: str = None,
+):
+    if stream_path.startswith("v3io://"):
+        import v3io.dataplane
+
+        _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+        # TODO: How should we configure sharding here?
+        logger.info(
+            "Creating stream",
+            project=project,
+            stream_path=stream_path,
+            container=container,
+            endpoint=mlrun.mlconf.v3io_api,
+        )
+
+        v3io_client = v3io.dataplane.Client(
+            endpoint=mlrun.mlconf.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+        )
+        stream_args = (
+            mlrun.mlconf.model_endpoint_monitoring.application_stream_args
+            if monitoring_application
+            else mlrun.mlconf.model_endpoint_monitoring.serving_stream_args
+        )
+        response = v3io_client.stream.create(
+            container=container,
+            stream_path=stream_path,
+            shard_count=stream_args.shard_count,
+            retention_period_hours=stream_args.retention_period_hours,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            access_key=access_key
+            if monitoring_application
+            else os.environ.get("V3IO_ACCESS_KEY"),
+        )
+
+        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            response.raise_for_status([409, 204])
+
+
 def _deploy_function(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.common.schemas.AuthInfo,
@@ -421,7 +465,7 @@ def _deploy_nuclio_runtime(
             auth_info=auth_info,
             db_session=db_session,
             model_monitoring_access_key=model_monitoring_access_key,
-        )._apply_and_create_stream_trigger(
+        ).apply_and_create_stream_trigger(
             function=fn,
             function_name=fn.metadata.name,
         )
@@ -459,3 +503,110 @@ def _init_serving_function_stream_args(fn: mlrun.runtimes.ServingRuntime):
         }
 
     fn.save(versioned=True)
+
+
+def _handle_nuclio_deploy_status(
+    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
+):
+    (
+        state,
+        _,
+        nuclio_name,
+        last_log_timestamp,
+        text,
+        status,
+    ) = server.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
+        name,
+        project,
+        tag,
+        # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+        last_log_timestamp=last_log_timestamp or 1.0,
+        verbose=verbose,
+        auth_info=auth_info,
+    )
+    if state in ["ready", "scaledToZero"]:
+        logger.info("Nuclio function deployed successfully", name=name)
+    if state in ["error", "unhealthy"]:
+        logger.error(f"Nuclio deploy error, {text}", name=name)
+
+    internal_invocation_urls = status.get("internalInvocationUrls", [])
+    external_invocation_urls = status.get("externalInvocationUrls", [])
+
+    # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+    # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+    # and hence, for BC it would be filled with the external invocation url first item
+    # or completely empty.
+    address = external_invocation_urls[0] if external_invocation_urls else ""
+
+    # the built and pushed image name used to run the nuclio function container
+    container_image = status.get("containerImage", "")
+
+    # we don't want to store the function on all requests to get the deploy status, therefore we verify
+    # that changes were actually made and if that's the case then we store the function
+    if _is_nuclio_deploy_status_changed(
+        previous_status=fn.get("status", {}),
+        new_status=status,
+        new_state=state,
+        new_nuclio_name=nuclio_name,
+    ):
+        mlrun.utils.update_in(fn, "status.nuclio_name", nuclio_name)
+        mlrun.utils.update_in(
+            fn, "status.internal_invocation_urls", internal_invocation_urls
+        )
+        mlrun.utils.update_in(
+            fn, "status.external_invocation_urls", external_invocation_urls
+        )
+        mlrun.utils.update_in(fn, "status.state", state)
+        mlrun.utils.update_in(fn, "status.address", address)
+        mlrun.utils.update_in(fn, "status.container_image", container_image)
+
+        versioned = False
+        if state == "ready":
+            # Versioned means the version will be saved in the DB forever, we don't want to spam
+            # the DB with intermediate or unusable versions, only successfully deployed versions
+            versioned = True
+        server.api.crud.Functions().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+        )
+
+    return Response(
+        content=text,
+        media_type="text/plain",
+        headers={
+            "x-mlrun-function-status": state,
+            "x-mlrun-last-timestamp": str(last_log_timestamp),
+            "x-mlrun-address": address,
+            "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+            "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
+            "x-mlrun-container-image": container_image,
+            "x-mlrun-name": nuclio_name,
+        },
+    )
+
+
+def _is_nuclio_deploy_status_changed(
+    previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
+) -> bool:
+    # get relevant fields from the new status
+    new_container_image = new_status.get("containerImage", "")
+    new_internal_invocation_urls = new_status.get("internalInvocationUrls", [])
+    new_external_invocation_urls = new_status.get("externalInvocationUrls", [])
+    address = new_external_invocation_urls[0] if new_external_invocation_urls else ""
+
+    # Determine if any of the relevant fields have changed
+    has_changed = (
+        previous_status.get("nuclio_name", "") != new_nuclio_name
+        or previous_status.get("state") != new_state
+        or previous_status.get("container_image", "") != new_container_image
+        or previous_status.get("internal_invocation_urls", [])
+        != new_internal_invocation_urls
+        or previous_status.get("external_invocation_urls", [])
+        != new_external_invocation_urls
+        or previous_status.get("address", "") != address
+    )
+    return has_changed

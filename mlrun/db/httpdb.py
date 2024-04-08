@@ -1413,6 +1413,67 @@ class HTTPRunDB(RunDBInterface):
                 default_docker_registry=config.httpdb.builder.docker_registry,
             )
 
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        """Retrieve the status of a deploy operation currently in progress.
+
+        :param func:                Function object that is being built.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+
+        :returns: The following parameters:
+
+            - Text of builder logs.
+            - Timestamp of last log retrieved, to be used in subsequent calls to this function.
+
+            The function also updates internal members of the ``func`` object to reflect build process info.
+        """
+
+        try:
+            params = {
+                "name": normalize_name(func.metadata.name),
+                "project": func.metadata.project,
+                "tag": func.metadata.tag,
+                "last_log_timestamp": str(last_log_timestamp),
+                "verbose": bool2str(verbose),
+            }
+            _path = f"projects/{func.metadata.project}/functions/{func.metadata.name}/deploy"
+            resp = self.api_call("GET", _path, params=params)
+        except OSError as err:
+            logger.error(f"error getting deploy status: {err_to_str(err)}")
+            raise OSError(f"error: cannot get deploy status, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.warning(f"failed resp, {resp.text}")
+            raise RunDBError("bad function build response")
+
+        if resp.headers:
+            func.status.state = resp.headers.get("x-mlrun-function-status", "")
+            last_log_timestamp = float(
+                resp.headers.get("x-mlrun-last-timestamp", "0.0")
+            )
+            func.status.address = resp.headers.get("x-mlrun-address", "")
+            func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+            func.status.internal_invocation_urls = resp.headers.get(
+                "x-mlrun-internal-invocation-urls", ""
+            ).split(",")
+            func.status.external_invocation_urls = resp.headers.get(
+                "x-mlrun-external-invocation-urls", ""
+            ).split(",")
+            func.status.container_image = resp.headers.get(
+                "x-mlrun-container-image", ""
+            )
+
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_log_timestamp
+
     def get_builder_status(
         self,
         func: BaseRuntime,

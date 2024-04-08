@@ -1451,7 +1451,7 @@ class KubeResource(BaseRuntime):
         db = self._get_db()
         offset = 0
         try:
-            text, _ = db.get_builder_status(self, 0, logs=logs, mlrun_build=mlrun_build)
+            text, _ = db.get_builder_status(self, 0, logs=logs)
         except mlrun.db.RunDBError:
             raise ValueError("function or build process not found")
 

@@ -409,6 +409,21 @@ class RunDBMock:
     ):
         return "ready", last_log_timestamp
 
+    def deploy_nuclio_function(
+        self,
+        func,
+        builder_env: Optional[dict] = None,
+    ):
+        return self.remote_builder(func, False)
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        return "ready", last_log_timestamp
+
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
             update_in(self._runs[uid], key, value)
@@ -601,11 +616,8 @@ class RemoteBuilderMock:
     def __init__(self):
         def _remote_builder_handler(
             func: mlrun.runtimes.BaseRuntime,
-            with_mlrun,
-            mlrun_version_specifier=None,
-            skip_deployed=False,
-            builder_env=None,
-            force_build=False,
+            *args,
+            **kwargs,
         ):
             # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
             # it overrides the mock args - this way the value will remain as it was.
@@ -627,6 +639,9 @@ class RemoteBuilderMock:
             }
 
         self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+        self.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_builder_handler
+        )
 
     def get_build_config_and_target_dir(self):
         self.remote_builder.assert_called_once()
@@ -642,6 +657,15 @@ class RemoteBuilderMock:
         logs=True,
         last_log_timestamp=0,
         verbose=False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
         return "ready", last_log_timestamp

@@ -644,6 +644,14 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        pass
+
     def set_run_notifications(
         self,
         project: str,

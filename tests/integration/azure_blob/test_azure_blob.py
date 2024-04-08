@@ -79,7 +79,7 @@ class TestAzureBlob:
     profile_name = "azure_blob_ds_profile"
     test_dir = "test_mlrun_azure_blob"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
-    _bucket_name = config["env"].get("AZURE_CONTAINER", None)
+    bucket_name = config["env"].get("AZURE_CONTAINER", None)
     test_file = os.path.join(assets_path, "test.txt")
 
     @classmethod
@@ -90,7 +90,7 @@ class TestAzureBlob:
 
     @classmethod
     def teardown_class(cls):
-        test_dir = f"{cls._bucket_name}/{cls.test_dir}"
+        test_dir = f"{cls.bucket_name}/{cls.test_dir}"
         if not cls._azure_fs:
             return
         if cls._azure_fs.exists(test_dir):
@@ -102,7 +102,7 @@ class TestAzureBlob:
         #  Create filesystem object only once - for teardown_class method.
         if not cls._azure_fs:
             azure_fs = AzureBlobFileSystem(storage_options)
-            azure_fs.info(cls._bucket_name)  # in order to check connection ...
+            azure_fs.info(cls.bucket_name)  # in order to check connection ...
             cls._azure_fs = azure_fs
 
     @pytest.fixture(autouse=True)
@@ -116,9 +116,9 @@ class TestAzureBlob:
 
         test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
         if use_datastore_profile:
-            self._bucket_url = f"ds://{self.profile_name}/{self._bucket_name}"
+            self._bucket_url = f"ds://{self.profile_name}/{self.bucket_name}"
         else:
-            self._bucket_url = f"az://{self._bucket_name}"
+            self._bucket_url = f"az://{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{self.object_file}"
 

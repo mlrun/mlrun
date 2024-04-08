@@ -59,7 +59,7 @@ def google_cloud_storage_configured():
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-    _bucket_name = config["env"].get("bucket_name")
+    bucket_name = config["env"].get("bucket_name")
     test_dir = "test_mlrun_gcs_objects"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
     profile_name = "gcs_profile"
@@ -72,7 +72,7 @@ class TestGoogleCloudStorage:
             "credentials_file": cls._setup_by_google_credentials_file,
             "serialized_json": cls._setup_by_serialized_json_content,
         }
-        full_test_dir = f"{cls._bucket_name}/{cls.test_dir}/"
+        full_test_dir = f"{cls.bucket_name}/{cls.test_dir}/"
         if cls._gcs_fs.exists(full_test_dir):
             cls._gcs_fs.delete(full_test_dir, recursive=True)
 
@@ -110,9 +110,9 @@ class TestGoogleCloudStorage:
         os.environ.pop("GCP_CREDENTIALS", None)
         remove_temporary_client_datastore_profile(self.profile_name)
         self._bucket_path = (
-            f"ds://{self.profile_name}/{self._bucket_name}"
+            f"ds://{self.profile_name}/{self.bucket_name}"
             if use_datastore_profile
-            else f"gcs://{self._bucket_name}"
+            else f"gcs://{self.bucket_name}"
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
         self._object_url = f"{self.run_dir_url}{object_file}"

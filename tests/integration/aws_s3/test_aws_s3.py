@@ -58,7 +58,7 @@ def aws_s3_configured(extra_params=None):
 class TestAwsS3:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
     env = config["env"]
-    _bucket_name = env.get("bucket_name")
+    bucket_name = env.get("bucket_name")
     _access_key_id = env.get("AWS_ACCESS_KEY_ID")
     _secret_access_key = env.get("AWS_SECRET_ACCESS_KEY")
     profile_name = "s3ds_profile"
@@ -76,7 +76,7 @@ class TestAwsS3:
 
     @classmethod
     def teardown_class(cls):
-        test_dir = f"{cls._bucket_name}{cls.test_dir}"
+        test_dir = f"{cls.bucket_name}{cls.test_dir}"
         if not cls._fs:
             return
         if cls._fs.exists(test_dir):
@@ -106,7 +106,7 @@ class TestAwsS3:
             os.environ["AWS_ACCESS_KEY_ID"] = self._access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
             prefix_path = "s3://"
-        self._bucket_path = f"{prefix_path}{self._bucket_name}"
+        self._bucket_path = f"{prefix_path}{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
         self._object_url = f"{self.run_dir_url}{object_file}"

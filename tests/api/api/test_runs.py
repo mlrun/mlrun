@@ -525,8 +525,15 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
 
 
 def test_list_runs_with_pagination(db: Session, client: TestClient):
+    """
+    Test list runs with pagination.
+    Create 25 runs, request the first page, then use token to request 2nd and 3rd pages.
+    3rd page will contain only 5 runs instead of 10.
+    The 4th request with the token will return 404 as the token is now expired.
+    Requesting the 4th page without token will return 0 runs.
+    """
     # Create runs
-    number_of_runs = 50
+    number_of_runs = 25
     project = "my_project"
     for counter in range(number_of_runs):
         uid = f"uid_{counter}"
@@ -555,7 +562,7 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     )
     assert pagination["page"] == 1
     assert pagination["page-size"] == 10
-    assert runs[0]["metadata"]["name"] == "run_49"
+    assert runs[0]["metadata"]["name"] == "run_24"
 
     token = pagination["token"]
     runs, pagination = _list_and_assert_objects(
@@ -568,7 +575,42 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     )
     assert pagination["page"] == 2
     assert pagination["page-size"] == 10
-    assert runs[0]["metadata"]["name"] == "run_39"
+    assert runs[0]["metadata"]["name"] == "run_14"
+
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page-token": token,
+        },
+        5,
+        project=project,
+    )
+    assert pagination["page"] == 3
+    assert pagination["page-size"] == 10
+    assert runs[0]["metadata"]["name"] == "run_4"
+
+    response = client.get(
+        RUNS_API_ENDPOINT.format(project=project),
+        params={
+            "page-token": token,
+        },
+    )
+    # token is expired
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "page": 4,
+            "page-size": 10,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
+        },
+        0,
+        project=project,
+    )
+    assert not runs
 
 
 def test_delete_runs_with_permissions(db: Session, client: TestClient):

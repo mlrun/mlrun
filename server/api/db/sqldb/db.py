@@ -399,6 +399,8 @@ class SQLDB(DBInterface):
 
         if page is not None:
             page_size = page_size or config.httpdb.pagination.default_page_size
+            if query.count() < page_size * (page - 1):
+                raise StopIteration
             query = query.limit(page_size).offset((page - 1) * page_size)
 
         if not return_as_run_structs:

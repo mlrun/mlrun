@@ -40,11 +40,12 @@ class TestV3ioDataStore(TestMLRunSystem):
     test_dir_url = f"v3io://{test_dir}"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
     profile_name = "v3io_ds_profile"
+    token = os.environ.get("V3IO_ACCESS_KEY")
 
     @classmethod
     def setup_class(cls):
         super().setup_class()
-        cls.token = os.environ.get("V3IO_ACCESS_KEY")
+
         assets_path = str(cls.get_assets_path())
         cls.test_file_path = os.path.join(assets_path, "test.txt")
         test_parquet_path = os.path.join(assets_path, "test_data.parquet")

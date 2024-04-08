@@ -182,6 +182,9 @@ async def delete_run(
 
 
 # TODO: remove /runs in 1.8.0
+# convert_query_params_to_snake_case is used to allow the use of kebab-case query parameters
+# while the schemas are defined as snake_case. This is a workaround until FastAPI supports
+# using aliases in pydantic schemas using the Field class. See https://github.com/tiangolo/fastapi/discussions/8780
 @router.get(
     "/runs",
     deprecated=True,

@@ -19,10 +19,10 @@ from starlette.datastructures import MultiDict
 def convert_query_params_to_snake_case(request: Request) -> None:
     query_params = request.query_params
     new_params = MultiDict()
-    for k, v in query_params.multi_items():
-        if "-" in k:
-            snake = "_".join(k.split("-"))
-            new_params.append(snake, v)
+    for key, value in query_params.multi_items():
+        if "-" in key:
+            snake_key = key.replace("-", "_")
+            new_params.append(snake_key, value)
         else:
-            new_params.append(k, v)
+            new_params.append(key, value)
     request._query_params = new_params

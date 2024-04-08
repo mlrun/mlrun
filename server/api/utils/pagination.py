@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import typing
 
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -27,15 +29,14 @@ from mlrun.utils import logger
 class PaginatedMethods:
     _methods: list[typing.Callable] = [
         # TODO: add methods when they implement pagination
-        # server.api.crud.Runs().list_runs,
+        server.api.crud.Runs().list_runs,
     ]
     _method_map = {method.__name__: method for method in _methods}
 
     @classmethod
     def method_is_supported(cls, method: typing.Union[str, typing.Callable]) -> bool:
-        if isinstance(method, str):
-            return method in cls._method_map
-        return method in cls._methods
+        method_name = method if isinstance(method, str) else method.__name__
+        return method_name in cls._method_map
 
     @classmethod
     def get_method(cls, method_name: str) -> typing.Callable:
@@ -70,7 +71,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         result = []
 
         while not page_size or len(result) < page_size:
-            new_result, pagination_info = self.paginate_request(
+            new_result, pagination_info = await self.paginate_request(
                 session,
                 method,
                 auth_info,
@@ -79,7 +80,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
-            new_result = await filter_(new_result)
+            new_result = await self._call_or_await_method(False, filter_, new_result)
             result.extend(new_result)
 
             if not pagination_info:
@@ -88,11 +89,11 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
             last_pagination_info = pagination_info
             current_page = last_pagination_info["page"] + 1
-            page_size = last_pagination_info["page_size"]
+            page_size = last_pagination_info["page-size"]
 
         return result, last_pagination_info
 
-    def paginate_request(
+    async def paginate_request(
         self,
         session: sqlalchemy.orm.Session,
         method: typing.Callable,
@@ -109,7 +110,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
         if page_size is None and token is None:
             self._logger.debug("No token or page size provided, returning all records")
-            return method(**method_kwargs), {}
+            return await self._call_or_await_method(
+                True, method, session, **method_kwargs
+            ), {}
 
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
@@ -132,15 +135,23 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size=page_size,
                 method=method.__name__,
             )
-            return method(**method_kwargs, page=page, page_size=page_size), {
+            return await self._call_or_await_method(
+                True, method, session, **method_kwargs, page=page, page_size=page_size
+            ), {
                 "token": token,
                 "page": page,
-                "page_size": page_size,
+                "page-size": page_size,
             }
-        except StopIteration:
-            self._logger.debug("End of pagination", token=token, method=method.__name__)
-            self._pagination_cache.delete_pagination_cache_record(session, key=token)
-            return [], {}
+        except (RuntimeError, StopIteration) as exc:
+            if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
+                self._logger.debug(
+                    "End of pagination", token=token, method=method.__name__
+                )
+                self._pagination_cache.delete_pagination_cache_record(
+                    session, key=token
+                )
+                return [], {}
+            raise
 
     def _create_or_update_pagination_cache_record(
         self,
@@ -164,7 +175,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                     f"Token {token} not found in pagination cache"
                 )
             method = PaginatedMethods.get_method(pagination_cache_record.function)
-            method_kwargs = pagination_cache_record.kwargs
+            method_kwargs = pagination_cache_record.method_kwargs
             page = page or pagination_cache_record.current_page + 1
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user
@@ -190,3 +201,13 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             kwargs=method_kwargs,
         )
         return token, page, page_size, method, method_kwargs
+
+    @staticmethod
+    async def _call_or_await_method(
+        in_thread_pool: bool, method: typing.Callable, *args, **kwargs
+    ) -> typing.Any:
+        if asyncio.iscoroutinefunction(method):
+            return await method(*args, **kwargs)
+        if in_thread_pool:
+            return await run_in_threadpool(method, *args, **kwargs)
+        return method(*args, **kwargs)

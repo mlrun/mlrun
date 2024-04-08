@@ -348,6 +348,8 @@ class SQLDB(DBInterface):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -394,6 +396,11 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+
+        if page is not None:
+            page_size = page_size or config.httpdb.pagination.default_page_size
+            query = query.limit(page_size).offset((page - 1) * page_size)
+
         if not return_as_run_structs:
             return query.all()
 
@@ -4661,9 +4668,9 @@ class SQLDB(DBInterface):
                 function=function,
                 current_page=current_page,
                 page_size=page_size,
-                kwargs=kwargs,
                 last_accessed=datetime.now(timezone.utc),
             )
+            param_record.method_kwargs = kwargs
 
         self._upsert(session, [param_record])
         return key

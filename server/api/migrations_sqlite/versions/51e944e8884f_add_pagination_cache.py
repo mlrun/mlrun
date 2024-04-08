@@ -39,7 +39,7 @@ def upgrade():
         sa.Column("function", sa.String(length=255), nullable=True),
         sa.Column("current_page", sa.Integer(), nullable=True),
         sa.Column("page_size", sa.Integer(), nullable=True),
-        sa.Column("kwargs", sa.JSON(), nullable=True),
+        sa.Column("kwargs", sa.BLOB(), nullable=True),
         sa.Column("last_accessed", sa.TIMESTAMP(), nullable=True),
         sa.PrimaryKeyConstraint("key"),
     )

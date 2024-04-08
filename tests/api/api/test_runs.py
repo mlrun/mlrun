@@ -524,6 +524,53 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
         expected_uids.remove(run["metadata"]["uid"])
 
 
+def test_list_runs_with_pagination(db: Session, client: TestClient):
+    # Create runs
+    number_of_runs = 50
+    project = "my_project"
+    for counter in range(number_of_runs):
+        uid = f"uid_{counter}"
+        name = f"run_{counter}"
+        run = {
+            "metadata": {
+                "name": name,
+                "uid": uid,
+                "project": project,
+            },
+        }
+        server.api.crud.Runs().store_run(db, run, uid, project=project)
+
+    # Test pagination
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page": 1,
+            "page-size": 10,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
+        },
+        10,
+        project=project,
+    )
+    assert pagination["page"] == 1
+    assert pagination["page-size"] == 10
+    assert runs[0]["metadata"]["name"] == "run_49"
+
+    token = pagination["token"]
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page-token": token,
+        },
+        10,
+        project=project,
+    )
+    assert pagination["page"] == 2
+    assert pagination["page-size"] == 10
+    assert runs[0]["metadata"]["name"] == "run_39"
+
+
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
     server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.AsyncMock()
@@ -875,8 +922,13 @@ def _list_and_assert_objects(
     response = client.get(RUNS_API_ENDPOINT.format(project=project), params=params)
     assert response.status_code == HTTPStatus.OK.value, response.text
 
+    response_json = response.json()
     runs = response.json()["runs"]
     assert len(runs) == expected_number_of_runs
+
+    if "pagination" in response_json and response_json["pagination"]:
+        return runs, response_json["pagination"]
+
     return runs
 
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import datetime
+import typing
 import uuid
 from http import HTTPStatus
 
@@ -24,6 +25,7 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
+import server.api.utils.pagination
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 from mlrun.utils.helpers import datetime_from_iso
@@ -213,6 +215,9 @@ async def list_runs(
     ),
     max_partitions: int = Query(0, alias="max-partitions", ge=0),
     with_notifications: bool = Query(False, alias="with-notifications"),
+    page_token: typing.Optional[str] = Query(None, alias="page-token"),
+    page: typing.Optional[int] = Query(None, ge=1),
+    page_size: typing.Optional[int] = Query(None, ge=1, alias="page-size"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -244,39 +249,57 @@ async def list_runs(
         partition_by = mlrun.common.schemas.RunPartitionByField.name
         partition_sort_by = mlrun.common.schemas.SortField.updated
 
-    runs = await run_in_threadpool(
-        server.api.crud.Runs().list_runs,
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def _filter_runs(_runs):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            _runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
+
+    runs, page_info = await paginator.paginate_permission_filtered_request(
         db_session,
-        name,
-        uid,
-        project,
-        labels,
-        [state] if state is not None else None,
-        sort,
-        last,
-        iter,
-        datetime_from_iso(start_time_from),
-        datetime_from_iso(start_time_to),
-        datetime_from_iso(last_update_time_from),
-        datetime_from_iso(last_update_time_to),
-        partition_by,
-        rows_per_partition,
-        partition_sort_by,
-        partition_order,
-        max_partitions,
+        server.api.crud.Runs().list_runs,
+        _filter_runs,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        name=name,
+        uid=uid,
+        project=project,
+        labels=labels,
+        states=[state] if state is not None else None,
+        sort=sort,
+        last=last,
+        iter=iter,
+        start_time_from=datetime_from_iso(start_time_from),
+        start_time_to=datetime_from_iso(start_time_to),
+        last_update_time_from=datetime_from_iso(last_update_time_from),
+        last_update_time_to=datetime_from_iso(last_update_time_to),
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
+        max_partitions=max_partitions,
         with_notifications=with_notifications,
     )
-    filtered_runs = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.run,
-        runs,
-        lambda run: (
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            run.get("metadata", {}).get("uid"),
-        ),
-        auth_info,
+    logger.debug(
+        "Runs list response",
+        runs=runs,
+        page_info=page_info,
+        partition_by=partition_by,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
     )
     return {
-        "runs": filtered_runs,
+        "runs": runs,
+        "pagination": page_info,
     }
 
 

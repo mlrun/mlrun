@@ -141,6 +141,8 @@ class Runs(
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_runs(
@@ -165,6 +167,8 @@ class Runs(
             requested_logs=requested_logs,
             return_as_run_structs=return_as_run_structs,
             with_notifications=with_notifications,
+            page=page,
+            page_size=page_size,
         )
 
     async def delete_run(

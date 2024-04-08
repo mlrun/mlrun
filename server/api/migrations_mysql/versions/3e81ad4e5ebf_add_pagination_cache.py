@@ -21,6 +21,7 @@ Create Date: 2024-03-26 09:58:40.044072
 """
 
 import sqlalchemy as sa
+import sqlalchemy.dialects.mysql
 from alembic import op
 from sqlalchemy.dialects import mysql
 
@@ -42,7 +43,7 @@ def upgrade():
         ),
         sa.Column("current_page", sa.Integer(), nullable=True),
         sa.Column("page_size", sa.Integer(), nullable=True),
-        sa.Column("kwargs", sa.JSON(), nullable=True),
+        sa.Column("kwargs", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("last_accessed", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("key"),
     )

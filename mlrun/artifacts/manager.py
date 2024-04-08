@@ -87,7 +87,7 @@ legacy_artifact_types = {
 
 
 class ArtifactProducer:
-    def __init__(self, kind, project, name, tag=None, owner=None, is_retained=False):
+    def __init__(self, kind, project, name, tag=None, owner=None):
         self.kind = kind
         self.project = project
         self.name = name
@@ -96,7 +96,6 @@ class ArtifactProducer:
         self.uri = "/"
         self.iteration = 0
         self.inputs = {}
-        self.is_retained = is_retained
 
     def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
@@ -182,6 +181,7 @@ class ArtifactManager:
         labels=None,
         db_key=None,
         project=None,
+        is_retained_producer=None,
         **kwargs,
     ) -> Artifact:
         """
@@ -205,6 +205,8 @@ class ArtifactManager:
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
         :param project: The project to log the artifact to. If not provided, will use the producer's project.
+        :param is_retained_producer: Whether the producer is retained or not. Relevant to register artifacts flow
+        where a project logs artifacts which were produced by another producer.
         :param kwargs: Arguments to pass to the artifact class.
         :return: The logged artifact.
         """
@@ -229,7 +231,7 @@ class ArtifactManager:
 
         if db_key is None:
             # set the default artifact db key
-            if producer.kind == "run" and not getattr(producer, "is_retained", False):
+            if producer.kind == "run" and not is_retained_producer:
                 # When the producer's type is "run,"
                 # we generate a different db_key than the one we obtained in the request.
                 # As a result, a new artifact for the requested key will be created,
@@ -256,6 +258,8 @@ class ArtifactManager:
         item.iter = producer.iteration
         project = project or producer.project
         item.project = project
+        if is_retained_producer:
+            target_path = target_path or item.target_path
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
@@ -290,7 +294,9 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = template_artifact_path(artifact_path=target_path, project=project)
+        target_path = template_artifact_path(
+            artifact_path=target_path, project=producer.project
+        )
         item.target_path = target_path
 
         item.before_log()

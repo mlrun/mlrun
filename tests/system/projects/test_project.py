@@ -1221,6 +1221,9 @@ class TestProject(TestMLRunSystem):
             not in mlrun.runtimes.constants.RunStates.error_states()
         )
 
+        exported_artifact = project_2.get_artifact(new_artifact_key)
+        assert exported_artifact.target_path == artifact.target_path
+
     def test_load_project_with_artifact_db_key(self):
         project_1_name = "test-load-with-artifact"
         project_2_name = project_1_name + "-2"

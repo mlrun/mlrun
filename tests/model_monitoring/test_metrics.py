@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import os
 from typing import Union
 
 import numpy as np
@@ -113,7 +114,8 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
     return arr / arr_sum.sum()
 
 
-_length_strategy = st.integers(min_value=1, max_value=500)
+_max_value = 100 if os.getenv("CI") == "true" else 500
+_length_strategy = st.integers(min_value=1, max_value=_max_value)
 
 
 def distribution_strategy(

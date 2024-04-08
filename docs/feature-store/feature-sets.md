@@ -77,7 +77,7 @@ Typical code, from defining the feature set through ingesting its data:
 ```
 # Flag the feature set as passthrough
 my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
-csv_source = CSVSource("my_csv", path="data.csv"), time_field="timestamp")
+csv_source = CSVSource("my_csv", path="data.csv")
 # Ingest the source data, but only to online/nosql target
 my_fset.ingest(csv_source) 
 vector = fstore.FeatureVector("myvector", features=[f"my_fset"])

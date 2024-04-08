@@ -389,6 +389,8 @@ def import_function_to_dict(url, secrets=None):
     code = get_in(runtime, "spec.build.functionSourceCode")
     update_in(runtime, "metadata.build.code_origin", url)
     cmd = code_file = get_in(runtime, "spec.command", "")
+    # use kind = "job" by default if not specified
+    runtime.setdefault("kind", "job")
     if " " in cmd:
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:

@@ -11,21 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+env:
+  # Bucket name
+  bucket_name:
+  # Access key parameters as created by ALIBABA
+  ALIBABA_ACCESS_KEY_ID:
+  ALIBABA_SECRET_ACCESS_KEY:
+  ALIBABA_ENDPOINT_URL:
 
-import enum
-
-
-# TODO: From python 3.11 StrEnum is built-in and this will not be needed
-class StrEnum(str, enum.Enum):
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
-
-
-# Partial backport from Python 3.11
-# https://docs.python.org/3/library/http.html#http.HTTPMethod
-class HTTPMethod(StrEnum):
-    GET = "GET"
-    POST = "POST"

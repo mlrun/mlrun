@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import os.path
 import pathlib
@@ -2023,3 +2023,50 @@ def test_load_project_dir(project_file_name, expectation):
             assert project.name == "pipe2"
     finally:
         shutil.rmtree(project_dir)
+
+
+class TestModelMonitoring:
+    """Test model monitoring project methods"""
+
+    @staticmethod
+    @pytest.fixture
+    def project() -> mlrun.projects.MlrunProject:
+        return unittest.mock.Mock()  # spec_set=mlrun.projects.MlrunProject)
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("delete_app", "expected_deleted_fns"),
+        [
+            (
+                True,
+                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list()
+                + [
+                    mlrun.common.schemas.model_monitoring.constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                ],
+            ),
+            (
+                False,
+                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list(),
+            ),
+        ],
+    )
+    def test_disable(
+        project: mlrun.projects.MlrunProject,
+        delete_app: bool,
+        expected_deleted_fns: list[str],
+    ) -> None:
+        db_mock = unittest.mock.Mock(spec=mlrun.db.RunDBInterface)
+        with unittest.mock.patch(
+            "mlrun.db.get_run_db", unittest.mock.Mock(return_value=db_mock)
+        ):
+            mlrun.projects.MlrunProject.disable_model_monitoring(
+                project, delete_histogram_data_drift_app=delete_app
+            )
+
+        deleted_fns = [
+            call_args.kwargs["name"]
+            for call_args in db_mock.delete_function.call_args_list
+        ]
+        assert (
+            deleted_fns == expected_deleted_fns
+        ), "The deleted functions are different than expexted"

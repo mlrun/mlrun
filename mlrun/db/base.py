@@ -649,7 +649,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def deploy_nuclio_function(
         self,
-        func: mlrun.runtimes.RemoteRuntime,
+        func: "mlrun.runtimes.RemoteRuntime",
         builder_env: Optional[dict] = None,
     ):
         pass

@@ -260,7 +260,7 @@ class APIGateway:
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
-        state = api_gateway.status.state
+        state = api_gateway.status.state if api_gateway.status else mlrun.common.schemas.APIGatewayState.none
         api_gateway = cls(
             project=project,
             description=api_gateway.spec.description,

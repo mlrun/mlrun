@@ -3299,16 +3299,48 @@ class MlrunProject(ModelObj):
                 overwrite_build_params=overwrite_build_params,
             )
 
-            return mlrun.runtimes.utils.build_image(
-                build=self.spec.build,
-                source=self.spec.source,
-                load_source_on_run=self.spec.load_source_on_run,
-                target_dir=target_dir,
+            function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+            if self.spec.source and not self.spec.load_source_on_run:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    target_dir=target_dir,
+                    pull_at_runtime=False,
+                )
+
+            build = self.spec.build
+            result = self.build_function(
+                function=function,
+                with_mlrun=build.with_mlrun,
+                image=build.image,
+                base_image=build.base_image,
+                commands=build.commands,
+                secret_name=build.secret,
+                requirements=build.requirements,
                 overwrite_build_params=overwrite_build_params,
                 mlrun_version_specifier=mlrun_version_specifier,
                 builder_env=builder_env,
                 extra_args=extra_args,
+                force_build=True,
             )
+
+            # Get the enriched target dir from the function
+            self.spec.build.source_code_target_dir = (
+                function.spec.build.source_code_target_dir
+            )
+
+        try:
+            mlrun.db.get_run_db(secrets=self._secrets).delete_function(
+                name=function.metadata.name
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
+                " To remove the function, attempt to manually delete it.",
+                exc=repr(exc),
+            )
+
+        return result
 
     def deploy_function(
         self,

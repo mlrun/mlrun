@@ -15,6 +15,7 @@ import copy
 import inspect
 import os
 import re
+import time
 import typing
 from enum import Enum
 
@@ -1387,6 +1388,106 @@ class KubeResource(BaseRuntime):
                 "with_mlrun=False to skip if its already in the image"
             )
         return with_mlrun
+
+    def _build_image(
+        self,
+        builder_env,
+        force_build,
+        mlrun_version_specifier,
+        show_on_failure,
+        skip_deployed,
+        watch,
+        is_kfp,
+        with_mlrun,
+    ):
+        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
+        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
+        if is_kfp:
+            watch = True
+
+        db = self._get_db()
+        data = db.remote_builder(
+            self,
+            with_mlrun,
+            mlrun_version_specifier,
+            skip_deployed,
+            builder_env=builder_env,
+            force_build=force_build,
+        )
+        self.status = data["data"].get("status", None)
+        self.spec.image = mlrun.utils.get_in(
+            data, "data.spec.image"
+        ) or mlrun.utils.get_in(data, "data.spec.build.image")
+        self.spec.build.base_image = self.spec.build.base_image or mlrun.utils.get_in(
+            data, "data.spec.build.base_image"
+        )
+        # Get the source target dir in case it was enriched due to loading source
+        self.spec.build.source_code_target_dir = mlrun.utils.get_in(
+            data, "data.spec.build.source_code_target_dir"
+        ) or mlrun.utils.get_in(data, "data.spec.clone_target_dir")
+        ready = data.get("ready", False)
+        if not ready:
+            logger.info(
+                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+            )
+        if watch and not ready:
+            state = self._build_watch(
+                watch=watch,
+                show_on_failure=show_on_failure,
+                mlrun_build=True,
+            )
+            ready = state == "ready"
+            self.status.state = state
+
+        if watch and not ready:
+            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
+        return ready
+
+    def _build_watch(
+        self,
+        watch: bool = True,
+        logs: bool = True,
+        show_on_failure: bool = False,
+        mlrun_build: typing.Optional[bool] = None,
+    ):
+        db = self._get_db()
+        offset = 0
+        try:
+            text, _ = db.get_builder_status(self, 0, logs=logs, mlrun_build=mlrun_build)
+        except mlrun.db.RunDBError:
+            raise ValueError("function or build process not found")
+
+        def print_log(text):
+            if text and (
+                not show_on_failure
+                or self.status.state == mlrun.common.schemas.FunctionState.error
+            ):
+                print(text, end="")
+
+        print_log(text)
+        offset += len(text)
+        if watch:
+            while self.status.state in [
+                mlrun.common.schemas.FunctionState.pending,
+                mlrun.common.schemas.FunctionState.running,
+            ]:
+                time.sleep(2)
+                if show_on_failure:
+                    text = ""
+                    db.get_builder_status(self, 0, logs=False, mlrun_build=mlrun_build)
+                    if self.status.state == mlrun.common.schemas.FunctionState.error:
+                        # re-read the full log on failure
+                        text, _ = db.get_builder_status(
+                            self, offset, logs=logs, mlrun_build=mlrun_build
+                        )
+                else:
+                    text, _ = db.get_builder_status(
+                        self, offset, logs=logs, mlrun_build=mlrun_build
+                    )
+                print_log(text)
+                offset += len(text)
+
+        return self.status.state
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

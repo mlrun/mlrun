@@ -3845,7 +3845,7 @@ class MlrunProject(ModelObj):
         self,
         artifact: typing.Union[str, Artifact],
         project_producer_tag: str = None,
-    ) -> typing.Tuple[ArtifactProducer, bool]:
+    ) -> tuple[ArtifactProducer, bool]:
         """
         Resolve the artifact producer of the given artifact.
         If the artifact's producer is a run, the artifact is registered with the original producer.

@@ -289,14 +289,6 @@ async def list_runs(
         max_partitions=max_partitions,
         with_notifications=with_notifications,
     )
-    logger.debug(
-        "Runs list response",
-        runs=runs,
-        page_info=page_info,
-        partition_by=partition_by,
-        partition_sort_by=partition_sort_by,
-        partition_order=partition_order,
-    )
     return {
         "runs": runs,
         "pagination": page_info,

@@ -145,7 +145,7 @@ class Runs(
         page_size: typing.Optional[int] = None,
     ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().list_runs(
+        runs = server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
             name=name,
             uid=uid,
@@ -170,6 +170,11 @@ class Runs(
             page=page,
             page_size=page_size,
         )
+        if not runs and (page or page_size):
+            # empty page
+            raise StopIteration
+
+        return runs
 
     async def delete_run(
         self,

@@ -206,7 +206,7 @@ class ArtifactManager:
         If not provided, will generate a key based on the producer name and the artifact key.
         :param project: The project to log the artifact to. If not provided, will use the producer's project.
         :param is_retained_producer: Whether the producer is retained or not. Relevant to register artifacts flow
-        where a project logs artifacts which were produced by another producer.
+        where a project may log artifacts which were produced by another producer.
         :param kwargs: Arguments to pass to the artifact class.
         :return: The logged artifact.
         """
@@ -259,6 +259,7 @@ class ArtifactManager:
         project = project or producer.project
         item.project = project
         if is_retained_producer:
+            # if the producer is retained, we want to use the original target path
             target_path = target_path or item.target_path
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists

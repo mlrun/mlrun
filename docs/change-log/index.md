@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-
+- [v1.7.0](#v1.7.0-??-june-2024)
 - [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -11,7 +11,32 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
- 
+
+
+## v1.7.0 (?? June 2024)
+
+### Data store
+| ID |Description                                                                                         |
+|----|-----------------------------------------------------------------------------------------------------|
+|ML-5726|Can now define HDFS datastore profile for registering to a project. See [HDFS data store profile](../store/datastore.html#hdfs).
+
+### Documentation
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-6052|Add description of using the different MLRun artifact types. **See ??**.|
+
+
+###  Closed issues
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-3680|Function spec now gets updated when modifying it while running a workflow.|
+|ML-4248|You can now run a serving function with a large number of models.|
+|ML-5774|UI: Improved response time in the Workflows>Pipelines page.|
+
+
+
+
+
 
 
 ## v1.6.2 (29 March 2024)

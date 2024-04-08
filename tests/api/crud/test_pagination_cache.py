@@ -17,8 +17,8 @@ import time
 
 import sqlalchemy.orm
 
-import mlrun.config
 import server.api.crud
+from mlrun import mlconf
 from mlrun.utils import logger
 
 
@@ -28,7 +28,7 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
     when calling monitor_pagination_cache
     """
     ttl = 5
-    mlrun.config.config.httpdb.pagination_cache.ttl = ttl
+    mlconf.httpdb.pagination.pagination_cache.ttl = ttl
 
     method = server.api.crud.Projects().list_projects
     page = 1
@@ -70,7 +70,7 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
     removed when calling monitor_pagination_cache
     """
     max_size = 3
-    mlrun.config.config.httpdb.pagination_cache.max_size = max_size
+    mlconf.httpdb.pagination.pagination_cache.max_size = max_size
 
     method = server.api.crud.Projects().list_projects
     page = 1

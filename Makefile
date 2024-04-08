@@ -556,6 +556,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 .PHONY: run-api
 run-api: api ## Run mlrun api (dockerized)
+	# clean up any previous api container. Don't remove it after run to be able to debug failures
 	docker rm mlrun-api --force || true
 	docker run \
 		--name mlrun-api \
@@ -570,7 +571,7 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: run-test-db
 run-test-db:
-	# clean up any previous test db container
+	# clean up any previous test db container. Don't remove it after run to be able to debug failures
 	docker rm test-db --force || true
 	docker run \
 		--name=test-db \

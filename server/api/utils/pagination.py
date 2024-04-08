@@ -76,7 +76,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         There is an option here to overflow and to receive more items than the page size.
         And actually the maximum number of items that can be returned is page_size * 2 - 1.
         """
-        last_pagination_info = {}
+        last_pagination_info = mlrun.common.schemas.pagination.PaginationInfo()
         current_page = page
         result = []
 
@@ -100,10 +100,10 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 break
 
             last_pagination_info = pagination_info
-            current_page = last_pagination_info["page"] + 1
-            page_size = last_pagination_info["page-size"]
+            current_page = last_pagination_info.page + 1
+            page_size = last_pagination_info.page_size
 
-        return result, last_pagination_info
+        return result, last_pagination_info.dict(by_alias=True)
 
     async def paginate_request(
         self,
@@ -114,7 +114,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
         **method_kwargs,
-    ) -> tuple[typing.Any, dict[str, typing.Union[str, int]]]:
+    ) -> tuple[
+        typing.Any, typing.Optional[mlrun.common.schemas.pagination.PaginationInfo]
+    ]:
         if not PaginatedMethods.method_is_supported(method):
             raise NotImplementedError(
                 f"Pagination is not supported for method {method}"
@@ -124,7 +126,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             self._logger.debug("No token or page size provided, returning all records")
             return await server.api.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs
-            ), {}
+            ), None
 
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
@@ -149,11 +151,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             )
             return await server.api.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs, page=page, page_size=page_size
-            ), {
-                "token": token,
-                "page": page,
-                "page-size": page_size,
-            }
+            ), mlrun.common.schemas.pagination.PaginationInfo(
+                page=page, page_size=page_size, page_token=token
+            )
         except (RuntimeError, StopIteration) as exc:
             if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
                 self._logger.debug(
@@ -162,7 +162,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 self._pagination_cache.delete_pagination_cache_record(
                     session, key=token
                 )
-                return [], {}
+                return [], None
             raise
 
     def _create_or_update_pagination_cache_record(

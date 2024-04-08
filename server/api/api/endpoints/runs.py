@@ -190,7 +190,8 @@ async def delete_run(
     dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)],
 )
 @router.get(
-    "/projects/{project}/runs", dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)]
+    "/projects/{project}/runs",
+    dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)],
 )
 async def list_runs(
     project: str = None,

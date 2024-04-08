@@ -562,7 +562,7 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     assert pagination["page-size"] == 10
     assert runs[0]["metadata"]["name"] == "run_24"
 
-    token = pagination["token"]
+    token = pagination["page-token"]
     runs, pagination = _list_and_assert_objects(
         client,
         {
@@ -596,7 +596,7 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     # token is expired
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
-    runs = _list_and_assert_objects(
+    runs, pagination = _list_and_assert_objects(
         client,
         {
             "page": 4,

@@ -524,7 +524,12 @@ class BaseStoreTarget(DataTargetBase):
             store, path_in_store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
             file_system = store.filesystem
-            if file_system.protocol == "file":
+            if (
+                file_system.protocol == "file"
+                # fsspec 2023.10.0 changed protocol from "file" to ("file", "local")
+                or isinstance(file_system.protocol, (tuple, list))
+                and "file" in file_system.protocol
+            ):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)

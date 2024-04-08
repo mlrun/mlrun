@@ -174,13 +174,14 @@ class APIGateway:
                     "Invocation url is not set. Set up gateway's `invoke_url` attribute."
                 )
         if not self.is_ready():
-            raise mlrun.errors.MLRunPreconditionFailedError(f"API gateway is not ready. "
-                                                            f"Current state: {self.state}")
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"API gateway is not ready. " f"Current state: {self.state}"
+            )
 
         if (
-                self.authentication.authentication_mode
-                == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
-                and not auth
+            self.authentication.authentication_mode
+            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+            and not auth
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway invocation requires authentication. Please pass credentials"

@@ -1529,7 +1529,8 @@ def _init_async_objects(context, steps):
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
                         kafka_producer_options = options.pop(
-                            "kafka_producer_options", None
+                            "kafka_producer_options",
+                            options.pop("kafka_bootstrap_servers", None),
                         )
 
                         step._async_object = storey.KafkaTarget(

@@ -106,7 +106,7 @@ class TestAzureBlob:
 
     @classmethod
     def create_fs(cls, storage_options):
-        #  Create filesystem object only once - for teardown_class method.
+        # Create filesystem object only once
         if not cls._azure_fs:
             azure_fs = AzureBlobFileSystem(storage_options)
             azure_fs.info(cls.bucket_name)  # in order to check connection ...

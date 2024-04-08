@@ -204,7 +204,7 @@ MLRun includes the following major components:
 
 **{ref}`Real-time serving pipeline <serving-graph>`:** Rapid deployment of scalable data and ML pipelines using real-time serverless technology, including API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 
-**{ref}`Real-time monitoring <monitoring>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
+**{ref}`Real-time monitoring <monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
 `````
 

@@ -1,4 +1,4 @@
-(monitoring)=
+(monitoring-overview)=
 
 # Model monitoring and alerts
 
@@ -26,8 +26,6 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 ```{toctree}
 :maxdepth: 1
 
-model-monitoring
 model-monitoring-deployment
-model-monitoring-flow
 monitoring-models
 ```

@@ -121,7 +121,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
                 random.randint(23, 60),
                 datetime.utcnow().replace(tzinfo=utc_timezone)
                 - timedelta(
-                    days=random.randint(0, 1000),
+                    days=random.randint(2, 1000),
                     hours=random.randint(0, 23),
                     minutes=random.randint(0, 59),
                 ),
@@ -130,7 +130,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         ]
         create_table_query = (
             f"CREATE TABLE IF NOT EXISTS {self.database}.{self.schema}.{self.source_table} "
-            f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP_TZ)"
+            f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP_LTZ)"
         )
         self.cursor.execute(create_table_query)
         insert_query = (
@@ -173,6 +173,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         ).fetchall()
         column_names = [desc[0] for desc in self.cursor.description]
         result_df = pd.DataFrame(result_data, columns=column_names)
+        result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
         expected_df = source_df.sort_values(by="ID").head(number_of_rows)
         pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
 

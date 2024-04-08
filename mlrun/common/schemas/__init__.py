@@ -21,9 +21,9 @@ from .api_gateway import (
     APIGatewayMetadata,
     APIGatewaysOutput,
     APIGatewaySpec,
+    APIGatewayState,
     APIGatewayStatus,
     APIGatewayUpstream,
-    APIGatewayState,
 )
 from .artifact import (
     Artifact,

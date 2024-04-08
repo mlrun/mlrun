@@ -17,17 +17,29 @@ import os
 from abc import ABC
 from typing import Union
 
+import semver
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.callbacks import (
-    BaseLogger,
-    Callback,
-    CSVLogger,
-    ModelCheckpoint,
-    ProgbarLogger,
-    TensorBoard,
-)
 from tensorflow.keras.optimizers import Optimizer
+
+if semver.VersionInfo.parse(tf.__version__) < semver.VersionInfo(2, 6):
+    from tensorflow.keras.callbacks import (
+        BaseLogger,
+        Callback,
+        CSVLogger,
+        ModelCheckpoint,
+        ProgbarLogger,
+        TensorBoard,
+    )
+else:
+    from keras.callbacks import (
+        BaseLogger,
+        Callback,
+        CSVLogger,
+        ModelCheckpoint,
+        ProgbarLogger,
+        TensorBoard,
+    )
 
 import mlrun
 

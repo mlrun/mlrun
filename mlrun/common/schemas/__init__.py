@@ -23,6 +23,7 @@ from .api_gateway import (
     APIGatewaySpec,
     APIGatewayStatus,
     APIGatewayUpstream,
+    APIGatewayState,
 )
 from .artifact import (
     Artifact,

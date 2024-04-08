@@ -1690,6 +1690,9 @@ def test_create_api_gateway_valid(
             if not with_basic_auth
             else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
         ),
+        status=mlrun.common.schemas.APIGatewayStatus(
+            state=mlrun.common.schemas.APIGatewayState.ready,
+        )
     )
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)

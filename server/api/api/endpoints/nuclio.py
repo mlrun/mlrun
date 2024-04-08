@@ -165,8 +165,10 @@ async def delete_api_gateway(
         return await client.delete_api_gateway(project_name=project, name=gateway)
 
 
-@router.post("/projects/{project}/functions/{function}/deploy")
+@router.post("/projects/{project}/functions/{name}/deploy")
 async def deploy_function(
+    project: str,
+    name: str,
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
@@ -185,10 +187,11 @@ async def deploy_function(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
-    logger.info("Deploying function", data=data)
+    logger.info("Deploying function", data=data, project=project, name=name)
     function = data.get("function")
-    project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
-    function_name = function.get("metadata", {}).get("name")
+    function.setdefault("metadata", {})
+    function["metadata"]["name"] = name
+    function["metadata"]["project"] = project
     await run_in_threadpool(
         server.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
@@ -198,7 +201,7 @@ async def deploy_function(
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
-        function_name,
+        name,
         mlrun.common.schemas.AuthorizationAction.update,
         auth_info,
     )
@@ -215,7 +218,7 @@ async def deploy_function(
         ):
             logger.info(
                 "Requesting to deploy serving function with track models, re-routing to chief",
-                function_name=function_name,
+                name=name,
                 project=project,
                 function=function,
             )
@@ -226,6 +229,8 @@ async def deploy_function(
         _deploy_function,
         db_session,
         auth_info,
+        project,
+        name,
         function,
         data.get("builder_env"),
         client_version,
@@ -237,10 +242,10 @@ async def deploy_function(
     }
 
 
-@router.get("/projects/{project}/functions/{function}/deploy")
+@router.get("/projects/{project}/functions/{name}/deploy")
 async def deploy_status(
-    name: str = "",
     project: str = "",
+    name: str = "",
     tag: str = "",
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
@@ -389,6 +394,8 @@ def create_model_monitoring_stream(
 def _deploy_function(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.common.schemas.AuthInfo,
+    project: str,
+    name: str,
     function: dict,
     builder_env: dict,
     client_version: str,
@@ -396,7 +403,7 @@ def _deploy_function(
 ):
     fn = None
     try:
-        fn = mlrun.new_function(runtime=function)
+        fn = mlrun.new_function(runtime=function, project=project, name=name)
     except Exception as err:
         logger.error(traceback.format_exc())
         server.api.api.utils.log_and_raise(

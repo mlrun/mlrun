@@ -111,7 +111,9 @@ class TestDBFSStore:
         host = self.config["env"].get("DATABRICKS_HOST", None)
         if use_secrets_as_parameters:
             os.environ["DATABRICKS_TOKEN"] = ""
-            # Verify that we are using the profile secret:
+            # Verify that we are using the correct profile secret by deliberately
+            # setting an incorrect token as the secret or env.
+            # We expect that the correct token, which is saved in the datastore profile, will be utilized.
             secrets = (
                 {"DATABRICKS_TOKEN": "wrong_token", "DATABRICKS_HOST": "wrong_host"}
                 if use_datastore_profile

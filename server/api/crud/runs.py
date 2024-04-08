@@ -25,6 +25,7 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.runtimes
 import mlrun.runtimes.constants
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
@@ -125,14 +126,14 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        states: typing.Optional[list[str]] = None,
+        state: typing.Optional[str] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
-        start_time_from: datetime.datetime = None,
-        start_time_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        start_time_from: typing.Optional[str] = None,
+        start_time_to: typing.Optional[str] = None,
+        last_update_time_from: typing.Optional[str] = None,
+        last_update_time_to: typing.Optional[str] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -145,20 +146,45 @@ class Runs(
         page_size: typing.Optional[int] = None,
     ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = (
+                datetime.datetime.now() - datetime.timedelta(days=7)
+            ).isoformat()
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         return server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
             name=name,
             uid=uid,
             project=project,
             labels=labels,
-            states=states,
+            states=[state] if state is not None else None,
             sort=sort,
             last=last,
             iter=iter,
-            start_time_from=start_time_from,
-            start_time_to=start_time_to,
-            last_update_time_from=last_update_time_from,
-            last_update_time_to=last_update_time_to,
+            start_time_from=mlrun.utils.helpers.datetime_from_iso(start_time_from),
+            start_time_to=mlrun.utils.helpers.datetime_from_iso(start_time_to),
+            last_update_time_from=mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_from
+            ),
+            last_update_time_to=mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_to
+            ),
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,

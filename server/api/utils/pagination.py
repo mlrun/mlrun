@@ -15,6 +15,7 @@
 import asyncio
 import typing
 
+import pydantic
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
@@ -27,11 +28,17 @@ from mlrun.utils import logger
 
 
 class PaginatedMethods:
-    _methods: list[typing.Callable] = [
+    _method_schemas: dict[typing.Callable, pydantic.BaseModel] = {
         # TODO: add methods when they implement pagination
-        server.api.crud.Runs().list_runs,
-    ]
-    _method_map = {method.__name__: method for method in _methods}
+        server.api.crud.Runs().list_runs: mlrun.common.schemas.runs.ListRunsRequest,
+    }
+    _method_map = {
+        method.__name__: {
+            "method": method,
+            "schema": schema,
+        }
+        for method, schema in _method_schemas.items()
+    }
 
     @classmethod
     def method_is_supported(cls, method: typing.Union[str, typing.Callable]) -> bool:
@@ -40,7 +47,11 @@ class PaginatedMethods:
 
     @classmethod
     def get_method(cls, method_name: str) -> typing.Callable:
-        return cls._method_map[method_name]
+        return cls._method_map[method_name]["method"]
+
+    @classmethod
+    def get_method_schema(cls, method_name: str) -> pydantic.BaseModel:
+        return cls._method_map[method_name]["schema"]
 
 
 class Paginator(metaclass=mlrun.utils.singleton.Singleton):
@@ -175,7 +186,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                     f"Token {token} not found in pagination cache"
                 )
             method = PaginatedMethods.get_method(pagination_cache_record.function)
-            method_kwargs = pagination_cache_record.method_kwargs
+            method_kwargs = pagination_cache_record.kwargs
             page = page or pagination_cache_record.current_page + 1
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user
@@ -186,6 +197,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 )
 
         # upsert pagination cache record to update last_accessed time or create a new record
+        method_schema = PaginatedMethods.get_method_schema(method.__name__)
+        serialized_kwargs = method_schema(**method_kwargs).dict()
         self._logger.debug(
             "Storing pagination cache record",
             method=method.__name__,
@@ -198,9 +211,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             method=method,
             current_page=page,
             page_size=page_size,
-            kwargs=method_kwargs,
+            kwargs=serialized_kwargs,
         )
-        return token, page, page_size, method, method_kwargs
+        return token, page, page_size, method, serialized_kwargs
 
     @staticmethod
     async def _call_or_await_method(

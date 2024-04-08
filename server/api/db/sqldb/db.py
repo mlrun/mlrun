@@ -4670,9 +4670,9 @@ class SQLDB(DBInterface):
                 function=function,
                 current_page=current_page,
                 page_size=page_size,
+                kwargs=kwargs,
                 last_accessed=datetime.now(timezone.utc),
             )
-            param_record.method_kwargs = kwargs
 
         self._upsert(session, [param_record])
         return key

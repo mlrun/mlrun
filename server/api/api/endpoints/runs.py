@@ -28,7 +28,6 @@ import server.api.utils.background_tasks
 import server.api.utils.pagination
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
-from mlrun.utils.helpers import datetime_from_iso
 from server.api.api import deps
 from server.api.api.utils import log_and_raise
 
@@ -192,32 +191,10 @@ async def delete_run(
 @router.get("/projects/{project}/runs")
 async def list_runs(
     project: str = None,
-    name: str = None,
-    uid: list[str] = Query([]),
-    labels: list[str] = Query([], alias="label"),
-    state: str = None,
-    last: int = 0,
-    sort: bool = True,
-    iter: bool = True,
-    start_time_from: str = None,
-    start_time_to: str = None,
-    last_update_time_from: str = None,
-    last_update_time_to: str = None,
-    partition_by: mlrun.common.schemas.RunPartitionByField = Query(
-        None, alias="partition-by"
-    ),
-    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    partition_sort_by: mlrun.common.schemas.SortField = Query(
-        None, alias="partition-sort-by"
-    ),
-    partition_order: mlrun.common.schemas.OrderType = Query(
-        mlrun.common.schemas.OrderType.desc, alias="partition-order"
-    ),
-    max_partitions: int = Query(0, alias="max-partitions", ge=0),
-    with_notifications: bool = Query(False, alias="with-notifications"),
     page_token: typing.Optional[str] = Query(None, alias="page-token"),
     page: typing.Optional[int] = Query(None, ge=1),
     page_size: typing.Optional[int] = Query(None, ge=1, alias="page-size"),
+    query: mlrun.common.schemas.runs.ListRunsRequest = Depends(),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -227,27 +204,6 @@ async def list_runs(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-
-    if (
-        not name
-        and not uid
-        and not labels
-        and not state
-        and not last
-        and not start_time_from
-        and not start_time_to
-        and not last_update_time_from
-        and not last_update_time_to
-        and not partition_by
-        and not partition_sort_by
-        and not iter
-    ):
-        # default to last week on no filter
-        start_time_from = (
-            datetime.datetime.now() - datetime.timedelta(days=7)
-        ).isoformat()
-        partition_by = mlrun.common.schemas.RunPartitionByField.name
-        partition_sort_by = mlrun.common.schemas.SortField.updated
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -270,24 +226,24 @@ async def list_runs(
         token=page_token,
         page=page,
         page_size=page_size,
-        name=name,
-        uid=uid,
+        name=query.name,
+        uid=query.uid,
         project=project,
-        labels=labels,
-        states=[state] if state is not None else None,
-        sort=sort,
-        last=last,
-        iter=iter,
-        start_time_from=datetime_from_iso(start_time_from),
-        start_time_to=datetime_from_iso(start_time_to),
-        last_update_time_from=datetime_from_iso(last_update_time_from),
-        last_update_time_to=datetime_from_iso(last_update_time_to),
-        partition_by=partition_by,
-        rows_per_partition=rows_per_partition,
-        partition_sort_by=partition_sort_by,
-        partition_order=partition_order,
-        max_partitions=max_partitions,
-        with_notifications=with_notifications,
+        labels=query.labels,
+        state=query.state,
+        sort=query.sort,
+        last=query.last,
+        iter=query.iter,
+        start_time_from=query.start_time_from,
+        start_time_to=query.start_time_to,
+        last_update_time_from=query.last_update_time_from,
+        last_update_time_to=query.last_update_time_to,
+        partition_by=query.partition_by,
+        rows_per_partition=query.rows_per_partition,
+        partition_sort_by=query.partition_sort_by,
+        partition_order=query.partition_order,
+        max_partitions=query.max_partitions,
+        with_notifications=query.with_notifications,
     )
     return {
         "runs": runs,

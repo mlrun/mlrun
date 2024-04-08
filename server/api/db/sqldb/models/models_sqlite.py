@@ -581,17 +581,8 @@ with warnings.catch_warnings():
         function = Column(String(255, collation=SQLCollationUtil.collation()))
         current_page = Column(Integer)
         page_size = Column(Integer)
-        # JSON does not deserialize datetime objects correctly and Enums. Sadly, we need to use pickle here.
-        kwargs = Column(BLOB)
+        kwargs = Column(JSON)
         last_accessed = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-
-        @property
-        def method_kwargs(self):
-            return pickle.loads(self.kwargs)
-
-        @method_kwargs.setter
-        def method_kwargs(self, value):
-            self.kwargs = pickle.dumps(value)
 
 
 # Must be after all table definitions

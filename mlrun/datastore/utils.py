@@ -23,7 +23,7 @@ import semver
 import mlrun.datastore
 
 
-def parse_kafka_url(url: str, brokers: list = None) -> tuple[str, list]:
+def parse_kafka_url(url: str, brokers: typing.Union[list, str] = None) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
@@ -34,6 +34,9 @@ def parse_kafka_url(url: str, brokers: list = None) -> tuple[str, list]:
          [1] = List of bootstrap servers
     """
     brokers = brokers or []
+
+    if isinstance(brokers, str):
+        brokers = brokers.split(",")
 
     # Parse the provided URL into six components according to the general structure of a URL
     url = urlparse(url)

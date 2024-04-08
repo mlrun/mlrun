@@ -40,12 +40,11 @@ class TestV3ioDataStore(TestMLRunSystem):
     test_dir_url = f"v3io://{test_dir}"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
     profile_name = "v3io_ds_profile"
-    token = os.environ.get("V3IO_ACCESS_KEY")
 
     @classmethod
     def setup_class(cls):
         super().setup_class()
-
+        cls.token = os.environ.get("V3IO_ACCESS_KEY")
         assets_path = str(cls.get_assets_path())
         cls.test_file_path = os.path.join(assets_path, "test.txt")
         test_parquet_path = os.path.join(assets_path, "test_data.parquet")
@@ -139,7 +138,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
         assert (
-            cmp_process.returncode == 0
+                cmp_process.returncode == 0
         ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
         self._logger.debug(
             f"test_v3io_large_object_upload - finished cmp 1 in {time.time() - start_time} seconds"
@@ -165,7 +164,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
         assert (
-            cmp_process.returncode == 0
+                cmp_process.returncode == 0
         ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
         self._logger.debug(
             f"test_v3io_large_object_upload - finished cmp 2 in {time.time() - start_time} seconds"
@@ -208,7 +207,7 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
     def test_put_get_and_download(
-        self, use_datastore_profile, use_secrets_as_parameters
+            self, use_datastore_profile, use_secrets_as_parameters
     ):
         secrets = {}
         if use_secrets_as_parameters:
@@ -277,7 +276,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.stat()
         data_item.delete()
         with pytest.raises(
-            mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"
+                mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"
         ):
             data_item.stat()
 
@@ -290,11 +289,11 @@ class TestV3ioDataStore(TestMLRunSystem):
         ],
     )
     def test_as_df(
-        self,
-        file_format: str,
-        pd_reader: callable,
-        dd_reader: callable,
-        reader_args: dict,
+            self,
+            file_format: str,
+            pd_reader: callable,
+            dd_reader: callable,
+            reader_args: dict,
     ):
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"

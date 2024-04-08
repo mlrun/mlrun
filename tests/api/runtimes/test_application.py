@@ -39,25 +39,6 @@ class TestApplicationRuntime(TestRuntimeBase):
         # enables extending classes to run the same tests with different class
         return "application"
 
-    def _execute_run(self, runtime, **kwargs):
-        # deploy_nuclio_function doesn't accept watch, so we need to remove it
-        kwargs.pop("watch", None)
-        server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
-            runtime, **kwargs
-        )
-
-    def _generate_runtime(
-        self, kind=None, labels=None
-    ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
-        runtime = code_to_function(
-            name=self.name,
-            project=self.project,
-            kind=kind or self.runtime_kind,
-            description="test application runtime",
-            labels=labels,
-        )
-        return runtime
-
     def test_compile_function_config_skipped_spec(
         self, db: Session, client: TestClient
     ):
@@ -81,3 +62,22 @@ class TestApplicationRuntime(TestRuntimeBase):
             config,
             "spec.build.baseImage",
         )
+
+    def _execute_run(self, runtime, **kwargs):
+        # deploy_nuclio_function doesn't accept watch, so we need to remove it
+        kwargs.pop("watch", None)
+        server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+            runtime, **kwargs
+        )
+
+    def _generate_runtime(
+        self, kind=None, labels=None
+    ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
+        runtime = code_to_function(
+            name=self.name,
+            project=self.project,
+            kind=kind or self.runtime_kind,
+            description="test application runtime",
+            labels=labels,
+        )
+        return runtime

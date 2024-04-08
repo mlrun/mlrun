@@ -20,6 +20,7 @@ import shutil
 import sys
 from sys import executable
 
+import igz_mgmt
 import pandas as pd
 import pytest
 from kfp import dsl
@@ -1066,6 +1067,73 @@ class TestProject(TestMLRunSystem):
             workflow,
             mlrun.run.RunStatuses.failed,
         )
+
+    def _create_and_validate_project_function_with_node_selector(
+        self, project: mlrun.projects.MlrunProject
+    ):
+        function_name = "test-func"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+
+        code_path = str(self.assets_path / "sleep.py")
+        func = project.set_function(
+            name=function_name,
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        func.spec.node_selector = {function_label_name: function_label_val}
+
+        # We run the function to ensure node selector enrichment, which doesn't occur during function build,
+        # but at runtime.
+        project.run_function(function_name)
+
+        # Verify that the node selector is correctly enriched
+        result_func = project.get_function(function_name)
+        assert result_func.spec.node_selector == {
+            **project.spec.default_function_node_selector,
+            function_label_name: function_label_val,
+        }
+
+    @pytest.mark.enterprise
+    def test_project_default_function_node_selector_using_igz_mgmt(self):
+        project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
+
+        # Test using Iguazio to create the project
+        project_name = "test-project"
+        self.custom_project_names_to_delete.append(project_name)
+
+        igz_mgmt.Project.create(
+            self._igz_mgmt_client,
+            name=project_name,
+            owner="admin",
+            default_function_node_selector=[
+                {"name": project_label_name, "value": project_label_val}
+            ],
+        )
+
+        project = self._run_db.get_project(project_name)
+        assert project.spec.default_function_node_selector == {
+            project_label_name: project_label_val
+        }
+        self._create_and_validate_project_function_with_node_selector(project)
+
+    def test_project_default_function_node_selector(self):
+        project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
+
+        # Test using mlrun sdk to create the project
+        project_name = "test-project"
+        self.custom_project_names_to_delete.append(project_name)
+
+        project = mlrun.new_project(
+            project_name,
+            default_function_node_selector={project_label_name: project_label_val},
+        )
+        assert project.spec.default_function_node_selector == {
+            project_label_name: project_label_val
+        }
+
+        self._create_and_validate_project_function_with_node_selector(project)
 
     def test_project_build_image(self):
         name = "test-build-image"

@@ -1119,6 +1119,50 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
+def test_function_receives_project_default_function_node_selector():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+    default_function_node_selector = {"gpu": "true"}
+
+    non_enriched_function = proj1.set_function(
+        func=func_path,
+        name="func",
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+    )
+    assert non_enriched_function.spec.node_selector == {}
+
+    proj1.spec.default_function_node_selector = default_function_node_selector
+    enriched_function = proj1.get_function("func", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # Same check - with a function object
+    func1 = mlrun.code_to_function(
+        "func2",
+        kind="job",
+        handler="myhandler",
+        image="mlrun/mlrun",
+        filename=func_path,
+    )
+    proj1.set_function(func1, name="func2")
+
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.node_selector == {}
+
+    enriched_function = proj1.get_function("func2", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # If a function already has a node selector defined, the project-level node selector should merge with it,
+    # giving precedence to the function's node selector.
+    func1.spec.node_selector = {"zone": "us-west"}
+    proj1.set_function(func1, name="func3")
+
+    enriched_function = proj1.get_function("func3", enrich=True)
+    assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
+
+
 def test_project_exports_default_image():
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     default_image = "myrepo/myimage1"

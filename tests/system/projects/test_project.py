@@ -1069,50 +1069,65 @@ class TestProject(TestMLRunSystem):
         )
 
     def test_project_default_function_node_selector(self):
-        project_name = "test-project"
+        def _create_and_validate_project_function_with_node_selector(tested_project):
+            code_path = str(self.assets_path / "sleep.py")
+            func = tested_project.set_function(
+                name=function_name,
+                func=code_path,
+                kind="job",
+                image="mlrun/mlrun",
+                handler="handler",
+            )
+            func.spec.node_selector = {function_label_name: function_label_val}
+
+            # We run the function to ensure node selector enrichment, which doesn't occur during function build,
+            # but at runtime.
+            tested_project.run_function(function_name)
+
+            # Verify that the node selector is correctly enriched
+            result_func = tested_project.get_function(function_name)
+            assert result_func.spec.node_selector == {
+                project_label_name: project_label_val,
+                function_label_name: function_label_val,
+            }
+
         function_name = "test-func"
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
 
+        # Test using Iguazio to create the project
+        igz_project_name = "test-project"
+        self.custom_project_names_to_delete.append(igz_project_name)
+
         igz_mgmt.Project.create(
             self._igz_mgmt_client,
-            name=project_name,
+            name=igz_project_name,
             owner="admin",
             default_function_node_selector=[
                 {"name": project_label_name, "value": project_label_val}
             ],
         )
 
-        project = self._run_db.get_project(project_name)
+        project = self._run_db.get_project(igz_project_name)
         assert project.spec.default_function_node_selector == {
             project_label_name: project_label_val
         }
 
-        code_path = str(self.assets_path / "sleep.py")
-        func = project.set_function(
-            name=function_name,
-            func=code_path,
-            kind="job",
-            image="mlrun/mlrun",
-            handler="handler",
+        _create_and_validate_project_function_with_node_selector(project)
+
+        # Test using mlrun sdk to create the project
+        mlrun_project_name = "test-project-mlrun"
+        self.custom_project_names_to_delete.append(mlrun_project_name)
+
+        project = mlrun.new_project(
+            mlrun_project_name,
+            default_function_node_selector={project_label_name: project_label_val},
         )
-        func.spec.node_selector = {function_label_name: function_label_val}
-
-        # We run the function to ensure node selector enrichment, which doesn't occur during function build,
-        # but at runtime.
-        project.run_function(function_name)
-
-        # Verify that the node selector is correctly enriched
-        result_func = project.get_function(function_name)
-        assert result_func.spec.node_selector == {
-            project_label_name: project_label_val,
-            function_label_name: function_label_val,
+        assert project.spec.default_function_node_selector == {
+            project_label_name: project_label_val
         }
 
-        self._run_db.delete_project(
-            name=project_name,
-            deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade,
-        )
+        _create_and_validate_project_function_with_node_selector(project)
 
     def test_project_build_image(self):
         name = "test-build-image"

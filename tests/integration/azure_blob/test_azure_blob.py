@@ -97,6 +97,13 @@ class TestAzureBlob:
             cls._azure_fs.delete(test_dir, recursive=True)
             logger.debug("test directory has been deleted.")
 
+    def teardown_method(self, method):
+        for auth, auth_list in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
+            if auth.startswith("env"):
+                for env_parameter in auth_list:
+                    if config["env"][auth][env_parameter]:
+                        os.environ[env_parameter] = config["env"][auth][env_parameter]
+
     @classmethod
     def create_fs(cls, storage_options):
         #  Create filesystem object only once - for teardown_class method.

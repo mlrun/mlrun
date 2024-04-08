@@ -59,11 +59,11 @@ class TestDBFSStore:
     def setup_class(cls):
         with open(cls.config_file_path) as yaml_file:
             cls.config = yaml.safe_load(yaml_file)
-
         env_params = cls.config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param
-
+        cls.token = env_params.get("DATABRICKS_TOKEN", None)
+        cls.host = env_params.get("DATABRICKS_HOST", None)
         cls.workspace = WorkspaceClient()
         with open(cls.test_file) as f:
             cls.test_string = f.read()
@@ -102,13 +102,15 @@ class TestDBFSStore:
             workspace=cls.workspace, specific_test_class_dir=cls.class_dir
         )
 
+    def teardown_method(self, method):
+        os.environ["DATABRICKS_TOKEN"] = self.token
+        os.environ["DATABRICKS_HOST"] = self.host
+
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
     def test_put_get_and_download(
         self, use_datastore_profile, use_secrets_as_parameters
     ):
         secrets = {}
-        token = self.config["env"].get("DATABRICKS_TOKEN", None)
-        host = self.config["env"].get("DATABRICKS_HOST", None)
         if use_secrets_as_parameters:
             os.environ["DATABRICKS_TOKEN"] = ""
             # Verify that we are using the correct profile secret by deliberately
@@ -117,7 +119,7 @@ class TestDBFSStore:
             secrets = (
                 {"DATABRICKS_TOKEN": "wrong_token", "DATABRICKS_HOST": "wrong_host"}
                 if use_datastore_profile
-                else {"DATABRICKS_TOKEN": token, "DATABRICKS_HOST": host}
+                else {"DATABRICKS_TOKEN": self.token, "DATABRICKS_HOST": self.host}
             )
         data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)

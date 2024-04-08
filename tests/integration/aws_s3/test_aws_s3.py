@@ -59,7 +59,7 @@ class TestAwsS3:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
     env = config["env"]
     bucket_name = env.get("bucket_name")
-    _access_key_id = env.get("AWS_ACCESS_KEY_ID")
+    access_key_id = env.get("AWS_ACCESS_KEY_ID")
     _secret_access_key = env.get("AWS_SECRET_ACCESS_KEY")
     profile_name = "s3ds_profile"
     test_dir = "/test_mlrun_s3"
@@ -71,7 +71,7 @@ class TestAwsS3:
         with open(cls.test_file) as f:
             cls.test_string = f.read()
         cls._fs = fsspec.filesystem(
-            "s3", anon=False, key=cls._access_key_id, secret=cls._secret_access_key
+            "s3", anon=False, key=cls.access_key_id, secret=cls._secret_access_key
         )
 
     @classmethod
@@ -87,10 +87,14 @@ class TestAwsS3:
         store_manager.reset_secrets()
         self.profile = DatastoreProfileS3(
             name=self.profile_name,
-            access_key_id=self._access_key_id,
+            access_key_id=self.access_key_id,
             secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(self.profile)
+
+    def teardown_method(self, method):
+        os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
+        os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
@@ -103,7 +107,7 @@ class TestAwsS3:
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
             prefix_path = f"ds://{self.profile_name}/"
         else:
-            os.environ["AWS_ACCESS_KEY_ID"] = self._access_key_id
+            os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
             prefix_path = "s3://"
         self._bucket_path = f"{prefix_path}{self.bucket_name}"

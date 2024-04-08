@@ -99,6 +99,10 @@ class TestV3ioDataStore(TestMLRunSystem):
         else:
             os.environ["V3IO_ACCESS_KEY"] = self.token
 
+    def teardown_method(self, method):
+        os.environ["V3IO_ACCESS_KEY"] = self.token
+        super().teardown_method(method=method)
+
     @staticmethod
     def _skip_set_environment():
         return True

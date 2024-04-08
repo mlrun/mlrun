@@ -44,4 +44,5 @@ def get_snowflake_spark_options(attributes):
         "sfSchema": attributes.get("schema"),
         "sfWarehouse": attributes.get("warehouse"),
         "application": "iguazio_platform",
+        "TIMESTAMP_TYPE_MAPPING": "TIMESTAMP_LTZ",
     }

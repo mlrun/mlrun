@@ -904,18 +904,6 @@ def resolve_image_tag_suffix(
     return ""
 
 
-def generate_function_image_name(project: str, name: str, tag: str) -> str:
-    _, repository = mlrun.utils.get_parsed_docker_registry()
-    repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
-    return mlrun.runtimes.utils.fill_function_image_name_template(
-        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
-        repository,
-        project,
-        name,
-        tag,
-    )
-
-
 def get_docker_repository_or_default(repository: str) -> str:
     if not repository:
         repository = "mlrun"

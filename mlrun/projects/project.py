@@ -3239,7 +3239,7 @@ class MlrunProject(ModelObj):
 
         :param image: target image name/path. If not specified the project's existing `default_image` name will be
                         used. If not set, the `mlconf.default_project_image_name` value will be used
-        :param set_as_default:  set `image` to be the project's default image (default False)
+        :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
         :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it) defaults to
@@ -3299,7 +3299,7 @@ class MlrunProject(ModelObj):
                 overwrite_build_params=overwrite_build_params,
             )
 
-            result, _ = mlrun.runtimes.utils.build_image(
+            return mlrun.runtimes.utils.build_image(
                 build=self.spec.build,
                 source=self.spec.source,
                 load_source_on_run=self.spec.load_source_on_run,
@@ -3309,8 +3309,6 @@ class MlrunProject(ModelObj):
                 builder_env=builder_env,
                 extra_args=extra_args,
             )
-
-        return result
 
     def deploy_function(
         self,

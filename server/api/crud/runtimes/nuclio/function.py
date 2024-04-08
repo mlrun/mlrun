@@ -173,14 +173,6 @@ def get_nuclio_deploy_status(
 
 
 def pure_nuclio_deployed_restricted():
-    """
-    Decorator to restrict the function to run only on pure nuclio deployed runtimes.
-    This allows us to specify specs that we only want to apply to pure nuclio deployed runtimes.
-    For example, application runtime requirements are only relevant for the sidecar build.
-    This is temporary until we have runtime handlers for nuclio runtimes, then we can resolve it with inheritance
-    and override the relevant methods.
-    """
-
     def decorator(callback):
         def wrapper(function, *args, **kwargs):
             if (
@@ -258,14 +250,14 @@ def _compile_function_config(
         config=function.spec.config,
     )
 
-    _resolve_and_set_build_params(function, nuclio_spec)
+    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
     _resolve_and_set_nuclio_runtime(
         function, nuclio_spec, client_version, client_python_version
     )
 
     handler = function.spec.function_handler
 
-    _set_image_params(function, nuclio_spec)
+    _set_build_params(function, nuclio_spec, builder_env, project, auth_info)
     _set_function_scheduling_params(function, nuclio_spec)
     _set_function_replicas(function, nuclio_spec)
     _set_misc_specs(function, nuclio_spec)
@@ -383,17 +375,9 @@ def _resolve_and_set_nuclio_runtime(
 
 
 @pure_nuclio_deployed_restricted()
-def _resolve_and_set_build_params(
-    function, nuclio_spec, builder_env, project, auth_info=None
-):
+def _resolve_and_set_build_requirements_and_commands(function, nuclio_spec):
     nuclio_spec.cmd = function.spec.build.commands or []
     _resolve_and_set_build_requirements(function, nuclio_spec)
-
-    # handle archive build params
-    if function.spec.build.source:
-        server.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
-            nuclio_spec, function, builder_env, project, auth_info=auth_info
-        )
 
 
 def _resolve_and_set_build_requirements(function, nuclio_spec):
@@ -418,10 +402,15 @@ def _resolve_and_set_build_requirements(function, nuclio_spec):
         nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
 
 
-def _set_image_params(function, nuclio_spec):
+def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=None):
+    # handle archive build params
+    if function.spec.build.source:
+        server.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
+            nuclio_spec, function, builder_env, project, auth_info=auth_info
+        )
+
     if function.spec.no_cache:
         nuclio_spec.set_config("spec.build.noCache", True)
-
     if function.spec.build.functionSourceCode:
         nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode

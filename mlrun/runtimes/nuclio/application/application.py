@@ -285,33 +285,15 @@ class ApplicationRuntime(RemoteRuntime):
         with_mlrun: bool = None,
         mlrun_version_specifier=None,
     ):
-        if not self.spec.build.image:
-            # Since we are using a dummy function to build the image, we need to generate the image name here in order
-            # to use the correct function name
-            self.spec.build.image = mlrun.utils.helpers.generate_function_image_name(
-                self.metadata.project, self.metadata.name, self.metadata.tag or "latest"
-            )
-
         self.spec.build.with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
-        build_status, dummy_function = mlrun.runtimes.utils.build_image(
+        return mlrun.runtimes.utils.build_image(
             build=self.spec.build,
             source=self.spec.source,
             load_source_on_run=self.spec.build.load_source_on_run,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            # extra_args=extra_args,
         )
-
-        self.spec.build = (
-            self.spec.build.to_dict() | dummy_function.spec.build.to_dict()
-        )
-        self.status = self.status.to_dict() | dummy_function.status.to_dict()
-        image = build_status.outputs.get("image") or dummy_function.spec.image
-        if not image:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to resolve built image: {repr(build_status)}"
-            )
-
-        self.spec.image = image
 
     def _ensure_reverse_proxy_configurations(self):
         if self.spec.build.functionSourceCode or self.status.container_image:

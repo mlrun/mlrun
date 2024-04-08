@@ -101,8 +101,8 @@ class TestAzureBlob:
         for auth, auth_list in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
             if auth.startswith("env"):
                 for env_parameter in auth_list:
-                    if config["env"][auth][env_parameter]:
-                        os.environ[env_parameter] = config["env"][auth][env_parameter]
+                    if config["env"].get(env_parameter, None):
+                        os.environ[env_parameter] = config["env"].get(env_parameter)
 
     @classmethod
     def create_fs(cls, storage_options):

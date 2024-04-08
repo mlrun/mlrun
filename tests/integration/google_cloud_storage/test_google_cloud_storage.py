@@ -125,7 +125,7 @@ class TestGoogleCloudStorage:
 
     def teardown_method(self, method):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
-        os.environ["GCP_CREDENTIALS"] = self.credentials
+        os.environ.pop("GCP_CREDENTIALS", None)
 
     def _setup_by_google_credentials_file(self, use_datastore_profile, use_secrets):
         # We give priority to profiles, then to secrets, and finally to environment variables.

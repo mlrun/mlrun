@@ -335,6 +335,33 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
         self._mock_get_logger_pods()
 
+    def _mock_list_namespaced_config_map(self):
+        def _generate_config_map(
+            namespace: str,
+            **kwargs,
+        ):
+            return k8s_client.V1ConfigMapList(
+                items=[
+                    k8s_client.V1ConfigMap(
+                        metadata=k8s_client.V1ObjectMeta(
+                            name=kwargs["label_selector"].split("=")[-1]
+                        )
+                    ),
+                ]
+            )
+
+        get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            side_effect=_generate_config_map
+        )
+
+    def _mock_replace_namespaced_config_map(self):
+        get_k8s_helper().v1api.replace_namespaced_config_map = unittest.mock.Mock()
+
+    def _mock_get_config_map_body(self):
+        return get_k8s_helper().v1api.replace_namespaced_config_map.call_args.kwargs[
+            "body"
+        ]
+
     def _mock_get_logger_pods(self):
         # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(

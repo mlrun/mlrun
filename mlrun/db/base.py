@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import mlrun.common.schemas
-import mlrun.model_monitoring.model_endpoint
+import mlrun.model_monitoring
 
 
 class RunDBError(Exception):
@@ -509,9 +509,7 @@ class RunDBInterface(ABC):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: Union[
-            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
-        ],
+        model_endpoint: Union[mlrun.model_monitoring.ModelEndpoint, dict],
     ):
         pass
 
@@ -632,6 +630,10 @@ class RunDBInterface(ABC):
     def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
         pass
 
+    @abstractmethod
+    def delete_api_gateway(self, name, project=None):
+        pass
+
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",
@@ -724,5 +726,11 @@ class RunDBInterface(ABC):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
-        pass
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        raise NotImplementedError
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError

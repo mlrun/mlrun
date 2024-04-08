@@ -103,6 +103,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
     ) -> mlrun.common.schemas.Project:
         pass
 

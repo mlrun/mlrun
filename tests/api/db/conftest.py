@@ -35,10 +35,10 @@ def db() -> Generator:
     # memory sqldb removes itself when all sessions closed, this session will keep it up until the end of the test
     db_session = create_session()
     try:
-        init_data()
         db = SQLDB(dsn)
         db.initialize(db_session)
         initialize_db(db)
+        init_data()
         initialize_project_member()
         yield db
     finally:

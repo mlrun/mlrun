@@ -59,6 +59,7 @@ setup(
             "server",
         ]
     ),
+    package_data={"mlrun": ["runtimes/nuclio/application/*.go"]},
     keywords=[
         "mlrun",
         "mlops",

@@ -786,7 +786,7 @@ class BaseRuntime(ModelObj):
         requirements: Optional[list[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: str = "",
+        requirements_file: Optional[str] = "",
     ):
         """add package requirements from file or list to build spec.
 
@@ -839,6 +839,12 @@ class BaseRuntime(ModelObj):
             or build.requirements
             or (build.source and not build.load_source_on_run)
         )
+
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        pass
 
     def prepare_image_for_deploy(self):
         """

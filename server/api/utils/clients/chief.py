@@ -212,19 +212,6 @@ class Client(
             json,
         )
 
-    async def deploy_monitoring_batch_job(
-        self, project: str, request: fastapi.Request, json: dict
-    ):
-        """
-        Model monitoring batch includes a scheduled job which is handled by the chief
-        """
-        return await self._proxy_request_to_chief(
-            "POST",
-            f"projects/{project}/jobs/batch-monitoring",
-            request,
-            json,
-        )
-
     async def _proxy_request_to_chief(
         self,
         method,

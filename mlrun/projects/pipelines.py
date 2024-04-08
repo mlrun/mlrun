@@ -412,6 +412,11 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
+    if project.spec.default_function_node_selector:
+        f.enrich_runtime_spec(
+            project.spec.default_function_node_selector,
+        )
+
     if try_auto_mount:
         if (
             decorator and AutoMountType.is_auto_modifier(decorator)
@@ -608,6 +613,7 @@ class _KFPRunner(_PipelineRunner):
             namespace=namespace,
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
+            timeout=int(mlrun.mlconf.workflows.timeouts.kfp),
         )
 
         # The user provided workflow code might have made changes to function specs that require cleanup
@@ -865,15 +871,21 @@ class _RemoteRunner(_PipelineRunner):
                 )
                 return
 
+            get_workflow_id_timeout = max(
+                int(mlrun.mlconf.workflows.timeouts.remote),
+                int(getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine)),
+            )
+
             logger.debug(
                 "Workflow submitted, waiting for pipeline run to start",
                 workflow_name=workflow_response.name,
+                get_workflow_id_timeout=get_workflow_id_timeout,
             )
 
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
-                getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine),
+                get_workflow_id_timeout,
                 logger,
                 False,
                 run_db.get_workflow_id,

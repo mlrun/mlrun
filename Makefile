@@ -556,6 +556,7 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 .PHONY: run-api
 run-api: api ## Run mlrun api (dockerized)
+	docker rm mlrun-api --force || true
 	docker run \
 		--name mlrun-api \
 		--detach \
@@ -610,12 +611,13 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: fmt-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports ## Run lint on the code
 
-.PHONY: fmt-check
-fmt-check: ## Check the code (using ruff)
+.PHONY: lint-check
+lint-check: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
 	python -m ruff check --exit-non-zero-on-fix
+	python -m ruff check --preview --select=CPY001 --exit-non-zero-on-fix
 	python -m ruff format --check
 
 .PHONY: lint-go

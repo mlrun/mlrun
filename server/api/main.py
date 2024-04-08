@@ -221,6 +221,7 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+            _start_periodic_pagination_cache_monitoring()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
 
@@ -501,6 +502,19 @@ def _start_periodic_runs_monitoring():
         )
 
 
+def _start_periodic_pagination_cache_monitoring():
+    interval = int(config.httpdb.pagination.pagination_cache.interval)
+    if interval > 0:
+        logger.info("Starting periodic pagination cache monitoring", interval=interval)
+        run_function_periodically(
+            interval,
+            server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
+            False,
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+        )
+
+
 async def _start_periodic_stop_logs():
     if config.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.legacy:
         logger.info(
@@ -519,12 +533,36 @@ async def _start_periodic_stop_logs():
 
 async def _verify_log_collection_stopped_on_startup():
     """
-    Pulls runs from DB that are in terminal state and have logs requested, and call stop logs for them.
+    First, list runs that are currently being collected in the log collector.
+    Second, query the DB for those runs that are also in terminal state and have logs requested.
+    Lastly, call stop logs for the runs that met all of the above conditions.
     This is done so that the log collector won't keep trying to collect logs for runs that are already
     in terminal state.
     """
+    logger.debug("Listing runs currently being log collected")
+    log_collector_client = server.api.utils.clients.log_collector.LogCollectorClient()
+    run_uids_in_progress = []
+    failed_listing = False
+    try:
+        runs_in_progress_response_stream = log_collector_client.list_runs_in_progress()
+        # collate the run uids from the response stream to a list
+        async for run_uids in runs_in_progress_response_stream:
+            run_uids_in_progress.extend(run_uids)
+    except Exception as exc:
+        failed_listing = True
+        logger.warning(
+            "Failed listing runs currently being log collected",
+            exc=err_to_str(exc),
+            traceback=traceback.format_exc(),
+        )
+
+    if len(run_uids_in_progress) == 0 and not failed_listing:
+        logger.debug("No runs currently being log collected")
+        return
+
     logger.debug(
-        "Getting all runs which have reached terminal state and already have logs requested",
+        "Getting current log collected runs which have reached terminal state and already have logs requested",
+        run_uids_in_progress_count=len(run_uids_in_progress),
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
@@ -539,6 +577,7 @@ async def _verify_log_collection_stopped_on_startup():
                 # usually it happens when run pods get preempted
                 mlrun.runtimes.constants.RunStates.unknown,
             ],
+            specific_uids=run_uids_in_progress,
         )
 
         if len(runs) > 0:

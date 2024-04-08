@@ -691,10 +691,10 @@ redis_target.write_dataframe(df=redis_df)
 # Kafka (see docs for writing online features)
 kafka_target = KafkaTarget(
     name="write",
-    bootstrap_servers='localhost:9092',
-    topic='topic',
+    bootstrap_servers="localhost:9092",
+    path="topic",
 )
-redis_target.write_dataframe(df=kafka_df)
+kafka_target.write_dataframe(df=kafka_df)
 ```
 
 ## Feature store

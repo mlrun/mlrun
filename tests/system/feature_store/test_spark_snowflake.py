@@ -99,16 +99,10 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def teardown_method(self, method):
         super().teardown_method(method)
         for table_name in self.tables_to_drop:
-            try:
-                drop_query = (
-                    f"DROP TABLE IF EXISTS {self.database}.{self.schema}.{table_name}"
-                )
-                self.cursor.execute(drop_query)
-            except Exception as error:
-                self._logger.warning(
-                    f"{self.__class__.__name__}::{method.__name__} failed to drop table: "
-                    f"{self.database}.{self.schema}.{table_name}, error: '{error}'"
-                )
+            drop_query = (
+                f"DROP TABLE IF EXISTS {self.database}.{self.schema}.{table_name}"
+            )
+            self.cursor.execute(drop_query)
         self.cursor.close()
 
     def generate_snowflake_source_table(self):

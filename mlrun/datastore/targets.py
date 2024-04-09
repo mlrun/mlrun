@@ -73,6 +73,7 @@ class TargetTypes:
             TargetTypes.dataframe,
             TargetTypes.custom,
             TargetTypes.sql,
+            TargetTypes.snowflake,
         ]
 
 

@@ -1071,7 +1071,7 @@ def load_and_run(
                 )
 
             except Exception as exc:
-                logger.error("Failed to send slack notification", exc=exc)
+                logger.error("Failed to send slack notification", exc=err_to_str(exc))
 
         raise error
 

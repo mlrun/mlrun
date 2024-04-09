@@ -605,7 +605,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self._get_basic_gateway()
         api_gateway.with_basic_auth("test", "test")
         api_gateway = self._create_api_gateway_and_wait_for_availability(
-            api_gateway=api_gateway, auth=("test", "test")
+            api_gateway=api_gateway,
         )
         res = api_gateway.invoke(auth=("test", "test"), verify=False)
         assert res.status_code == 200
@@ -643,15 +643,13 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         return fn
 
     def _create_api_gateway_and_wait_for_availability(
-        self, api_gateway, auth=None, max_retries=20, timeout=3
+        self, api_gateway, max_retries=20, timeout=3
     ):
         api_gateway = self.project.store_api_gateway(api_gateway)
         retry = 0
-        while retry < max_retries:
+        while not api_gateway.is_ready():
+            if retry > max_retries:
+                break
             retry += 1
-            result = api_gateway.invoke(auth=auth, verify=False)
-            if not result.ok:
-                time.sleep(timeout)
-                continue
-            else:
-                return api_gateway
+            time.sleep(timeout)
+        return api_gateway

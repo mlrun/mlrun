@@ -13,17 +13,12 @@
 # limitations under the License.
 #
 
-import os
-
 import mlrun
-from mlrun.secrets import SecretsStore
 
 
 def get_snowflake_password():
     key = "SNOWFLAKE_PASSWORD"
-    snowflake_password = os.getenv(key) or os.getenv(
-        SecretsStore.k8s_env_variable_name_for_secret(key)
-    )
+    snowflake_password = mlrun.get_secret_or_env(key)
 
     if not snowflake_password:
         raise mlrun.errors.MLRunInvalidArgumentError(

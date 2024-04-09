@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import time
 import typing
 from typing import Optional, Union
 from urllib.parse import urljoin
@@ -22,6 +23,7 @@ from requests.auth import HTTPBasicAuth
 import mlrun
 import mlrun.common.schemas
 
+from ..utils import logger
 from .function import RemoteRuntime, get_fullname
 from .serving import ServingRuntime
 
@@ -193,6 +195,30 @@ class APIGateway:
             **kwargs,
             auth=HTTPBasicAuth(*auth) if auth else None,
         )
+
+    def wait_for_readiness(self, max_wait_time=90):
+        """
+        Wait for the API gateway to become ready within the maximum wait time.
+
+        Parameters:
+            max_wait_time: int - Maximum time to wait in seconds (default is 90 seconds).
+
+        Returns:
+            bool: True if the entity becomes ready within the maximum wait time, False otherwise
+        """
+        start_time = time.time()
+
+        while not self.is_ready():
+            waiting_time = time.time() - start_time
+            if waiting_time > max_wait_time:
+                return False
+            elif waiting_time - start_time > 30:
+                logger.warning(
+                    "Waiting for gateway readiness is taking more than 30 seconds"
+                )
+            time.sleep(3)
+
+        return True
 
     def is_ready(self):
         if self.state is not mlrun.common.schemas.api_gateway.APIGatewayState.ready:

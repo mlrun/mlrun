@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 import typing
 from pathlib import Path
 
@@ -35,6 +36,7 @@ import server.api.utils.scheduler
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
+from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.utils.runtimes.nuclio import resolve_nuclio_version
@@ -130,22 +132,53 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
-            fn = self._initial_model_monitoring_stream_processing_function(
-                stream_image=stream_image, parquet_target=parquet_target
-            )
+
             if (
                 overwrite and not self.is_monitoring_stream_has_the_new_stream_trigger()
             ):  # in case of only adding the new stream trigger
-                prev_function = server.api.crud.Functions().get_function(
+                prev_stream_function = server.api.crud.Functions().get_function(
                     name=mm_constants.MonitoringFunctionNames.STREAM,
                     db_session=self.db_session,
                     project=self.project,
                 )
-                stream_image = prev_function["status"]["container_image"]
+                response = (
+                    server.api.api.endpoints.functions._handle_nuclio_deploy_status(
+                        db_session=self.db_session,
+                        auth_info=self.auth_info,
+                        fn=prev_stream_function,
+                        name=mm_constants.MonitoringFunctionNames.STREAM,
+                        project=self.project,
+                        tag="",
+                        last_log_timestamp=0.0,
+                        verbose=False,
+                    )
+                )
+
+                logger.info(
+                    "[DAVID] ", image=response.headers.get("x-mlrun-container-image")
+                )
+                stream_image = response.headers.get("x-mlrun-container-image")
+                fn = typing.cast(
+                    mlrun.runtimes.ServingRuntime,
+                    mlrun.code_to_function(
+                        name=mm_constants.MonitoringFunctionNames.STREAM,
+                        project=self.project,
+                        filename=_STREAM_PROCESSING_FUNCTION_PATH,
+                        kind=mlrun.run.RuntimeKinds.serving,
+                    ),
+                )
+                fn.set_db_connection(
+                    server.api.api.utils.get_run_db_instance(self.db_session)
+                )
                 fn.from_image(stream_image)
+                self._apply_and_create_stream_trigger(fn, mm_constants.MonitoringFunctionNames.STREAM)
+            else:
+                fn = self._initial_model_monitoring_stream_processing_function(
+                    stream_image=stream_image, parquet_target=parquet_target
+                )
 
             # Adding label to the function - will be used to identify the stream pod
-            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
+                fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
             fn, ready = server.api.api.endpoints.functions._build_function(
                 db_session=self.db_session,
@@ -281,6 +314,9 @@ class MonitoringDeployment:
                 image=stream_image,
             ),
         )
+        function.set_db_connection(
+            server.api.api.utils.get_run_db_instance(self.db_session)
+        )
 
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(function)
@@ -362,21 +398,30 @@ class MonitoringDeployment:
                     topics=[topic],
                 )
                 function = stream_source.add_nuclio_trigger(function)
-            stream_under_projects = "projects" in stream_path
+
             if not mlrun.mlconf.is_ce_mode():
                 if stream_path.startswith("v3io://"):
-                    server.api.api.endpoints.functions.create_model_monitoring_stream(
-                        project=self.project,
-                        monitoring_application=stream_under_projects,
-                        stream_path=stream_path,
-                        access_key=self.model_monitoring_access_key,
-                    )
-                    kwargs = {}
-                    if stream_under_projects:
-                        kwargs["access_key"] = self.model_monitoring_access_key
+                    if "projects" in stream_path:
+                        stream_args = (
+                            config.model_endpoint_monitoring.application_stream_args
+                        )
+                        access_key = self.model_monitoring_access_key
+                        kwargs = {"access_key": access_key}
+                    else:
+                        stream_args = (
+                            config.model_endpoint_monitoring.serving_stream_args
+                        )
+                        access_key = os.environ.get("V3IO_ACCESS_KEY")
+                        kwargs = {}
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"
                         kwargs["worker_allocation_mode"] = "static"
+                    server.api.api.endpoints.functions.create_model_monitoring_stream(
+                        project=self.project,
+                        stream_path=stream_path,
+                        access_key=access_key,
+                        stream_args=stream_args,
+                    )
 
                     # Generate V3IO stream trigger
                     function.add_v3io_stream_trigger(
@@ -449,7 +494,9 @@ class MonitoringDeployment:
             kind=mlrun.run.RuntimeKinds.serving,
             image=writer_image,
         )
-
+        function.set_db_connection(
+            server.api.api.utils.get_run_db_instance(self.db_session)
+        )
         # Create writer monitoring serving graph
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer

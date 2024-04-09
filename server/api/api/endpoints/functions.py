@@ -1008,8 +1008,8 @@ def _is_nuclio_deploy_status_changed(
 def create_model_monitoring_stream(
     project: str,
     stream_path: str,
-    monitoring_application: bool = None,
     access_key: str = None,
+    stream_args: dict = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
@@ -1024,19 +1024,11 @@ def create_model_monitoring_stream(
             container=container,
             endpoint=config.v3io_api,
         )
-        if monitoring_application:
-            access_key = access_key
-        else:
-            access_key = os.environ.get("V3IO_ACCESS_KEY")
 
         v3io_client = v3io.dataplane.Client(
             endpoint=config.v3io_api, access_key=access_key
         )
-        stream_args = (
-            config.model_endpoint_monitoring.application_stream_args
-            if monitoring_application
-            else config.model_endpoint_monitoring.serving_stream_args
-        )
+
         response = v3io_client.stream.create(
             container=container,
             stream_path=stream_path,

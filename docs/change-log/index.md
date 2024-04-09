@@ -26,6 +26,9 @@
 |----------|---------------------------------------------------------------------------|
 |ML-5763|The log formatter options can now be changed by an env var.|
 |ML-5776|Concurrent request to project deletion now do not fail.|
+|ML-6045|UI: User-filters return all of the matching users.|
+|ML-6048|UI: An admin user can now change its role in the project. |  
+|ML-6051|UI: After an admin user deletes itself from a project, the user is redirected.|
 |ML-6060|You can now set project- and cluster-level default values to the build flags for nuclio and mlrun builders.|
 
 
@@ -911,9 +914,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
-|ML-6048|UI: An admin user cannot change its role in the project. |   |v1.6.2|
-|ML-6045|UI: If a user-filter has a large number of matches, it may not display all the matching users. |Narrow your search to be sure you get all the matches.|v1.6.2|
-|ML-6051|UI: After an admin user deletes itself from a project, the user stays in the Projects Members page even though it has no permissions and cannot view any aspects of the project.||  NA |v1.6.2|
+
+
 
 
 ## Limitations

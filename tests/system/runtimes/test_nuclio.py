@@ -582,3 +582,74 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert run_result.state() == "completed", "wrong state"
         # accuracy = max(p1) * 2, stop where accuracy > 9
         assert run_result.output("accuracy") == 10, "unexpected results"
+
+
+@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
+    project_name = "nuclio-mlrun-gateways"
+    gw_name = "test-gateway"
+
+    def custom_setup(self):
+        self.f1 = self._deploy_function(suffix="1")
+        self.f2 = self._deploy_function(suffix="2")
+
+    def test_basic_api_gateway_flow(self):
+        api_gateway = self._get_basic_gateway()
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
+        res = api_gateway.invoke(verify=False)
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_basic_auth("test", "test")
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway,
+        )
+        res = api_gateway.invoke(auth=("test", "test"), verify=False)
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
+        api_gateway = self._create_api_gateway_and_wait_for_availability(
+            api_gateway=api_gateway
+        )
+        res = api_gateway.invoke(verify=False)
+        assert res.status_code == 200
+
+    def _get_basic_gateway(self):
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            project=self.project_name, functions=self.f1, name=self.gw_name
+        )
+
+    def _cleanup_gateway(self):
+        self.project.delete_api_gateway(self.gw_name)
+
+    def _deploy_function(self, replicas=1, suffix=""):
+        filename = str(self.assets_path / "nuclio_function.py")
+
+        fn = mlrun.code_to_function(
+            filename=filename,
+            name=f"nuclio-mlrun-{suffix}",
+            kind="nuclio",
+            image="python:3.9",
+            handler="handler",
+        )
+        fn.spec.replicas = replicas
+        fn.with_http(workers=1)
+        fn.deploy()
+        return fn
+
+    def _create_api_gateway_and_wait_for_availability(
+        self, api_gateway, max_retries=20, timeout=3
+    ):
+        api_gateway = self.project.store_api_gateway(api_gateway)
+        retry = 0
+        while not api_gateway.is_ready():
+            if retry > max_retries:
+                break
+            retry += 1
+            time.sleep(timeout)
+        return api_gateway

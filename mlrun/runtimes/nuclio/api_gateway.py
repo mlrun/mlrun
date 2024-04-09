@@ -85,7 +85,7 @@ class BasicAuth(APIGatewayAuthenticator):
         self,
     ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
         return {
-            "authentication": mlrun.common.schemas.APIGatewayBasicAuth(
+            "basicAuth": mlrun.common.schemas.APIGatewayBasicAuth(
                 username=self._username, password=self._password
             )
         }
@@ -147,6 +147,7 @@ class APIGateway:
         self.description = description
         self.canary = canary
         self.authentication = authentication
+        self.state = ""
 
     def invoke(
         self,
@@ -172,6 +173,11 @@ class APIGateway:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Invocation url is not set. Set up gateway's `invoke_url` attribute."
                 )
+        if not self.is_ready():
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"API gateway is not ready. " f"Current state: {self.state}"
+            )
+
         if (
             self.authentication.authentication_mode
             == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
@@ -188,6 +194,12 @@ class APIGateway:
             auth=HTTPBasicAuth(*auth) if auth else None,
         )
 
+    def is_ready(self):
+        if self.state is not mlrun.common.schemas.api_gateway.APIGatewayState.ready:
+            # try to sync the state
+            self.sync()
+        return self.state == mlrun.common.schemas.api_gateway.APIGatewayState.ready
+
     def sync(self):
         """
         Synchronize the API gateway from the server.
@@ -201,6 +213,7 @@ class APIGateway:
         self.functions = synced_gateway.functions
         self.canary = synced_gateway.canary
         self.description = synced_gateway.description
+        self.state = synced_gateway.state
 
     def with_basic_auth(self, username: str, password: str):
         """
@@ -247,7 +260,12 @@ class APIGateway:
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
-        return cls(
+        state = (
+            api_gateway.status.state
+            if api_gateway.status
+            else mlrun.common.schemas.APIGatewayState.none
+        )
+        api_gateway = cls(
             project=project,
             description=api_gateway.spec.description,
             name=api_gateway.spec.name,
@@ -257,15 +275,21 @@ class APIGateway:
             functions=functions,
             canary=canary,
         )
+        api_gateway.state = state
+        return api_gateway
 
     def to_scheme(self) -> mlrun.common.schemas.APIGateway:
         upstreams = (
             [
                 mlrun.common.schemas.APIGatewayUpstream(
-                    nucliofunction={"name": function_name},
-                    percentage=percentage,
-                )
-                for function_name, percentage in zip(self.functions, self.canary)
+                    nucliofunction={"name": self.functions[0]},
+                    percentage=self.canary[0],
+                ),
+                mlrun.common.schemas.APIGatewayUpstream(
+                    # do not set percent for the second function,
+                    # so we can define which function to display as a primary one in UI
+                    nucliofunction={"name": self.functions[1]},
+                ),
             ]
             if self.canary
             else [
@@ -300,6 +324,8 @@ class APIGateway:
 
         :return: (str) The invoke URL.
         """
+        if not self.host.startswith("http"):
+            self.host = f"https://{self.host}"
         return urljoin(self.host, self.path)
 
     def _validate(

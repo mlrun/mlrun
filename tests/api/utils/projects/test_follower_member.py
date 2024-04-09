@@ -39,8 +39,8 @@ async def projects_follower() -> (
     typing.Generator[server.api.utils.projects.follower.Member, None, None]
 ):
     logger.info("Creating projects follower")
-    mlrun.config.config.httpdb.projects.leader = "nop"
-    mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
+    mlrun.mlconf.httpdb.projects.leader = "nop"
+    mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
     server.api.utils.singletons.project_member.initialize_project_member()
     projects_follower = server.api.utils.singletons.project_member.get_project_member()
     yield projects_follower

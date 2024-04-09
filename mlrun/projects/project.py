@@ -129,6 +129,7 @@ def new_project(
     save: bool = True,
     overwrite: bool = False,
     parameters: dict = None,
+    default_function_node_selector: dict = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -182,6 +183,7 @@ def new_project(
     :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
                          if project with name exists
     :param parameters:   key/value pairs to add to the project.spec.params
+    :param default_function_node_selector: defines the default node selector for scheduling functions within the project
 
     :returns: project object
     """
@@ -228,6 +230,11 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
+
+    if default_function_node_selector:
+        for key, val in default_function_node_selector.items():
+            project.spec.default_function_node_selector[key] = val
+
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
         for key, val in parameters.items():
@@ -3340,7 +3347,7 @@ class MlrunProject(ModelObj):
             logger.warning(
                 f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
                 " To remove the function, attempt to manually delete it.",
-                exc=repr(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
 
         return result

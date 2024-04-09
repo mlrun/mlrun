@@ -158,6 +158,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOutput,
     ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,

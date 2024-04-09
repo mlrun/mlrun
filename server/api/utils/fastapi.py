@@ -49,7 +49,6 @@ def schema_as_query_parameter_definition(
             for param, value in request.query_params._list:
                 parsed_param = param.replace("-", "_")
                 if parsed_param in model.__fields__:
-
                     # check the param type in the schema and convert the value to the correct type
                     param_type = model.__fields__[parsed_param].type_
                     if param_type == bool:

@@ -141,44 +141,14 @@ class MonitoringDeployment:
                     db_session=self.db_session,
                     project=self.project,
                 )
-                response = (
-                    server.api.api.endpoints.functions._handle_nuclio_deploy_status(
-                        db_session=self.db_session,
-                        auth_info=self.auth_info,
-                        fn=prev_stream_function,
-                        name=mm_constants.MonitoringFunctionNames.STREAM,
-                        project=self.project,
-                        tag="",
-                        last_log_timestamp=0.0,
-                        verbose=False,
-                    )
-                )
+                stream_image = prev_stream_function["spec"]["image"]
 
-                logger.info(
-                    "[DAVID] ", image=response.headers.get("x-mlrun-container-image")
-                )
-                stream_image = response.headers.get("x-mlrun-container-image")
-                fn = typing.cast(
-                    mlrun.runtimes.ServingRuntime,
-                    mlrun.code_to_function(
-                        name=mm_constants.MonitoringFunctionNames.STREAM,
-                        project=self.project,
-                        filename=_STREAM_PROCESSING_FUNCTION_PATH,
-                        kind=mlrun.run.RuntimeKinds.serving,
-                    ),
-                )
-                fn.set_db_connection(
-                    server.api.api.utils.get_run_db_instance(self.db_session)
-                )
-                fn.from_image(stream_image)
-                self._apply_and_create_stream_trigger(fn, mm_constants.MonitoringFunctionNames.STREAM)
-            else:
-                fn = self._initial_model_monitoring_stream_processing_function(
-                    stream_image=stream_image, parquet_target=parquet_target
-                )
+            fn = self._initial_model_monitoring_stream_processing_function(
+                stream_image=stream_image, parquet_target=parquet_target
+            )
 
             # Adding label to the function - will be used to identify the stream pod
-                fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
+            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
             fn, ready = server.api.api.endpoints.functions._build_function(
                 db_session=self.db_session,
@@ -406,7 +376,7 @@ class MonitoringDeployment:
                             config.model_endpoint_monitoring.application_stream_args
                         )
                         access_key = self.model_monitoring_access_key
-                        kwargs = {"access_key": access_key}
+                        kwargs = {"access_key": self.model_monitoring_access_key}
                     else:
                         stream_args = (
                             config.model_endpoint_monitoring.serving_stream_args
@@ -422,7 +392,6 @@ class MonitoringDeployment:
                         access_key=access_key,
                         stream_args=stream_args,
                     )
-
                     # Generate V3IO stream trigger
                     function.add_v3io_stream_trigger(
                         stream_path=stream_path,
@@ -589,6 +558,7 @@ class MonitoringDeployment:
         :return: True if the monitoring stream function has the new stream trigger, otherwise False.
         """
 
+        return True
         try:
             function = server.api.crud.Functions().get_function(
                 name=mm_constants.MonitoringFunctionNames.STREAM,

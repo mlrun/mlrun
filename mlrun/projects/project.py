@@ -3712,7 +3712,7 @@ class MlrunProject(ModelObj):
         of the API Gateway to be created or updated.
         :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
             after creation or update (default is True)
-        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (Default is 90s)
+        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
 
 
         @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the

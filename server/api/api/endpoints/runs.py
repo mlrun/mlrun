@@ -190,13 +190,14 @@ async def delete_run(
     deprecated=True,
     description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
-    dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)],
+    openapi_extra=server.api.utils.fastapi.SchemaModifiers.get_schema_annotations(),
 )
 @router.get(
     "/projects/{project}/runs",
-    dependencies=[Depends(server.api.utils.fastapi.convert_query_params_to_snake_case)],
+    openapi_extra=server.api.utils.fastapi.SchemaModifiers.get_schema_annotations(),
 )
 async def list_runs(
+    _=Depends(server.api.utils.fastapi.convert_query_params_to_snake_case),
     project: str = None,
     query: mlrun.common.schemas.ListRunsRequest = Depends(),
     pagination: mlrun.common.schemas.PaginationInfo = Depends(),

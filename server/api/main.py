@@ -22,6 +22,7 @@ import typing
 
 import fastapi
 import fastapi.concurrency
+import fastapi.openapi.utils
 import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 
@@ -40,6 +41,7 @@ import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
+import server.api.utils.fastapi
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -119,6 +121,32 @@ app.add_middleware(
     server.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
 )
 app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
+
+
+def custom_openapi_schema_generator():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = fastapi.openapi.utils.get_openapi(
+        title=app.title,
+        version=app.version,
+        openapi_version=app.openapi_version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    for path, path_data in openapi_schema["paths"].items():
+        for method, method_data in path_data.items():
+            for annotation, enabled in method_data.get("annotations", {}).items():
+                if enabled:
+                    method_data = getattr(
+                        server.api.utils.fastapi.SchemaModifiers, annotation
+                    )(method_data)
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi_schema_generator
 
 
 @app.exception_handler(Exception)

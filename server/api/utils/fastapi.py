@@ -12,8 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 from fastapi import Request
 from starlette.datastructures import MultiDict
+
+
+class SchemaModifiers:
+    defaults = {"enforce_kebab_case": True}
+
+    @classmethod
+    def get_schema_annotations(cls, **annotations) -> dict:
+        schema_annotations = cls.defaults.copy()
+        schema_annotations.update(annotations)
+        return {"annotations": schema_annotations}
+
+    @staticmethod
+    def enforce_kebab_case(method_data: dict) -> dict:
+        parameters = method_data.get("parameters", [])
+        for parameter in parameters:
+            parameter["name"] = parameter["name"].replace("_", "-")
+        return method_data
 
 
 def convert_query_params_to_snake_case(request: Request) -> None:

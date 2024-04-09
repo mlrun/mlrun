@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
-import time
 import typing
 from typing import Optional, Union
 from urllib.parse import urljoin
@@ -24,7 +23,7 @@ import mlrun
 import mlrun.common.schemas
 
 from ..utils import logger
-from .function import RemoteRuntime, get_fullname
+from .function import RemoteRuntime, get_fullname, min_nuclio_versions
 from .serving import ServingRuntime
 
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
@@ -94,6 +93,7 @@ class BasicAuth(APIGatewayAuthenticator):
 
 
 class APIGateway:
+    @min_nuclio_versions("1.13.1")
     def __init__(
         self,
         project,
@@ -206,19 +206,16 @@ class APIGateway:
         Returns:
             bool: True if the entity becomes ready within the maximum wait time, False otherwise
         """
-        start_time = time.time()
 
-        while not self.is_ready():
-            waiting_time = time.time() - start_time
-            if waiting_time > max_wait_time:
-                return False
-            elif waiting_time - start_time > 30:
-                logger.warning(
-                    "Waiting for gateway readiness is taking more than 30 seconds"
+        def _ensure_ready():
+            if not self.is_ready():
+                raise AssertionError(
+                    f"Waiting for gateway readiness is taking more than {max_wait_time} seconds"
                 )
-            time.sleep(3)
 
-        return True
+        return mlrun.utils.helpers.retry_until_successful(
+            3, max_wait_time, logger, False, _ensure_ready
+        )
 
     def is_ready(self):
         if self.state is not mlrun.common.schemas.api_gateway.APIGatewayState.ready:

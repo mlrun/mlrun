@@ -1486,7 +1486,7 @@ class TestArtifacts:
     def _run_artifacts_v2_migration(db: DBInterface, db_session: Session):
         with tempfile.TemporaryDirectory() as temp_dir:
             # change the state file path to the temp directory for the test only
-            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+            mlrun.mlconf.artifacts.artifact_migration_state_file_path = (
                 temp_dir + "/_artifact_migration_state.json"
             )
 

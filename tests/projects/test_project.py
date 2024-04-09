@@ -1476,7 +1476,7 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
 
 
 def test_get_or_create_project_no_db():
-    mlrun.config.config.dbpath = ""
+    mlrun.mlconf.dbpath = ""
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name

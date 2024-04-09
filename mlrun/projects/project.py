@@ -3347,7 +3347,7 @@ class MlrunProject(ModelObj):
             logger.warning(
                 f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
                 " To remove the function, attempt to manually delete it.",
-                exc=repr(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
 
         return result

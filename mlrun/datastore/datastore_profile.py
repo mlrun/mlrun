@@ -16,6 +16,7 @@ import ast
 import base64
 import json
 import typing
+import warnings
 from urllib.parse import ParseResult, urlparse, urlunparse
 
 import pydantic
@@ -83,12 +84,22 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.Field("kafka_target")
     _private_attributes = "kwargs_private"
     bootstrap_servers: str
+    brokers: str
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
+    def __pydantic_post_init__(self):
+        if self.bootstrap_servers:
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                # TODO: Remove this in 1.9.0
+                FutureWarning,
+            )
+
     def attributes(self):
-        attributes = {"bootstrap_servers": self.bootstrap_servers}
+        attributes = {"brokers": self.brokers or self.bootstrap_servers}
         if self.kwargs_public:
             attributes = merge(attributes, self.kwargs_public)
         if self.kwargs_private:

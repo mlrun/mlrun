@@ -462,7 +462,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             ">>",
             "out",
             path=self.topic_out,
-            kafka_bootstrap_servers=self.brokers,
+            kafka_brokers=self.brokers,
             sharding_func=2,
         )
 

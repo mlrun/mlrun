@@ -297,7 +297,7 @@ async def delete_runs(
             name,
             project=project,
             labels=labels,
-            states=[state] if state is not None else None,
+            state=state,
             start_time_from=start_time_from,
             return_as_run_structs=False,
         )

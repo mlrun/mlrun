@@ -127,13 +127,18 @@ class Runs(
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         state: typing.Optional[str] = None,
+        states: typing.Optional[list[str]] = None,  # Backward compatibility
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
-        start_time_from: typing.Optional[str] = None,
-        start_time_to: typing.Optional[str] = None,
-        last_update_time_from: typing.Optional[str] = None,
-        last_update_time_to: typing.Optional[str] = None,
+        start_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        start_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        last_update_time_from: typing.Optional[
+            typing.Union[str, datetime.datetime]
+        ] = None,
+        last_update_time_to: typing.Optional[
+            typing.Union[str, datetime.datetime]
+        ] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -151,6 +156,7 @@ class Runs(
             and not uid
             and not labels
             and not state
+            and not states
             and not last
             and not start_time_from
             and not start_time_to
@@ -167,24 +173,33 @@ class Runs(
             partition_by = mlrun.common.schemas.RunPartitionByField.name
             partition_sort_by = mlrun.common.schemas.SortField.updated
 
+        if isinstance(start_time_from, str):
+            start_time_from = mlrun.utils.helpers.datetime_from_iso(start_time_from)
+        if isinstance(start_time_to, str):
+            start_time_to = mlrun.utils.helpers.datetime_from_iso(start_time_to)
+        if isinstance(last_update_time_from, str):
+            last_update_time_from = mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_from
+            )
+        if isinstance(last_update_time_to, str):
+            last_update_time_to = mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_to
+            )
+
         return server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
             name=name,
             uid=uid,
             project=project,
             labels=labels,
-            states=[state] if state is not None else None,
+            states=[state] if state is not None else states or None,
             sort=sort,
             last=last,
             iter=iter,
-            start_time_from=mlrun.utils.helpers.datetime_from_iso(start_time_from),
-            start_time_to=mlrun.utils.helpers.datetime_from_iso(start_time_to),
-            last_update_time_from=mlrun.utils.helpers.datetime_from_iso(
-                last_update_time_from
-            ),
-            last_update_time_to=mlrun.utils.helpers.datetime_from_iso(
-                last_update_time_to
-            ),
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,

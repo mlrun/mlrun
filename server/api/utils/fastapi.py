@@ -17,6 +17,8 @@ import typing
 import pydantic
 from fastapi import Request
 
+import mlrun.errors
+
 
 class SchemaModifiers:
     defaults = {"enforce_kebab_case": True}
@@ -39,14 +41,32 @@ def schema_as_query_parameter_definition(
     model: pydantic.main.ModelMetaclass,
 ) -> typing.Callable:
     def wrapper(request: Request) -> pydantic.BaseModel:
-        parameters = {}
-        for param, value in request.query_params._list:
-            if param in parameters:
-                if not isinstance(parameters[param], list):
-                    parameters[param] = [parameters[param]]
-                parameters[param].append(value)
-            else:
-                parameters[param] = value
-        return model(**parameters)
+        try:
+            parameters = {}
+
+            # if a query parameter is a list, the dict will flatten it to a single value
+            # so we need to access the query params from the _list attribute
+            for param, value in request.query_params._list:
+                parsed_param = param.replace("-", "_")
+                if parsed_param in model.__fields__:
+
+                    # check the param type in the schema and convert the value to the correct type
+                    param_type = model.__fields__[parsed_param].type_
+                    if param_type == bool:
+                        value = value.lower() in ["true", "1", "yes", "t", "y"]
+                    elif typing.get_origin(param_type) != typing.Union:
+                        value = model.__fields__[parsed_param].type_(value)
+
+                # add the value to the parameters dict while handling multiple values
+                if param in parameters:
+                    if not isinstance(parameters[param], list):
+                        parameters[param] = [parameters[param]]
+                    parameters[param].append(value)
+                else:
+                    parameters[param] = value
+
+            return model(**parameters)
+        except (pydantic.ValidationError, ValueError) as e:
+            raise mlrun.errors.MLRunUnprocessableEntityError from e
 
     return wrapper

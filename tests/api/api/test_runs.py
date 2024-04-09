@@ -626,8 +626,8 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
 
     # delete runs from all projects
     second_project = "some-project2"
-    _store_run(db, uid=None, project=project)
-    _store_run(db, uid=None, project=second_project)
+    _store_run(db, uid=None, project=project, name="run-1")
+    _store_run(db, uid=None, project=second_project, name="run-2")
     all_runs = server.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
     response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
@@ -942,9 +942,9 @@ def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
         assert background_task.status.error == "some error"
 
 
-def _store_run(db, uid, project="some-project"):
+def _store_run(db, uid, project="some-project", name="run-name"):
     run_with_nan_float = {
-        "metadata": {"name": "run-name"},
+        "metadata": {"name": name},
         "status": {"artifacts": [{"preview": [[0.0, float("Nan"), 1.3]]}]},
     }
     if not uid:

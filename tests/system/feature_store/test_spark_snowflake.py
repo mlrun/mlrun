@@ -180,7 +180,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def test_source(self):
         from pyspark.sql import SparkSession
 
-        # TODO fix this test where running the whole class...
         spark = (
             SparkSession.builder.appName("snowflake_spark")
             .config("spark.sql.session.timeZone", "UTC")

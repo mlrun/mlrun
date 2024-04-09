@@ -169,9 +169,13 @@ class TestMLRunIntegration:
 
     def _remove_api(self):
         if self.api_container_id:
-            logs = self._run_command("docker", args=["logs", self.api_container_id])
+            logs = self._run_command(
+                "docker", args=["logs", self.api_container_id]
+            ).replace("\n", "\n\t")
+            # for tests, we want to see the logs in human readable form
             self._logger.debug(
-                "Removing API container", container_id=self.api_container_id, logs=logs
+                f"Removing API container. Container logs:\n {logs}",
+                container_id=self.api_container_id,
             )
             self._run_command("docker", args=["rm", "--force", self.api_container_id])
 

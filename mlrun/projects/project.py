@@ -3760,7 +3760,8 @@ class MlrunProject(ModelObj):
             mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
         """
 
-        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+        gateway = mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(gateway)
 
     def delete_api_gateway(
         self,

@@ -774,6 +774,7 @@ class TestBatchDrift(TestMLRunSystem):
     """
 
     project_name = "pr-batch-drift"
+    image: str = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -842,6 +843,7 @@ class TestBatchDrift(TestMLRunSystem):
             context=context,
             infer_results_df=infer_results_df,
             trigger_monitoring_job=True,
+            default_batch_image=self.image or "mlrun/mlrun",
         )
 
         # Test the drift results
@@ -1073,6 +1075,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
+    image: str = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1134,5 +1137,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             trigger_monitoring_job=True,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
+            default_batch_image=self.image or "mlrun/mlrun",
         )
         self._test_v3io_tsdb_record()

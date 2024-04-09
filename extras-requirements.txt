@@ -10,8 +10,8 @@
 # we have a test test_extras_requirement_file_aligned to verify this file is aligned to setup.py
 # The versions of gcsfs and s3fs should be identical to the fsspec version;
 # Therefore, they must be equal to each other.
-s3fs==2023.9.2
-gcsfs==2023.9.2
+s3fs>=2023.9.2, <2024.4
+gcsfs>=2023.9.2, <2024.4
 ossfs==2023.12.0
 boto3>=1.28.0,<1.29.0
 oss2==2.18.1

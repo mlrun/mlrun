@@ -22,7 +22,8 @@ from requests.auth import HTTPBasicAuth
 import mlrun
 import mlrun.common.schemas
 
-from .function import RemoteRuntime, get_fullname
+from ..utils import logger
+from .function import RemoteRuntime, get_fullname, min_nuclio_versions
 from .serving import ServingRuntime
 
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
@@ -92,6 +93,7 @@ class BasicAuth(APIGatewayAuthenticator):
 
 
 class APIGateway:
+    @min_nuclio_versions("1.13.1")
     def __init__(
         self,
         project,
@@ -192,6 +194,27 @@ class APIGateway:
             headers=headers,
             **kwargs,
             auth=HTTPBasicAuth(*auth) if auth else None,
+        )
+
+    def wait_for_readiness(self, max_wait_time=90):
+        """
+        Wait for the API gateway to become ready within the maximum wait time.
+
+        Parameters:
+            max_wait_time: int - Maximum time to wait in seconds (default is 90 seconds).
+
+        Returns:
+            bool: True if the entity becomes ready within the maximum wait time, False otherwise
+        """
+
+        def _ensure_ready():
+            if not self.is_ready():
+                raise AssertionError(
+                    f"Waiting for gateway readiness is taking more than {max_wait_time} seconds"
+                )
+
+        return mlrun.utils.helpers.retry_until_successful(
+            3, max_wait_time, logger, False, _ensure_ready
         )
 
     def is_ready(self):
@@ -324,9 +347,10 @@ class APIGateway:
 
         :return: (str) The invoke URL.
         """
+        host = self.host
         if not self.host.startswith("http"):
-            self.host = f"https://{self.host}"
-        return urljoin(self.host, self.path)
+            host = f"https://{self.host}"
+        return urljoin(host, self.path)
 
     def _validate(
         self,

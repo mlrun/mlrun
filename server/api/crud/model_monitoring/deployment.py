@@ -558,7 +558,6 @@ class MonitoringDeployment:
         :return: True if the monitoring stream function has the new stream trigger, otherwise False.
         """
 
-        return True
         try:
             function = server.api.crud.Functions().get_function(
                 name=mm_constants.MonitoringFunctionNames.STREAM,

@@ -173,6 +173,12 @@ def get_nuclio_deploy_status(
 
 
 def pure_nuclio_deployed_restricted():
+    """
+    Decorator to restrict the usage of the decorated function to pure nuclio deployed runtimes only.
+    Pure nuclio deployed runtimes are runtimes that their images are not built by MLRun, but are built and deployed
+    completely by nuclio.
+    """
+
     def decorator(callback):
         def wrapper(function, *args, **kwargs):
             if (

@@ -225,7 +225,7 @@ async def deploy_function(
             chief_client = server.api.utils.clients.chief.Client()
             return await chief_client.build_function(request=request, json=data)
 
-    fn, ready = await run_in_threadpool(
+    fn = await run_in_threadpool(
         _deploy_function,
         db_session,
         auth_info,
@@ -419,14 +419,12 @@ def _deploy_function(
 
     fn: mlrun.runtimes.RemoteRuntime
     try:
-        # connect to run db
+        # Connect to run db
         run_db = server.api.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
-        # Enrich runtime with project defaults
+        # Enrich runtime
         launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        # When runtime is nuclio, building means we deploy the function and not just build its image,
-        # so we need full enrichment
         launcher.enrich_runtime(runtime=fn, full=True)
 
         fn.save(versioned=False)

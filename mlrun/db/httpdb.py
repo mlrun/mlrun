@@ -1413,8 +1413,6 @@ class HTTPRunDB(RunDBInterface):
 
             - Text of builder logs.
             - Timestamp of last log retrieved, to be used in subsequent calls to this function.
-
-            The function also updates internal members of the ``func`` object to reflect build process info.
         """
 
         try:

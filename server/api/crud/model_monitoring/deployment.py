@@ -130,16 +130,19 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
-            if overwrite and stream_image.startswith("mlrun/mlrun"):
+            fn = self._initial_model_monitoring_stream_processing_function(
+                stream_image=stream_image, parquet_target=parquet_target
+            )
+            if (
+                overwrite and not self.is_monitoring_stream_has_the_new_stream_trigger()
+            ):  # in case of only adding the new stream trigger
                 prev_function = server.api.crud.Functions().get_function(
                     name=mm_constants.MonitoringFunctionNames.STREAM,
                     db_session=self.db_session,
                     project=self.project,
                 )
-                stream_image = prev_function["spec"]["image"]
-            fn = self._initial_model_monitoring_stream_processing_function(
-                stream_image=stream_image, parquet_target=parquet_target
-            )
+                stream_image = prev_function["status"]["container_image"]
+                fn.from_image(stream_image)
 
             # Adding label to the function - will be used to identify the stream pod
             fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}

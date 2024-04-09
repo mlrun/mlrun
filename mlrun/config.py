@@ -1093,7 +1093,8 @@ class Config:
                                 relative artifact path will be taken from the global MLRun artifact path.
         :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind. Can be either a single path
+                                or a list of paths in the case of the online model monitoring stream path.
         """
 
         if target != "offline":
@@ -1115,7 +1116,7 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":  # ML-6043
+            elif kind == "stream":  # return list for mlrun<1.6.3 BC
                 return [
                     mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                         project=project,

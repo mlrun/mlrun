@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
 import json
 import re
 from typing import Optional
@@ -25,7 +24,9 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.model_monitoring.api import get_or_create_model_endpoint
 from mlrun.model_monitoring.helpers import get_stream_path
+from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
@@ -97,26 +98,30 @@ class _PushToMonitoringWriter(StepToDict):
             )
 
 
-@dataclasses.dataclass
 class MonitoringApplicationContext(mlrun.MLClientCtx):
     """
     Application context object.
 
     """
 
-    application_name: str = None
-    sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats = None
-    feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats = None
-    sample_df: pd.DataFrame = None
-    start_infer_time: pd.Timestamp = None
-    end_infer_time: pd.Timestamp = None
-    latest_request: pd.Timestamp = None
-    endpoint_id: str = None
-    output_stream_uri: str = None
-    data: dict = None  # for inputs, outputs, and other data
-    autocommit = None
-    tmp = None
-    log_stream = None
+    def __init__(self, autocommit=False, tmp="", log_stream=None):
+        super().__init__(autocommit, tmp, log_stream)
+        self.model_endpoint = None
+        self.sample_df_path = None
+
+        self.application_name: str = None
+        self.sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats = None
+        self.feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats = None
+        self.sample_df: pd.DataFrame = None
+        self.start_infer_time: pd.Timestamp = None
+        self.end_infer_time: pd.Timestamp = None
+        self.latest_request: pd.Timestamp = None
+        self.endpoint_id: str = None
+        self.output_stream_uri: str = None
+        self.data: dict = None  # for inputs, outputs, and other data
+        self.autocommit = None
+        self.tmp = None
+        self.log_stream = None
 
     def __post_init__(self):
         pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
@@ -137,6 +142,7 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
         store_run=True,
         include_status=False,
         context=None,
+        model_endpoint_dict=None,
     ) -> "MonitoringApplicationContext":
         """
         Converting the event into a single tuple that will be used for passing the event arguments to the running
@@ -175,18 +181,17 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
         self.feature_stats = json.loads(
             attrs[mm_constant.ApplicationEvent.FEATURE_STATS]
         )
-        self.sample_df = ParquetTarget(
-            path=attrs[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
-        ).as_df(
-            start_time=self.start_infer_time,
-            end_time=self.end_infer_time,
-            time_column="timestamp",
-        )
+        self.sample_df_path = attrs[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
+
         self.latest_request = pd.Timestamp(
             attrs[mm_constant.ApplicationEvent.LAST_REQUEST]
         )
         self.endpoint_id = attrs[mm_constant.ApplicationEvent.ENDPOINT_ID]
         self.output_stream_uri = attrs[mm_constant.ApplicationEvent.OUTPUT_STREAM_URI]
+        if self.endpoint_id in model_endpoint_dict:
+            self.model_endpoint = model_endpoint_dict[self.endpoint_id]
+        else:
+            self.model_endpoint = None
         self.data = {}
 
         return self
@@ -202,6 +207,48 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
         a = super(self).to_dict()
         return a
 
+    @property.sample_df
+    def sample_df(self):
+        if self.sample_df is None:
+            self.sample_df = ParquetTarget(path=self.sample_df_path).as_df(
+                start_time=self.start_infer_time,
+                end_time=self.end_infer_time,
+                time_column="timestamp",
+            )
+        return self.sample_df
+
+    @property.model_endpoint
+    def model_endpoint(self) -> ModelEndpoint:
+        if not self.model_endpoint:
+            self.model_endpoint = get_or_create_model_endpoint(
+                self.project, self.endpoint_id
+            )
+        return self.model_endpoint
+
+    @property.feature_stats
+    def feature_stats(self):
+        return self.model_endpoint.status.feature_stats
+
+    @property.current_stats
+    def current_stats(self):
+        """calculate the current stats"""
+        pass
+
+    @property.inputs
+    def inputs(self):
+        """from the model endpoint"""
+        return self.model_endpoint.spec.feature_names
+
+    @property.outputs
+    def outputs(self):
+        """from the model endpoint"""
+        pass
+
+    @property.model_artifact
+    def model_artifact(self):
+        """from the model endpoint"""
+        pass
+
 
 class _PrepareToApplication:
     def __init__(self, application_name: str):
@@ -212,7 +259,7 @@ class _PrepareToApplication:
         """
 
         self.context = self._create_mlrun_context(application_name)
-        # create context for the application
+        self.model_endpoints = {}
 
     def do(self, event: dict[str, dict]) -> MonitoringApplicationContext:
         """
@@ -223,10 +270,12 @@ class _PrepareToApplication:
         """
         if not hasattr(event, "metadata"):
             application_context = MonitoringApplicationContext().from_dict(
-                event, context=self.context
+                event, context=self.context, model_endpoint_dict=self.model_endpoints
             )
         else:
             application_context = MonitoringApplicationContext().from_dict(event)
+        if application_context.endpoint_id not in self.model_endpoints:
+            self.model_endpoints = application_context.model_endpoint
         return application_context
 
     @staticmethod

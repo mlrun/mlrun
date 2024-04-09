@@ -31,13 +31,13 @@ class ListRunsRequest(pydantic.BaseModel):
 
     project: typing.Optional[str]
     name: typing.Optional[str]
-    uid: typing.Optional[str]
+    uid: typing.Optional[typing.Union[str, list[str]]]
     project: typing.Optional[str]
-    labels: typing.Optional[str]
+    labels: typing.Optional[list[str]] = []
     state: typing.Optional[str]
-    last: typing.Optional[str]
-    sort: typing.Optional[str]
-    iter: typing.Optional[int]
+    last: typing.Optional[int] = 0
+    sort: typing.Optional[bool] = True
+    iter: typing.Optional[bool] = True
     start_time_from: typing.Optional[str]
     start_time_to: typing.Optional[str]
     last_update_time_from: typing.Optional[str]

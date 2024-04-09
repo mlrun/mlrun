@@ -596,7 +596,7 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     # token is expired
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
-    runs, pagination = _list_and_assert_objects(
+    runs = _list_and_assert_objects(
         client,
         {
             "page": 4,
@@ -964,7 +964,11 @@ def _list_and_assert_objects(
     runs = response.json()["runs"]
     assert len(runs) == expected_number_of_runs
 
-    if "pagination" in response_json and response_json["pagination"]:
+    if (
+        "pagination" in response_json
+        and response_json["pagination"]
+        and response_json["pagination"]["page"]
+    ):
         return runs, response_json["pagination"]
 
     return runs

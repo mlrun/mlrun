@@ -182,9 +182,9 @@ async def delete_run(
 
 
 # TODO: remove /runs in 1.8.0
-# convert_query_params_to_snake_case is used to allow the use of kebab-case query parameters
-# while the schemas are defined as snake_case. This is a workaround until FastAPI supports
-# using aliases in pydantic schemas using the Field class. See https://github.com/tiangolo/fastapi/discussions/8780
+# schema_as_query_parameter_definition and get_schema_annotations is used to allow the pydantic schema to be used as a
+# query parameter in FastAPI. FastAPI doesn't fully support pydantic schemas as query parameters - it ignores unions,
+# it ignores field aliases in the request and doesn't show the aliases in the OpenAPI documentation either.
 @router.get(
     "/runs",
     deprecated=True,
@@ -197,10 +197,17 @@ async def delete_run(
     openapi_extra=server.api.utils.fastapi.SchemaModifiers.get_schema_annotations(),
 )
 async def list_runs(
-    _=Depends(server.api.utils.fastapi.convert_query_params_to_snake_case),
     project: str = None,
-    query: mlrun.common.schemas.ListRunsRequest = Depends(),
-    pagination: mlrun.common.schemas.PaginationInfo = Depends(),
+    query: mlrun.common.schemas.ListRunsRequest = Depends(
+        server.api.utils.fastapi.schema_as_query_parameter_definition(
+            mlrun.common.schemas.ListRunsRequest
+        )
+    ),
+    pagination: mlrun.common.schemas.PaginationInfo = Depends(
+        server.api.utils.fastapi.schema_as_query_parameter_definition(
+            mlrun.common.schemas.PaginationInfo
+        )
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

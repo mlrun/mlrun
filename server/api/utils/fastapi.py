@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 
+import pydantic
 from fastapi import Request
-from starlette.datastructures import MultiDict
 
 
 class SchemaModifiers:
@@ -34,13 +35,18 @@ class SchemaModifiers:
         return method_data
 
 
-def convert_query_params_to_snake_case(request: Request) -> None:
-    query_params = request.query_params
-    new_params = MultiDict()
-    for key, value in query_params.multi_items():
-        if "-" in key:
-            snake_key = key.replace("-", "_")
-            new_params.append(snake_key, value)
-        else:
-            new_params.append(key, value)
-    request._query_params = new_params
+def schema_as_query_parameter_definition(
+    model: pydantic.main.ModelMetaclass,
+) -> typing.Callable:
+    def wrapper(request: Request) -> pydantic.BaseModel:
+        parameters = {}
+        for param, value in request.query_params._list:
+            if param in parameters:
+                if not isinstance(parameters[param], list):
+                    parameters[param] = [parameters[param]]
+                parameters[param].append(value)
+            else:
+                parameters[param] = value
+        return model(**parameters)
+
+    return wrapper

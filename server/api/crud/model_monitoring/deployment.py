@@ -704,7 +704,8 @@ class MonitoringDeployment:
                     # Generate V3IO stream trigger
                     function.add_v3io_stream_trigger(
                         stream_path=stream_path,
-                        name=f"monitoring_{function_name}_trigger{f'_{i}' if i != 0 else ''}",
+                        name=f"monitoring_{function_name or 'model-monitoring-stream'}"
+                        f"_trigger{f'_{i}' if i != 0 else ''}",
                         **kwargs,
                     )
                 function = self._apply_access_key_and_mount_function(
@@ -795,17 +796,6 @@ class MonitoringDeployment:
         # Set the project to the serving function
         function.metadata.project = project
 
-        # create v3io stream for  model_monitoring_writer | model monitoring application
-        server.api.api.endpoints.functions.create_model_monitoring_stream(
-            project=project,
-            monitoring_application=mm_constants.MonitoringFunctionNames.WRITER,
-            stream_path=server.api.crud.model_monitoring.get_stream_path(
-                project=project,
-                application_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ),
-            access_key=model_monitoring_access_key,
-        )
-
         # Add stream triggers
         function = self._apply_and_create_stream_trigger(
             project=project,
@@ -834,7 +824,7 @@ class MonitoringDeployment:
 
         try:
             function = server.api.crud.Functions().get_function(
-                name=mm_constants.MonitoringFunctionNames.STREAM,
+                name="model-monitoring-stream",
                 db_session=db_session,
                 project=project,
             )
@@ -848,7 +838,7 @@ class MonitoringDeployment:
 
         if (
             function["spec"]["config"].get(
-                f"spec.triggers.monitoring_{mm_constants.MonitoringFunctionNames.STREAM}_trigger_1"
+                "spec.triggers.monitoring_model-monitoring-stream_trigger_1"
             )
             is None
         ):

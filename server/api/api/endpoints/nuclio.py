@@ -164,7 +164,7 @@ async def delete_api_gateway(
         return await client.delete_api_gateway(project_name=project, name=gateway)
 
 
-@router.post("/projects/{project}/functions/{name}/deploy")
+@router.post("/projects/{project}/nuclio/{name}/deploy")
 async def deploy_function(
     project: str,
     name: str,
@@ -241,7 +241,7 @@ async def deploy_function(
     }
 
 
-@router.get("/projects/{project}/functions/{name}/deploy")
+@router.get("/projects/{project}/nuclio/{name}/deploy")
 async def deploy_status(
     project: str = "",
     name: str = "",

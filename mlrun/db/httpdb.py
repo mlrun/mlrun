@@ -1362,7 +1362,7 @@ class HTTPRunDB(RunDBInterface):
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError("bad function run response")
+            raise ValueError("bad submit build response")
 
         return resp.json()
 
@@ -1384,15 +1384,17 @@ class HTTPRunDB(RunDBInterface):
             }
             if builder_env:
                 req["builder_env"] = builder_env
-            _path = f"projects/{func.metadata.project}/functions/{func.metadata.name}/deploy"
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
             resp = self.api_call("POST", _path, json=req)
         except OSError as err:
-            logger.error(f"error submitting deploy task: {err_to_str(err)}")
+            logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
             raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError("bad function run response")
+            logger.error(f"deploy nuclio - bad response:\n{resp.text}")
+            raise ValueError("bad nuclio deploy response")
 
         return resp.json()
 
@@ -1423,7 +1425,9 @@ class HTTPRunDB(RunDBInterface):
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            _path = f"projects/{func.metadata.project}/functions/{func.metadata.name}/deploy"
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
             resp = self.api_call("GET", _path, params=params)
         except OSError as err:
             logger.error(f"error getting deploy status: {err_to_str(err)}")

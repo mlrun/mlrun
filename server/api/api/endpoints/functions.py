@@ -793,7 +793,6 @@ def _deploy_nuclio_runtime(
                 db_session,
                 fn,
                 model_monitoring_access_key,
-                monitoring_application,
             )
         if monitoring_application:
             fn = _deploy_monitoring_application(
@@ -814,7 +813,6 @@ def _deploy_serving_monitoring(
     db_session,
     fn,
     model_monitoring_access_key,
-    monitoring_application,
 ):
     try:
         # Handle model monitoring
@@ -827,28 +825,26 @@ def _deploy_serving_monitoring(
             # Initialize tracking policy with default values
             fn.spec.tracking_policy = TrackingPolicy()
 
-        if not mlrun.mlconf.is_ce_mode():
-            # create v3io stream for model_monitoring_stream
-            create_model_monitoring_stream(
-                project=fn.metadata.project,
-                function=fn,
-                monitoring_application=monitoring_application,
-                stream_path=server.api.crud.model_monitoring.get_stream_path(
-                    project=fn.metadata.project,
-                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
-                ),
-            )
-
         # deploy model monitoring stream, model monitoring batch job,
-        monitoring_deploy = (
+        monitoring_deployment = (
             server.api.crud.model_monitoring.deployment.MonitoringDeployment()
         )
-        monitoring_deploy.deploy_monitoring_functions(
+
+        overwrite_stream = False
+        if not mlrun.mlconf.is_ce_mode():
+            if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger(
+                project=fn.metadata.project,
+                db_session=db_session,
+            ):
+                overwrite_stream = True
+
+        monitoring_deployment.deploy_monitoring_functions(
             project=fn.metadata.project,
             db_session=db_session,
             auth_info=auth_info,
             tracking_policy=fn.spec.tracking_policy,
             model_monitoring_access_key=model_monitoring_access_key,
+            overwrite_stream=overwrite_stream,
         )
 
     except Exception as exc:
@@ -863,23 +859,11 @@ def _deploy_serving_monitoring(
 def _deploy_monitoring_application(
     auth_info, fn, model_monitoring_access_key, monitoring_application
 ):
-    if not mlrun.mlconf.is_ce_mode():
-        # create v3io stream for model monitoring application
-        create_model_monitoring_stream(
-            project=fn.metadata.project,
-            function=fn,
-            monitoring_application=monitoring_application,
-            stream_path=server.api.crud.model_monitoring.get_stream_path(
-                project=fn.metadata.project,
-                application_name=fn.metadata.name,
-            ),
-            access_key=model_monitoring_access_key,
-        )
     # apply stream trigger to monitoring application
     monitoring_deploy = (
         server.api.crud.model_monitoring.deployment.MonitoringDeployment()
     )
-    fn = monitoring_deploy._apply_stream_trigger(
+    fn = monitoring_deploy._apply_and_create_stream_trigger(
         project=fn.metadata.project,
         function=fn,
         model_monitoring_access_key=model_monitoring_access_key,
@@ -1086,15 +1070,13 @@ def _is_nuclio_deploy_status_changed(
 
 def create_model_monitoring_stream(
     project: str,
-    function,
     stream_path: str,
     monitoring_application: bool = None,
     access_key: str = None,
+    stream_args: dict = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
-
-        _init_serving_function_stream_args(fn=function)
 
         _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
@@ -1108,13 +1090,9 @@ def create_model_monitoring_stream(
         )
 
         v3io_client = v3io.dataplane.Client(
-            endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+            endpoint=config.v3io_api, access_key=access_key
         )
-        stream_args = (
-            config.model_endpoint_monitoring.application_stream_args
-            if monitoring_application
-            else config.model_endpoint_monitoring.serving_stream_args
-        )
+
         response = v3io_client.stream.create(
             container=container,
             stream_path=stream_path,

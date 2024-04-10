@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import pathlib
 import typing
 
@@ -28,6 +28,7 @@ import server.api.utils.scheduler
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
+from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.api import deps
@@ -78,6 +79,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        overwrite_stream: bool = False,
     ):
         """
         Invoking monitoring deploying functions.
@@ -87,6 +89,8 @@ class MonitoringDeployment:
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
+        :param overwrite_stream             If true, overwrite the existing model monitoring stream function.
+                                            Default is False.
         """
         self.deploy_model_monitoring_stream_processing(
             project=project,
@@ -94,6 +98,7 @@ class MonitoringDeployment:
             db_session=db_session,
             auth_info=auth_info,
             tracking_policy=tracking_policy,
+            overwrite=overwrite_stream,
         )
         self.deploy_model_monitoring_batch_processing(
             project=project,
@@ -112,6 +117,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        overwrite: bool = False,
     ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -123,29 +129,41 @@ class MonitoringDeployment:
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
+        :param overwrite:                   If true, overwrite the existing model monitoring stream function.
+                                            Default is False.
         """
-
+        if not overwrite:
+            logger.info(
+                "Checking if model monitoring stream is already deployed",
+                project=project,
+            )
+            try:
+                # validate that the model monitoring stream has not yet been deployed
+                mlrun.runtimes.function.get_nuclio_deploy_status(
+                    name="model-monitoring-stream",
+                    project=project,
+                    tag="",
+                    auth_info=auth_info,
+                )
+                logger.info(
+                    "Detected model monitoring stream processing function already deployed",
+                    project=project,
+                )
+                return
+            except mlrun.errors.MLRunNotFoundError:
+                pass
         logger.info(
-            "Checking if model monitoring stream is already deployed",
-            project=project,
+            "Deploying model monitoring stream processing function", project=project
         )
-        try:
-            # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
-                name="model-monitoring-stream",
-                project=project,
-                tag="",
-                auth_info=auth_info,
-            )
-            logger.info(
-                "Detected model monitoring stream processing function already deployed",
+        if overwrite and not self.is_monitoring_stream_has_the_new_stream_trigger(
+            project=project, db_session=db_session
+        ):  # in case of only adding the new stream trigger
+            prev_stream_function = server.api.crud.Functions().get_function(
+                name=mm_constants.MonitoringFunctionNames.STREAM,
+                db_session=db_session,
                 project=project,
             )
-            return
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "Deploying model monitoring stream processing function", project=project
-            )
+            tracking_policy.stream_image = prev_stream_function["spec"]["image"]
 
         # Get parquet target value for model monitoring stream function
         parquet_target = (
@@ -447,7 +465,7 @@ class MonitoringDeployment:
         function.metadata.project = project
 
         # Add stream triggers
-        function = self._apply_stream_trigger(
+        function = self._apply_and_create_stream_trigger(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -622,7 +640,7 @@ class MonitoringDeployment:
         }
         return schedule, batch_dict
 
-    def _apply_stream_trigger(
+    def _apply_and_create_stream_trigger(
         self,
         project: str,
         function: mlrun.runtimes.ServingRuntime,
@@ -647,41 +665,50 @@ class MonitoringDeployment:
         """
 
         # Get the stream path from the configuration
-        # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
-        stream_path = server.api.crud.model_monitoring.get_stream_path(
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
             project=project, application_name=function_name
         )
+        for i, stream_path in enumerate(stream_paths):
+            if stream_path.startswith("kafka://"):
+                topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+                # Generate Kafka stream source
+                stream_source = mlrun.datastore.sources.KafkaSource(
+                    brokers=brokers,
+                    topics=[topic],
+                )
+                function = stream_source.add_nuclio_trigger(function)
 
-        if stream_path.startswith("kafka://"):
-            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-            # Generate Kafka stream source
-            stream_source = mlrun.datastore.sources.KafkaSource(
-                brokers=brokers,
-                topics=[topic],
-            )
-            function = stream_source.add_nuclio_trigger(function)
-
-        if not mlrun.mlconf.is_ce_mode():
-            function = self._apply_access_key_and_mount_function(
-                project=project,
-                function=function,
-                model_monitoring_access_key=model_monitoring_access_key,
-                auth_info=auth_info,
-                function_name=function_name,
-            )
-            if stream_path.startswith("v3io://"):
-                kwargs = {}
-                if function_name != mm_constants.MonitoringFunctionNames.STREAM:
-                    kwargs["access_key"] = model_monitoring_access_key
-                if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
-                    kwargs["explicit_ack_mode"] = "explicitOnly"
-                    kwargs["worker_allocation_mode"] = "static"
-
-                # Generate V3IO stream trigger
-                function.add_v3io_stream_trigger(
-                    stream_path=stream_path,
-                    name=f"monitoring_{function_name or 'stream'}_trigger",
-                    **kwargs,
+            if not mlrun.mlconf.is_ce_mode():
+                if stream_path.startswith("v3io://"):
+                    if "projects" in stream_path:
+                        stream_args = (
+                            config.model_endpoint_monitoring.application_stream_args
+                        )
+                        access_key = model_monitoring_access_key
+                        kwargs = {"access_key": model_monitoring_access_key}
+                    else:
+                        stream_args = (
+                            config.model_endpoint_monitoring.serving_stream_args
+                        )
+                        access_key = os.environ.get("V3IO_ACCESS_KEY")
+                        kwargs = {}
+                    if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
+                        kwargs["explicit_ack_mode"] = "explicitOnly"
+                        kwargs["worker_allocation_mode"] = "static"
+                    server.api.api.endpoints.functions.create_model_monitoring_stream(
+                        project=project,
+                        stream_path=stream_path,
+                        access_key=access_key,
+                        stream_args=stream_args,
+                    )
+                    # Generate V3IO stream trigger
+                    function.add_v3io_stream_trigger(
+                        stream_path=stream_path,
+                        name=f"monitoring_{function_name}_trigger{f'_{i}' if i != 0 else ''}",
+                        **kwargs,
+                    )
+                function = self._apply_access_key_and_mount_function(
+                    function=function, function_name=function_name
                 )
         # Add the default HTTP source
         http_source = mlrun.datastore.sources.HttpSource()
@@ -767,7 +794,6 @@ class MonitoringDeployment:
         # create v3io stream for  model_monitoring_writer | model monitoring application
         server.api.api.endpoints.functions.create_model_monitoring_stream(
             project=project,
-            function=function,
             monitoring_application=mm_constants.MonitoringFunctionNames.WRITER,
             stream_path=server.api.crud.model_monitoring.get_stream_path(
                 project=project,
@@ -777,7 +803,7 @@ class MonitoringDeployment:
         )
 
         # Add stream triggers
-        function = self._apply_stream_trigger(
+        function = self._apply_and_create_stream_trigger(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -790,6 +816,44 @@ class MonitoringDeployment:
         function.spec.parameters = run_config.parameters
 
         return function
+
+    @staticmethod
+    def is_monitoring_stream_has_the_new_stream_trigger(
+        project: str,
+        db_session: sqlalchemy.orm.Session,
+    ) -> bool:
+        """
+        Check if the monitoring stream function has the new stream trigger.
+
+        :return: True if the monitoring stream function has the new stream trigger, otherwise False.
+        """
+
+        try:
+            function = server.api.crud.Functions().get_function(
+                name=mm_constants.MonitoringFunctionNames.STREAM,
+                db_session=db_session,
+                project=project,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info(
+                "The stream function is not deployed yet when the user will run `enable_model_monitoring` "
+                "the stream function will be deployed with the new & the old stream triggers",
+                project=project,
+            )
+            return True
+
+        if (
+            function["spec"]["config"].get(
+                f"spec.triggers.monitoring_{mm_constants.MonitoringFunctionNames.STREAM}_trigger_1"
+            )
+            is None
+        ):
+            logger.info(
+                "The stream function needs to be updated with the new stream trigger",
+                project=project,
+            )
+            return False
+        return True
 
 
 def get_endpoint_features(

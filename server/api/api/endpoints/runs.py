@@ -181,9 +181,6 @@ async def delete_run(
 
 
 # TODO: remove /runs in 1.8.0
-# schema_as_query_parameter_definition and get_schema_annotations is used to allow the pydantic schema to be used as a
-# query parameter in FastAPI. FastAPI doesn't fully support pydantic schemas as query parameters - it ignores unions,
-# it ignores field aliases in the request and doesn't show the aliases in the OpenAPI documentation either.
 @router.get(
     "/runs",
     deprecated=True,

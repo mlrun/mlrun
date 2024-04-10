@@ -708,7 +708,11 @@ class MonitoringDeployment:
                         **kwargs,
                     )
                 function = self._apply_access_key_and_mount_function(
-                    function=function, function_name=function_name
+                    project=project,
+                    function=function,
+                    model_monitoring_access_key=model_monitoring_access_key,
+                    auth_info=auth_info,
+                    function_name=function_name,
                 )
         # Add the default HTTP source
         http_source = mlrun.datastore.sources.HttpSource()

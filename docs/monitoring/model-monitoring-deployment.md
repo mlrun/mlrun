@@ -7,10 +7,24 @@ This page gives an overview of the model monitoring feature. See a complete exam
 
 ## Architecture
 
+The model monitoring process flow starts with collecting operational data. The operational data are converted to vectors, which are posted to the Model Server. 
+The model server is then wrapped around a machine learning model that uses a function to calculate predictions based on the available vectors. Next, the model 
+server creates a log for the input and output of the vectors, and the entries are written to the production data stream (a v3io stream). While the model server 
+is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. The stream function examines 
+the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
+The parquet files are written as a feature set under the model monitoring project. The parquet files can be read either using `pandas.read_parquet` or `feature_set.get_offline_features`, 
+like any other feature set. In parallel, a scheduled MLRun job runs reading the parquet files, performing drift analysis. The drift analysis data is stored so 
+that the user can retrieve it in the Iguazio UI or in a Grafana dashboard.
+
 When you enable model monitoring, you effectively deploy three components:
 - application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The frequency is determined by `base_period`. 
 - writer function: writes to the database and outputs alerts.
 - stream function: monitors the log of the data stream. It is triggered when a new log entry is detected. The monitored data is used to create real-time dashboards, detect drift, and analyze performance.
+
+## Drift analysis
+The model monitoring feature provides drift analysis monitoring. Model drift in machine learning is a situation where the statistical properties of the target variable (what the model is 
+trying to predict) change over time. In other words, the production data has changed significantly over the course of time and no longer matches the input data used to train the model. 
+So, for this new data, accuracy of the model predictions is low. Drift analysis statistics are computed once an hour. For more information see [Concept Drift](https://www.iguazio.com/glossary/concept-drift/).
 
 ## APIs
 

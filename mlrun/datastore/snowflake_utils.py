@@ -22,7 +22,7 @@ def get_snowflake_password():
 
     if not snowflake_password:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "No password provided. Set password using the SNOWFLAKE_PASSWORD "
+            f"No password provided. Set password using the {key} "
             "project secret or environment variable."
         )
 

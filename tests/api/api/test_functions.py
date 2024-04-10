@@ -31,6 +31,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.endpoints.functions
+import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud
 import server.api.main
@@ -379,7 +380,7 @@ def test_tracking_on_serving(
 
     functions_to_monkeypatch = {
         server.api.api.utils: ["apply_enrichment_and_validation_on_function"],
-        server.api.api.endpoints.functions: [
+        server.api.api.endpoints.nuclio: [
             "process_model_monitoring_secret",
             "create_model_monitoring_stream",
         ],

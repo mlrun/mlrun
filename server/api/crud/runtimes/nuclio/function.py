@@ -172,6 +172,28 @@ def get_nuclio_deploy_status(
         return state, address, name, last_log_timestamp, text, function_status
 
 
+def pure_nuclio_deployed_restricted():
+    """
+    Decorator to restrict the usage of the decorated function to pure nuclio deployed runtimes only.
+    Pure nuclio deployed runtimes are runtimes that their images are not built by MLRun, but are built and deployed
+    completely by nuclio.
+    """
+
+    def decorator(callback):
+        def wrapper(function, *args, **kwargs):
+            if (
+                function.kind
+                not in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
+            ):
+                return
+
+            return callback(function, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def _compile_function_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     client_version: str = None,
@@ -217,14 +239,24 @@ def _compile_function_config(
         else:
             env_dict["SERVING_SPEC_ENV"] = serving_spec
 
+    # resolve sidecars images
+    sidecars = function.spec.config.get("spec.sidecars") or []
+    for sidecar in sidecars:
+        sidecar_image = sidecar.get("image")
+        if sidecar_image:
+            sidecar["image"] = server.api.utils.builder.resolve_and_enrich_image_target(
+                sidecar_image,
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
         config=function.spec.config,
     )
-    nuclio_spec.cmd = function.spec.build.commands or []
 
-    _resolve_and_set_build_requirements(function, nuclio_spec)
+    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
     _resolve_and_set_nuclio_runtime(
         function, nuclio_spec, client_version, client_python_version
     )
@@ -346,6 +378,12 @@ def _resolve_and_set_nuclio_runtime(
             nuclio_runtime = "python:3.6"
 
     nuclio_spec.set_config("spec.runtime", nuclio_runtime)
+
+
+@pure_nuclio_deployed_restricted()
+def _resolve_and_set_build_requirements_and_commands(function, nuclio_spec):
+    nuclio_spec.cmd = function.spec.build.commands or []
+    _resolve_and_set_build_requirements(function, nuclio_spec)
 
 
 def _resolve_and_set_build_requirements(function, nuclio_spec):
@@ -524,6 +562,7 @@ def _set_source_code_and_handler(function, config):
         )
 
 
+@pure_nuclio_deployed_restricted()
 def _resolve_and_set_base_image(
     function, config, client_version, client_python_version
 ):
@@ -533,13 +572,15 @@ def _resolve_and_set_base_image(
         or function.spec.build.base_image
     )
     if base_image:
-        base_image = server.api.utils.builder.resolve_image_target(base_image)
+        base_image = server.api.utils.builder.resolve_and_enrich_image_target(
+            base_image,
+            client_version=client_version,
+            client_python_version=client_python_version,
+        )
         mlrun.utils.update_in(
             config,
             "spec.build.baseImage",
-            mlrun.utils.enrich_image_url(
-                base_image, client_version, client_python_version
-            ),
+            base_image,
         )
 
 

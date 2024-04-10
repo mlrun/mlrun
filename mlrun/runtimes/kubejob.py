@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import warnings
 
 import mlrun.common.schemas
@@ -21,7 +20,6 @@ import mlrun.errors
 
 from ..kfpops import build_op
 from ..model import RunObject
-from ..utils import get_in, logger
 from .pod import KubeResource
 
 
@@ -65,29 +63,13 @@ class KubejobRuntime(KubeResource):
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
-        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
-
-        self.spec.build.source = source
-        if handler:
-            self.spec.default_handler = handler
-        if workdir:
-            self.spec.workdir = workdir
-        if target_dir:
-            self.spec.build.source_code_target_dir = target_dir
-
-        self.spec.build.load_source_on_run = pull_at_runtime
-        if (
-            self.spec.build.base_image
-            and not self.spec.build.commands
-            and pull_at_runtime
-            and not self.spec.image
-        ):
-            # if we load source from repo and don't need a full build use the base_image as the image
-            self.spec.image = self.spec.build.base_image
-        elif not pull_at_runtime:
-            # clear the image so build will not be skipped
-            self.spec.build.base_image = self.spec.build.base_image or self.spec.image
-            self.spec.image = ""
+        self._configure_mlrun_build_with_source(
+            source=source,
+            workdir=workdir,
+            handler=handler,
+            pull_at_runtime=pull_at_runtime,
+            target_dir=target_dir,
+        )
 
     def build_config(
         self,
@@ -169,116 +151,39 @@ class KubejobRuntime(KubeResource):
         show_on_failure: bool = False,
         force_build: bool = False,
     ) -> bool:
-        """deploy function, build container with dependencies
+        """Deploy function, build container with dependencies
 
-        :param watch:                   wait for the deploy to complete (and print build logs)
-        :param with_mlrun:              add the current mlrun package to the container build
-        :param skip_deployed:           skip the build if we already have an image for the function
-        :param is_kfp:                  deploy as part of a kfp pipeline
-        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param watch:                   Wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              Add the current mlrun package to the container build
+        :param skip_deployed:           Skip the build if we already have an image for the function
+        :param is_kfp:                  Deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:         show logs only in case of build failure
-        :param force_build:             set True for force building the image, even when no changes were made
+        :param show_on_failure:         Show logs only in case of build failure
+        :param force_build:             Set True for force building the image, even when no changes were made
 
         :return: True if the function is ready (deployed)
         """
 
         build = self.spec.build
+        with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
 
-        if with_mlrun is None:
-            if build.with_mlrun is not None:
-                with_mlrun = build.with_mlrun
-            else:
-                with_mlrun = build.base_image and not (
-                    build.base_image.startswith("mlrun/")
-                    or "/mlrun/" in build.base_image
-                )
-
-        if (
-            not build.source
-            and not build.commands
-            and not build.requirements
-            and not build.extra
-            and with_mlrun
-        ):
-            logger.info(
-                "Running build to add mlrun package, set "
-                "with_mlrun=False to skip if its already in the image"
-            )
         self.status.state = ""
         if build.base_image:
             # clear the image so build will not be skipped
             self.spec.image = ""
 
-        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
-        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
-        if is_kfp:
-            watch = True
-
-        ready = False
-        if self._is_remote_api():
-            db = self._get_db()
-            data = db.remote_builder(
-                self,
-                with_mlrun,
-                mlrun_version_specifier,
-                skip_deployed,
-                builder_env=builder_env,
-                force_build=force_build,
-            )
-            self.status = data["data"].get("status", None)
-            self.spec.image = get_in(data, "data.spec.image")
-            self.spec.build.base_image = self.spec.build.base_image or get_in(
-                data, "data.spec.build.base_image"
-            )
-            # Get the source target dir in case it was enriched due to loading source
-            self.spec.build.source_code_target_dir = get_in(
-                data, "data.spec.build.source_code_target_dir"
-            ) or get_in(data, "data.spec.clone_target_dir")
-            ready = data.get("ready", False)
-            if not ready:
-                logger.info(
-                    f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
-                )
-            if watch and not ready:
-                state = self._build_watch(watch, show_on_failure=show_on_failure)
-                ready = state == "ready"
-                self.status.state = state
-
-        if watch and not ready:
-            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
-        return ready
-
-    def _build_watch(self, watch=True, logs=True, show_on_failure=False):
-        db = self._get_db()
-        offset = 0
-        try:
-            text, _ = db.get_builder_status(self, 0, logs=logs)
-        except mlrun.db.RunDBError:
-            raise ValueError("function or build process not found")
-
-        def print_log(text):
-            if text and (not show_on_failure or self.status.state == "error"):
-                print(text, end="")
-
-        print_log(text)
-        offset += len(text)
-        if watch:
-            while self.status.state in ["pending", "running"]:
-                time.sleep(2)
-                if show_on_failure:
-                    text = ""
-                    db.get_builder_status(self, 0, logs=False)
-                    if self.status.state == "error":
-                        # re-read the full log on failure
-                        text, _ = db.get_builder_status(self, offset, logs=logs)
-                else:
-                    text, _ = db.get_builder_status(self, offset, logs=logs)
-                print_log(text)
-                offset += len(text)
-
-        return self.status.state
+        return self._build_image(
+            builder_env=builder_env,
+            force_build=force_build,
+            mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
+            skip_deployed=skip_deployed,
+            watch=watch,
+            is_kfp=is_kfp,
+            with_mlrun=with_mlrun,
+        )
 
     def deploy_step(
         self,

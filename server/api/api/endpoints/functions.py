@@ -1072,7 +1072,7 @@ def create_model_monitoring_stream(
     project: str,
     stream_path: str,
     access_key: str = None,
-    stream_args: dict = None,
+    stream_args: mlrun.mlconf.Config = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane

@@ -32,9 +32,9 @@ async def projects_leader() -> (
     typing.Generator[server.api.utils.projects.leader.Member, None, None]
 ):
     logger.info("Creating projects leader")
-    mlrun.config.config.httpdb.projects.leader = "nop-self-leader"
-    mlrun.config.config.httpdb.projects.followers = "nop,nop2"
-    mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
+    mlrun.mlconf.httpdb.projects.leader = "nop-self-leader"
+    mlrun.mlconf.httpdb.projects.followers = "nop,nop2"
+    mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
     server.api.utils.singletons.project_member.initialize_project_member()
     projects_leader = server.api.utils.singletons.project_member.get_project_member()
     yield projects_leader

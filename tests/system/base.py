@@ -219,7 +219,7 @@ class TestMLRunSystem:
                 os.environ[env_var] = value
 
         # reload the config so changes to the env vars will take effect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     @classmethod
     def _teardown_env(cls):
@@ -229,7 +229,7 @@ class TestMLRunSystem:
                 del os.environ[env_var]
         os.environ.update(cls._old_env)
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
         v3io_user = self._test_env["V3IO_USERNAME"]

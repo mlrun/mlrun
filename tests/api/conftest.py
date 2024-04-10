@@ -182,7 +182,7 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config.iguazio_api_url = api_url
+    mlrun.mlconf.iguazio_api_url = api_url
     return api_url
 
 
@@ -425,7 +425,7 @@ def mock_project_follower_iguazio_client(
     """
     This fixture mocks the project leader iguazio client.
     """
-    mlrun.config.config.httpdb.projects.leader = "iguazio"
+    mlrun.mlconf.httpdb.projects.leader = "iguazio"
     mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
     old_iguazio_client = server.api.utils.clients.iguazio.Client
     server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient

@@ -1184,7 +1184,7 @@ class HTTPRunDB(RunDBInterface):
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
             the moment they moved to terminal state
-            (defaults to mlrun.config.config.runtime_resources_deletion_grace_period).
+            (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
@@ -1586,7 +1586,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.config.config.default_project).
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.

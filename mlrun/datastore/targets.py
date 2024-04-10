@@ -17,6 +17,7 @@ import os
 import random
 import sys
 import time
+import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Optional, Union
@@ -1424,11 +1425,19 @@ class KafkaTarget(BaseStoreTarget):
         *args,
         bootstrap_servers=None,
         producer_options=None,
+        brokers=None,
         **kwargs,
     ):
         attrs = {}
+        if bootstrap_servers:
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                # TODO: Remove this in 1.9.0
+                FutureWarning,
+            )
         if bootstrap_servers is not None:
-            attrs["bootstrap_servers"] = bootstrap_servers
+            attrs["brokers"] = brokers or bootstrap_servers
         if producer_options is not None:
             attrs["producer_options"] = producer_options
 
@@ -1450,14 +1459,16 @@ class KafkaTarget(BaseStoreTarget):
         if self.path and self.path.startswith("ds://"):
             datastore_profile = datastore_profile_read(self.path)
             attributes = datastore_profile.attributes()
-            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            brokers = attributes.pop(
+                "brokers", attributes.pop("bootstrap_servers", None)
+            )
             topic = datastore_profile.topic
         else:
             attributes = copy(self.attributes)
-            bootstrap_servers = attributes.pop("bootstrap_servers", None)
-            topic, bootstrap_servers = parse_kafka_url(
-                self.get_target_path(), bootstrap_servers
+            brokers = attributes.pop(
+                "brokers", attributes.pop("bootstrap_servers", None)
             )
+            topic, brokers = parse_kafka_url(self.get_target_path(), brokers)
 
         if not topic:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1471,7 +1482,7 @@ class KafkaTarget(BaseStoreTarget):
             class_name="storey.KafkaTarget",
             columns=column_list,
             topic=topic,
-            bootstrap_servers=bootstrap_servers,
+            brokers=brokers,
             **attributes,
         )
 

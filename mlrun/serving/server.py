@@ -53,7 +53,7 @@ class _StreamContext:
         Initialize _StreamContext object.
         :param enabled:      A boolean indication for applying the stream context
         :param parameters:   Dictionary of optional parameters, such as `log_stream` and `stream_args`. Note that these
-                             parameters might be relevant to the output source such as `kafka_bootstrap_servers` if
+                             parameters might be relevant to the output source such as `kafka_brokers` if
                              the output source is from type Kafka.
         :param function_uri: Full value of the function uri, usually it's <project-name>/<function-name>
         """

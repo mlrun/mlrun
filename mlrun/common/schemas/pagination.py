@@ -11,24 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import http
 
-import fastapi.testclient
-import sqlalchemy.orm
+import typing
 
-import mlrun.common.schemas
-import mlrun.config
+import pydantic
 
 
-def test_health(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-) -> None:
-    # sanity
-    response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.OK.value
+class PaginationInfo(pydantic.BaseModel):
+    class Config:
+        allow_population_by_field_name = True
 
-    # fail
-    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.offline
-    response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
+    page: typing.Optional[int]
+    page_size: typing.Optional[int] = pydantic.Field(alias="page-size")
+    page_token: typing.Optional[str] = pydantic.Field(alias="page-token")

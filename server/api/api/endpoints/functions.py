@@ -50,7 +50,7 @@ from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_pre
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime
+from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
@@ -776,7 +776,8 @@ def _deploy_nuclio_runtime(
         fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
         == mm_constants.ModelMonitoringAppLabel.VAL
     )
-    if monitoring_application:
+    serving_to_monitor = fn.kind == RuntimeKinds.serving and fn.spec.track_models
+    if monitoring_application or serving_to_monitor:
         if not mlrun.mlconf.is_ce_mode():
             model_monitoring_access_key = process_model_monitoring_secret(
                 db_session,
@@ -785,21 +786,26 @@ def _deploy_nuclio_runtime(
             )
         else:
             model_monitoring_access_key = None
-
-        fn = server.api.crud.model_monitoring.deployment.MonitoringDeployment(
-            project=fn.metadata.project,
-            auth_info=auth_info,
-            db_session=db_session,
-            model_monitoring_access_key=model_monitoring_access_key,
-        )._apply_and_create_stream_trigger(
-            function=fn,
-            function_name=fn.metadata.name,
+        monitoring_deployment = (
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=fn.metadata.project,
+                auth_info=auth_info,
+                db_session=db_session,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         )
+        if monitoring_application:
+            fn = monitoring_deployment._apply_and_create_stream_trigger(
+                function=fn,
+                function_name=fn.metadata.name,
+            )
 
-    serving_to_monitor = fn.kind == RuntimeKinds.serving and fn.spec.track_models
-    if serving_to_monitor:
-        if not mlrun.mlconf.is_ce_mode():
-            _init_serving_function_stream_args(fn=fn)
+        if serving_to_monitor:
+            if not mlrun.mlconf.is_ce_mode():
+                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
+                    monitoring_deployment.deploy_model_monitoring_stream_processing(
+                        overwrite=True
+                    )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
@@ -1002,8 +1008,8 @@ def _is_nuclio_deploy_status_changed(
 def create_model_monitoring_stream(
     project: str,
     stream_path: str,
-    monitoring_application: bool = None,
     access_key: str = None,
+    stream_args: dict = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
@@ -1020,41 +1026,17 @@ def create_model_monitoring_stream(
         )
 
         v3io_client = v3io.dataplane.Client(
-            endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+            endpoint=config.v3io_api, access_key=access_key
         )
-        stream_args = (
-            config.model_endpoint_monitoring.application_stream_args
-            if monitoring_application
-            else config.model_endpoint_monitoring.serving_stream_args
-        )
+
         response = v3io_client.stream.create(
             container=container,
             stream_path=stream_path,
             shard_count=stream_args.shard_count,
             retention_period_hours=stream_args.retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key
-            if monitoring_application
-            else os.environ.get("V3IO_ACCESS_KEY"),
+            access_key=access_key,
         )
 
         if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
             response.raise_for_status([409, 204])
-
-
-def _init_serving_function_stream_args(fn: ServingRuntime):
-    logger.debug("Initializing serving function stream args")
-    if "stream_args" in fn.spec.parameters:
-        logger.debug("Adding access key to pipelines stream args")
-        if "access_key" not in fn.spec.parameters["stream_args"]:
-            logger.debug("pipelines access key added to stream args")
-            fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(
-                "V3IO_ACCESS_KEY"
-            )
-    else:
-        logger.debug("pipelines access key added to stream args")
-        fn.spec.parameters["stream_args"] = {
-            "access_key": os.environ.get("V3IO_ACCESS_KEY")
-        }
-
-    fn.save(versioned=True)

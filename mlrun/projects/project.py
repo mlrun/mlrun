@@ -129,6 +129,7 @@ def new_project(
     save: bool = True,
     overwrite: bool = False,
     parameters: dict = None,
+    default_function_node_selector: dict = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -182,6 +183,7 @@ def new_project(
     :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
                          if project with name exists
     :param parameters:   key/value pairs to add to the project.spec.params
+    :param default_function_node_selector: defines the default node selector for scheduling functions within the project
 
     :returns: project object
     """
@@ -228,6 +230,11 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
+
+    if default_function_node_selector:
+        for key, val in default_function_node_selector.items():
+            project.spec.default_function_node_selector[key] = val
+
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
         for key, val in parameters.items():
@@ -3340,7 +3347,7 @@ class MlrunProject(ModelObj):
             logger.warning(
                 f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
                 " To remove the function, attempt to manually delete it.",
-                exc=repr(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
 
         return result
@@ -3688,7 +3695,10 @@ class MlrunProject(ModelObj):
         self.spec.remove_custom_packager(packager=packager)
 
     def store_api_gateway(
-        self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway
+        self,
+        api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        wait_for_readiness=True,
+        max_wait_time=90,
     ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
         """
         Creates or updates a Nuclio API Gateway using the provided APIGateway object.
@@ -3699,7 +3709,11 @@ class MlrunProject(ModelObj):
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
         :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
-        of the API Gateway to be created
+        of the API Gateway to be created or updated.
+        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
+            after creation or update (default is True)
+        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
+
 
         @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
         information retrieved from the Nuclio API
@@ -3715,6 +3729,9 @@ class MlrunProject(ModelObj):
             api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(
                 api_gateway_json
             )
+            if wait_for_readiness:
+                api_gateway.wait_for_readiness(max_wait_time=max_wait_time)
+
         return api_gateway
 
     def list_api_gateways(self) -> list[mlrun.runtimes.nuclio.api_gateway.APIGateway]:
@@ -3743,7 +3760,8 @@ class MlrunProject(ModelObj):
             mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
         """
 
-        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+        gateway = mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(gateway)
 
     def delete_api_gateway(
         self,

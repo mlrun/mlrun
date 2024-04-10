@@ -491,9 +491,9 @@ class ServingRuntime(RemoteRuntime):
 
                 if (
                     stream.path.startswith("kafka://")
-                    or "kafka_bootstrap_servers" in stream.options
+                    or "kafka_brokers" in stream.options
                 ):
-                    brokers = stream.options.get("kafka_bootstrap_servers")
+                    brokers = stream.options.get("kafka_brokers")
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)

@@ -427,7 +427,7 @@ def _resolve_current_data_version(
         if not projects or not projects.projects:
             logger.info(
                 "No projects in DB, assuming latest data version",
-                exc=exc,
+                exc=err_to_str(exc),
                 latest_data_version=latest_data_version,
             )
             return latest_data_version
@@ -443,7 +443,7 @@ def _resolve_current_data_version(
         elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
             logger.info(
                 "Data version table exist without version, assuming prior version",
-                exc=exc,
+                exc=err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition

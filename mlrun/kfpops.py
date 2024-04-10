@@ -103,7 +103,7 @@ def write_kfpmeta(struct):
             with open(path, "w") as fp:
                 fp.write(str(val))
         except Exception as exc:
-            logger.warning("Failed writing to temp file. Ignoring", exc=repr(exc))
+            logger.warning("Failed writing to temp file. Ignoring", exc=err_to_str(exc))
             pass
 
     text = "# Run Report\n"

@@ -44,12 +44,11 @@ class Client(base_events.BaseEventClient):
                 self.access_key, event
             )
         except Exception as exc:
-            if self.verbose:
-                logger.warning(
-                    "Failed to emit event",
-                    event=event,
-                    exc_info=exc,
-                )
+            logger.warning(
+                "Failed to emit event",
+                event=event,
+                exc_info=exc,
+            )
 
     def generate_auth_secret_event(
         self,

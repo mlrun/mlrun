@@ -221,9 +221,12 @@ class Member(
             return self._leader_client.get_project(leader_session, name)
 
         # format_ is relevant for cases where we want to get the project from mlrun db
-        return self.list_projects(
+        projects = self.list_projects(
             db_session, format_=format_, leader_session=leader_session, names=[name]
-        ).projects[0]
+        ).projects
+        if not projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+        return projects[0]
 
     def get_project_owner(
         self,

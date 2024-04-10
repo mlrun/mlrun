@@ -159,7 +159,7 @@ class MonitoringDeployment:
             project=project, db_session=db_session
         ):  # in case of only adding the new stream trigger
             prev_stream_function = server.api.crud.Functions().get_function(
-                name=mm_constants.MonitoringFunctionNames.STREAM,
+                name="model-monitoring-stream",
                 db_session=db_session,
                 project=project,
             )

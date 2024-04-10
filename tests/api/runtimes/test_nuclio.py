@@ -39,7 +39,7 @@ from mlrun import code_to_function, mlconf
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.utils import logger
-from server.api.api.endpoints.functions import _build_function
+from server.api.utils.functions import build_function
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -534,9 +534,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
         auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
-        # Need to call _build_function, since service-account enrichment is happening only on server side, before the
+        # Need to call build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa1"
         )
@@ -544,12 +544,12 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function.spec.service_account = "bad-sa"
         with pytest.raises(HTTPException):
-            _build_function(db, auth_info, function)
+            build_function(db, auth_info, function)
 
         # verify that project SA overrides the global SA
         mlconf.function.spec.service_account.default = "some-other-sa"
         function.spec.service_account = "sa2"
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa2"
         )
@@ -565,14 +565,14 @@ class TestNuclioRuntime(TestRuntimeBase):
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
         function = self._generate_runtime(self.runtime_kind)
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self.assert_security_context({})
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.override.value
         )
         function = self._generate_runtime(self.runtime_kind)
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self.assert_security_context(
             self._generate_security_context(
                 run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
@@ -587,9 +587,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.function.spec.service_account.default = service_account_name
         auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
-        # Need to call _build_function, since service-account enrichment is happening only on server side, before the
+        # Need to call build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_service_account=service_account_name,

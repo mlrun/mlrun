@@ -60,6 +60,7 @@ class PaginatedMethods:
     _methods: list[typing.Callable] = [
         # TODO: add methods when they implement pagination
         server.api.crud.Runs().list_runs,
+        server.api.crud.Functions().list_functions,
     ]
     _method_map = {
         method.__name__: {

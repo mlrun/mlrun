@@ -16,6 +16,7 @@ import http
 import os
 
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm
 
 from mlrun.utils import logger
@@ -28,10 +29,10 @@ def test_docs(
     assert response.status_code == http.HTTPStatus.OK.value
 
 
-# @pytest.mark.skipif(
-#     os.getenv("MLRUN_OPENAPI_JSON_NAME") is None,
-#     reason="Supposed to run only for CI backward compatibility tests",
-# )
+@pytest.mark.skipif(
+    os.getenv("MLRUN_OPENAPI_JSON_NAME") is None,
+    reason="Supposed to run only for CI backward compatibility tests",
+)
 def test_save_openapi_json(
     db: sqlalchemy.orm.Session, unversioned_client: fastapi.testclient.TestClient
 ) -> None:

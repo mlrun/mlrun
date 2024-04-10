@@ -57,7 +57,9 @@ def mock_paginated_method(monkeypatch):
         {
             paginated_method.__name__: {
                 "method": paginated_method,
-                "schema": Schema,
+                "schema": server.api.utils.pagination._generate_pydantic_schema_from_method_signature(
+                    paginated_method
+                ),
             }
         },
     )

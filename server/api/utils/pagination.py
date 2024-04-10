@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import inspect
 import typing
 
 import pydantic
@@ -26,17 +27,37 @@ from mlrun import mlconf
 from mlrun.utils import logger
 
 
-class PaginatedMethods:
-    _method_schemas: dict[typing.Callable, pydantic.BaseModel] = {
-        # TODO: add methods when they implement pagination
-        server.api.crud.Runs().list_runs: mlrun.common.schemas.runs.ListRunsRequest,
+def _generate_pydantic_schema_from_method_signature(
+    method: typing.Callable,
+) -> pydantic.main.ModelMetaclass:
+    class Config:
+        arbitrary_types_allowed = True
+
+    parameters = inspect.signature(method).parameters
+    fields = {
+        name: (
+            parameter.annotation,
+            parameter.default if parameter.default != inspect.Parameter.empty else ...,
+        )
+        for name, parameter in parameters.items()
+        if parameter.annotation != sqlalchemy.orm.Session
     }
+    return pydantic.create_model(
+        f"{method.__name__}_schema", __config__=Config, **fields
+    )
+
+
+class PaginatedMethods:
+    _methods: list[typing.Callable] = [
+        # TODO: add methods when they implement pagination
+        server.api.crud.Runs().list_runs,
+    ]
     _method_map = {
         method.__name__: {
             "method": method,
-            "schema": schema,
+            "schema": _generate_pydantic_schema_from_method_signature(method),
         }
-        for method, schema in _method_schemas.items()
+        for method in _methods
     }
 
     @classmethod
@@ -200,6 +221,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         # upsert pagination cache record to update last_accessed time or create a new record
         method_schema = PaginatedMethods.get_method_schema(method.__name__)
         serialized_kwargs = method_schema(**method_kwargs).dict()
+        del serialized_kwargs["page"]
+        del serialized_kwargs["page_size"]
         self._logger.debug(
             "Storing pagination cache record",
             method=method.__name__,

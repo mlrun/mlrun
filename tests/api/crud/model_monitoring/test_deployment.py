@@ -38,7 +38,7 @@ class TestAppDeployment:
     @pytest.fixture(autouse=True)
     def _patch_build_function() -> Iterator[None]:
         with patch(
-            "server.api.api.endpoints.functions._build_function",
+            "server.api.utils.functions.build_function",
             new=Mock(return_value=(Mock(spec=mlrun.runtimes.ServingRuntime), True)),
         ):
             yield

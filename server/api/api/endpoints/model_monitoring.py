@@ -22,8 +22,8 @@ import mlrun.common.schemas
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 from server.api.api import deps
-from server.api.api.endpoints.functions import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
+from server.api.utils.functions import process_model_monitoring_secret
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 

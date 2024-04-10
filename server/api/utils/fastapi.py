@@ -50,6 +50,12 @@ class DependencyWithSchemaParameters:
         self.dependency = self._dependency
         self.model_params = inspect.signature(model)
         self.dependency_params = inspect.signature(self._dependency)
+
+        # create a new signature that combines the dependency and model parameters
+        # When FastAPI calls the dependency, it will pass the request object as the first argument
+        # to the dependency function, and ignore the rest of the parameters.
+        # OpenAPI will collect the schema information from the model parameters and ignore the dependency parameters.
+        # Win - Win.
         self.__signature__ = inspect.Signature(
             list(self.dependency_params.parameters.values())
             + list(self.model_params.parameters.values())

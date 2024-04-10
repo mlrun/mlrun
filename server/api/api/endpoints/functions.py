@@ -1071,7 +1071,6 @@ def _is_nuclio_deploy_status_changed(
 def create_model_monitoring_stream(
     project: str,
     stream_path: str,
-    monitoring_application: bool = None,
     access_key: str = None,
     stream_args: dict = None,
 ):

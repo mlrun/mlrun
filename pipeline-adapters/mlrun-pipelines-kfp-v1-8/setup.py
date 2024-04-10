@@ -20,8 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
-    name="mlrun_pipelines_kfp_adapters",
-    version="0.0.0",
+    name="mlrun-pipelines-kfp-v1-8-experiment",
+    version="0.1.0",
     description="MLRun Pipelines package for providing KFP 1.8 compatibility",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",
@@ -30,7 +30,6 @@ setup(
     packages=find_namespace_packages(
         where="src/",
         include=[
-            # TODO: this list need to be dynamic
             "mlrun_pipelines.helpers",
             "mlrun_pipelines.mounts",
             "mlrun_pipelines.mixins",

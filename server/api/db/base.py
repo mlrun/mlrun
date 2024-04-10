@@ -108,6 +108,8 @@ class DBInterface(ABC):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> mlrun.lists.RunList:
         pass
 
@@ -768,6 +770,7 @@ class DBInterface(ABC):
         user: str,
         function: str,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         raise NotImplementedError

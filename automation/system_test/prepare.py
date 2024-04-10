@@ -85,8 +85,6 @@ class SystemTestPreparer:
         access_key: str = None,
         iguazio_version: str = None,
         slack_webhook_url: str = None,
-        mysql_user: str = None,
-        mysql_password: str = None,
         debug: bool = False,
         branch: str = None,
         mlrun_dbpath: str = None,
@@ -108,8 +106,6 @@ class SystemTestPreparer:
         self._provctl_download_s3_access_key = provctl_download_s3_access_key
         self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
-        self._mysql_user = mysql_user
-        self._mysql_password = mysql_password
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
         self._mlrun_dbpath = mlrun_dbpath
 
@@ -593,48 +589,6 @@ class SystemTestPreparer:
             "info", "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
 
-    def _delete_mlrun_db(self):
-        self._logger.log("info", "Deleting mlrun db")
-
-        mlrun_db_pod_name_cmd = self._get_pod_name_command(
-            labels={
-                "app.kubernetes.io/component": "db",
-                "app.kubernetes.io/instance": "mlrun",
-            },
-        )
-        if not mlrun_db_pod_name_cmd:
-            self._logger.log("info", "No mlrun db pod found")
-            return
-
-        self._logger.log(
-            "info", "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
-        )
-
-        password = ""
-        if self._mysql_password:
-            password = f"-p {self._mysql_password} "
-
-        drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
-
-        args = [
-            "kubectl",
-            "exec",
-            "-n",
-            self.Constants.namespace,
-            "-it",
-            mlrun_db_pod_name_cmd,
-            "--",
-            drop_db_cmd,
-        ]
-        command = " ".join(args)
-        self._run_and_wait_until_successful(
-            command,
-            command_name="delete mlrun db",
-            max_retries=5,
-            interval=10,
-            suppress_error_strings=["database doesn\\'t exist"],
-        )
-
     def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
         pod_name, stderr = self._run_kubectl_command(
@@ -787,8 +741,6 @@ def main():
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
 @click.option("--iguazio-version", default=None)
-@click.option("--mysql-user")
-@click.option("--mysql-password")
 @click.option(
     "--debug",
     "-d",
@@ -809,8 +761,6 @@ def run(
     username: str,
     access_key: str,
     iguazio_version: str,
-    mysql_user: str,
-    mysql_password: str,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
@@ -827,8 +777,6 @@ def run(
         username=username,
         access_key=access_key,
         iguazio_version=iguazio_version,
-        mysql_user=mysql_user,
-        mysql_password=mysql_password,
         debug=debug,
     )
     try:

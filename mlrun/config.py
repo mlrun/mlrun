@@ -481,10 +481,13 @@ default_config = {
             # if set to true, will log a warning for trying to use run db functionality while in nop db mode
             "verbose": True,
         },
-        "pagination_cache": {
-            "interval": 60,
-            "ttl": 3600,
-            "max_size": 10000,
+        "pagination": {
+            "default_page_size": 20,
+            "pagination_cache": {
+                "interval": 60,
+                "ttl": 3600,
+                "max_size": 10000,
+            },
         },
     },
     "model_endpoint_monitoring": {
@@ -548,6 +551,7 @@ default_config = {
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
             "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -1073,7 +1077,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
-    ) -> str:
+    ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
         :param project:         Project name.
@@ -1089,7 +1093,8 @@ class Config:
                                 relative artifact path will be taken from the global MLRun artifact path.
         :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind. Can be either a single path
+                                or a list of paths in the case of the online model monitoring stream path.
         """
 
         if target != "offline":
@@ -1111,10 +1116,22 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project,
-                kind=kind,
-            )
+            elif kind == "stream":  # return list for mlrun<1.6.3 BC
+                return [
+                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project,
+                        kind=kind,
+                    ),  # old stream uri (pipelines) for BC ML-6043
+                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                        project=project,
+                        kind=kind,
+                    ),  # new stream uri (projects)
+                ]
+            else:
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project,
+                    kind=kind,
+                )
 
         # Get the current offline path from the configuration
         file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(

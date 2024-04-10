@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import os.path
 import pathlib
@@ -1166,6 +1166,50 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
+def test_function_receives_project_default_function_node_selector():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+    default_function_node_selector = {"gpu": "true"}
+
+    non_enriched_function = proj1.set_function(
+        func=func_path,
+        name="func",
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+    )
+    assert non_enriched_function.spec.node_selector == {}
+
+    proj1.spec.default_function_node_selector = default_function_node_selector
+    enriched_function = proj1.get_function("func", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # Same check - with a function object
+    func1 = mlrun.code_to_function(
+        "func2",
+        kind="job",
+        handler="myhandler",
+        image="mlrun/mlrun",
+        filename=func_path,
+    )
+    proj1.set_function(func1, name="func2")
+
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.node_selector == {}
+
+    enriched_function = proj1.get_function("func2", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # If a function already has a node selector defined, the project-level node selector should merge with it,
+    # giving precedence to the function's node selector.
+    func1.spec.node_selector = {"zone": "us-west"}
+    proj1.set_function(func1, name="func3")
+
+    enriched_function = proj1.get_function("func3", enrich=True)
+    assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
+
+
 def test_project_exports_default_image():
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     default_image = "myrepo/myimage1"
@@ -1432,7 +1476,7 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
 
 
 def test_get_or_create_project_no_db():
-    mlrun.config.config.dbpath = ""
+    mlrun.mlconf.dbpath = ""
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name
@@ -1684,11 +1728,14 @@ def test_create_api_gateway_valid(
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
             path="/",
-            host="http://gateway-f1-f2-project-name.some-domain.com",
+            host="gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
             authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
             if not with_basic_auth
             else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        ),
+        status=mlrun.common.schemas.APIGatewayStatus(
+            state=mlrun.common.schemas.APIGatewayState.ready,
         ),
     )
     project_name = "project-name"
@@ -1723,7 +1770,7 @@ def test_create_api_gateway_valid(
 
     gateway = project.store_api_gateway(api_gateway)
 
-    assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if with_basic_auth:
         assert gateway.authentication.authentication_mode == "basicAuth"
     else:
@@ -2070,3 +2117,50 @@ def test_load_project_dir(project_file_name, expectation):
             assert project.name == "pipe2"
     finally:
         shutil.rmtree(project_dir)
+
+
+class TestModelMonitoring:
+    """Test model monitoring project methods"""
+
+    @staticmethod
+    @pytest.fixture
+    def project() -> mlrun.projects.MlrunProject:
+        return unittest.mock.Mock()  # spec_set=mlrun.projects.MlrunProject)
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("delete_app", "expected_deleted_fns"),
+        [
+            (
+                True,
+                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list()
+                + [
+                    mlrun.common.schemas.model_monitoring.constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                ],
+            ),
+            (
+                False,
+                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list(),
+            ),
+        ],
+    )
+    def test_disable(
+        project: mlrun.projects.MlrunProject,
+        delete_app: bool,
+        expected_deleted_fns: list[str],
+    ) -> None:
+        db_mock = unittest.mock.Mock(spec=mlrun.db.RunDBInterface)
+        with unittest.mock.patch(
+            "mlrun.db.get_run_db", unittest.mock.Mock(return_value=db_mock)
+        ):
+            mlrun.projects.MlrunProject.disable_model_monitoring(
+                project, delete_histogram_data_drift_app=delete_app
+            )
+
+        deleted_fns = [
+            call_args.kwargs["name"]
+            for call_args in db_mock.delete_function.call_args_list
+        ]
+        assert (
+            deleted_fns == expected_deleted_fns
+        ), "The deleted functions are different than expexted"

@@ -22,7 +22,6 @@ import typing
 
 import fastapi
 import fastapi.concurrency
-import fastapi.openapi.utils
 import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 

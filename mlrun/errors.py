@@ -175,10 +175,6 @@ class MLRunPreconditionFailedError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.PRECONDITION_FAILED.value
 
 
-class MLRunUnprocessableEntityError(MLRunHTTPStatusError):
-    error_status_code = HTTPStatus.UNPROCESSABLE_ENTITY.value
-
-
 class MLRunIncompatibleVersionError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 

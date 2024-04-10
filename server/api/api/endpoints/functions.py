@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
@@ -42,6 +41,7 @@ import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
+import server.api.utils.functions
 import server.api.utils.pagination
 import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
@@ -53,10 +53,8 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
 from server.api.api.endpoints.nuclio import (
-    _deploy_nuclio_runtime,
     _handle_nuclio_deploy_status,
 )
-from server.api.utils.builder import build_runtime
 from server.api.utils.singletons.scheduler import get_scheduler
 
 router = APIRouter()
@@ -316,7 +314,7 @@ async def build_function(
     force_build = data.get("force_build", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(
-        _build_function,
+        server.api.utils.functions.build_function,
         db_session,
         auth_info,
         function,
@@ -626,87 +624,6 @@ def _handle_job_deploy_status(
             "builder_pod": pod,
         },
     )
-
-
-def _build_function(
-    db_session,
-    auth_info: mlrun.common.schemas.AuthInfo,
-    function,
-    with_mlrun=True,
-    skip_deployed=False,
-    mlrun_version_specifier=None,
-    builder_env=None,
-    client_version=None,
-    client_python_version=None,
-    force_build=False,
-):
-    fn = None
-    ready = None
-    try:
-        fn = new_function(runtime=function)
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        server.api.api.utils.log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"Runtime error: {err_to_str(err)}",
-        )
-    try:
-        # connect to run db
-        run_db = server.api.api.utils.get_run_db_instance(db_session)
-        fn.set_db_connection(run_db)
-
-        # TODO:  nuclio deploy moved to new endpoint, this flow is about to be deprecated
-        is_nuclio_deploy = fn.kind in RuntimeKinds.pure_nuclio_deployed_runtimes()
-
-        # Enrich runtime with project defaults
-        launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        # When runtime is nuclio, building means we deploy the function and not just build its image,
-        # so we need full enrichment
-        launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
-
-        fn.save(versioned=False)
-        if is_nuclio_deploy:
-            fn: mlrun.runtimes.RemoteRuntime
-            fn.pre_deploy_validation()
-            fn = _deploy_nuclio_runtime(
-                auth_info,
-                builder_env,
-                client_python_version,
-                client_version,
-                db_session,
-                fn,
-            )
-            # deploy only start the process, the get status API is used to check readiness
-            ready = False
-        else:
-            log_file = server.api.api.utils.log_path(
-                fn.metadata.project,
-                f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
-            )
-            if log_file.exists() and not (skip_deployed and fn.is_deployed()):
-                # delete old build log file if exist and build is not skipped
-                os.remove(str(log_file))
-
-            ready = build_runtime(
-                auth_info,
-                fn,
-                with_mlrun,
-                mlrun_version_specifier,
-                skip_deployed,
-                builder_env=builder_env,
-                client_version=client_version,
-                client_python_version=client_python_version,
-                force_build=force_build,
-            )
-        fn.save(versioned=True)
-        logger.info("Resolved function", fn=fn.to_yaml())
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        server.api.api.utils.log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"Runtime error: {err_to_str(err)}",
-        )
-    return fn, ready
 
 
 def _parse_start_function_body(db_session, data):

@@ -72,7 +72,7 @@ def config_test_base():
     log_level = "DEBUG"
     environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
-    mlrun.config.config.reload()
+    mlrun.mlconf.reload()
 
     # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
@@ -93,7 +93,7 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
 
     # TODO: update this to "sidecar" once the default mode is changed
-    mlrun.config.config.log_collector.mode = "legacy"
+    mlrun.mlconf.log_collector.mode = "legacy"
 
     # revert change of default project after project creation
     mlrun.mlconf.default_project = "default"

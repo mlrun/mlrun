@@ -59,9 +59,7 @@ def test_get_file_target_path():
 def test_get_stream_path():
     # default stream path
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
-    assert (
-        stream_path == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/stream"
-    )
+    assert stream_path == f"v3io:///projects/{TEST_PROJECT}/model-endpoints/stream"
 
     mlrun.mlconf.ce.mode = "full"
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
@@ -71,9 +69,9 @@ def test_get_stream_path():
     )
 
     # kafka stream path from env
-    os.environ["STREAM_PATH"] = "kafka://some_kafka_bootstrap_servers:8080"
+    os.environ["STREAM_PATH"] = "kafka://some_kafka_broker:8080"
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path
-        == f"kafka://some_kafka_bootstrap_servers:8080?topic=monitoring_stream_{TEST_PROJECT}"
+        == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{TEST_PROJECT}"
     )

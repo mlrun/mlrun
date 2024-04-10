@@ -308,9 +308,7 @@ class Runs(
         last_exception = None
         while runs_list:
             tasks = []
-            for run in runs_list[
-                : mlrun.config.config.crud.runs.batch_delete_runs_chunk_size
-            ]:
+            for run in runs_list[: mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size]:
                 tasks.append(
                     server.api.db.session.run_function_with_new_db_session(
                         self.delete_run,
@@ -333,9 +331,7 @@ class Runs(
                         error=mlrun.errors.err_to_str(result),
                     )
 
-            runs_list = runs_list[
-                mlrun.config.config.crud.runs.batch_delete_runs_chunk_size :
-            ]
+            runs_list = runs_list[mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size :]
 
         if failed_deletions:
             raise mlrun.errors.MLRunBadRequestError(

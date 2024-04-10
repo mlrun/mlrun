@@ -828,6 +828,11 @@ class TestBatchDrift(TestMLRunSystem):
             **({} if self.image is None else {"image": self.image}),
         )
 
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+        )
+
+        controller._wait_for_function_deployment(db=controller._get_db())
         # Generate a dataframe that will be written as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
         infer_results_df = pd.DataFrame(

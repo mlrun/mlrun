@@ -19,7 +19,10 @@
 |----------|---------------------------------------------------------------------------|
 |ML-3521,5482|Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow). Tech Preview. |
 
-
+### Breaking change
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-6098|The `prediction` and `named_predictions` columns (list of all predictions) were removed from the model monitoring parquet files. Each prediction is still available in a column of its own.|
 
 ###  Closed issue
 | ID          |Description                                                               |

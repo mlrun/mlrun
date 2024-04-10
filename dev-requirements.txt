@@ -2,10 +2,6 @@
 twine~=3.1
 build~=1.0
 
-# pipeline adapters
--e ./pipeline-adapters/mlrun-pipelines-kfp-common
--e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
-
 # formatting & linting
 ruff~=0.1.8
 import-linter~=1.8

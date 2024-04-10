@@ -7,6 +7,7 @@ You can apply this nethod to the project object or the context object when loggi
 - [Log a Plotly object as an html file](#log-a-plotly-object-as-an-html-file)
 - [Logging Plotly artifacts](#logging-plotly-artifacts)
 - [Logging directory artifacts](#logging-directory-artifacts)
+
 **See also**
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`

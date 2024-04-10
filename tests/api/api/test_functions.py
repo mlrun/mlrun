@@ -37,7 +37,6 @@ import server.api.main
 import server.api.utils.builder
 import server.api.utils.clients.chief
 import server.api.utils.clients.iguazio
-import server.api.utils.functions
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 import tests.api.api.utils
@@ -463,7 +462,7 @@ def test_tracking_on_serving(
 
     functions_to_monkeypatch = {
         server.api.api.utils: ["apply_enrichment_and_validation_on_function"],
-        server.api.utils.functions: [
+        server.api.api.endpoints.functions: [
             "process_model_monitoring_secret",
             "create_model_monitoring_stream",
         ],
@@ -517,14 +516,14 @@ def test_build_function_with_mlrun_bool(
             "tag": "latest",
         },
     }
-    original_build_function = server.api.utils.functions.build_function
+    original_build_function = server.api.api.endpoints.functions._build_function
     for with_mlrun in [True, False]:
         request_body = {
             "function": function_dict,
             "with_mlrun": with_mlrun,
         }
         function = mlrun.new_function(runtime=function_dict)
-        server.api.utils.functions.build_function = unittest.mock.Mock(
+        server.api.api.endpoints.functions._build_function = unittest.mock.Mock(
             return_value=(function, True)
         )
         response = client.post(
@@ -532,8 +531,11 @@ def test_build_function_with_mlrun_bool(
             json=request_body,
         )
         assert response.status_code == HTTPStatus.OK.value
-        assert server.api.utils.functions.build_function.call_args[0][3] == with_mlrun
-    server.api.utils.functions.build_function = original_build_function
+        assert (
+            server.api.api.endpoints.functions._build_function.call_args[0][3]
+            == with_mlrun
+        )
+    server.api.api.endpoints.functions._build_function = original_build_function
 
 
 @pytest.mark.parametrize(

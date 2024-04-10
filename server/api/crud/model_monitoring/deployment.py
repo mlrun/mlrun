@@ -29,9 +29,9 @@ import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+import server.api.api.endpoints.functions
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
-import server.api.utils.functions
 import server.api.utils.scheduler
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
@@ -150,7 +150,7 @@ class MonitoringDeployment:
             # Adding label to the function - will be used to identify the stream pod
             fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
-            fn, ready = server.api.utils.functions.build_function(
+            fn, ready = server.api.api.endpoints.functions._build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
@@ -200,7 +200,7 @@ class MonitoringDeployment:
                 "cron_interval",
                 spec=nuclio.CronTrigger(interval=f"{base_period}m"),
             )
-            fn, ready = server.api.utils.functions.build_function(
+            fn, ready = server.api.api.endpoints.functions._build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
@@ -235,7 +235,7 @@ class MonitoringDeployment:
             # Adding label to the function - will be used to identify the writer pod
             fn.metadata.labels = {"type": "model-monitoring-writer"}
 
-            fn, ready = server.api.utils.functions.build_function(
+            fn, ready = server.api.api.endpoints.functions._build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
                 function=fn,
@@ -386,7 +386,7 @@ class MonitoringDeployment:
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"
                         kwargs["worker_allocation_mode"] = "static"
-                    server.api.utils.functions.create_model_monitoring_stream(
+                    server.api.api.endpoints.functions.create_model_monitoring_stream(
                         project=self.project,
                         stream_path=stream_path,
                         access_key=access_key,
@@ -546,7 +546,7 @@ class MonitoringDeployment:
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
 
-        server.api.utils.functions.build_function(
+        server.api.api.endpoints.functions._build_function(
             db_session=self.db_session, auth_info=self.auth_info, function=func
         )
         logger.info("Submitted the deployment")

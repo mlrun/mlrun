@@ -24,7 +24,6 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.fastapi
 import server.api.utils.pagination
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger

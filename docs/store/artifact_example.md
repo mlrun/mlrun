@@ -59,7 +59,7 @@ fig.update_layout(
 )
 
 project.log_artifact("plotly-art",
-                     body=fig.to_html(),
+                     body=fig.to_html(),# convert object for logging an html file
                      format="html")
 ```
 

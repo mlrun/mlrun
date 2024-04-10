@@ -199,12 +199,12 @@ async def delete_run(
 async def list_runs(
     project: str = None,
     query: mlrun.common.schemas.ListRunsRequest = Depends(
-        server.api.utils.fastapi.schema_as_query_parameter_definition(
+        server.api.utils.fastapi.SchemaAsQueryParameterDependency(
             mlrun.common.schemas.ListRunsRequest
         )
     ),
     pagination: mlrun.common.schemas.PaginationInfo = Depends(
-        server.api.utils.fastapi.schema_as_query_parameter_definition(
+        server.api.utils.fastapi.SchemaAsQueryParameterDependency(
             mlrun.common.schemas.PaginationInfo
         )
     ),

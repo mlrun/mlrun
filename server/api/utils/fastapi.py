@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import inspect
 import typing
 
 import pydantic
@@ -37,10 +38,42 @@ class SchemaModifiers:
         return method_data
 
 
-def schema_as_query_parameter_definition(
-    model: pydantic.main.ModelMetaclass,
-) -> typing.Callable:
-    def wrapper(request: Request) -> pydantic.BaseModel:
+class DependencyWithSchemaParameters:
+    """
+    This is a custom FastAPI dependency that allows defining a schema as the dependency parameters
+    while not actually changing the function signature of the dependency so FastAPI can call it correctly
+    and OpenAPI will collect the correct schema information.
+    """
+
+    def __init__(self, model: pydantic.main.ModelMetaclass):
+        self.model = model
+        self.dependency = self._dependency
+        self.model_params = inspect.signature(model)
+        self.dependency_params = inspect.signature(self._dependency)
+        self.__signature__ = inspect.Signature(
+            list(self.dependency_params.parameters.values())
+            + list(self.model_params.parameters.values())
+        )
+
+    def __call__(self, *args, **kwargs):
+        args = [arg for arg in args if arg in self.dependency_params.parameters]
+        kwargs = {
+            key: value
+            for key, value in kwargs.items()
+            if key in self.dependency_params.parameters
+        }
+        return self.dependency(*args, **kwargs)
+
+    def _dependency(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class SchemaAsQueryParameterDependency(DependencyWithSchemaParameters):
+    """
+    Schema dependency that parses the query parameters and validates them against the schema.
+    """
+
+    def _dependency(self, request: Request) -> pydantic.BaseModel:
         try:
             parameters = {}
 
@@ -48,13 +81,13 @@ def schema_as_query_parameter_definition(
             # so we need to access the query params from the _list attribute
             for param, value in request.query_params._list:
                 parsed_param = param.replace("-", "_")
-                if parsed_param in model.__fields__:
+                if parsed_param in self.model.__fields__:
                     # check the param type in the schema and convert the value to the correct type
-                    param_type = model.__fields__[parsed_param].type_
+                    param_type = self.model.__fields__[parsed_param].type_
                     if param_type == bool:
                         value = value.lower() in ["true", "1", "yes", "t", "y"]
                     elif typing.get_origin(param_type) != typing.Union:
-                        value = model.__fields__[parsed_param].type_(value)
+                        value = self.model.__fields__[parsed_param].type_(value)
 
                 # add the value to the parameters dict while handling multiple values
                 if param in parameters:
@@ -64,8 +97,6 @@ def schema_as_query_parameter_definition(
                 else:
                     parameters[param] = value
 
-            return model(**parameters)
-        except (pydantic.ValidationError, ValueError) as e:
-            raise mlrun.errors.MLRunUnprocessableEntityError from e
-
-    return wrapper
+            return self.model(**parameters)
+        except (pydantic.ValidationError, ValueError) as exc:
+            raise mlrun.errors.MLRunUnprocessableEntityError from exc

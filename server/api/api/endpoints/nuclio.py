@@ -351,8 +351,8 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
 def create_model_monitoring_stream(
     project: str,
     stream_path: str,
-    monitoring_application: bool = None,
     access_key: str = None,
+    stream_args: dict = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
@@ -369,22 +369,16 @@ def create_model_monitoring_stream(
         )
 
         v3io_client = v3io.dataplane.Client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+            endpoint=mlrun.mlconf.v3io_api, access_key=access_key
         )
-        stream_args = (
-            mlrun.mlconf.model_endpoint_monitoring.application_stream_args
-            if monitoring_application
-            else mlrun.mlconf.model_endpoint_monitoring.serving_stream_args
-        )
+
         response = v3io_client.stream.create(
             container=container,
             stream_path=stream_path,
             shard_count=stream_args.shard_count,
             retention_period_hours=stream_args.retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key
-            if monitoring_application
-            else os.environ.get("V3IO_ACCESS_KEY"),
+            access_key=access_key,
         )
 
         if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):

@@ -1124,7 +1124,7 @@ class CSVTarget(BaseStoreTarget):
 
 class SnowflakeTarget(BaseStoreTarget):
     """
-    Snowflake Offline SQL Target
+    Snowflake SQL Target
 
     :param name: Target name
     :param path:

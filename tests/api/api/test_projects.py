@@ -65,11 +65,11 @@ LIST_FUNCTION_API = "projects/{project}/functions"
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
-        mlrun.config.config.httpdb.projects.leader = "nop"
+        mlrun.mlconf.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
         server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
-        mlrun.config.config.httpdb.projects.leader = "mlrun"
+        mlrun.mlconf.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
@@ -677,9 +677,7 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.config.config.log_collector.mode = (
-        mlrun.common.schemas.LogsCollectorMode.sidecar
-    )
+    mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
     project_name = "project-name"
 

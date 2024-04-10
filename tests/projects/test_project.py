@@ -51,53 +51,6 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-class RemoteBuilderMock:
-    kind = "http"
-
-    def __init__(self):
-        def _remote_builder_handler(
-            func,
-            with_mlrun,
-            mlrun_version_specifier=None,
-            skip_deployed=False,
-            builder_env=None,
-            force_build=False,
-        ):
-            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
-            # it overrides the mock args - this way the value will remain as it was.
-            return {
-                "ready": True,
-                "data": {
-                    "spec": {
-                        "clone_target_dir": func.spec.clone_target_dir,
-                    },
-                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
-                },
-            }
-
-        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
-
-    def get_build_config_and_target_dir(self):
-        self.remote_builder.assert_called_once()
-        call_args = self.remote_builder.call_args
-
-        build_runtime = call_args.args[0]
-        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
-
-
-@pytest.fixture
-def remote_builder_mock(monkeypatch):
-    builder_mock = RemoteBuilderMock()
-
-    monkeypatch.setattr(
-        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
-    )
-    monkeypatch.setattr(
-        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
-    )
-    return builder_mock
-
-
 def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
@@ -1166,6 +1119,50 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
+def test_function_receives_project_default_function_node_selector():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+    default_function_node_selector = {"gpu": "true"}
+
+    non_enriched_function = proj1.set_function(
+        func=func_path,
+        name="func",
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+    )
+    assert non_enriched_function.spec.node_selector == {}
+
+    proj1.spec.default_function_node_selector = default_function_node_selector
+    enriched_function = proj1.get_function("func", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # Same check - with a function object
+    func1 = mlrun.code_to_function(
+        "func2",
+        kind="job",
+        handler="myhandler",
+        image="mlrun/mlrun",
+        filename=func_path,
+    )
+    proj1.set_function(func1, name="func2")
+
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.node_selector == {}
+
+    enriched_function = proj1.get_function("func2", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # If a function already has a node selector defined, the project-level node selector should merge with it,
+    # giving precedence to the function's node selector.
+    func1.spec.node_selector = {"zone": "us-west"}
+    proj1.set_function(func1, name="func3")
+
+    enriched_function = proj1.get_function("func3", enrich=True)
+    assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
+
+
 def test_project_exports_default_image():
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     default_image = "myrepo/myimage1"
@@ -1432,7 +1429,7 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
 
 
 def test_get_or_create_project_no_db():
-    mlrun.config.config.dbpath = ""
+    mlrun.mlconf.dbpath = ""
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name
@@ -1684,11 +1681,14 @@ def test_create_api_gateway_valid(
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
             path="/",
-            host="http://gateway-f1-f2-project-name.some-domain.com",
+            host="gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
             authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
             if not with_basic_auth
             else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        ),
+        status=mlrun.common.schemas.APIGatewayStatus(
+            state=mlrun.common.schemas.APIGatewayState.ready,
         ),
     )
     project_name = "project-name"
@@ -1723,7 +1723,7 @@ def test_create_api_gateway_valid(
 
     gateway = project.store_api_gateway(api_gateway)
 
-    assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if with_basic_auth:
         assert gateway.authentication.authentication_mode == "basicAuth"
     else:

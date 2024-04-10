@@ -89,7 +89,7 @@ class TestMLRunIntegration:
 
     @property
     def base_url(self):
-        return mlrun.config.config.dbpath + "/api/v1/"
+        return mlrun.mlconf.dbpath + "/api/v1/"
 
     def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")
@@ -103,7 +103,7 @@ class TestMLRunIntegration:
             if value:
                 os.environ[env_var] = value
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _teardown_env(self):
         self._logger.debug("Tearing down test environment")
@@ -112,7 +112,7 @@ class TestMLRunIntegration:
                 del os.environ[env_var]
         os.environ.update(self._old_env)
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _run_db(self):
         self._logger.debug("Starting DataBase")
@@ -169,9 +169,13 @@ class TestMLRunIntegration:
 
     def _remove_api(self):
         if self.api_container_id:
-            logs = self._run_command("docker", args=["logs", self.api_container_id])
+            logs = self._run_command(
+                "docker", args=["logs", self.api_container_id]
+            ).replace("\n", "\n\t")
+            # for tests, we want to see the logs in human readable form
             self._logger.debug(
-                "Removing API container", container_id=self.api_container_id, logs=logs
+                f"Removing API container. Container logs:\n {logs}",
+                container_id=self.api_container_id,
             )
             self._run_command("docker", args=["rm", "--force", self.api_container_id])
 

@@ -223,7 +223,42 @@ class ApplicationRuntime(RemoteRuntime):
         auth_info: AuthInfo = None,
         builder_env: dict = None,
         force_build: bool = False,
+        with_mlrun=None,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+        show_on_failure: bool = False,
     ):
+        """
+        Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
+        Once the image is built, the function is deployed.
+        :param project:                 Project name
+        :param tag:                     Function tag
+        :param verbose:                 Set True for verbose logging
+        :param auth_info:               Service AuthInfo (deprecated and ignored)
+        :param builder_env:             Env vars dict for source archive config/credentials
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param force_build:             Set True for force building the application image
+        :param with_mlrun:              Add the current mlrun package to the container build
+        :param skip_deployed:           Skip the build if we already have an image for the function
+        :param is_kfp:                  Deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: Which mlrun package version to include (if not current)
+        :param show_on_failure:         Show logs only in case of build failure
+        :return: True if the function is ready (deployed)
+        """
+        if self.requires_build() or force_build:
+            self._fill_credentials()
+            self._build_application_image(
+                builder_env=builder_env,
+                force_build=force_build,
+                watch=True,
+                with_mlrun=with_mlrun,
+                skip_deployed=skip_deployed,
+                is_kfp=is_kfp,
+                mlrun_version_specifier=mlrun_version_specifier,
+                show_on_failure=show_on_failure,
+            )
+
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
         super().deploy(
@@ -232,7 +267,50 @@ class ApplicationRuntime(RemoteRuntime):
             verbose,
             auth_info,
             builder_env,
-            force_build,
+        )
+
+    def with_source_archive(
+        self, source, workdir=None, pull_at_runtime=True, target_dir=None
+    ):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
+        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
+        """
+        self._configure_mlrun_build_with_source(
+            source=source,
+            workdir=workdir,
+            pull_at_runtime=pull_at_runtime,
+            target_dir=target_dir,
+        )
+
+    def _build_application_image(
+        self,
+        builder_env: dict = None,
+        force_build: bool = False,
+        watch=True,
+        with_mlrun=None,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+        show_on_failure: bool = False,
+    ):
+        with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
+        return self._build_image(
+            builder_env=builder_env,
+            force_build=force_build,
+            mlrun_version_specifier=mlrun_version_specifier,
+            show_on_failure=show_on_failure,
+            skip_deployed=skip_deployed,
+            watch=watch,
+            is_kfp=is_kfp,
+            with_mlrun=with_mlrun,
         )
 
     def _ensure_reverse_proxy_configurations(self):

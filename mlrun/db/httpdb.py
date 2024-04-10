@@ -1184,7 +1184,7 @@ class HTTPRunDB(RunDBInterface):
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
             the moment they moved to terminal state
-            (defaults to mlrun.config.config.runtime_resources_deletion_grace_period).
+            (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
@@ -1343,21 +1343,7 @@ class HTTPRunDB(RunDBInterface):
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         :param force_build:   Force building the image, even when no changes were made
         """
-        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
-            "s3://"
-        )
-        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
-        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
-            logger.warning(
-                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
-                "keys. Only the permissions granted to the platform's configured secret will take affect "
-                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
-                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
-                source=func.spec.build.source,
-                load_source_on_run=func.spec.build.load_source_on_run,
-                default_docker_registry=config.httpdb.builder.docker_registry,
-            )
-
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
         try:
             req = {
                 "function": func.to_dict(),
@@ -1376,9 +1362,102 @@ class HTTPRunDB(RunDBInterface):
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError("bad function run response")
+            raise ValueError("bad submit build response")
 
         return resp.json()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        """
+        Deploy a Nuclio function.
+        :param func:            Function to build.
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+        """
+        func.metadata.project = func.metadata.project or config.default_project
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
+        try:
+            req = {
+                "function": func.to_dict(),
+            }
+            if builder_env:
+                req["builder_env"] = builder_env
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
+            resp = self.api_call("POST", _path, json=req)
+        except OSError as err:
+            logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.error(f"deploy nuclio - bad response:\n{resp.text}")
+            raise ValueError("bad nuclio deploy response")
+
+        return resp.json()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        """Retrieve the status of a deploy operation currently in progress.
+
+        :param func:                Function object that is being built.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+
+        :returns: The following parameters:
+
+            - Text of builder logs.
+            - Timestamp of last log retrieved, to be used in subsequent calls to this function.
+        """
+
+        try:
+            params = {
+                "name": normalize_name(func.metadata.name),
+                "project": func.metadata.project,
+                "tag": func.metadata.tag,
+                "last_log_timestamp": str(last_log_timestamp),
+                "verbose": bool2str(verbose),
+            }
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
+            resp = self.api_call("GET", _path, params=params)
+        except OSError as err:
+            logger.error(f"error getting deploy status: {err_to_str(err)}")
+            raise OSError(f"error: cannot get deploy status, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.warning(f"failed resp, {resp.text}")
+            raise RunDBError("bad function build response")
+
+        if resp.headers:
+            func.status.state = resp.headers.get("x-mlrun-function-status", "")
+            last_log_timestamp = float(
+                resp.headers.get("x-mlrun-last-timestamp", "0.0")
+            )
+            func.status.address = resp.headers.get("x-mlrun-address", "")
+            func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+            func.status.internal_invocation_urls = resp.headers.get(
+                "x-mlrun-internal-invocation-urls", ""
+            ).split(",")
+            func.status.external_invocation_urls = resp.headers.get(
+                "x-mlrun-external-invocation-urls", ""
+            ).split(",")
+            func.status.container_image = resp.headers.get(
+                "x-mlrun-container-image", ""
+            )
+
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_log_timestamp
 
     def get_builder_status(
         self,
@@ -1441,9 +1520,14 @@ class HTTPRunDB(RunDBInterface):
                 func.status.container_image = resp.headers.get(
                     "x-mlrun-container-image", ""
                 )
-            else:
-                func.status.build_pod = resp.headers.get("builder_pod", "")
-                func.spec.image = resp.headers.get("function_image", "")
+
+            builder_pod = resp.headers.get("builder_pod", "")
+            if builder_pod:
+                func.status.build_pod = builder_pod
+
+            function_image = resp.headers.get("function_image", "")
+            if function_image:
+                func.spec.image = function_image
 
         text = ""
         if resp.content:
@@ -1506,7 +1590,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.config.config.default_project).
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
@@ -3702,6 +3786,23 @@ class HTTPRunDB(RunDBInterface):
         _path = self._path_of("datastore-profiles", project)
 
         self.api_call(method="PUT", path=_path, json=profile.dict())
+
+    @staticmethod
+    def warn_on_s3_and_ecr_permissions_conflict(func):
+        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
+            "s3://"
+        )
+        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
+        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
+            logger.warning(
+                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
+                "keys. Only the permissions granted to the platform's configured secret will take affect "
+                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
+                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
+                source=func.spec.build.source,
+                load_source_on_run=func.spec.build.load_source_on_run,
+                default_docker_registry=config.httpdb.builder.docker_registry,
+            )
 
 
 def _as_json(obj):

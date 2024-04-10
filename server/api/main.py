@@ -123,32 +123,6 @@ app.add_middleware(
 app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
-def custom_openapi_schema_generator():
-    if app.openapi_schema:
-        return app.openapi_schema
-    openapi_schema = fastapi.openapi.utils.get_openapi(
-        title=app.title,
-        version=app.version,
-        openapi_version=app.openapi_version,
-        description=app.description,
-        routes=app.routes,
-    )
-
-    for path, path_data in openapi_schema["paths"].items():
-        for method, method_data in path_data.items():
-            for annotation, enabled in method_data.get("annotations", {}).items():
-                if enabled:
-                    method_data = getattr(
-                        server.api.utils.fastapi.SchemaModifiers, annotation
-                    )(method_data)
-
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-
-app.openapi = custom_openapi_schema_generator
-
-
 @app.exception_handler(Exception)
 async def generic_error_handler(request: fastapi.Request, exc: Exception):
     error_message = repr(exc)

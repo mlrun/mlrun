@@ -190,24 +190,36 @@ async def delete_run(
     deprecated=True,
     description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
-    openapi_extra=server.api.utils.fastapi.SchemaModifiers.get_schema_annotations(),
 )
-@router.get(
-    "/projects/{project}/runs",
-    openapi_extra=server.api.utils.fastapi.SchemaModifiers.get_schema_annotations(),
-)
+@router.get("/projects/{project}/runs")
 async def list_runs(
     project: str = None,
-    query: mlrun.common.schemas.ListRunsRequest = Depends(
-        server.api.utils.fastapi.SchemaAsQueryParameterDependency(
-            mlrun.common.schemas.ListRunsRequest
-        )
+    name: str = None,
+    uid: list[str] = Query([]),
+    labels: list[str] = Query([], alias="label"),
+    state: str = None,
+    last: int = 0,
+    sort: bool = True,
+    iter: bool = True,
+    start_time_from: str = None,
+    start_time_to: str = None,
+    last_update_time_from: str = None,
+    last_update_time_to: str = None,
+    partition_by: mlrun.common.schemas.RunPartitionByField = Query(
+        None, alias="partition-by"
     ),
-    pagination: mlrun.common.schemas.PaginationInfo = Depends(
-        server.api.utils.fastapi.SchemaAsQueryParameterDependency(
-            mlrun.common.schemas.PaginationInfo
-        )
+    rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: mlrun.common.schemas.SortField = Query(
+        None, alias="partition-sort-by"
     ),
+    partition_order: mlrun.common.schemas.OrderType = Query(
+        mlrun.common.schemas.OrderType.desc, alias="partition-order"
+    ),
+    max_partitions: int = Query(0, alias="max-partitions", ge=0),
+    with_notifications: bool = Query(False, alias="with-notifications"),
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -236,27 +248,27 @@ async def list_runs(
         server.api.crud.Runs().list_runs,
         _filter_runs,
         auth_info,
-        token=pagination.page_token,
-        page=pagination.page,
-        page_size=pagination.page_size,
-        name=query.name,
-        uid=query.uid,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        name=name,
+        uid=uid,
         project=project,
-        labels=query.labels,
-        state=query.state,
-        sort=query.sort,
-        last=query.last,
-        iter=query.iter,
-        start_time_from=query.start_time_from,
-        start_time_to=query.start_time_to,
-        last_update_time_from=query.last_update_time_from,
-        last_update_time_to=query.last_update_time_to,
-        partition_by=query.partition_by,
-        rows_per_partition=query.rows_per_partition,
-        partition_sort_by=query.partition_sort_by,
-        partition_order=query.partition_order,
-        max_partitions=query.max_partitions,
-        with_notifications=query.with_notifications,
+        labels=labels,
+        state=state,
+        sort=sort,
+        last=last,
+        iter=iter,
+        start_time_from=start_time_from,
+        start_time_to=start_time_to,
+        last_update_time_from=last_update_time_from,
+        last_update_time_to=last_update_time_to,
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
+        max_partitions=max_partitions,
+        with_notifications=with_notifications,
     )
     return {
         "runs": runs,

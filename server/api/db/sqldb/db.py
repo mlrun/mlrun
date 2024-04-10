@@ -348,6 +348,8 @@ class SQLDB(DBInterface):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -394,6 +396,13 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+
+        if page is not None:
+            page_size = page_size or config.httpdb.pagination.default_page_size
+            if query.count() < page_size * (page - 1):
+                raise StopIteration
+            query = query.limit(page_size).offset((page - 1) * page_size)
+
         if not return_as_run_structs:
             return query.all()
 
@@ -4642,20 +4651,29 @@ class SQLDB(DBInterface):
         user: str,
         function: str,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         # generate key hash from user, function, current_page and kwargs
         key = hashlib.sha256(
-            f"{user}/{function}/{current_page}/{kwargs}".encode()
+            f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
-        param_record = PaginationCache(
-            key=key,
-            user=user,
-            function=function,
-            current_page=current_page,
-            kwargs=kwargs,
-            last_accessed=datetime.now(timezone.utc),
-        )
+        existing_record = self.get_paginated_query_cache_record(session, key)
+        if existing_record:
+            existing_record.current_page = current_page
+            existing_record.last_accessed = datetime.now(timezone.utc)
+            param_record = existing_record
+        else:
+            param_record = PaginationCache(
+                key=key,
+                user=user,
+                function=function,
+                current_page=current_page,
+                page_size=page_size,
+                kwargs=kwargs,
+                last_accessed=datetime.now(timezone.utc),
+            )
+
         self._upsert(session, [param_record])
         return key
 

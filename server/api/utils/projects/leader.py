@@ -46,7 +46,7 @@ class Member(
         logger.info("Initializing projects leader")
         self._initialize_followers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.config.config.httpdb.projects.periodic_sync_interval
+            mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
@@ -395,11 +395,11 @@ class Member(
         return leader_response, follower_responses
 
     def _initialize_followers(self):
-        leader_name = mlrun.config.config.httpdb.projects.leader
+        leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
         followers = (
-            mlrun.config.config.httpdb.projects.followers.split(",")
-            if mlrun.config.config.httpdb.projects.followers
+            mlrun.mlconf.httpdb.projects.followers.split(",")
+            if mlrun.mlconf.httpdb.projects.followers
             else []
         )
         self._followers = {

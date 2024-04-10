@@ -726,5 +726,11 @@ class RunDBInterface(ABC):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
-        pass
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        raise NotImplementedError
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError

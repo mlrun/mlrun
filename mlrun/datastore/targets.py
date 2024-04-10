@@ -1125,10 +1125,9 @@ class CSVTarget(BaseStoreTarget):
 
 class SnowflakeTarget(BaseStoreTarget):
     """
-    :param path:
     :param attributes: A dictionary of attributes for Snowflake connection; will be overridden by database parameters
                        if they exist.
-    :param url: Snowflake URL, in the format: <account_name>.<region>.snowflakecomputing.com
+    :param url: Snowflake hostname, in the format: <account_name>.<region>.snowflakecomputing.com
     :param user: Snowflake user for login
     :param db_schema: Database schema
     :param database: Database name

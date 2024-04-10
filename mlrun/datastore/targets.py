@@ -1130,17 +1130,6 @@ class SnowflakeTarget(BaseStoreTarget):
     :param path:
     :param attributes: A dictionary of attributes for Snowflake connection; will be overridden by database parameters
                        if they exist.
-    :param after_step:
-    :param columns:
-    :param partitioned:
-    :param key_bucketing_number:
-    :param partition_cols:
-    :param time_partitioning_granularity:
-    :param max_events:
-    :param flush_after_seconds:
-    :param storage_options:
-    :param schema:
-    :param credentials_prefix:
     :param url: Snowflake URL, in the format: <account_name>.<region>.snowflakecomputing.com
     :param user: Snowflake user for login
     :param db_schema: Database schema

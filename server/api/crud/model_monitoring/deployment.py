@@ -293,7 +293,7 @@ class MonitoringDeployment:
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"
                         kwargs["worker_allocation_mode"] = "static"
-                    server.api.api.endpoints.functions.create_model_monitoring_stream(
+                    server.api.api.endpoints.nuclio.create_model_monitoring_stream(
                         project=self.project,
                         stream_path=stream_path,
                         access_key=access_key,

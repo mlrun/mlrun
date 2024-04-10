@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import traceback
 import typing
 from http import HTTPStatus
@@ -449,7 +448,10 @@ def _deploy_nuclio_runtime(
         fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
         == mm_constants.ModelMonitoringAppLabel.VAL
     )
-    if monitoring_application:
+    serving_to_monitor = (
+        fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
+    )
+    if monitoring_application or serving_to_monitor:
         if not mlrun.mlconf.is_ce_mode():
             model_monitoring_access_key = process_model_monitoring_secret(
                 db_session,
@@ -459,22 +461,26 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
 
-        fn = server.api.crud.model_monitoring.deployment.MonitoringDeployment(
-            project=fn.metadata.project,
-            auth_info=auth_info,
-            db_session=db_session,
-            model_monitoring_access_key=model_monitoring_access_key,
-        ).apply_and_create_stream_trigger(
-            function=fn,
-            function_name=fn.metadata.name,
+        monitoring_deployment = (
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=fn.metadata.project,
+                auth_info=auth_info,
+                db_session=db_session,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         )
+        if monitoring_application:
+            fn = monitoring_deployment.apply_and_create_stream_trigger(
+                function=fn,
+                function_name=fn.metadata.name,
+            )
 
-    serving_to_monitor = (
-        fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
-    )
-    if serving_to_monitor:
-        if not mlrun.mlconf.is_ce_mode():
-            _init_serving_function_stream_args(fn=fn)
+        if serving_to_monitor:
+            if not mlrun.mlconf.is_ce_mode():
+                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
+                    monitoring_deployment.deploy_model_monitoring_stream_processing(
+                        overwrite=True
+                    )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
@@ -484,24 +490,6 @@ def _deploy_nuclio_runtime(
         builder_env=builder_env,
     )
     return fn
-
-
-def _init_serving_function_stream_args(fn: mlrun.runtimes.ServingRuntime):
-    logger.debug("Initializing serving function stream args")
-    if "stream_args" in fn.spec.parameters:
-        logger.debug("Adding access key to pipelines stream args")
-        if "access_key" not in fn.spec.parameters["stream_args"]:
-            logger.debug("pipelines access key added to stream args")
-            fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(
-                "V3IO_ACCESS_KEY"
-            )
-    else:
-        logger.debug("pipelines access key added to stream args")
-        fn.spec.parameters["stream_args"] = {
-            "access_key": os.environ.get("V3IO_ACCESS_KEY")
-        }
-
-    fn.save(versioned=True)
 
 
 def _handle_nuclio_deploy_status(

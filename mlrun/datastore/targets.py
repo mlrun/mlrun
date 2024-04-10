@@ -1124,9 +1124,6 @@ class CSVTarget(BaseStoreTarget):
 
 class SnowflakeTarget(BaseStoreTarget):
     """
-    Snowflake SQL Target
-
-    :param name: Target name
     :param path:
     :param attributes: A dictionary of attributes for Snowflake connection; will be overridden by database parameters
                        if they exist.

@@ -41,7 +41,7 @@ class _MLRunNoRunsFoundError(Exception):
     pass
 
 
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(project: str = None, application_name: str = None) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
@@ -61,6 +61,9 @@ def get_stream_path(project: str = None, application_name: str = None):
         target="online",
         application_name=application_name,
     )
+
+    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
+        stream_uri = stream_uri[1]
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
         stream_uri=stream_uri, project=project, application_name=application_name

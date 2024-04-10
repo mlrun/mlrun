@@ -35,6 +35,7 @@ def _generate_pydantic_schema_from_method_signature(
     This is used to save the given parameters to the method in the pagination cache as a serialized Pydantic
     model that can then be deserialized to the correct types and passed back to the method when the cache is used.
     """
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -42,13 +43,11 @@ def _generate_pydantic_schema_from_method_signature(
     fields = {
         name: (
             parameter.annotation,
-
             # if the parameter has a default value, use it, otherwise use ... placeholder
             # to indicate that the parameter is required
             parameter.default if parameter.default != inspect.Parameter.empty else ...,
         )
         for name, parameter in parameters.items()
-
         # ignore the session parameter as the methods get a new session each time
         if parameter.annotation != sqlalchemy.orm.Session
     }

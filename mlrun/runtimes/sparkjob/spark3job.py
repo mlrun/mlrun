@@ -368,9 +368,9 @@ class Spark3JobSpec(KubeResourceSpec):
                         )
                         is None
                     ):
-                        resources[resource_requirement][
-                            resource_type
-                        ] = default_resources[resource_requirement][resource_type]
+                        resources[resource_requirement][resource_type] = (
+                            default_resources[resource_requirement][resource_type]
+                        )
         else:
             resources = default_resources
 

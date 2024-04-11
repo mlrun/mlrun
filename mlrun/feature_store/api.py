@@ -1121,9 +1121,10 @@ def _ingest_with_spark(
             df_to_write = target.prepare_spark_df(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
+            write_format = spark_options.pop("format", None)
             if overwrite:
                 write_spark_dataframe_with_options(
-                    spark_options, df_to_write, "overwrite"
+                    spark_options, df_to_write, "overwrite", write_format=write_format
                 )
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
@@ -1131,7 +1132,7 @@ def _ingest_with_spark(
                 df_to_write.persist()
                 if df_to_write.count() > 0:
                     write_spark_dataframe_with_options(
-                        spark_options, df_to_write, "append"
+                        spark_options, df_to_write, "append", write_format=write_format
                     )
             target.update_resource_status("ready")
 

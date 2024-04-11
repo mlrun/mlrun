@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -200,9 +200,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-            project_name
-            or runtime.metadata.project
-            or mlrun.config.config.default_project
+            project_name or runtime.metadata.project or mlrun.mlconf.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db

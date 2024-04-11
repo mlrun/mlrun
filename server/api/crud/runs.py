@@ -25,6 +25,7 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.runtimes
 import mlrun.runtimes.constants
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
@@ -125,14 +126,19 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        states: typing.Optional[list[str]] = None,
+        state: typing.Optional[str] = None,
+        states: typing.Optional[list[str]] = None,  # Backward compatibility
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
-        start_time_from: datetime.datetime = None,
-        start_time_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        start_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        start_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        last_update_time_from: typing.Optional[
+            typing.Union[str, datetime.datetime]
+        ] = None,
+        last_update_time_to: typing.Optional[
+            typing.Union[str, datetime.datetime]
+        ] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -141,15 +147,52 @@ class Runs(
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not states
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = (
+                datetime.datetime.now() - datetime.timedelta(days=7)
+            ).isoformat()
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
+        if isinstance(start_time_from, str):
+            start_time_from = mlrun.utils.helpers.datetime_from_iso(start_time_from)
+        if isinstance(start_time_to, str):
+            start_time_to = mlrun.utils.helpers.datetime_from_iso(start_time_to)
+        if isinstance(last_update_time_from, str):
+            last_update_time_from = mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_from
+            )
+        if isinstance(last_update_time_to, str):
+            last_update_time_to = mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_to
+            )
+
         return server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
             name=name,
             uid=uid,
             project=project,
             labels=labels,
-            states=states,
+            states=[state] if state is not None else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -165,6 +208,8 @@ class Runs(
             requested_logs=requested_logs,
             return_as_run_structs=return_as_run_structs,
             with_notifications=with_notifications,
+            page=page,
+            page_size=page_size,
         )
 
     async def delete_run(
@@ -263,9 +308,7 @@ class Runs(
         last_exception = None
         while runs_list:
             tasks = []
-            for run in runs_list[
-                : mlrun.config.config.crud.runs.batch_delete_runs_chunk_size
-            ]:
+            for run in runs_list[: mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size]:
                 tasks.append(
                     server.api.db.session.run_function_with_new_db_session(
                         self.delete_run,
@@ -288,9 +331,7 @@ class Runs(
                         error=mlrun.errors.err_to_str(result),
                     )
 
-            runs_list = runs_list[
-                mlrun.config.config.crud.runs.batch_delete_runs_chunk_size :
-            ]
+            runs_list = runs_list[mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size :]
 
         if failed_deletions:
             raise mlrun.errors.MLRunBadRequestError(

@@ -16,7 +16,6 @@ from functools import partial
 from unittest.mock import Mock
 
 import pytest
-from _pytest.fixtures import FixtureRequest
 
 from mlrun.model_monitoring.writer import (
     ModelMonitoringWriter,
@@ -32,7 +31,7 @@ from mlrun.utils.notifications.notification_pusher import CustomNotificationPush
 
 
 @pytest.fixture(params=[0])
-def event(request: FixtureRequest) -> _AppResultEvent:
+def event(request: pytest.FixtureRequest) -> _AppResultEvent:
     return _AppResultEvent(
         {
             WriterEvent.ENDPOINT_ID: "some-ep-id",

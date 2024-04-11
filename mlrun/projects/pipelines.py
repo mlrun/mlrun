@@ -69,16 +69,16 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        engine=None,
-        code=None,
-        path=None,
-        args=None,
-        name=None,
-        handler=None,
-        args_schema: dict = None,
+        engine: typing.Optional[str] = None,
+        code: typing.Optional[str] = None,
+        path: typing.Optional[str] = None,
+        args: typing.Optional[dict] = None,
+        name: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        args_schema: typing.Optional[dict] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        cleanup_ttl: int = None,
-        image: str = None,
+        cleanup_ttl: typing.Optional[int] = None,
+        image: typing.Optional[str] = None,
     ):
         self.engine = engine
         self.code = code
@@ -401,6 +401,9 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.spec.build.source_code_target_dir = (
+                project.spec.build.source_code_target_dir
+            )
             f.spec.workdir = project.spec.workdir or project.spec.subpath
             f.prepare_image_for_deploy()
 
@@ -408,6 +411,11 @@ def enrich_function_object(
         f.with_requirements(project.spec.default_requirements)
     if decorator:
         decorator(f)
+
+    if project.spec.default_function_node_selector:
+        f.enrich_runtime_spec(
+            project.spec.default_function_node_selector,
+        )
 
     if try_auto_mount:
         if (
@@ -605,6 +613,7 @@ class _KFPRunner(_PipelineRunner):
             namespace=namespace,
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
+            timeout=int(mlrun.mlconf.workflows.timeouts.kfp),
         )
 
         # The user provided workflow code might have made changes to function specs that require cleanup
@@ -862,10 +871,21 @@ class _RemoteRunner(_PipelineRunner):
                 )
                 return
 
+            get_workflow_id_timeout = max(
+                int(mlrun.mlconf.workflows.timeouts.remote),
+                int(getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine)),
+            )
+
+            logger.debug(
+                "Workflow submitted, waiting for pipeline run to start",
+                workflow_name=workflow_response.name,
+                get_workflow_id_timeout=get_workflow_id_timeout,
+            )
+
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
-                getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine),
+                get_workflow_id_timeout,
                 logger,
                 False,
                 run_db.get_workflow_id,
@@ -988,6 +1008,7 @@ def load_and_run(
     cleanup_ttl: int = None,
     load_only: bool = False,
     wait_for_completion: bool = False,
+    project_context: str = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1018,10 +1039,11 @@ def load_and_run(
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
     :param wait_for_completion: wait for workflow completion before returning
+    :param project_context:     project context path (used for loading the project)
     """
     try:
         project = mlrun.load_project(
-            context=f"./{project_name}",
+            context=project_context or f"./{project_name}",
             url=url,
             name=project_name,
             init_git=init_git,
@@ -1049,11 +1071,11 @@ def load_and_run(
                 )
 
             except Exception as exc:
-                logger.error("Failed to send slack notification", exc=exc)
+                logger.error("Failed to send slack notification", exc=err_to_str(exc))
 
         raise error
 
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    context.logger.info(f"Loaded project {project.name} successfully")
 
     if load_only:
         return

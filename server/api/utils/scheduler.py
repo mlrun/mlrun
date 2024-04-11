@@ -80,7 +80,7 @@ class Scheduler:
             ):
                 self._reload_schedules(db_session)
         except Exception as exc:
-            logger.warning("Failed reloading schedules", exc=exc)
+            logger.warning("Failed reloading schedules", exc=err_to_str(exc))
 
     async def stop(self):
         logger.info("Stopping scheduler")

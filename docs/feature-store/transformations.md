@@ -216,7 +216,6 @@ steps. When implementing custom transformations, the code has to support all eng
 ```{admonition} Note
 The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
 [here](../feature-store/transformations.html#data-transformation-steps).
-```
 
 The following are the main differences between transformation steps executing on different engines:
 
@@ -279,8 +278,8 @@ feature_set = fstore.FeatureSet("fs-new",
                                 entities=[fstore.Entity("id")], 
                                 engine="pandas",
                                 )
-# Adding multiply step, with specific parameters
-feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
+# Adding multiply step, with specific class parameters passed as kwargs
+feature_set.graph.to(class_name="MultiplyFeature", feature="number1", value=4)
 df_pandas = feature_set.ingest(data)
 ```
 

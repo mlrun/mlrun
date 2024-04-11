@@ -165,12 +165,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
-        store, _ = store_manager.get_or_create_store(cls.get_remote_pq_source_path())
+        store, _, _ = store_manager.get_or_create_store(cls.get_remote_pq_source_path())
         store.upload(
             cls.get_remote_pq_source_path(without_prefix=True),
             cls.get_local_pq_source_path(),
         )
-        store, _ = store_manager.get_or_create_store(cls.get_remote_csv_source_path())
+        store, _, _ = store_manager.get_or_create_store(
+            cls.get_remote_csv_source_path()
+        )
         store.upload(
             cls.get_remote_csv_source_path(without_prefix=True),
             cls.get_local_csv_source_path(),
@@ -1301,7 +1303,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
             if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
-                store, _ = mlrun.store_manager.get_or_create_store(
+                store, _, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
                 )
                 v3io = store.filesystem

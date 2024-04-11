@@ -28,6 +28,7 @@ import numpy as np
 import mlrun
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
+from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
 
 from ..common.helpers import parse_versioned_object_uri
@@ -1013,7 +1014,7 @@ def _init_endpoint_record(
             graph_server.function_uri
         )
     except Exception as e:
-        logger.error("Failed to parse function URI", exc=e)
+        logger.error("Failed to parse function URI", exc=err_to_str(e))
         return None
 
     # Generating version model value based on the model name and model version
@@ -1089,12 +1090,12 @@ def _init_endpoint_record(
         except Exception as exc:
             logger.warning(
                 "Failed creating model endpoint record",
-                exc=exc,
+                exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
 
     except Exception as e:
-        logger.error("Failed to retrieve model endpoint object", exc=e)
+        logger.error("Failed to retrieve model endpoint object", exc=err_to_str(e))
 
     return endpoint_uid
 

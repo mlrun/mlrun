@@ -109,9 +109,9 @@ class HTTPSessionWithRetry(requests.Session):
     def request(self, method, url, **kwargs):
         retry_count = 0
         kwargs.setdefault("headers", {})
-        kwargs["headers"][
-            "User-Agent"
-        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        kwargs["headers"]["User-Agent"] = (
+            f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        )
         while True:
             try:
                 response = super().request(method, url, **kwargs)
@@ -122,7 +122,7 @@ class HTTPSessionWithRetry(requests.Session):
 
                 self._logger.warning(
                     "Error during request handling, retrying",
-                    exc=str(exc),
+                    exc=err_to_str(exc),
                     retry_count=retry_count,
                     url=url,
                     method=method,

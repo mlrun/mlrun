@@ -28,6 +28,7 @@ from nuclio.config import split_path
 
 import mlrun
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -113,7 +114,11 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = load_spark_dataframe_with_options(session, self.get_spark_options())
+            spark_options = self.get_spark_options()
+            spark_format = spark_options.pop("format", None)
+            df = load_spark_dataframe_with_options(
+                session, spark_options, format=spark_format
+            )
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
@@ -192,14 +197,10 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
-            path = store.url + path
-        else:
-            path = data_item.url
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
 
         return storey.CSVSource(
-            paths=path,  # unlike self.path, it already has store:// replaced
+            paths=url,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
@@ -208,7 +209,7 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path = mlrun.store_manager.get_or_create_store(self.path)
+        store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -348,14 +349,10 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(self.path)
-            path = store.url + path
-        else:
-            path = data_item.url
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
 
         return storey.ParquetSource(
-            paths=path,  # unlike self.path, it already has store:// replaced
+            paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
@@ -365,7 +362,7 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path = mlrun.store_manager.get_or_create_store(self.path)
+        store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -681,32 +678,10 @@ class SnowflakeSource(BaseSourceDriver):
             **kwargs,
         )
 
-    def _get_password(self):
-        key = "SNOWFLAKE_PASSWORD"
-        snowflake_password = os.getenv(key) or os.getenv(
-            SecretsStore.k8s_env_variable_name_for_secret(key)
-        )
-
-        if not snowflake_password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "No password provided. Set password using the SNOWFLAKE_PASSWORD "
-                "project secret or environment variable."
-            )
-
-        return snowflake_password
-
     def get_spark_options(self):
-        return {
-            "format": "net.snowflake.spark.snowflake",
-            "query": self.attributes.get("query"),
-            "sfURL": self.attributes.get("url"),
-            "sfUser": self.attributes.get("user"),
-            "sfPassword": self._get_password(),
-            "sfDatabase": self.attributes.get("database"),
-            "sfSchema": self.attributes.get("schema"),
-            "sfWarehouse": self.attributes.get("warehouse"),
-            "application": "iguazio_platform",
-        }
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["query"] = self.attributes.get("query")
+        return spark_options
 
 
 class CustomSource(BaseSourceDriver):
@@ -802,7 +777,8 @@ class OnlineSource(BaseSourceDriver):
         explicit_ack = (
             is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
         )
-        src_class = storey.AsyncEmitSource(
+        # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
+        src_class = storey.SyncEmitSource(
             context=context,
             key_field=self.key_field or key_field,
             full_event=True,
@@ -861,8 +837,15 @@ class StreamSource(OnlineSource):
         super().__init__(name, attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):
-        endpoint, stream_path = parse_path(self.path)
-        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        store, _, url = mlrun.store_manager.get_or_create_store(self.path)
+        if store.kind != "v3io":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Only profiles that reference the v3io datastore can be used with StreamSource"
+            )
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+        endpoint, stream_path = parse_path(url)
+        v3io_client = v3io.dataplane.Client(endpoint=endpoint, access_key=access_key)
         container, stream_path = split_path(stream_path)
         res = v3io_client.stream.create(
             container=container,
@@ -882,7 +865,7 @@ class StreamSource(OnlineSource):
             kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
-            self.path,
+            url,
             self.name,
             self.attributes["group"],
             self.attributes["seek_to"],

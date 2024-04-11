@@ -46,7 +46,7 @@ class Member(
         logger.info("Initializing projects leader")
         self._initialize_followers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.config.config.httpdb.projects.periodic_sync_interval
+            mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
@@ -125,6 +125,8 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
     ) -> mlrun.common.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 
@@ -214,9 +216,9 @@ class Member(
             followers_projects_map = collections.defaultdict(dict)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    followers_projects_map[_follower_name][
-                        project.metadata.name
-                    ] = project
+                    followers_projects_map[_follower_name][project.metadata.name] = (
+                        project
+                    )
 
             # create map - leader project name -> leader project for easier searches
             leader_projects_map = {}
@@ -394,11 +396,11 @@ class Member(
         return leader_response, follower_responses
 
     def _initialize_followers(self):
-        leader_name = mlrun.config.config.httpdb.projects.leader
+        leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
         followers = (
-            mlrun.config.config.httpdb.projects.followers.split(",")
-            if mlrun.config.config.httpdb.projects.followers
+            mlrun.mlconf.httpdb.projects.followers.split(",")
+            if mlrun.mlconf.httpdb.projects.followers
             else []
         )
         self._followers = {

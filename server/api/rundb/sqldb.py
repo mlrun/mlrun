@@ -776,6 +776,22 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        raise NotImplementedError()
+
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        raise NotImplementedError()
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        raise NotImplementedError()
+
+    def delete_api_gateway(self, name, project=None):
+        raise NotImplementedError()
+
     def list_project_secrets(
         self,
         project: str,
@@ -938,6 +954,90 @@ class SQLRunDB(RunDBInterface):
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         raise NotImplementedError()
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
+        ],
+        arguments: Optional[dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        notifications: list[mlrun.model.Notification] = None,
+    ) -> "mlrun.common.schemas.WorkflowResponse":
+        raise NotImplementedError()
+
+    def remote_builder(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        raise NotImplementedError()
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def set_run_notifications(
+        self,
+        project: str,
+        runs: list[mlrun.model.RunObject],
+        notifications: list[mlrun.model.Notification],
+    ):
+        raise NotImplementedError()
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        raise NotImplementedError()
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        raise NotImplementedError
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
 
     def _transform_db_error(self, func, *args, **kwargs):
         try:

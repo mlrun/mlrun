@@ -20,24 +20,25 @@ import re
 from collections.abc import Iterator
 from typing import Any, NamedTuple, Optional, Union, cast
 
-from v3io.dataplane.response import HttpResponseError
+import nuclio
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring.db.stores
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.batch import calculate_inputs_statistics
+from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     batch_dict2timedelta,
+    calculate_inputs_statistics,
     get_monitoring_parquet_path,
     get_stream_path,
 )
-from mlrun.utils import create_logger, datetime_now, logger
-from mlrun.utils.v3io_clients import get_v3io_client
+from mlrun.utils import datetime_now, logger
 
 
 class _Interval(NamedTuple):
@@ -46,8 +47,6 @@ class _Interval(NamedTuple):
 
 
 class _BatchWindow:
-    V3IO_CONTAINER_FORMAT = "users/pipelines/{project}/monitoring-schedules/functions"
-
     def __init__(
         self,
         project: str,
@@ -63,27 +62,22 @@ class _BatchWindow:
         All the time values are in seconds.
         The start and stop time are in seconds since the epoch.
         """
+        self.project = project
         self._endpoint = endpoint
         self._application = application
         self._first_request = first_request
-        self._kv_storage = get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
-            # Avoid noisy warning logs before the KV table is created
-            logger=create_logger(name="v3io_client", level="error"),
-        ).kv
-        self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._db = mlrun.model_monitoring.get_store_object(project=self.project)
         self._start = self._get_last_analyzed()
 
     def _get_last_analyzed(self) -> Optional[int]:
         try:
-            data = self._kv_storage.get(
-                container=self._v3io_container,
-                table_path=self._endpoint,
-                key=self._application,
+            last_analyzed = self._db.get_last_analyzed(
+                endpoint_id=self._endpoint,
+                application_name=self._application,
             )
-        except HttpResponseError as err:
+        except mlrun.errors.MLRunNotFoundError:
             logger.info(
                 "No last analyzed time was found for this endpoint and "
                 "application, as this is probably the first time this "
@@ -94,7 +88,7 @@ class _BatchWindow:
                 first_request=self._first_request,
                 last_updated=self._stop,
             )
-            logger.debug("Error while getting last analyzed time", err=err)
+
             if self._first_request and self._stop:
                 # TODO : Change the timedelta according to the policy.
                 first_period_in_seconds = max(
@@ -106,7 +100,6 @@ class _BatchWindow:
                 )
             return self._first_request
 
-        last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
         logger.info(
             "Got the last analyzed time for this endpoint and application",
             endpoint=self._endpoint,
@@ -122,11 +115,11 @@ class _BatchWindow:
             application=self._application,
             last_analyzed=last_analyzed,
         )
-        self._kv_storage.put(
-            container=self._v3io_container,
-            table_path=self._endpoint,
-            key=self._application,
-            attributes={mm_constants.SchedulingKeys.LAST_ANALYZED: last_analyzed},
+
+        self._db.update_last_analyzed(
+            endpoint_id=self._endpoint,
+            application_name=self._application,
+            last_analyzed=last_analyzed,
         )
 
     def get_intervals(
@@ -282,33 +275,33 @@ class MonitoringApplicationController:
 
     def __init__(
         self,
-        context: mlrun.run.MLClientCtx,
+        mlrun_context: mlrun.run.MLClientCtx,
         project: str,
     ):
         """
         Initialize Monitoring Application Processor object.
 
-        :param context:                     An MLRun context.
+        :param mlrun_context:               An MLRun context.
         :param project:                     Project name.
         """
-        self.context = context
+        self.context = mlrun_context
         self.project = project
         self.project_obj = mlrun.get_or_create_project(project)
 
-        context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
+        mlrun_context.logger.debug(
+            f"Initializing {self.__class__.__name__}", project=project
+        )
 
-        self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
+        self.db = mlrun.model_monitoring.get_store_object(project=project)
 
         self._batch_window_generator = _BatchWindowGenerator(
-            batch_dict=context.parameters[
-                mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-            ]
+            batch_dict=json.loads(
+                mlrun.get_secret_or_env(
+                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
+                )
+            )
         )
 
-        # If provided, only model endpoints in that that list will be analyzed
-        self.model_endpoints = context.parameters.get(
-            mm_constants.EventFieldType.MODEL_ENDPOINTS, None
-        )
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             self.project_obj,
@@ -335,66 +328,91 @@ class MonitoringApplicationController:
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
-    def run(self):
+    def run(self, event: nuclio.Event):
         """
         Main method for run all the relevant monitoring applications on each endpoint
+
+        :param event:   trigger event
         """
+        logger.info("Start running monitoring controller")
         try:
-            endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
+            applications_names = []
+            endpoints = self.db.list_model_endpoints()
+            if not endpoints:
+                self.context.logger.info(
+                    "No model endpoints found", project=self.project
+                )
+                return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
+                # Gets only application in ready state
                 applications_names = list(
-                    {app.metadata.name for app in monitoring_functions}
+                    {
+                        app.metadata.name
+                        for app in monitoring_functions
+                        if (
+                            app.status.state == "ready"
+                            # workaround for the default app, as its `status.state` is `None`
+                            or app.metadata.name
+                            == mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                        )
+                    }
                 )
-            else:
+            if not applications_names:
                 self.context.logger.info(
                     "No monitoring functions found", project=self.project
                 )
-                applications_names = []
+                return
+            self.context.logger.info(
+                "Starting to iterate over the applications",
+                applications=applications_names,
+            )
 
         except Exception as e:
-            self.context.logger.error("Failed to list endpoints", exc=e)
-            return
-        if endpoints and applications_names:
-            # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
-            pool = concurrent.futures.ProcessPoolExecutor(
-                max_workers=min(len(endpoints), 10),
+            self.context.logger.error(
+                "Failed to list endpoints and monitoring applications",
+                exc=err_to_str(e),
             )
-            futures = []
-            for endpoint in endpoints:
+            return
+        # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
+        pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=min(len(endpoints), 10),
+        )
+        futures = []
+        for endpoint in endpoints:
+            if (
+                endpoint[mm_constants.EventFieldType.ACTIVE]
+                and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+                == mm_constants.ModelMonitoringMode.enabled.value
+            ):
+                # Skip router endpoint:
                 if (
-                    endpoint[mm_constants.EventFieldType.ACTIVE]
-                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
-                    == mm_constants.ModelMonitoringMode.enabled.value
+                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                    == mm_constants.EndpointType.ROUTER
                 ):
-                    # Skip router endpoint:
-                    if (
-                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                        == mm_constants.EndpointType.ROUTER
-                    ):
-                        # Router endpoint has no feature stats
-                        logger.info(
-                            f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
-                        )
-                        continue
-                    future = pool.submit(
-                        MonitoringApplicationController.model_endpoint_process,
-                        endpoint=endpoint,
-                        applications_names=applications_names,
-                        batch_window_generator=self._batch_window_generator,
-                        project=self.project,
-                        parquet_directory=self.parquet_directory,
-                        storage_options=self.storage_options,
-                        model_monitoring_access_key=self.model_monitoring_access_key,
+                    # Router endpoint has no feature stats
+                    logger.info(
+                        f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
                     )
-                    futures.append(future)
+                    continue
+                future = pool.submit(
+                    MonitoringApplicationController.model_endpoint_process,
+                    endpoint=endpoint,
+                    applications_names=applications_names,
+                    batch_window_generator=self._batch_window_generator,
+                    project=self.project,
+                    parquet_directory=self.parquet_directory,
+                    storage_options=self.storage_options,
+                    model_monitoring_access_key=self.model_monitoring_access_key,
+                )
+                futures.append(future)
 
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result:
-                    self.context.log_results(result)
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                self.context.log_results(result)
 
-            self._delete_old_parquet(endpoints=endpoints)
+        self._delete_old_parquet(endpoints=endpoints)
 
     @classmethod
     def model_endpoint_process(
@@ -427,13 +445,6 @@ class MonitoringApplicationController:
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
-            labels = endpoint[mm_constants.EventFieldType.LABEL_NAMES]
-            if labels:
-                if isinstance(labels, str):
-                    labels = json.loads(labels)
-                for label in labels:
-                    if label not in list(m_fs.spec.features.keys()):
-                        m_fs.add_feature(fstore.Feature(name=label, value_type="float"))
 
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
@@ -525,7 +536,7 @@ class MonitoringApplicationController:
         """
         if self.parquet_directory.startswith("v3io:///"):
             # create fs with access to the user side (under projects)
-            store, _ = mlrun.store_manager.get_or_create_store(
+            store, _, _ = mlrun.store_manager.get_or_create_store(
                 self.parquet_directory,
                 {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )
@@ -601,12 +612,12 @@ class MonitoringApplicationController:
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                 project=project,
-                application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
-            stream_uri = get_stream_path(project=project, application_name=app_name)
+            stream_uri = get_stream_path(project=project, function_name=app_name)
 
             logger.info(
                 f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"

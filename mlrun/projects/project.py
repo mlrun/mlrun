@@ -32,7 +32,7 @@ import dotenv
 import git
 import git.exc
 import kfp
-import nuclio
+import nuclio.utils
 import requests
 import yaml
 
@@ -2180,16 +2180,13 @@ class MlrunProject(ModelObj):
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if not is_ipython:
-                raise ValueError(
-                    "Function path or module must be specified (when not running inside a Notebook)"
-                )
-            from IPython import get_ipython
+            if is_ipython:
+                from IPython import get_ipython
 
-            kernel = get_ipython()
-            func = nuclio.utils.notebook_file_name(kernel)
-            if func.startswith(path.abspath(self.spec.context)):
-                func = path.relpath(func, self.spec.context)
+                kernel = get_ipython()
+                func = nuclio.utils.notebook_file_name(kernel)
+                if func.startswith(path.abspath(self.spec.context)):
+                    func = path.relpath(func, self.spec.context)
 
         func = func or ""
 
@@ -3951,10 +3948,6 @@ def _init_function_from_dict(
     tag = f.get("tag", None)
 
     has_module = _has_module(handler, kind)
-    if not url and "spec" not in f and not has_module:
-        # function must point to a file or a module or have a spec
-        raise ValueError("Function missing a url or a spec or a module")
-
     relative_url = url
     url, in_context = project.get_item_absolute_path(url)
 
@@ -4014,7 +4007,7 @@ def _init_function_from_dict(
                 tag=tag,
             )
 
-    elif image and kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+    elif kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         func = new_function(
             name,
             command=relative_url,
@@ -4023,7 +4016,7 @@ def _init_function_from_dict(
             handler=handler,
             tag=tag,
         )
-        if kind != mlrun.runtimes.RuntimeKinds.application:
+        if image and kind != mlrun.runtimes.RuntimeKinds.application:
             logger.info("Function code not specified, setting entry point to image")
             func.from_image(image)
     else:

@@ -18,6 +18,7 @@ import pathlib
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 
 
 def test_create_application_runtime():
@@ -36,7 +37,7 @@ def test_create_application_runtime_with_command(rundb_mock):
         "application-test", kind="application", image="mlrun/mlrun", command="echo"
     )
     fn.deploy()
-    assert fn.spec.config["spec.sidecars"][0]["command"] == "echo"
+    assert fn.spec.config["spec.sidecars"][0]["command"] == ["echo"]
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.status.application_image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
@@ -143,6 +144,29 @@ def test_pre_deploy_validation(sidecars, expected_error_message):
         assert expected_error_message in str(exc.value)
     else:
         fn.pre_deploy_validation()
+
+
+def test_image_enriched_on_build_application_image(remote_builder_mock):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+    )
+    fn._build_application_image()
+    assert fn.spec.image == ".mlrun/func-default-application-test:latest"
+    assert fn.status.state == mlrun.common.schemas.FunctionState.ready
+
+
+def test_application_image_build(remote_builder_mock):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+        requirements=["mock"],
+    )
+    assert fn.requires_build()
+    fn.deploy()
+    _assert_application_post_deploy_spec(
+        fn, ".mlrun/func-default-application-test:latest"
+    )
 
 
 def _assert_function_code(fn, file_path=None):

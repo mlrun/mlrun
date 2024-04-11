@@ -54,7 +54,12 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     def custom_setup(self):
         super().custom_setup()
         self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
-        self.uploaded_code = False
+        self._files_to_upload = [
+            "source_archive.tar.gz",
+            "source_archive.zip",
+            "handler.py",
+            "spark_session.tar.gz",
+        ]
         # upload test files to cluster
         if has_private_source:
             self.project.set_secrets(
@@ -68,18 +73,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         super().custom_teardown()
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
-
-    def _upload_code_to_cluster(self):
-        if not self.uploaded_code:
-            for file in [
-                "source_archive.tar.gz",
-                "source_archive.zip",
-                "handler.py",
-                "spark_session.tar.gz",
-            ]:
-                source_path = str(self.assets_path / file)
-                mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
-        self.uploaded_code = True
 
     def _new_function(self, kind, name="run", command=""):
         return mlrun.new_function(

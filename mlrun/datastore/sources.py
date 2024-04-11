@@ -28,6 +28,7 @@ from nuclio.config import split_path
 
 import mlrun
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -113,7 +114,11 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = load_spark_dataframe_with_options(session, self.get_spark_options())
+            spark_options = self.get_spark_options()
+            spark_format = spark_options.pop("format", None)
+            df = load_spark_dataframe_with_options(
+                session, spark_options, format=spark_format
+            )
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
@@ -673,32 +678,10 @@ class SnowflakeSource(BaseSourceDriver):
             **kwargs,
         )
 
-    def _get_password(self):
-        key = "SNOWFLAKE_PASSWORD"
-        snowflake_password = os.getenv(key) or os.getenv(
-            SecretsStore.k8s_env_variable_name_for_secret(key)
-        )
-
-        if not snowflake_password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "No password provided. Set password using the SNOWFLAKE_PASSWORD "
-                "project secret or environment variable."
-            )
-
-        return snowflake_password
-
     def get_spark_options(self):
-        return {
-            "format": "net.snowflake.spark.snowflake",
-            "query": self.attributes.get("query"),
-            "sfURL": self.attributes.get("url"),
-            "sfUser": self.attributes.get("user"),
-            "sfPassword": self._get_password(),
-            "sfDatabase": self.attributes.get("database"),
-            "sfSchema": self.attributes.get("schema"),
-            "sfWarehouse": self.attributes.get("warehouse"),
-            "application": "iguazio_platform",
-        }
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["query"] = self.attributes.get("query")
+        return spark_options
 
 
 class CustomSource(BaseSourceDriver):

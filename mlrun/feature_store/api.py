@@ -211,6 +211,7 @@ def _get_offline_features(
     order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    filters=None,
 ) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -249,6 +250,7 @@ def _get_offline_features(
             start_time=start_time,
             end_time=end_time,
             timestamp_for_filtering=timestamp_for_filtering,
+            filters=filters,
         )
 
     merger = merger_engine(feature_vector, **(engine_args or {}))
@@ -264,6 +266,7 @@ def _get_offline_features(
         update_stats=update_stats,
         query=query,
         order_by=order_by,
+        filters=filters,
     )
 
 

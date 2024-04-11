@@ -113,6 +113,7 @@ def get_offline_features(
     order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    filters: list = None,
 ):
     """retrieve offline feature vector results
 
@@ -172,6 +173,11 @@ def get_offline_features(
                                     By default, the filter executes on the timestamp_key of each feature set.
                                     Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
+    :param filters: (list of tuples, optional): List of filter conditions as tuples.
+                                                Each tuple should be in the format (column_name, operator, value).
+                                                Supported operators: '=', '>=', '<=', '>', '<'.
+                                                Example: ('Product', '=', 'Computer')]
+
 
     """
     return _get_offline_features(
@@ -191,6 +197,7 @@ def get_offline_features(
         order_by,
         spark_service,
         timestamp_for_filtering,
+        filters
     )
 
 

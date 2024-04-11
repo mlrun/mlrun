@@ -1108,7 +1108,7 @@ class CSVTarget(BaseStoreTarget):
         filters=None,
         **kwargs,
     ):
-        #  TODO decide if need to raise an error if filters exist.
+        #  TODO decide if need to raise an error if filters exist or query the data after reading it...
         df = super().as_df(
             columns=columns,
             df_module=df_module,

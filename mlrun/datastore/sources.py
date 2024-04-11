@@ -102,6 +102,7 @@ class BaseSourceDriver(DataSource):
         start_time=None,
         end_time=None,
         time_field=None,
+        filters=None,
     ):
         """return the source data as dataframe"""
         return mlrun.store_manager.object(url=self.path).as_df(
@@ -110,6 +111,7 @@ class BaseSourceDriver(DataSource):
             start_time=start_time or self.start_time,
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
+            filters=filters,
         )
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
@@ -245,7 +247,9 @@ class CSVSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        filters=None,
     ):
+        #  TODO decide if need to raise an error if filters exist or query the data after reading it...
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
@@ -380,6 +384,7 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
@@ -389,6 +394,7 @@ class ParquetSource(BaseSourceDriver):
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
             format="parquet",
+            filters=filters,
             **reader_args,
         )
 
@@ -514,6 +520,7 @@ class BigQuerySource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        filters=None,
     ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
@@ -735,7 +742,17 @@ class DataFrameSource:
             context=self.context or context,
         )
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        filters=None,
+    ):
+        #  TODO figure out what to do here...
         return self._df
 
     def is_iterator(self):
@@ -930,6 +947,7 @@ class KafkaSource(OnlineSource):
         start_time=None,
         end_time=None,
         time_field=None,
+        filters=None,
     ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
@@ -1070,6 +1088,7 @@ class SQLSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        filters=None,
     ):
         import sqlalchemy as sqlalchemy
 

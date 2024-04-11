@@ -179,21 +179,21 @@ class DataStore:
         return {}
 
     @staticmethod
-    def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
+    def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time, filters):
         from storey.utils import find_filters, find_partitions
 
         def set_filters(
-            partitions_time_attributes, start_time_inner, end_time_inner, kwargs
+            partitions_time_attributes, start_time_inner, end_time_inner, filters_inner, kwargs
         ):
-            filters = []
+            filters_inner = filters_inner or []
             find_filters(
                 partitions_time_attributes,
                 start_time_inner,
                 end_time_inner,
-                filters,
+                filters_inner,
                 time_column,
             )
-            kwargs["filters"] = filters
+            kwargs["filters"] = filters_inner
 
         def reader(*args, **kwargs):
             if start_time or end_time:
@@ -207,6 +207,7 @@ class DataStore:
                     partitions_time_attributes,
                     start_time,
                     end_time,
+                    filters,
                     kwargs,
                 )
                 try:
@@ -228,6 +229,7 @@ class DataStore:
                         partitions_time_attributes,
                         start_time_inner,
                         end_time_inner,
+                        filters,
                         kwargs,
                     )
                     return df_module.read_parquet(*args, **kwargs)
@@ -246,6 +248,7 @@ class DataStore:
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
         df_module = df_module or pd
@@ -310,7 +313,7 @@ class DataStore:
                 kwargs["columns"] = columns
 
             reader = self._parquet_reader(
-                df_module, url, file_system, time_column, start_time, end_time
+                df_module, url, file_system, time_column, start_time, end_time, filters
             )
 
         elif file_url.endswith(".json") or format == "json":

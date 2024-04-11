@@ -354,7 +354,7 @@ class MonitoringApplicationController:
                             app.status.state == "ready"
                             # workaround for the default app, as its `status.state` is `None`
                             or app.metadata.name
-                            == mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                            == mm_constants.MLRunHistogramDataDriftApplication.NAME
                         )
                     }
                 )

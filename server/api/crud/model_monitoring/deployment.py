@@ -531,7 +531,7 @@ class MonitoringDeployment:
         func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
             project=self.project,
             func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
-            name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+            name=mm_constants.MLRunHistogramDataDriftApplication.NAME,
             application_class="HistogramDataDriftApplication",
             image=image,
         )

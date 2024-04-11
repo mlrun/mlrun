@@ -2086,7 +2086,8 @@ class MlrunProject(ModelObj):
             db.delete_function(project=self.name, name=fn_name)
         if delete_histogram_data_drift_app:
             db.delete_function(
-                project=self.name, name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                project=self.name,
+                name=mm_constants.MLRunHistogramDataDriftApplication.NAME,
             )
 
     def set_function(

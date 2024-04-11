@@ -16,7 +16,7 @@ import dataclasses
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Union, cast
+from typing import Union, cast
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
-from mlrun.datastore.targets import ParquetTarget
+from mlrun.model_monitoring.applications.context import MonitoringApplicationContext
 from mlrun.serving.utils import StepToDict
 
 
@@ -104,8 +104,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     kind = "monitoring_application"
 
     def do(
-        self, event: dict[str, Any]
-    ) -> tuple[list[ModelMonitoringApplicationResult], dict]:
+        self, event: MonitoringApplicationContext
+    ) -> tuple[list[ModelMonitoringApplicationResult], MonitoringApplicationContext]:
         """
         Process the monitoring event and return application results.
 
@@ -117,15 +117,13 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         if not (
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
-            self._lazy_init(app_name=resolved_event[0])
+            self._lazy_init(event)
         results = self.do_tracking(*resolved_event)
         results = results if isinstance(results, list) else [results]
         return results, event
 
-    def _lazy_init(self, app_name: str):
-        self.context = cast(
-            mlrun.MLClientCtx, self._create_context_for_logging(app_name=app_name)
-        )
+    def _lazy_init(self, monitoring_context: MonitoringApplicationContext):
+        self.context = cast(mlrun.MLClientCtx, monitoring_context)
 
     @abstractmethod
     def do_tracking(
@@ -145,7 +143,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         """
         Implement this method with your custom monitoring logic.
 
-        :param application_name:         (str) the app name
+        :param application_name:        (str) the app name
         :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
         :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
         :param sample_df:               (pd.DataFrame) The new sample DataFrame.
@@ -163,7 +161,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     @classmethod
     def _resolve_event(
         cls,
-        event: dict[str, Any],
+        monitoring_context: MonitoringApplicationContext,
     ) -> tuple[
         str,
         mlrun.common.model_monitoring.helpers.FeatureStats,
@@ -192,30 +190,17 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                      [7] = (str) endpoint id
                      [8] = (str) output stream uri
         """
-        start_time = pd.Timestamp(event[mm_constant.ApplicationEvent.START_INFER_TIME])
-        end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
-            event[mm_constant.ApplicationEvent.APPLICATION_NAME],
-            json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS]),
-            json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS]),
-            ParquetTarget(
-                path=event[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
-            ).as_df(start_time=start_time, end_time=end_time, time_column="timestamp"),
-            start_time,
-            end_time,
-            pd.Timestamp(event[mm_constant.ApplicationEvent.LAST_REQUEST]),
-            event[mm_constant.ApplicationEvent.ENDPOINT_ID],
-            event[mm_constant.ApplicationEvent.OUTPUT_STREAM_URI],
+            monitoring_context.application_name,
+            monitoring_context.sample_df_stats,
+            monitoring_context.feature_stats,
+            monitoring_context.sample_df,
+            monitoring_context.start_infer_time,
+            monitoring_context.end_infer_time,
+            monitoring_context.latest_request,
+            monitoring_context.endpoint_id,
+            monitoring_context.output_stream_uri,
         )
-
-    @staticmethod
-    def _create_context_for_logging(app_name: str):
-        context = mlrun.get_or_create_ctx(
-            f"{app_name}-logger",
-            upload_artifacts=True,
-            labels={"workflow": "model-monitoring-app-logger"},
-        )
-        return context
 
     @staticmethod
     def dict_to_histogram(

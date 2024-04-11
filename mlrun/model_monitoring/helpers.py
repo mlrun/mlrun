@@ -213,7 +213,7 @@ def update_model_endpoint_last_request(
 
 def calculate_inputs_statistics(
     sample_set_statistics: dict, inputs: pd.DataFrame
-) -> dict:
+) -> mlrun.common.model_monitoring.helpers.FeatureStats:
     """
     Calculate the inputs data statistics for drift monitoring purpose.
 

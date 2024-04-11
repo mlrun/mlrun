@@ -99,8 +99,6 @@ class FeatureSetFeatures(MonitoringStrEnum):
 
 class ApplicationEvent:
     APPLICATION_NAME = "application_name"
-    CURRENT_STATS = "current_stats"
-    FEATURE_STATS = "feature_stats"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"

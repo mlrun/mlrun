@@ -111,7 +111,6 @@ class BaseSourceDriver(DataSource):
             start_time=start_time or self.start_time,
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
-            filters=filters,
         )
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):

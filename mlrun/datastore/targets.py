@@ -724,7 +724,6 @@ class BaseStoreTarget(DataTargetBase):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
-            filters=filters,
             **kwargs,
         )
 

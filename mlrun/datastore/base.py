@@ -179,11 +179,17 @@ class DataStore:
         return {}
 
     @staticmethod
-    def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time, filters):
+    def _parquet_reader(
+        df_module, url, file_system, time_column, start_time, end_time, filters
+    ):
         from storey.utils import find_filters, find_partitions
 
         def set_filters(
-            partitions_time_attributes, start_time_inner, end_time_inner, filters_inner, kwargs
+            partitions_time_attributes,
+            start_time_inner,
+            end_time_inner,
+            filters_inner,
+            kwargs,
         ):
             filters_inner = filters_inner or []
             find_filters(
@@ -541,6 +547,7 @@ class DataItem:
         time_column=None,
         start_time=None,
         end_time=None,
+        filters=None,
         **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
@@ -552,6 +559,10 @@ class DataItem:
         :param end_time:    filters out data after this time
         :param time_column: Store timestamp_key will be used if None.
                             The results will be filtered by this column and start_time & end_time.
+        :param filters: (list of tuples, optional): List of filter conditions as tuples.
+                                                    Each tuple should be in the format (column_name, operator, value).
+                                                    Supported operators: '=', '>=', '<=', '>', '<'.
+                                                    Example: ('Product', '=', 'Computer')]
         """
         df = self._store.as_df(
             self._url,
@@ -562,6 +573,7 @@ class DataItem:
             time_column=time_column,
             start_time=start_time,
             end_time=end_time,
+            filters=filters,
             **kwargs,
         )
         return df

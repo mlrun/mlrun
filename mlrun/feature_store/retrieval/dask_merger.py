@@ -145,7 +145,7 @@ class DaskFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None
+        filters=None,
     ):
         import dask.dataframe as dd
 
@@ -156,7 +156,7 @@ class DaskFeatureMerger(BaseMerger):
             end_time=end_time,
             time_column=time_column,
             index=False,
-            filters=filters
+            filters=filters,
         )
 
         return self._reset_index(df).persist()

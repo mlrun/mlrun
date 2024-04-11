@@ -186,7 +186,7 @@ class BaseMerger(abc.ABC):
         timestamp_for_filtering=None,
         query=None,
         order_by=None,
-        filters=None
+        filters=None,
     ):
         self._create_engine_env()
 
@@ -260,7 +260,7 @@ class BaseMerger(abc.ABC):
                 start_time if time_column else None,
                 end_time if time_column else None,
                 time_column,
-                filters
+                filters,
             )
 
             fs_entities_and_timestamp = list(feature_set.spec.entities.keys())
@@ -757,6 +757,7 @@ class BaseMerger(abc.ABC):
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
         time_column: typing.Optional[str] = None,
+        filters=None,
     ):
         """
         Return the feature_set data frame according to the args

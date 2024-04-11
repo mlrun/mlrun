@@ -502,8 +502,7 @@ class MonitoringApplicationController:
 
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(
-                        sample_set_statistics=feature_stats,
-                        inputs=df,
+                        sample_set_statistics=feature_stats, inputs=df
                     )
 
                     cls._push_to_applications(

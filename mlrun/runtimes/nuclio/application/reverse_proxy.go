@@ -30,8 +30,19 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     reverseProxy := context.UserData.(map[string]interface{})["reverseProxy"].(*httputil.ReverseProxy)
     sidecarUrl := context.UserData.(map[string]interface{})["server"].(string)
 
+    // populate query params
+    path := event.GetPath()
+    fields := event.GetFields()
+    if len(fields) != 0 {
+        path += "?"
+        for k, v := range fields {
+            path = fmt.Sprintf("%s%s=%s&",path, k, v)
+        }
+        path = strings.TrimSuffix(path, "&")
+    }
+
     // populate reverse proxy http request
-    httpRequest, err := http.NewRequest(event.GetMethod(), event.GetPath(), bytes.NewReader(event.GetBody()))
+    httpRequest, err := http.NewRequest(event.GetMethod(), path, bytes.NewReader(event.GetBody()))
     if err != nil {
         context.Logger.ErrorWith("Failed to create a reverse proxy request")
         return nil, err
@@ -43,7 +54,7 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     reverseProxy.ServeHTTP(recorder, httpRequest)
 
     // send request to sidecar
-    context.Logger.InfoWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl)
+    context.Logger.DebugWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl, "path", path)
     response := recorder.Result()
 
     headers := make(map[string]interface{})

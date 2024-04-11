@@ -714,6 +714,7 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
@@ -723,6 +724,7 @@ class BaseStoreTarget(DataTargetBase):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            filters=filters,
             **kwargs,
         )
 
@@ -961,6 +963,7 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
@@ -971,6 +974,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            filters=filters,
             **kwargs,
         )
         if not columns:
@@ -1101,8 +1105,10 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
+        #  TODO decide if need to raise an error if filters exist.
         df = super().as_df(
             columns=columns,
             df_module=df_module,
@@ -1209,6 +1215,7 @@ class SnowflakeTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1275,7 +1282,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1511,7 +1528,17 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
 
@@ -1589,7 +1616,17 @@ class KafkaTarget(BaseStoreTarget):
             **attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def purge(self):
@@ -1636,7 +1673,17 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1747,9 +1794,11 @@ class DFTarget(BaseStoreTarget):
         self,
         columns=None,
         df_module=None,
+        entities=None,
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
         return select_columns_from_df(
@@ -1926,6 +1975,7 @@ class SQLTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        filters=None,
         **kwargs,
     ):
         try:

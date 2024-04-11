@@ -197,7 +197,7 @@ def get_offline_features(
         order_by,
         spark_service,
         timestamp_for_filtering,
-        filters
+        filters,
     )
 
 

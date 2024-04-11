@@ -41,18 +41,17 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     }
 
     // populate query params
-    url := httpRequest.URL
-    query := url.Query()
+    query := httpRequest.URL.Query()
     for k, v := range event.GetFields() {
         query.Set(k, v.(string))
     }
-    url.RawQuery = query.Encode()
+    httpRequest.URL.RawQuery = query.Encode()
 
     recorder := httptest.NewRecorder()
     reverseProxy.ServeHTTP(recorder, httpRequest)
 
     // send request to sidecar
-    context.Logger.DebugWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl, "query", url.RawQuery)
+    context.Logger.DebugWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl, "query", httpRequest.URL.Query())
     response := recorder.Result()
 
     headers := make(map[string]interface{})

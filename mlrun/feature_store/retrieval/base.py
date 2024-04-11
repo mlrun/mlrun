@@ -88,6 +88,7 @@ class BaseMerger(abc.ABC):
         update_stats=None,
         query=None,
         order_by=None,
+        filters=None
     ):
         self._target = target
 
@@ -134,6 +135,7 @@ class BaseMerger(abc.ABC):
             timestamp_for_filtering=timestamp_for_filtering,
             query=query,
             order_by=order_by,
+            filters=filters
         )
 
     def _write_to_offline_target(self, timestamp_key=None):

@@ -561,13 +561,24 @@ class Client(
         params = {"include": "owner"}
         if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
-        return self._send_request_to_api(
-            "GET",
-            f"projects/__name__/{name}",
-            "Failed getting project from Iguazio",
-            session,
-            params=params,
-        )
+        try:
+            return self._send_request_to_api(
+                "GET",
+                f"projects/__name__/{name}",
+                "Failed getting project from Iguazio",
+                session,
+                params=params,
+            )
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._logger.debug(
+                "Project not found in Iguazio",
+                name=name,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
 
     def _get_project_from_iguazio(
         self, session: str, name: str, include_owner_session: bool = False
@@ -617,7 +628,7 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         response = self._session.request(
-            method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs
+            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
             try:
@@ -727,20 +738,20 @@ class Client(
             }
         }
         if project.metadata.created:
-            body["data"]["attributes"][
-                "created_at"
-            ] = project.metadata.created.isoformat()
+            body["data"]["attributes"]["created_at"] = (
+                project.metadata.created.isoformat()
+            )
         if project.metadata.labels is not None:
-            body["data"]["attributes"][
-                "labels"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.labels
+            body["data"]["attributes"]["labels"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.labels
+                )
             )
         if project.metadata.annotations is not None:
-            body["data"]["attributes"][
-                "annotations"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.annotations
+            body["data"]["attributes"]["annotations"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.annotations
+                )
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
@@ -787,9 +798,9 @@ class Client(
             iguazio_project["attributes"].get("mlrun_project", "{}")
         )
         # name is mandatory in the mlrun schema, without adding it the schema initialization will fail
-        mlrun_project_without_common_fields.setdefault("metadata", {})[
-            "name"
-        ] = iguazio_project["attributes"]["name"]
+        mlrun_project_without_common_fields.setdefault("metadata", {})["name"] = (
+            iguazio_project["attributes"]["name"]
+        )
         mlrun_project = mlrun.common.schemas.Project(
             **mlrun_project_without_common_fields
         )
@@ -820,6 +831,13 @@ class Client(
             )
         if iguazio_project["attributes"].get("owner_username"):
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
+
+        if iguazio_project["attributes"].get("default_function_node_selector"):
+            mlrun_project.spec.default_function_node_selector = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["default_function_node_selector"]
+                )
+            )
         return mlrun_project
 
     def _prepare_request_kwargs(self, session, path, *, kwargs):

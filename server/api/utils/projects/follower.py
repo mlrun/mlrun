@@ -212,8 +212,21 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
     ) -> mlrun.common.schemas.Project:
-        return server.api.crud.Projects().get_project(db_session, name)
+        # by default, get project will use mlrun db to get/list the project.
+        # from leader is relevant for cases where we want to get the project from the leader
+        if from_leader:
+            return self._leader_client.get_project(leader_session, name)
+
+        # format_ is relevant for cases where we want to get the project from mlrun db
+        projects = self.list_projects(
+            db_session, format_=format_, leader_session=leader_session, names=[name]
+        ).projects
+        if not projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+        return projects[0]
 
     def get_project_owner(
         self,

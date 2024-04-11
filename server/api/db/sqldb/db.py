@@ -15,6 +15,7 @@
 import asyncio
 import collections
 import functools
+import hashlib
 import pathlib
 import re
 import typing
@@ -76,6 +77,7 @@ from server.api.db.sqldb.models import (
     Function,
     HubSource,
     Log,
+    PaginationCache,
     Project,
     Run,
     Schedule,
@@ -252,6 +254,7 @@ class SQLDB(DBInterface):
         only_uids=True,
         last_update_time_from: datetime = None,
         states: list[str] = None,
+        specific_uids: list[str] = None,
     ) -> typing.Union[list[str], RunList]:
         """
         List all runs uids in the DB
@@ -281,6 +284,9 @@ class SQLDB(DBInterface):
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
+
+        if specific_uids:
+            query = query.filter(Run.uid.in_(specific_uids))
 
         if not only_uids:
             # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
@@ -342,6 +348,8 @@ class SQLDB(DBInterface):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -388,6 +396,9 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+
+        query = self._paginate_query(query, page, page_size)
+
         if not return_as_run_structs:
             return query.all()
 
@@ -405,9 +416,9 @@ class SQLDB(DBInterface):
                         notification
                     )
                     run_struct["spec"]["notifications"].append(notification_spec)
-                    run_struct["status"]["notifications"][
-                        notification.name
-                    ] = notification_status
+                    run_struct["status"]["notifications"][notification.name] = (
+                        notification_status
+                    )
             runs.append(run_struct)
 
         return runs
@@ -1575,6 +1586,8 @@ class SQLDB(DBInterface):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        page: int = None,
+        page_size: int = None,
     ) -> list[dict]:
         project = project or config.default_project
         uids = None
@@ -1585,7 +1598,9 @@ class SQLDB(DBInterface):
         if not tag and hash_key:
             uids = [hash_key]
         functions = []
-        for function in self._find_functions(session, name, project, uids, labels):
+        for function in self._find_functions(
+            session, name, project, uids, labels, page=page, page_size=page_size
+        ):
             function_dict = function.struct
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
@@ -2036,6 +2051,7 @@ class SQLDB(DBInterface):
             state=project.status.state,
             created=created,
             owner=project.spec.owner,
+            default_function_node_selector=project.spec.default_function_node_selector,
             full_object=project.dict(),
         )
         labels = project.metadata.labels or {}
@@ -2052,6 +2068,7 @@ class SQLDB(DBInterface):
             project_metadata=project.metadata,
             project_owner=project.spec.owner,
             project_desired_state=project.spec.desired_state,
+            default_function_node_selector=project.spec.default_function_node_selector,
             project_status=project.status,
         )
         self._normalize_project_parameters(project)
@@ -3737,7 +3754,9 @@ class SQLDB(DBInterface):
             value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
         )
 
-    def _find_functions(self, session, name, project, uids=None, labels=None):
+    def _find_functions(
+        self, session, name, project, uids=None, labels=None, page=None, page_size=None
+    ):
         query = self._query(session, Function, project=project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
@@ -3745,7 +3764,9 @@ class SQLDB(DBInterface):
             query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
-        return self._add_labels_filter(session, query, Function, labels)
+        query = self._add_labels_filter(session, query, Function, labels)
+        query = self._paginate_query(query, page, page_size)
+        return query
 
     def _delete(self, session, cls, **kw):
         query = session.query(cls).filter_by(**kw)
@@ -4627,6 +4648,83 @@ class SQLDB(DBInterface):
             project=db_object.project,
         )
 
+    # --- Pagination ---
+    def store_paginated_query_cache_record(
+        self,
+        session,
+        user: str,
+        function: str,
+        current_page: int,
+        page_size: int,
+        kwargs: dict,
+    ):
+        # generate key hash from user, function, current_page and kwargs
+        key = hashlib.sha256(
+            f"{user}/{function}/{page_size}/{kwargs}".encode()
+        ).hexdigest()
+        existing_record = self.get_paginated_query_cache_record(session, key)
+        if existing_record:
+            existing_record.current_page = current_page
+            existing_record.last_accessed = datetime.now(timezone.utc)
+            param_record = existing_record
+        else:
+            param_record = PaginationCache(
+                key=key,
+                user=user,
+                function=function,
+                current_page=current_page,
+                page_size=page_size,
+                kwargs=kwargs,
+                last_accessed=datetime.now(timezone.utc),
+            )
+
+        self._upsert(session, [param_record])
+        return key
+
+    def get_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        return self._query(session, PaginationCache, key=key).one_or_none()
+
+    def list_paginated_query_cache_record(
+        self,
+        session,
+        key: str = None,
+        user: str = None,
+        function: str = None,
+        last_accessed_before: datetime = None,
+        order_by: typing.Optional[mlrun.common.schemas.OrderType] = None,
+        as_query: bool = False,
+    ):
+        query = self._query(session, PaginationCache)
+        if key:
+            query = query.filter(PaginationCache.key == key)
+        if user:
+            query = query.filter(PaginationCache.user == user)
+        if function:
+            query = query.filter(PaginationCache.function == function)
+        if last_accessed_before:
+            query = query.filter(PaginationCache.last_accessed < last_accessed_before)
+
+        if order_by:
+            query = query.order_by(
+                order_by.to_order_by_predicate(PaginationCache.last_accessed)
+            )
+
+        if as_query:
+            return query
+
+        return query.all()
+
+    def delete_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        self._delete(session, PaginationCache, key=key)
+
     # ---- Utils ----
     def delete_table_records(
         self,
@@ -4688,3 +4786,13 @@ class SQLDB(DBInterface):
         metadata = MetaData(bind=session.bind)
         metadata.reflect()
         return table_name in metadata.tables.keys()
+
+    @staticmethod
+    def _paginate_query(query, page: int = None, page_size: int = None):
+        if page is not None:
+            page_size = page_size or config.httpdb.pagination.default_page_size
+            if query.count() < page_size * (page - 1):
+                raise StopIteration
+            query = query.limit(page_size).offset((page - 1) * page_size)
+
+        return query

@@ -15,20 +15,22 @@
 import datetime
 import typing
 
+import numpy as np
+import pandas as pd
+
 import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
-    MonitoringFunctionNames,
 )
-from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
 
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class _BatchDict(typing.TypedDict):
@@ -37,33 +39,32 @@ class _BatchDict(typing.TypedDict):
     days: int
 
 
-class _MLRunNoRunsFoundError(Exception):
-    pass
-
-
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(
+    project: str = None,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param application_name:    Application name, None for model_monitoring_stream.
+    :param function_name:    Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
     stream_uri = mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if application_name is None
-        else ""
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
         target="online",
-        application_name=application_name,
+        function_name=function_name,
     )
 
+    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
+        stream_uri = stream_uri[1]  # get new stream path, under projects
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, application_name=application_name
+        stream_uri=stream_uri, project=project, function_name=function_name
     )
 
 
@@ -125,24 +126,31 @@ def _get_monitoring_time_window_from_controller_run(
     project: str, db: "RunDBInterface"
 ) -> datetime.timedelta:
     """
-    Get timedelta for the controller to run.
+    Get the base period form the controller.
 
     :param project: Project name.
     :param db:      DB interface.
 
     :return:    Timedelta for the controller to run.
+    :raise:     MLRunNotFoundError if the controller isn't deployed yet
     """
-    run_name = MonitoringFunctionNames.APPLICATION_CONTROLLER
-    runs = db.list_runs(project=project, name=run_name, sort=True)
-    if not runs:
-        raise _MLRunNoRunsFoundError(f"No {run_name} runs were found")
-    last_run = runs[0]
-    try:
-        batch_dict = last_run["spec"]["parameters"]["batch_intervals_dict"]
-    except KeyError:
-        raise MLRunValueError(
-            f"Could not find `batch_intervals_dict` in {run_name} run"
-        )
+
+    controller = db.get_function(
+        name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        project=project,
+    )
+    if isinstance(controller, dict):
+        controller = mlrun.runtimes.RemoteRuntime.from_dict(controller)
+    elif not hasattr(controller, "to_dict"):
+        raise mlrun.errors.MLRunNotFoundError()
+    base_period = controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+        "interval"
+    ]
+    batch_dict = {
+        mm_constants.EventFieldType.MINUTES: int(base_period[:-1]),
+        mm_constants.EventFieldType.HOURS: 0,
+        mm_constants.EventFieldType.DAYS: 0,
+    }
     return batch_dict2timedelta(batch_dict)
 
 
@@ -177,9 +185,9 @@ def update_model_endpoint_last_request(
     else:
         try:
             time_window = _get_monitoring_time_window_from_controller_run(project, db)
-        except _MLRunNoRunsFoundError:
+        except mlrun.errors.MLRunNotFoundError:
             logger.debug(
-                "Not bumping model endpoint last request time - no controller runs were found"
+                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet"
             )
             return
 
@@ -203,3 +211,45 @@ def update_model_endpoint_last_request(
             endpoint_id=model_endpoint.metadata.uid,
             attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
         )
+
+
+def calculate_inputs_statistics(
+    sample_set_statistics: dict, inputs: pd.DataFrame
+) -> dict:
+    """
+    Calculate the inputs data statistics for drift monitoring purpose.
+
+    :param sample_set_statistics: The sample set (stored end point's dataset to reference) statistics. The bins of the
+                                  histograms of each feature will be used to recalculate the histograms of the inputs.
+    :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
+                                  sample set.
+
+    :returns: The calculated statistics of the inputs data.
+    """
+
+    # Use `DFDataInfer` to calculate the statistics over the inputs:
+    inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
+        df=inputs,
+        options=mlrun.data_types.infer.InferOptions.Histogram,
+    )
+
+    # Recalculate the histograms over the bins that are set in the sample-set of the end point:
+    for feature in inputs_statistics.keys():
+        if feature in sample_set_statistics:
+            counts, bins = np.histogram(
+                inputs[feature].to_numpy(),
+                bins=sample_set_statistics[feature]["hist"][1],
+            )
+            inputs_statistics[feature]["hist"] = [
+                counts.tolist(),
+                bins.tolist(),
+            ]
+        elif "hist" in inputs_statistics[feature]:
+            # Comply with the other common features' histogram length
+            mlrun.common.model_monitoring.helpers.pad_hist(
+                mlrun.common.model_monitoring.helpers.Histogram(
+                    inputs_statistics[feature]["hist"]
+                )
+            )
+
+    return inputs_statistics

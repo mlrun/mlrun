@@ -37,6 +37,7 @@ import (
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
+	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,6 +72,8 @@ type Server struct {
 	// interval durations
 	readLogWaitTime    time.Duration
 	monitoringInterval time.Duration
+
+	listRunsChunkSize int
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -87,7 +90,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferSizeBytes,
 	getLogsBufferSizeBytes,
 	logTimeUpdateBytesInterval,
-	advancedLogLevel int) (*Server, error) {
+	advancedLogLevel,
+	listRunsChunkSize int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -145,6 +149,10 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, logCollectionBufferSizeBytes)
 	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, getLogsBufferSizeBytes)
 
+	if listRunsChunkSize <= 0 {
+		listRunsChunkSize = common.DefaultListRunsChunkSize
+	}
+
 	return &Server{
 		AbstractMlrunGRPCServer:      abstractServer,
 		namespace:                    namespace,
@@ -163,6 +171,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
 		advancedLogLevel:             advancedLogLevel,
+		listRunsChunkSize:            listRunsChunkSize,
 	}, nil
 }
 
@@ -634,6 +643,82 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 	return s.successfulBaseResponse(), nil
 }
 
+// ListRunsInProgress returns a list of runs that are currently being collected
+func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, responseStream protologcollector.LogCollector_ListRunsInProgressServer) error {
+	ctx := responseStream.Context()
+
+	s.Logger.DebugWithCtx(ctx,
+		"Received list runs in progress request",
+		"project", request.Project)
+
+	// get all runs in progress from the state manifest
+	logItemsInProgress, err := s.stateManifest.GetItemsInProgress()
+	if err != nil {
+		message := "Failed to list runs in progress from state manifest"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+	}
+
+	runsInProgress, err := s.getRunUIDsInProgress(ctx, logItemsInProgress, request.Project)
+	if err != nil {
+		message := "Failed to list runs in progress"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+
+	}
+
+	// get all runs in progress from the current state, and add merge them with the runs from the state manifest
+	// this can only happen if some voodoo occurred after the server restarted
+	logItemsInProgressCurrentState, err := s.currentState.GetItemsInProgress()
+	if err != nil {
+		message := "Failed to get ms in progress from current state"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+	}
+
+	runsInProgressCurrentState, err := s.getRunUIDsInProgress(ctx, logItemsInProgressCurrentState, request.Project)
+	if err != nil {
+		message := "Failed to list runs in progress from current state"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+
+	}
+
+	// merge the two maps
+	for _, runUID := range runsInProgressCurrentState {
+		if !lo.Contains[string](runsInProgress, runUID) {
+			runsInProgress = append(runsInProgress, runUID)
+		}
+	}
+
+	// send empty response if no runs are in progress
+	if len(runsInProgress) == 0 {
+		s.Logger.DebugWithCtx(ctx, "No runs in progress to list")
+		if err := responseStream.Send(&protologcollector.ListRunsResponse{
+			RunUIDs: []string{},
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send empty response to stream")
+		}
+		return nil
+	}
+
+	// send each run in progress to the stream in chunks of 10 due to gRPC message size limit
+	for i := 0; i < len(runsInProgress); i += s.listRunsChunkSize {
+		endIndex := i + s.listRunsChunkSize
+		if endIndex > len(runsInProgress) {
+			endIndex = len(runsInProgress)
+		}
+
+		if err := responseStream.Send(&protologcollector.ListRunsResponse{
+			RunUIDs: runsInProgress[i:endIndex],
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send runs in progress to stream")
+		}
+	}
+
+	return nil
+}
+
 // startLogStreaming streams logs from a pod and writes them into a file
 func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
@@ -771,12 +856,6 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Finished log streaming",
-		"runUID", runUID,
-		"projectName", projectName,
-		"podName", podName)
-
 	// remove run from state file
 	if err := s.stateManifest.RemoveLogItem(ctx, runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
@@ -784,6 +863,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	s.Logger.DebugWithCtx(ctx,
 		"Finished log streaming",
+		"projectName", projectName,
 		"runUID", runUID,
 		"podName", podName)
 }
@@ -1211,4 +1291,25 @@ func (s *Server) deleteProjectLogs(project string) error {
 		return errors.Wrapf(err, "Exhausted deleting project %s directory logs", project)
 	}
 	return nil
+}
+
+func (s *Server) getRunUIDsInProgress(ctx context.Context, inProgressMap *sync.Map, project string) ([]string, error) {
+	var runUIDs []string
+
+	inProgressMap.Range(func(projectKey, runUIDsToLogItemsValue interface{}) bool {
+		// if a project was provided, only return runUIDs for that project
+		if project != "" && project != projectKey {
+			return true
+		}
+
+		runUIDsToLogItems := runUIDsToLogItemsValue.(*sync.Map)
+		runUIDsToLogItems.Range(func(key, value interface{}) bool {
+			runUID := key.(string)
+			runUIDs = append(runUIDs, runUID)
+			return true
+		})
+		return true
+	})
+
+	return runUIDs, nil
 }

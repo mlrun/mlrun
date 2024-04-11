@@ -633,7 +633,7 @@ csv_df = csv_source.to_dataframe()
 from pyspark.sql import SparkSession
 
 session = SparkSession.builder.master("local").getOrCreate()
-parquet_source = ParquetSource(name="read", path="v3io://users/admin/getting_started/examples/userdata1.parquet")
+parquet_source = ParquetSource(name="read", path="v3io:///users/admin/getting_started/examples/userdata1.parquet")
 spark_df = parquet_source.to_spark_df(session=session)
 
 # BigQuery
@@ -691,10 +691,10 @@ redis_target.write_dataframe(df=redis_df)
 # Kafka (see docs for writing online features)
 kafka_target = KafkaTarget(
     name="write",
-    bootstrap_servers='localhost:9092',
-    topic='topic',
+    brokers="localhost:9092",
+    path="topic",
 )
-redis_target.write_dataframe(df=kafka_df)
+kafka_target.write_dataframe(df=kafka_df)
 ```
 
 ## Feature store

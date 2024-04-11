@@ -398,6 +398,7 @@ with warnings.catch_warnings():
         _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
+        default_function_node_selector = Column("default_function_node_selector", JSON)
         users = relationship(User, secondary=project_users)
 
         Label = make_label(__tablename__)
@@ -569,6 +570,19 @@ with warnings.catch_warnings():
         @full_object.setter
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
+
+    class PaginationCache(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "pagination_cache"
+
+        key = Column(
+            String(255, collation=SQLCollationUtil.collation()), primary_key=True
+        )
+        user = Column(String(255, collation=SQLCollationUtil.collation()))
+        function = Column(String(255, collation=SQLCollationUtil.collation()))
+        current_page = Column(Integer)
+        page_size = Column(Integer)
+        kwargs = Column(JSON)
+        last_accessed = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 
 
 # Must be after all table definitions

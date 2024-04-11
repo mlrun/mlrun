@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import typing
 from io import BytesIO
 
 from deprecated import deprecated
@@ -20,6 +21,9 @@ import mlrun
 
 from ..utils import dict_to_json
 from .base import Artifact, LegacyArtifact
+
+if typing.TYPE_CHECKING:
+    from plotly.graph_objs import Figure
 
 
 class PlotArtifact(Artifact):
@@ -207,10 +211,10 @@ class PlotlyArtifact(Artifact):
 
     def __init__(
         self,
-        figure=None,
-        key: str = None,
-        target_path: str = None,
-    ):
+        figure: typing.Optional["Figure"] = None,
+        key: typing.Optional[str] = None,
+        target_path: typing.Optional[str] = None,
+    ) -> None:
         """
         Initialize a Plotly artifact with the given figure.
 
@@ -247,7 +251,7 @@ class PlotlyArtifact(Artifact):
         self._figure = figure
         self.spec.format = "html"
 
-    def get_body(self):
+    def get_body(self) -> str:
         """
         Get the artifact's body - the Plotly figure's html code.
 

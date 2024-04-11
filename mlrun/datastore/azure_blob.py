@@ -158,26 +158,25 @@ class AzureBlobStore(DataStore):
                     st[key] = parsed_value
 
         account_name = st.get("account_name")
-        if not account_name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Property 'account_name' is absent both in storage settings and connection string"
-            )
         if primary_url:
             if primary_url.startswith("http://"):
                 primary_url = primary_url[len("http://") :]
             if primary_url.startswith("https://"):
                 primary_url = primary_url[len("https://") :]
             host = primary_url
-        else:
+        elif account_name:
             host = f"{account_name}.{service}.core.windows.net"
+        else:
+            return res
+
         if "account_key" in st:
             res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]
 
         if "client_secret" in st or "client_id" in st or "tenant_id" in st:
             res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "OAuth"
-            res[
-                f"spark.hadoop.fs.azure.account.oauth.provider.type.{host}"
-            ] = "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
+            res[f"spark.hadoop.fs.azure.account.oauth.provider.type.{host}"] = (
+                "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
+            )
             if "client_id" in st:
                 res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st[
                     "client_id"
@@ -188,15 +187,15 @@ class AzureBlobStore(DataStore):
                 ]
             if "tenant_id" in st:
                 tenant_id = st["tenant_id"]
-                res[
-                    f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"
-                ] = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"] = (
+                    f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+                )
 
         if "sas_token" in st:
             res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "SAS"
-            res[
-                f"spark.hadoop.fs.azure.sas.token.provider.type.{host}"
-            ] = "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
+            res[f"spark.hadoop.fs.azure.sas.token.provider.type.{host}"] = (
+                "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
+            )
             res[f"spark.hadoop.fs.azure.sas.fixed.token.{host}"] = st["sas_token"]
         return res
 

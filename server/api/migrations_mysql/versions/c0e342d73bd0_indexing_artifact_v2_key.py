@@ -19,6 +19,7 @@ Revises: b268044fa2f7
 Create Date: 2024-02-07 14:46:55.639228
 
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

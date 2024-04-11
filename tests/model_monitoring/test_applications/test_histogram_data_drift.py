@@ -14,6 +14,7 @@
 
 import inspect
 import logging
+from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
 
@@ -22,6 +23,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+import mlrun.artifacts.manager
+import mlrun.common.model_monitoring.helpers
 from mlrun import MLClientCtx
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
@@ -34,6 +37,18 @@ from mlrun.model_monitoring.applications.histogram_data_drift import (
     InvalidThresholdValueError,
 )
 from mlrun.utils import Logger
+
+assets_folder = Path(__file__).parent / "assets"
+
+
+@pytest.fixture
+def application() -> HistogramDataDriftApplication:
+    app = HistogramDataDriftApplication()
+    app.context = MLClientCtx(
+        log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
+    )
+    app.context._artifacts_manager = Mock(spec=mlrun.artifacts.manager.ArtifactManager)
+    return app
 
 
 class TestDataDriftClassifier:
@@ -84,40 +99,64 @@ class TestDataDriftClassifier:
 class TestApplication:
     @staticmethod
     @pytest.fixture
-    def sample_df_stats() -> pd.DataFrame:
-        return pd.DataFrame.from_dict(
+    def sample_df_stats() -> mlrun.common.model_monitoring.helpers.FeatureStats:
+        return mlrun.common.model_monitoring.helpers.FeatureStats(
             {
-                "f1": [0.1, 0.3, 0, 0.3, 0.05, 0.25],
-                "f2": [0, 0.5, 0, 0.2, 0.05, 0.25],
-                "l": [0.9, 0, 0, 0, 0, 0.1],
+                "timestamp": {
+                    "count": 1,
+                    "25%": "2024-03-11 09:31:39.152301+00:00",
+                    "50%": "2024-03-11 09:31:39.152301+00:00",
+                    "75%": "2024-03-11 09:31:39.152301+00:00",
+                    "max": "2024-03-11 09:31:39.152301+00:00",
+                    "mean": "2024-03-11 09:31:39.152301+00:00",
+                    "min": "2024-03-11 09:31:39.152301+00:00",
+                },
+                "f1": {
+                    "count": 100,
+                    "hist": [[10, 30, 0, 30, 5, 25], [-10, -5, 0, 5, 10, 15, 20]],
+                },
+                "f2": {
+                    "count": 100,
+                    "hist": [[0, 50, 0, 20, 5, 25], [66, 67, 68, 69, 70, 71, 72]],
+                },
+                "l": {
+                    "count": 100,
+                    "hist": [
+                        [90, 0, 0, 0, 0, 10],
+                        [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
+                    ],
+                },
             }
         )
 
     @staticmethod
     @pytest.fixture
-    def feature_stats() -> pd.DataFrame:
-        return pd.DataFrame.from_dict(
+    def feature_stats() -> mlrun.common.model_monitoring.helpers.FeatureStats:
+        return mlrun.common.model_monitoring.helpers.FeatureStats(
             {
-                "f1": [0, 0, 0, 0.3, 0.7, 0],
-                "f2": [0, 0.45, 0.05, 0.15, 0.35, 0],
-                "l": [0.3, 0, 0, 0, 0, 0.7],
+                "f1": {
+                    "count": 100,
+                    "hist": [[0, 0, 0, 30, 70, 0], [-10, -5, 0, 5, 10, 15, 20]],
+                },
+                "f2": {
+                    "count": 100,
+                    "hist": [[0, 45, 5, 15, 35, 0], [66, 67, 68, 69, 70, 71, 72]],
+                },
+                "l": {
+                    "count": 100,
+                    "hist": [
+                        [30, 0, 0, 0, 0, 70],
+                        [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
+                    ],
+                },
             }
         )
-
-    @staticmethod
-    @pytest.fixture
-    def application() -> HistogramDataDriftApplication:
-        app = HistogramDataDriftApplication()
-        app.context = MLClientCtx(
-            log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
-        )
-        return app
 
     @staticmethod
     @pytest.fixture
     def application_kwargs(
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         application: HistogramDataDriftApplication,
     ) -> dict[str, Any]:
         kwargs = {}
@@ -156,3 +195,30 @@ class TestApplication:
             result_by_name["general_drift"]["result_status"]
             == ResultStatusApp.potential_detection
         ), "Expected potential detection in the general drift"
+
+
+@pytest.mark.parametrize(
+    ("sample_df_stats", "feature_stats"),
+    [
+        pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
+        pytest.param(
+            pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
+            pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
+            id="real-world-csv-dfs",
+        ),
+    ],
+)
+def test_compute_metrics_per_feature(
+    application: HistogramDataDriftApplication,
+    sample_df_stats: pd.DataFrame,
+    feature_stats: pd.DataFrame,
+) -> None:
+    metrics_per_feature = application._compute_metrics_per_feature(
+        sample_df_stats=sample_df_stats, feature_stats=feature_stats
+    )
+    assert set(metrics_per_feature.columns) == {
+        metric.NAME for metric in application.metrics
+    }, "Different metrics than expected"
+    assert set(metrics_per_feature.index) == set(
+        feature_stats.columns
+    ), "The features are different than expected"

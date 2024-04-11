@@ -263,13 +263,13 @@ class TFKerasModelHandler(DLModelHandler):
         # Update the paths and log artifacts if context is available:
         if self._weights_file is not None:
             if self._context is not None:
-                artifacts[
-                    self._get_weights_file_artifact_name()
-                ] = self._context.log_artifact(
-                    self._weights_file,
-                    local_path=self._weights_file,
-                    artifact_path=output_path,
-                    db_key=False,
+                artifacts[self._get_weights_file_artifact_name()] = (
+                    self._context.log_artifact(
+                        self._weights_file,
+                        local_path=self._weights_file,
+                        artifact_path=output_path,
+                        db_key=False,
+                    )
                 )
 
         return artifacts if self._context is not None else None

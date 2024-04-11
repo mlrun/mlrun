@@ -30,19 +30,8 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     reverseProxy := context.UserData.(map[string]interface{})["reverseProxy"].(*httputil.ReverseProxy)
     sidecarUrl := context.UserData.(map[string]interface{})["server"].(string)
 
-    // populate query params
-    path := event.GetPath()
-    fields := event.GetFields()
-    if len(fields) != 0 {
-        path += "?"
-        for k, v := range fields {
-            path = fmt.Sprintf("%s%s=%s&",path, k, v)
-        }
-        path = strings.TrimSuffix(path, "&")
-    }
-
     // populate reverse proxy http request
-    httpRequest, err := http.NewRequest(event.GetMethod(), path, bytes.NewReader(event.GetBody()))
+    httpRequest, err := http.NewRequest(event.GetMethod(), event.GetPath(), bytes.NewReader(event.GetBody()))
     if err != nil {
         context.Logger.ErrorWith("Failed to create a reverse proxy request")
         return nil, err
@@ -50,11 +39,20 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     for k, v := range event.GetHeaders() {
         httpRequest.Header[k] = []string{v.(string)}
     }
+
+    // populate query params
+    url := httpRequest.URL
+    query := url.Query()
+    for k, v := range event.GetFields() {
+        query.Set(k, v.(string))
+    }
+    url.RawQuery = query.Encode()
+
     recorder := httptest.NewRecorder()
     reverseProxy.ServeHTTP(recorder, httpRequest)
 
     // send request to sidecar
-    context.Logger.DebugWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl, "path", path)
+    context.Logger.DebugWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl, "query", url.RawQuery)
     response := recorder.Result()
 
     headers := make(map[string]interface{})

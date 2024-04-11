@@ -19,6 +19,11 @@
 |----------|---------------------------------------------------------------------------|
 |ML-3521,5482|Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow). Tech Preview. |
 
+### Documentation
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|NA        | New page describing {ref}`log-artifacts`.
+
 ### Breaking change
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|

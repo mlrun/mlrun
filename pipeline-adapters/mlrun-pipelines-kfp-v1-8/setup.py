@@ -21,7 +21,7 @@ logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
     name="mlrun-pipelines-kfp-v1-8-experiment",
-    version="0.1.2",
+    version="0.1.3",
     description="MLRun Pipelines package for providing KFP 1.8 compatibility",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",
@@ -30,13 +30,7 @@ setup(
     packages=find_namespace_packages(
         where="src/",
         include=[
-            "mlrun_pipelines.helpers",
-            "mlrun_pipelines.mounts",
-            "mlrun_pipelines.mixins",
-            "mlrun_pipelines.models",
-            "mlrun_pipelines.ops",
-            "mlrun_pipelines.patcher",
-            "mlrun_pipelines.utils",
+            "mlrun_pipelines",
         ],
     ),
     package_dir={"": "src"},

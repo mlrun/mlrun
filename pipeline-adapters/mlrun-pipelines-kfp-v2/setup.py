@@ -30,13 +30,7 @@ setup(
     packages=find_namespace_packages(
         where="src/",
         include=[
-            "mlrun_pipelines.helpers",
-            "mlrun_pipelines.mounts",
-            "mlrun_pipelines.mixins",
-            "mlrun_pipelines.models",
-            "mlrun_pipelines.ops",
-            "mlrun_pipelines.patcher",
-            "mlrun_pipelines.utils",
+            "mlrun_pipelines",
         ],
     ),
     package_dir={"": "src"},

@@ -92,8 +92,6 @@ class MLRunStep(MapClass):
 
 
 class FeaturesetValidator(StepToDict, MLRunStep):
-    """Validate feature values according to the feature set validation policy"""
-
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
         """Validate feature values according to the feature set validation policy
 
@@ -152,8 +150,6 @@ class FeaturesetValidator(StepToDict, MLRunStep):
 
 
 class MapValues(StepToDict, MLRunStep):
-    """Map column values to new values"""
-
     def __init__(
         self,
         mapping: dict[str, dict[Union[str, int, bool], Any]],
@@ -510,15 +506,13 @@ class OneHotEncoder(StepToDict, MLRunStep):
 
 
 class DateExtractor(StepToDict, MLRunStep):
-    """Date Extractor allows you to extract a date-time component"""
-
     def __init__(
         self,
         parts: Union[dict[str, str], list[str]],
         timestamp_col: str = None,
         **kwargs,
     ):
-        """Date Extractor extract a date-time component into new columns
+        """Date Extractor extracts a date-time component into new columns
 
         The extracted date part will appear as `<timestamp_col>_<date_part>` feature.
 
@@ -629,8 +623,6 @@ class DateExtractor(StepToDict, MLRunStep):
 
 
 class SetEventMetadata(MapClass):
-    """Set the event metadata (id and key) from the event body"""
-
     def __init__(
         self,
         id_path: Optional[str] = None,

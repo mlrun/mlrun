@@ -17,6 +17,7 @@ import os
 import random
 import sys
 import time
+import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Optional, Union
@@ -28,8 +29,9 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
-from mlrun.utils import now_date
+from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
@@ -43,7 +45,6 @@ from .utils import (
     filter_df_start_end_time,
     parse_kafka_url,
     select_columns_from_df,
-    store_path_to_spark,
 )
 
 
@@ -58,6 +59,7 @@ class TargetTypes:
     dataframe = "dataframe"
     custom = "custom"
     sql = "sql"
+    snowflake = "snowflake"
 
     @staticmethod
     def all():
@@ -72,6 +74,7 @@ class TargetTypes:
             TargetTypes.dataframe,
             TargetTypes.custom,
             TargetTypes.sql,
+            TargetTypes.snowflake,
         ]
 
 
@@ -79,11 +82,14 @@ def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
 
 
-def write_spark_dataframe_with_options(spark_options, df, mode):
+def write_spark_dataframe_with_options(spark_options, df, mode, write_format=None):
     non_hadoop_spark_options = spark_session_update_hadoop_options(
         df.sql_ctx.sparkSession, spark_options
     )
-    df.write.mode(mode).save(**non_hadoop_spark_options)
+    if write_format:
+        df.write.format(write_format).mode(mode).save(**non_hadoop_spark_options)
+    else:
+        df.write.mode(mode).save(**non_hadoop_spark_options)
 
 
 def default_target_names():
@@ -448,14 +454,11 @@ class BaseStoreTarget(DataTargetBase):
             if self.credentials_prefix
             else None
         )
-        store, resolved_store_path = mlrun.store_manager.get_or_create_store(
+        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        if self.get_target_path() and self.get_target_path().startswith("ds://"):
-            return store, store.url + resolved_store_path
-        else:
-            return store, self.get_target_path()
+        return store, resolved_store_path, url
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -501,10 +504,13 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
-            write_spark_dataframe_with_options(options, df, "overwrite")
+            write_format = options.pop("format", None)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             storage_options = store.get_storage_options()
             df = df.repartition(partition_size="100MB")
             try:
@@ -525,10 +531,15 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
             file_system = store.filesystem
-            if file_system.protocol == "file":
+            if (
+                file_system.protocol == "file"
+                # fsspec 2023.10.0 changed protocol from "file" to ("file", "local")
+                or isinstance(file_system.protocol, (tuple, list))
+                and "file" in file_system.protocol
+            ):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
@@ -692,7 +703,7 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         store.rm(target_path, recursive=True)
 
     def as_df(
@@ -727,7 +738,7 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
-    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+    """Parquet target storage driver, used to materialize feature set/vector data into parquet files.
 
     :param name:       optional, target name. By default will be called ParquetTarget
     :param path:       optional, Output path. Can be either a file or directory.
@@ -872,7 +883,7 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
 
         storage_options = store.get_storage_options()
         if storage_options and self.storage_options:
@@ -925,27 +936,19 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(
-                self.get_target_path()
-            )
-            storage_spark_options = store.get_spark_options()
-            path = store.url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
+        store, path, url = self._get_store_and_path()
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
                 "format": "parquet",
             }
-            result = {**result, **storage_spark_options}
-        else:
-            result = {
-                "path": store_path_to_spark(self.get_target_path()),
-                "format": "parquet",
-            }
+        )
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
-            result["partitionBy"] = partition_cols
-        return result
+            spark_options["partitionBy"] = partition_cols
+        return spark_options
 
     def get_dask_options(self):
         return {"format": "parquet"}
@@ -1052,7 +1055,7 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
@@ -1067,24 +1070,16 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        if self.path and self.path.startswith("ds://"):
-            store, path = mlrun.store_manager.get_or_create_store(
-                self.get_target_path()
-            )
-            storage_spark_options = store.get_spark_options()
-            path = store.url + path
-            result = {
-                "path": store_path_to_spark(path, storage_spark_options),
+        store, path, url = self._get_store_and_path()
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
                 "format": "csv",
                 "header": "true",
             }
-            return {**result, **storage_spark_options}
-        else:
-            return {
-                "path": store_path_to_spark(self.get_target_path()),
-                "format": "csv",
-                "header": "true",
-            }
+        )
+        return spark_options
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1126,6 +1121,97 @@ class CSVTarget(BaseStoreTarget):
         if self.path:
             return self.path.endswith(".csv")
         return True
+
+
+class SnowflakeTarget(BaseStoreTarget):
+    """
+    :param attributes: A dictionary of attributes for Snowflake connection; will be overridden by database parameters
+                       if they exist.
+    :param url: Snowflake hostname, in the format: <account_name>.<region>.snowflakecomputing.com
+    :param user: Snowflake user for login
+    :param db_schema: Database schema
+    :param database: Database name
+    :param warehouse: Snowflake warehouse name
+    :param table_name: Snowflake table name
+    """
+
+    support_spark = True
+    support_append = True
+    is_offline = True
+    kind = TargetTypes.snowflake
+
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: dict[str, str] = None,
+        after_step=None,
+        columns=None,
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[list[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
+        credentials_prefix=None,
+        url: str = None,
+        user: str = None,
+        db_schema: str = None,
+        database: str = None,
+        warehouse: str = None,
+        table_name: str = None,
+    ):
+        attrs = {
+            "url": url,
+            "user": user,
+            "database": database,
+            "schema": db_schema,
+            "warehouse": warehouse,
+            "table": table_name,
+        }
+        extended_attrs = {
+            key: value for key, value in attrs.items() if value is not None
+        }
+        attributes = {} if not attributes else attributes
+        attributes.update(extended_attrs)
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_step,
+            list(schema.keys()) if schema else columns,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
+            schema=schema,
+            credentials_prefix=credentials_prefix,
+        )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["dbtable"] = self.attributes.get("table")
+        return spark_options
+
+    def purge(self):
+        pass
+
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
 
 
 class NoSqlBaseTarget(BaseStoreTarget):
@@ -1199,7 +1285,10 @@ class NoSqlBaseTarget(BaseStoreTarget):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
-            write_spark_dataframe_with_options(options, df, "overwrite")
+            write_format = options.pop("format", None)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
@@ -1209,7 +1298,11 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
-            _, path_with_container = parse_path(self.get_target_path())
+            store, path_in_store, target_path = self._get_store_and_path()
+            storage_options = store.get_storage_options()
+            access_key = storage_options.get("v3io_access_key", access_key)
+
+            _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1227,17 +1320,31 @@ class NoSqlTarget(NoSqlBaseTarget):
     def get_table_object(self):
         from storey import Table, V3ioDriver
 
-        # TODO use options/cred
-        endpoint, uri = parse_path(self.get_target_path())
+        store, path_in_store, target_path = self._get_store_and_path()
+        endpoint, uri = parse_path(target_path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        store, path_in_store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        store_access_key = storage_options.get("v3io_access_key")
+        env_access_key = self._secrets.get(
+            "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+        )
+        if store_access_key and env_access_key and store_access_key != env_access_key:
+            logger.warning(
+                "The Spark v3io connector does not support access_key parameterization."
+                "Spark will disregard the store-provided key."
+            )
         spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
+            "path": store.spark_url + path_in_store,
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1330,10 +1437,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
-
+        store, path_in_store, path = self._get_store_and_path()
         return {
             "key.column": "_spark_object_name",
-            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "table": "{" + path_in_store,
             "format": "org.apache.spark.sql.redis",
             "host": parsed_endpoint.hostname,
             "port": parsed_endpoint.port,
@@ -1381,10 +1488,12 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        path = self.get_target_path()
+        store, path_in_store, path = self._get_store_and_path()
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
         endpoint, uri = parse_path(path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1395,7 +1504,9 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            storage=V3ioDriver(
+                webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
+            ),
             stream_path=uri,
             **self.attributes,
         )
@@ -1417,11 +1528,19 @@ class KafkaTarget(BaseStoreTarget):
         *args,
         bootstrap_servers=None,
         producer_options=None,
+        brokers=None,
         **kwargs,
     ):
         attrs = {}
+        if bootstrap_servers:
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                # TODO: Remove this in 1.9.0
+                FutureWarning,
+            )
         if bootstrap_servers is not None:
-            attrs["bootstrap_servers"] = bootstrap_servers
+            attrs["brokers"] = brokers or bootstrap_servers
         if producer_options is not None:
             attrs["producer_options"] = producer_options
 
@@ -1443,14 +1562,16 @@ class KafkaTarget(BaseStoreTarget):
         if self.path and self.path.startswith("ds://"):
             datastore_profile = datastore_profile_read(self.path)
             attributes = datastore_profile.attributes()
-            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            brokers = attributes.pop(
+                "brokers", attributes.pop("bootstrap_servers", None)
+            )
             topic = datastore_profile.topic
         else:
             attributes = copy(self.attributes)
-            bootstrap_servers = attributes.pop("bootstrap_servers", None)
-            topic, bootstrap_servers = parse_kafka_url(
-                self.get_target_path(), bootstrap_servers
+            brokers = attributes.pop(
+                "brokers", attributes.pop("bootstrap_servers", None)
             )
+            topic, brokers = parse_kafka_url(self.get_target_path(), brokers)
 
         if not topic:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1464,7 +1585,7 @@ class KafkaTarget(BaseStoreTarget):
             class_name="storey.KafkaTarget",
             columns=column_list,
             topic=topic,
-            bootstrap_servers=bootstrap_servers,
+            brokers=brokers,
             **attributes,
         )
 
@@ -1531,7 +1652,11 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_path(self.get_target_path())
+        store, path_in_store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key", access_key)
+
+        _, path_with_container = parse_path(target_path)
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
@@ -1911,12 +2036,16 @@ class SQLTarget(BaseStoreTarget):
                 # creat new table with the given name
                 columns = []
                 for col, col_type in self.schema.items():
-                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
-                    if col_type is None:
-                        raise TypeError(f"{col_type} unsupported type")
+                    col_type_sql = TYPE_TO_SQL_TYPE.get(col_type)
+                    if col_type_sql is None:
+                        raise TypeError(
+                            f"'{col_type}' unsupported type for column '{col}'"
+                        )
                     columns.append(
                         sqlalchemy.Column(
-                            col, col_type, primary_key=(col in primary_key_for_check)
+                            col,
+                            col_type_sql,
+                            primary_key=(col in primary_key_for_check),
                         )
                     )
 
@@ -1947,6 +2076,7 @@ kind_to_driver = {
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
     TargetTypes.sql: SQLTarget,
+    TargetTypes.snowflake: SnowflakeTarget,
 }
 
 

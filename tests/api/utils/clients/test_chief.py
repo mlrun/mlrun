@@ -35,7 +35,7 @@ from tests.common_fixtures import aioresponses_mock
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://chief-api.default-tenant.svc.cluster.local"
-    mlrun.config.config.httpdb.clusterization.chief.url = api_url
+    mlrun.mlconf.httpdb.clusterization.chief.url = api_url
     return api_url
 
 

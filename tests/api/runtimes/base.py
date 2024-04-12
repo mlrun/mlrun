@@ -35,6 +35,7 @@ import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import server.api.api.endpoints.functions
 import server.api.crud
+import server.api.utils.functions
 import tests.api.api.utils
 import tests.api.conftest
 from mlrun.config import config as mlconf
@@ -335,6 +336,33 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
         self._mock_get_logger_pods()
 
+    def _mock_list_namespaced_config_map(self):
+        def _generate_config_map(
+            namespace: str,
+            **kwargs,
+        ):
+            return k8s_client.V1ConfigMapList(
+                items=[
+                    k8s_client.V1ConfigMap(
+                        metadata=k8s_client.V1ObjectMeta(
+                            name=kwargs["label_selector"].split("=")[-1]
+                        )
+                    ),
+                ]
+            )
+
+        get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            side_effect=_generate_config_map
+        )
+
+    def _mock_replace_namespaced_config_map(self):
+        get_k8s_helper().v1api.replace_namespaced_config_map = unittest.mock.Mock()
+
+    def _mock_get_config_map_body(self):
+        return get_k8s_helper().v1api.replace_namespaced_config_map.call_args.kwargs[
+            "body"
+        ]
+
     def _mock_get_logger_pods(self):
         # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
@@ -394,7 +422,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     @staticmethod
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
-        server.api.api.endpoints.functions._build_function(
+        server.api.utils.functions.build_function(
             db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 

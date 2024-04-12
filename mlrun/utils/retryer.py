@@ -138,6 +138,7 @@ class Retryer:
         except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
+            self.last_exception = exc
             return (
                 None,
                 self.last_exception,

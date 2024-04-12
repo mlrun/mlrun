@@ -13,7 +13,8 @@
 # limitations under the License.
 #
 import datetime
-import os
+import json
+import subprocess
 from sys import executable
 
 import pandas as pd
@@ -27,12 +28,12 @@ import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
 
 
-def exec_run(args):
-    cmd = [executable, "-m", "mlrun", "run"] + args
-    process = os.popen(" ".join(cmd))
-    out = process.read()
-    ret_code = process.close()
-    return out, ret_code
+def exec_cli(args, action="run"):
+    cmd = [executable, "-m", "mlrun", action] + args
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = process.communicate()
+    ret_code = process.returncode
+    return out.decode(), err.decode(), ret_code
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -276,7 +277,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "val-with-artifact",
         ]
 
-    @pytest.mark.enterprise
     @pytest.mark.parametrize("local", [True, False])
     def test_log_artifact_with_run_function(self, local):
         train_path = str(self.assets_path / "log_artifact.py")
@@ -376,7 +376,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "handler",
         ]
         start_time = datetime.datetime.now()
-        exec_run(args)
+        exec_cli(args)
         end_time = datetime.datetime.now()
 
         assert (
@@ -407,8 +407,32 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--handler",
             "handler",
         ]
-        _, ret_code = exec_run(args)
-        assert ret_code is None
+        _, _, ret_code = exec_cli(args)
+        assert ret_code == 0
+
+    def test_cli_build_function_without_kind(self):
+        # kind='job' should be used by default, the user is not required to specify it
+        function = str(self.assets_path / "function_without_kind.yaml")
+        args = [
+            "--name",
+            "test",
+            function,
+        ]
+        out, _, _ = exec_cli(args, action="build")
+        assert "Function built, state=ready" in out
+
+    def test_cli_build_runtime_without_kind(self):
+        # kind='job' should be used by default, the user is not required to specify it
+        # send runtime spec without kind
+        runtime = {"metadata": {"name": "test-func"}}
+        args = [
+            "--name",
+            "test",
+            "--runtime",
+            json.dumps(runtime),
+        ]
+        out, _, _ = exec_cli(args, action="build")
+        assert "Function built, state=ready" in out
 
     @pytest.mark.parametrize("local", [True, False])
     def test_df_as_params(self, local):

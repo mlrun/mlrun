@@ -38,7 +38,7 @@ training and serves as the input to the model training process. During model ser
 
 ![How feature store works](../_static/images/feature-store-flow.png)
 
-The common flow when working with the feature store is to first define the feature set with its source, transformation graph, and targets. 
+The common flow when working with the feature store is to first define the feature set with its source, transformation graph, and targets. (See the supported {ref}`sources-targets`.)
 MLRun's robust transformation engine performs complex operations with just a few lines of Python code. To test the 
 execution process, call the `infer` method with a sample DataFrame. This runs all operations in memory without storing the results. 
 
@@ -53,6 +53,16 @@ serving you can update feature values, and not just read them. For example, you 
 serving process.
 
 The next step is to define the [feature vector](feature-vectors.html). Call the {py:meth}`~mlrun.feature_store.get_offline_features` function to join together features across different feature sets. 
+
+### Ingestion engines
+
+MLRun supports several ingestion engines:
+
+- `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
+- `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments
+- `spark` engine is designed for batch data.
+
+See also [transformation &mdash; engine support](./transformations.html#supporting-multiple-engines).
 
 ## Training and serving using the feature store 
 

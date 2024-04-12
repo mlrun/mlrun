@@ -135,8 +135,10 @@ def generate_pipeline_node(
         command=command,
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
+            "mlpipeline-ui-metadata": os.path.join(
+                KFPMETA_DIR, "mlpipeline-ui-metadata.json"
+            ),
+            "mlpipeline-metrics": os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"),
         },
     )
     cop = add_default_function_resources(cop)

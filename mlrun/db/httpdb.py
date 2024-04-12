@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import enum
 import http
 import re
@@ -29,9 +30,12 @@ from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtimes.nuclio.api_gateway
+import mlrun.utils
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -144,7 +148,7 @@ class HTTPRunDB(RunDBInterface):
     @staticmethod
     def get_api_path_prefix(version: str = None) -> str:
         """
-        :param version: API version to use, None (the default) will mean to use the default value from mlconf,
+        :param version: API version to use, None (the default) will mean to use the default value from mlrun.config,
          for un-versioned api set an empty string.
         """
         if version is not None:
@@ -171,7 +175,7 @@ class HTTPRunDB(RunDBInterface):
         headers=None,
         timeout=45,
         version=None,
-    ):
+    ) -> requests.Response:
         """Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
         Caution:
@@ -189,7 +193,7 @@ class HTTPRunDB(RunDBInterface):
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
 
-        :return: Python HTTP response object
+        :return: `requests.Response` HTTP response object
         """
         url = self.get_base_api_url(path, version)
         kw = {
@@ -242,7 +246,11 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             response = self.session.request(
-                method, url, timeout=timeout, verify=False, **kw
+                method,
+                url,
+                timeout=timeout,
+                verify=config.httpdb.http.verify,
+                **kw,
             )
         except requests.RequestException as exc:
             error = f"{err_to_str(exc)}: {error}" if error else err_to_str(exc)
@@ -294,11 +302,11 @@ class HTTPRunDB(RunDBInterface):
 
     def connect(self, secrets=None):
         """Connect to the MLRun API server. Must be called prior to executing any other method.
-        The code utilizes the URL for the API server from the configuration - ``mlconf.dbpath``.
+        The code utilizes the URL for the API server from the configuration - ``config.dbpath``.
 
         For example::
 
-            mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
+            config.dbpath = config.dbpath or 'http://mlrun-api:8080'
             db = get_run_db().connect()
         """
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
@@ -446,6 +454,10 @@ class HTTPRunDB(RunDBInterface):
                     setattr(
                         config.feature_store.data_prefixes, prefix, server_prefix_value
                     )
+            config.feature_store.default_targets = (
+                server_cfg.get("feature_store_default_targets")
+                or config.feature_store.default_targets
+            )
 
         except Exception as exc:
             logger.warning(
@@ -492,7 +504,7 @@ class HTTPRunDB(RunDBInterface):
         if offset < 0:
             raise MLRunInvalidArgumentError("Offset cannot be negative")
         if size is None:
-            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
+            size = int(config.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:
             logger.warning(
                 "Retrieving all logs. This may be inefficient and can result in a large log."
@@ -538,25 +550,23 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
+            print(text.decode(errors=config.httpdb.logs.decode.errors))
         nil_resp = 0
         while True:
             offset += len(text)
             # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
             # TODO: refactor this to use a conditional backoff mechanism
             if nil_resp < 3:
-                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
+                time.sleep(int(config.httpdb.logs.pull_logs_default_interval))
             else:
                 time.sleep(
-                    int(
-                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
-                    )
+                    int(config.httpdb.logs.pull_logs_backoff_no_logs_default_interval)
                 )
             state, text = self.get_log(uid, project, offset=offset)
             if text:
                 nil_resp = 0
                 print(
-                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                    text.decode(errors=config.httpdb.logs.decode.errors),
                     end="",
                 )
             else:
@@ -1127,17 +1137,17 @@ class HTTPRunDB(RunDBInterface):
             structured_dict = {}
             for project, job_runtime_resources_map in response.json().items():
                 for job_id, runtime_resources in job_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        job_id
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[job_id] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             structured_dict = {}
             for project, kind_runtime_resources_map in response.json().items():
                 for kind, runtime_resources in kind_runtime_resources_map.items():
-                    structured_dict.setdefault(project, {})[
-                        kind
-                    ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    structured_dict.setdefault(project, {})[kind] = (
+                        mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                    )
             return structured_dict
         else:
             raise NotImplementedError(
@@ -1165,7 +1175,8 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
+            the moment they moved to terminal state
+            (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
@@ -1195,9 +1206,9 @@ class HTTPRunDB(RunDBInterface):
         structured_dict = {}
         for project, kind_runtime_resources_map in response.json().items():
             for kind, runtime_resources in kind_runtime_resources_map.items():
-                structured_dict.setdefault(project, {})[
-                    kind
-                ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                structured_dict.setdefault(project, {})[kind] = (
+                    mlrun.common.schemas.RuntimeResources(**runtime_resources)
+                )
         return structured_dict
 
     def create_schedule(
@@ -1324,21 +1335,7 @@ class HTTPRunDB(RunDBInterface):
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
         :param force_build:   Force building the image, even when no changes were made
         """
-        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
-            "s3://"
-        )
-        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
-        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
-            logger.warning(
-                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
-                "keys. Only the permissions granted to the platform's configured secret will take affect "
-                "(see mlrun.mlconf.httpdb.builder.docker_registry_secret). "
-                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
-                source=func.spec.build.source,
-                load_source_on_run=func.spec.build.load_source_on_run,
-                default_docker_registry=config.httpdb.builder.docker_registry,
-            )
-
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
         try:
             req = {
                 "function": func.to_dict(),
@@ -1357,9 +1354,102 @@ class HTTPRunDB(RunDBInterface):
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError("bad function run response")
+            raise ValueError("bad submit build response")
 
         return resp.json()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        """
+        Deploy a Nuclio function.
+        :param func:            Function to build.
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+        """
+        func.metadata.project = func.metadata.project or config.default_project
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
+        try:
+            req = {
+                "function": func.to_dict(),
+            }
+            if builder_env:
+                req["builder_env"] = builder_env
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
+            resp = self.api_call("POST", _path, json=req)
+        except OSError as err:
+            logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.error(f"deploy nuclio - bad response:\n{resp.text}")
+            raise ValueError("bad nuclio deploy response")
+
+        return resp.json()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        """Retrieve the status of a deploy operation currently in progress.
+
+        :param func:                Function object that is being built.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+
+        :returns: The following parameters:
+
+            - Text of builder logs.
+            - Timestamp of last log retrieved, to be used in subsequent calls to this function.
+        """
+
+        try:
+            params = {
+                "name": normalize_name(func.metadata.name),
+                "project": func.metadata.project,
+                "tag": func.metadata.tag,
+                "last_log_timestamp": str(last_log_timestamp),
+                "verbose": bool2str(verbose),
+            }
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
+            resp = self.api_call("GET", _path, params=params)
+        except OSError as err:
+            logger.error(f"error getting deploy status: {err_to_str(err)}")
+            raise OSError(f"error: cannot get deploy status, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.warning(f"failed resp, {resp.text}")
+            raise RunDBError("bad function build response")
+
+        if resp.headers:
+            func.status.state = resp.headers.get("x-mlrun-function-status", "")
+            last_log_timestamp = float(
+                resp.headers.get("x-mlrun-last-timestamp", "0.0")
+            )
+            func.status.address = resp.headers.get("x-mlrun-address", "")
+            func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+            func.status.internal_invocation_urls = resp.headers.get(
+                "x-mlrun-internal-invocation-urls", ""
+            ).split(",")
+            func.status.external_invocation_urls = resp.headers.get(
+                "x-mlrun-external-invocation-urls", ""
+            ).split(",")
+            func.status.container_image = resp.headers.get(
+                "x-mlrun-container-image", ""
+            )
+
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_log_timestamp
 
     def get_builder_status(
         self,
@@ -1422,9 +1512,14 @@ class HTTPRunDB(RunDBInterface):
                 func.status.container_image = resp.headers.get(
                     "x-mlrun-container-image", ""
                 )
-            else:
-                func.status.build_pod = resp.headers.get("builder_pod", "")
-                func.spec.image = resp.headers.get("function_image", "")
+
+            builder_pod = resp.headers.get("builder_pod", "")
+            if builder_pod:
+                func.status.build_pod = builder_pod
+
+            function_image = resp.headers.get("function_image", "")
+            if function_image:
+                func.spec.image = function_image
 
         text = ""
         if resp.content:
@@ -1600,19 +1695,21 @@ class HTTPRunDB(RunDBInterface):
         artifact_path=None,
         ops=None,
         cleanup_ttl=None,
+        timeout=60,
     ):
         """Submit a KFP pipeline for execution.
 
-        :param project: The project of the pipeline
-        :param pipeline: Pipeline function or path to .yaml/.zip pipeline file.
-        :param arguments: A dictionary of arguments to pass to the pipeline.
-        :param experiment: A name to assign for the specific experiment.
-        :param run: A name for this specific run.
-        :param namespace: Kubernetes namespace to execute the pipeline in.
-        :param artifact_path: A path to artifacts used by this pipeline.
-        :param ops: Transformers to apply on all ops in the pipeline. (KFP 1.8 only)
-        :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                            workflow and all its resources are deleted)
+        :param project:         The project of the pipeline
+        :param pipeline:        Pipeline function or path to .yaml/.zip pipeline file.
+        :param arguments:       A dictionary of arguments to pass to the pipeline.
+        :param experiment:      A name to assign for the specific experiment.
+        :param run:             A name for this specific run.
+        :param namespace:       Kubernetes namespace to execute the pipeline in.
+        :param artifact_path:   A path to artifacts used by this pipeline.
+        :param ops:             Transformers to apply on all ops in the pipeline.
+        :param cleanup_ttl:     Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted)
+        :param timeout:         Timeout for the API call.
         """
 
         if isinstance(pipeline, str):
@@ -1651,7 +1748,7 @@ class HTTPRunDB(RunDBInterface):
                 "POST",
                 f"projects/{project}/pipelines",
                 params=params,
-                timeout=20,
+                timeout=timeout,
                 body=data,
                 headers=headers,
             )
@@ -3031,65 +3128,76 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
-    def deploy_monitoring_batch_job(
+    def update_model_monitoring_controller(
         self,
-        project: str = "",
-        default_batch_image: str = "mlrun/mlrun",
-        with_schedule: bool = False,
-    ):
-        """
-        Submit model monitoring batch job. By default, submit only the batch job as ML function without scheduling.
-        To submit a scheduled job as well, please set with_schedule = True.
-
-        :param project:             Project name.
-        :param default_batch_image: The default image of the model monitoring batch job. By default, the image
-                                    is mlrun/mlrun.
-        :param with_schedule:       If true, submit the model monitoring scheduled job as well.
-
-
-        :returns: model monitoring batch job as a dictionary. You can easily convert the returned function into a
-                 runtime object by calling ~mlrun.new_function.
-        """
-
-        params = {
-            "default_batch_image": default_batch_image,
-            "with_schedule": with_schedule,
-        }
-        path = f"projects/{project}/jobs/batch-monitoring"
-
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
-
-    def create_model_monitoring_controller(
-        self,
-        project: str = "",
-        default_controller_image: str = "mlrun/mlrun",
+        project: str,
         base_period: int = 10,
+        image: str = "mlrun/mlrun",
     ):
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Redeploy model monitoring application controller function.
 
         :param project:                  Project name.
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
-                  runtime object by calling ~mlrun.new_function.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image: The image of the model monitoring controller function.
+                                         By default, the image is mlrun/mlrun.
         """
 
         params = {
-            "default_controller_image": default_controller_image,
+            "image": image,
             "base_period": base_period,
         }
-        path = f"projects/{project}/jobs/model-monitoring-controller"
+        path = f"projects/{project}/model-monitoring/model-monitoring-controller"
+        self.api_call(method="POST", path=path, params=params)
 
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        """
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
+
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller, writer & monitoring
+                            stream functions, which are real time nuclio functions.
+                            By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/enable-model-monitoring",
+            params={
+                "base_period": base_period,
+                "image": image,
+                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            },
+        )
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param project: Project name.
+        :param image:   The image on which the application will run.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
+            params={"image": image},
+        )
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
@@ -3329,20 +3437,72 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def list_api_gateways(self, project=None):
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
         """
         Returns a list of Nuclio api gateways
-        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
-        :return: json with the list of Nuclio Api Gateways
-            (json example is here
-            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        :return: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
         project = project or config.default_project
         error = "list api gateways"
-        endpoint_path = f"projects/{project}/nuclio/api-gateways"
-        resp = self.api_call("GET", endpoint_path, error)
-        return resp.json()
+        endpoint_path = f"projects/{project}/api-gateways"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGatewaysOutput(**response.json())
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        """
+        Returns an API gateway
+        :param name: API gateway name
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+        project = project or config.default_project
+        error = "get api gateway"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGateway(**response.json())
+
+    def delete_api_gateway(self, name, project=None):
+        """
+        Deletes an API gateway
+        :param name: API gateway name
+        :param project: Project name
+        """
+        project = project or config.default_project
+        error = "delete api gateway"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
+        self.api_call("DELETE", endpoint_path, error)
+
+    def store_api_gateway(
+        self,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
+        project: Optional[str] = None,
+    ) -> mlrun.common.schemas.APIGateway:
+        """
+        Stores an API Gateway.
+        :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
+            or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
+
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+
+        if isinstance(api_gateway, mlrun.runtimes.nuclio.api_gateway.APIGateway):
+            api_gateway = api_gateway.to_scheme()
+        endpoint_path = f"projects/{project}/api-gateways/{api_gateway.metadata.name}"
+        error = "store api gateways"
+        response = self.api_call(
+            "PUT",
+            endpoint_path,
+            error,
+            json=api_gateway.dict(exclude_none=True),
+        )
+        return mlrun.common.schemas.APIGateway(**response.json())
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
@@ -3440,7 +3600,7 @@ class HTTPRunDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: list[mlrun.model.Notification] = None,
-    ):
+    ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
 
@@ -3615,6 +3775,23 @@ class HTTPRunDB(RunDBInterface):
         _path = self._path_of("datastore-profiles", project)
 
         self.api_call(method="PUT", path=_path, json=profile.dict())
+
+    @staticmethod
+    def warn_on_s3_and_ecr_permissions_conflict(func):
+        is_s3_source = func.spec.build.source and func.spec.build.source.startswith(
+            "s3://"
+        )
+        is_ecr_image = mlrun.utils.is_ecr_url(config.httpdb.builder.docker_registry)
+        if not func.spec.build.load_source_on_run and is_s3_source and is_ecr_image:
+            logger.warning(
+                "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
+                "keys. Only the permissions granted to the platform's configured secret will take affect "
+                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
+                "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
+                source=func.spec.build.source,
+                load_source_on_run=func.spec.build.load_source_on_run,
+                default_docker_registry=config.httpdb.builder.docker_registry,
+            )
 
 
 def _as_json(obj):

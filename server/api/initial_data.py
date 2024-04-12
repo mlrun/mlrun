@@ -26,6 +26,7 @@ import sqlalchemy.orm
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.schemas
+import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
 import server.api.db.sqldb.helpers
 import server.api.db.sqldb.models
@@ -110,6 +111,15 @@ def init_data(
         config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+    if not from_scratch:
+        # Cleanup pagination cache on api startup
+        session = create_session()
+        server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+            session
+        )
+        session.commit()
+
     logger.info("Initial data created")
 
 
@@ -417,7 +427,7 @@ def _resolve_current_data_version(
         if not projects or not projects.projects:
             logger.info(
                 "No projects in DB, assuming latest data version",
-                exc=exc,
+                exc=err_to_str(exc),
                 latest_data_version=latest_data_version,
             )
             return latest_data_version
@@ -433,7 +443,7 @@ def _resolve_current_data_version(
         elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
             logger.info(
                 "Data version table exist without version, assuming prior version",
-                exc=exc,
+                exc=err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition
@@ -571,13 +581,17 @@ def _migrate_artifacts_batch(
         # project - copy as is
         new_artifact.project = artifact_metadata.get("project", None)
 
-        # key - the artifact's key, without iteration if it is attached to it
-        key = artifact_metadata.get("key", "")
-        new_artifact.key = key
-
         # iteration - the artifact's iteration
         iteration = artifact_metadata.get("iter", None)
         new_artifact.iteration = int(iteration) if iteration else 0
+
+        # key - retain the db key to ensure BC of reading artifacts by the index key.
+        # if iteration is concatenated to the key, remove it as this was only handled in the backend,
+        # and now the iteration is saved in a separate column
+        key = artifact.key
+        if iteration and key.startswith(f"{iteration}-"):
+            key = key[len(f"{iteration}-") :]
+        new_artifact.key = key
 
         # best iteration
         # if iteration == 0 it means it is from a single run since link artifacts were already

@@ -15,7 +15,7 @@
 import tarfile
 import tempfile
 import typing
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 import semver
@@ -23,71 +23,29 @@ import semver
 import mlrun.datastore
 
 
-def store_path_to_spark(path, spark_options=None):
-    schemas = ["redis://", "rediss://", "ds://"]
-    if any(path.startswith(schema) for schema in schemas):
-        url = urlparse(path)
-        if url.path:
-            path = url.path
-    elif path.startswith("gcs://"):
-        path = "gs:" + path[len("gcs:") :]
-    elif path.startswith("v3io:///"):
-        path = "v3io:" + path[len("v3io:/") :]
-    elif path.startswith("az://"):
-        account_key = None
-        path = "wasbs:" + path[len("az:") :]
-        prefix = "spark.hadoop.fs.azure.account.key."
-        if spark_options:
-            for key in spark_options:
-                if key.startswith(prefix):
-                    account_key = key[len(prefix) :]
-                    break
-        if account_key:
-            # transfer "wasb://basket/some/path" to wasb://basket@account_key.blob.core.windows.net/some/path
-            parsed_url = urlparse(path)
-            new_netloc = f"{parsed_url.hostname}@{account_key}"
-            path = urlunparse(
-                (
-                    parsed_url.scheme,
-                    new_netloc,
-                    parsed_url.path,
-                    parsed_url.params,
-                    parsed_url.query,
-                    parsed_url.fragment,
-                )
-            )
-    elif path.startswith("s3://"):
-        if path.startswith("s3:///"):
-            # 's3:///' not supported since mlrun 0.9.0 should use s3:// instead
-            from mlrun.errors import MLRunInvalidArgumentError
-
-            valid_path = "s3:" + path[len("s3:/") :]
-            raise MLRunInvalidArgumentError(
-                f"'s3:///' is not supported, try using 's3://' instead.\nE.g: '{valid_path}'"
-            )
-        else:
-            path = "s3a:" + path[len("s3:") :]
-    return path
-
-
-def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list]:
+def parse_kafka_url(
+    url: str, brokers: typing.Union[list, str] = None
+) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
-    :param bootstrap_servers: List of bootstrap servers for the kafka brokers.
+    :param brokers: List of kafka brokers.
 
     :return: A tuple of:
          [0] = Kafka topic value
          [1] = List of bootstrap servers
     """
-    bootstrap_servers = bootstrap_servers or []
+    brokers = brokers or []
+
+    if isinstance(brokers, str):
+        brokers = brokers.split(",")
 
     # Parse the provided URL into six components according to the general structure of a URL
     url = urlparse(url)
 
     # Add the network location to the bootstrap servers list
     if url.netloc:
-        bootstrap_servers = [url.netloc] + bootstrap_servers
+        brokers = [url.netloc] + brokers
 
     # Get the topic value from the parsed url
     query_dict = parse_qs(url.query)
@@ -96,7 +54,7 @@ def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list
     else:
         topic = url.path
         topic = topic.lstrip("/")
-    return topic, bootstrap_servers
+    return topic, brokers
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -105,7 +63,7 @@ def upload_tarball(source_dir, target, secrets=None):
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
             tar.add(source_dir, arcname="")
         stores = mlrun.datastore.store_manager.set(secrets)
-        datastore, subpath = stores.get_or_create_store(target)
+        datastore, subpath, url = stores.get_or_create_store(target)
         datastore.upload(subpath, temp_fh.name)
 
 

@@ -15,6 +15,7 @@ import enum
 import http
 import re
 import typing
+import warnings
 from base64 import b64encode
 from os import environ
 from typing import Callable, Optional, Union
@@ -23,6 +24,7 @@ import requests.exceptions
 from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -125,7 +127,7 @@ class FunctionSpec(ModelObj):
         self.allow_empty_resources = None
         # The build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
-        self.clone_target_dir = clone_target_dir or None
+        self._clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -134,6 +136,28 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    @property
+    def clone_target_dir(self):
+        # TODO: remove this property in 1.9.0
+        if self.build.source_code_target_dir:
+            warnings.warn(
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
+                "Use spec.build.source_code_target_dir instead.",
+                FutureWarning,
+            )
+        return self.build.source_code_target_dir
+
+    @clone_target_dir.setter
+    def clone_target_dir(self, clone_target_dir):
+        # TODO: remove this property in 1.9.0
+        if clone_target_dir:
+            warnings.warn(
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
+                "Use spec.build.source_code_target_dir instead.",
+                FutureWarning,
+            )
+        self.build.source_code_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass
@@ -611,7 +635,9 @@ class BaseRuntime(ModelObj):
         image = image or self.spec.image or ""
 
         image = enrich_image_url(image, client_version, client_python_version)
-        if not image.startswith("."):
+        if not image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
             return image
         registry, repository = get_parsed_docker_registry()
         if registry:
@@ -763,7 +789,7 @@ class BaseRuntime(ModelObj):
         requirements: Optional[list[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: str = "",
+        requirements_file: Optional[str] = "",
     ):
         """add package requirements from file or list to build spec.
 
@@ -817,6 +843,12 @@ class BaseRuntime(ModelObj):
             or (build.source and not build.load_source_on_run)
         )
 
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        pass
+
     def prepare_image_for_deploy(self):
         """
         if a function has a 'spec.image' it is considered to be deployed,
@@ -851,7 +883,7 @@ class BaseRuntime(ModelObj):
             data = dict_to_json(struct)
         stores = store_manager.set(secrets)
         target = target or "function.yaml"
-        datastore, subpath = stores.get_or_create_store(target)
+        datastore, subpath, url = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info(f"function spec saved to path: {target}")
         return self

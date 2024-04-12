@@ -39,8 +39,8 @@ from mlrun.utils import (
 
 # default KFP artifacts and output (ui metadata, metrics etc.)
 # directories to /tmp to allow running with security context
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
-KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+KFPMETA_DIR = "/tmp"
+KFP_ARTIFACTS_DIR = "/tmp"
 
 
 class PipelineRunType:
@@ -285,9 +285,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[
-            output.replace(".", "_")
-        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        file_outputs[output.replace(".", "_")] = (
+            f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        )
     if project:
         cmd += ["--project", project]
     if handler:
@@ -558,7 +558,7 @@ def write_kfpmeta(struct):
             {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
         ],
     }
-    with open(KFPMETA_DIR + "/mlpipeline-metrics.json", "w") as f:
+    with open(os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"), "w") as f:
         json.dump(metrics, f)
 
     struct = deepcopy(struct)
@@ -579,12 +579,19 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            path = "/".join([KFP_ARTIFACTS_DIR, key])
+            # NOTE: if key has "../x", it would fail on path traversal
+            path = os.path.join(KFP_ARTIFACTS_DIR, key)
+            if not mlrun.utils.helpers.is_safe_path(KFP_ARTIFACTS_DIR, path):
+                logger.warning(
+                    "Path traversal is not allowed ignoring", path=path, key=key
+                )
+                continue
+            path = os.path.abspath(path)
             logger.info("Writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))
         except Exception as exc:
-            logger.warning("Failed writing to temp file. Ignoring", exc=repr(exc))
+            logger.warning("Failed writing to temp file. Ignoring", exc=err_to_str(exc))
             pass
 
     text = "# Run Report\n"
@@ -593,13 +600,8 @@ def write_kfpmeta(struct):
 
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
-    metadata = {
-        "outputs": output_artifacts
-        + [{"type": "markdown", "storage": "inline", "source": text}]
-    }
-
-    # saar is working on removing this
-    with open(KFPMETA_DIR + "/mlpipeline-ui-metadata.json", "w") as f:
+    metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
+    with open(os.path.join(KFPMETA_DIR, "mlpipeline-ui-metadata.json"), "w") as f:
         json.dump(metadata, f)
 
 

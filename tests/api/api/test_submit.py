@@ -476,7 +476,7 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/submit_job"
+    endpoint = "/submit_job"
     project = "test-project"
 
     function_name = "test-function"
@@ -514,9 +514,9 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         expected_response = test_case.get("expected_body")
         body = test_case.get("body")
 
-        httpserver.expect_ordered_request(endpoint, method="POST").respond_with_json(
-            expected_response, status=expected_status
-        )
+        httpserver.expect_ordered_request(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}{endpoint}", method="POST"
+        ).respond_with_json(expected_response, status=expected_status)
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
         json_body = mlrun.utils.dict_to_json(body)

@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
+import humanfriendly
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
@@ -593,9 +594,9 @@ class BaseRuntimeHandler(ABC):
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
-                run.setdefault("status", {})[
-                    "reason"
-                ] = "A runtime resource related to this run could not be found"
+                run.setdefault("status", {})["reason"] = (
+                    "A runtime resource related to this run could not be found"
+                )
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
@@ -855,6 +856,7 @@ class BaseRuntimeHandler(ABC):
     def _wait_for_crds_underlying_pods_deletion(
         self,
         deleted_crds: list[dict],
+        namespace: str,
         label_selector: str = None,
     ):
         # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
@@ -904,19 +906,42 @@ class BaseRuntimeHandler(ABC):
                 )
 
         if deleted_crds:
-            timeout = 180
+            timeout = int(
+                humanfriendly.parse_timespan(
+                    mlrun.mlconf.crud.resources.delete_crd_resources_timeout
+                )
+            )
             logger.debug(
                 "Waiting for CRDs underlying pods deletion",
                 timeout=timeout,
                 interval=self.wait_for_deletion_interval,
             )
-            mlrun.utils.retry_until_successful(
-                self.wait_for_deletion_interval,
-                timeout,
-                logger,
-                True,
-                _verify_crds_underlying_pods_removed,
-            )
+
+            try:
+                mlrun.utils.retry_until_successful(
+                    self.wait_for_deletion_interval,
+                    timeout,
+                    logger,
+                    True,
+                    _verify_crds_underlying_pods_removed,
+                )
+            except mlrun.errors.MLRunRetryExhaustedError as exc:
+                logger.warning(
+                    "Failed waiting for CRDs underlying pods deletion, force deleting crds",
+                    exc=err_to_str(exc),
+                )
+                crd_group, crd_version, crd_plural = self._get_crd_info()
+                for crd_object in deleted_crds:
+                    # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in
+                    # terminating state, so we're forcing deletion after the grace period passed in this case.
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_crd(
+                        crd_object["metadata"]["name"],
+                        crd_group,
+                        crd_version,
+                        crd_plural,
+                        namespace,
+                        grace_period_seconds=0,
+                    )
 
     def _delete_pod_resources(
         self,
@@ -1072,7 +1097,9 @@ class BaseRuntimeHandler(ABC):
                         crd_name=crd_object_name,
                         exc=err_to_str(exc),
                     )
-        self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
+        self._wait_for_crds_underlying_pods_deletion(
+            deleted_crds, namespace, label_selector
+        )
         return deleted_crds
 
     def _pre_deletion_runtime_resource_run_actions(
@@ -1486,10 +1513,10 @@ class BaseRuntimeHandler(ABC):
         if first_field_value not in resources:
             resources[first_field_value] = {}
         if second_field_value not in resources[first_field_value]:
-            resources[first_field_value][
-                second_field_value
-            ] = mlrun.common.schemas.RuntimeResources(
-                pod_resources=[], crd_resources=[]
+            resources[first_field_value][second_field_value] = (
+                mlrun.common.schemas.RuntimeResources(
+                    pod_resources=[], crd_resources=[]
+                )
             )
         if not getattr(
             resources[first_field_value][second_field_value], resource_field_name

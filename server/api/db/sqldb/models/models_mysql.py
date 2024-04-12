@@ -425,6 +425,7 @@ with warnings.catch_warnings():
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         users = relationship(User, secondary=project_users)
 
@@ -622,6 +623,22 @@ with warnings.catch_warnings():
         @full_object.setter
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
+
+    class PaginationCache(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "pagination_cache"
+
+        key = Column(
+            String(255, collation=SQLCollationUtil.collation()), primary_key=True
+        )
+        user = Column(String(255, collation=SQLCollationUtil.collation()))
+        function = Column(String(255, collation=SQLCollationUtil.collation()))
+        current_page = Column(Integer)
+        page_size = Column(Integer)
+        kwargs = Column(JSON)
+        last_accessed = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
 
 
 # Must be after all table definitions

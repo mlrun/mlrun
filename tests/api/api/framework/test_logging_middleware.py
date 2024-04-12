@@ -136,8 +136,8 @@ def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> N
     stream: io.StringIO
     has_logger_middleware = False
     for middleware in client.app.user_middleware:
-        if "logger" in middleware.options:
-            middleware.options["logger"] = logger_instance
+        if "logger" in middleware.kwargs:
+            middleware.kwargs["logger"] = logger_instance
             has_logger_middleware = True
     client.app.middleware_stack = client.app.build_middleware_stack()
 

@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -354,7 +354,7 @@ class BaseLauncher(abc.ABC):
             or {}
         )
         state_thresholds = (
-            mlrun.config.config.function.spec.state_thresholds.default.to_dict()
+            mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds

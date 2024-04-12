@@ -46,6 +46,7 @@ class TestMLRunSystem:
         "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
+    enterprise_configured = os.getenv("V3IO_API")
 
     _logger = logger
 
@@ -61,6 +62,7 @@ class TestMLRunSystem:
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
         cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+        cls.uploaded_code = False
 
         if "MLRUN_IGUAZIO_API_URL" in env:
             cls._igz_mgmt_client = igz_mgmt.Client(
@@ -84,6 +86,10 @@ class TestMLRunSystem:
 
         self._setup_env(self._get_env_from_file())
         self._run_db = get_run_db()
+        self.remote_code_dir = mlrun.utils.helpers.template_artifact_path(
+            mlrun.mlconf.artifact_path, self.project_name
+        )
+        self._files_to_upload = []
 
         if not self._skip_set_environment():
             self.project = mlrun.get_or_create_project(self.project_name, "./")
@@ -187,7 +193,7 @@ class TestMLRunSystem:
         )
 
     @property
-    def assets_path(self):
+    def assets_path(self) -> pathlib.Path:
         """Returns the test file directory "assets" directory."""
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
@@ -213,7 +219,7 @@ class TestMLRunSystem:
                 os.environ[env_var] = value
 
         # reload the config so changes to the env vars will take effect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     @classmethod
     def _teardown_env(cls):
@@ -223,7 +229,7 @@ class TestMLRunSystem:
                 del os.environ[env_var]
         os.environ.update(cls._old_env)
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
         v3io_user = self._test_env["V3IO_USERNAME"]
@@ -331,3 +337,12 @@ class TestMLRunSystem:
             assert DeepDiff(expected, actual, ignore_order=True) == {}
         else:
             assert expected == actual
+
+    def _upload_code_to_cluster(self):
+        if not self.uploaded_code:
+            for file in self._files_to_upload:
+                source_path = str(self.assets_path / file)
+                mlrun.get_dataitem(os.path.join(self.remote_code_dir, file)).upload(
+                    source_path
+                )
+        self.uploaded_code = True

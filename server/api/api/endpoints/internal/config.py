@@ -26,7 +26,7 @@ router = fastapi.APIRouter()
     responses={http.HTTPStatus.ACCEPTED.value: {}},
 )
 def expose_internal_api_endpoints():
-    mlrun.config.config.debug.expose_internal_api_endpoints = True
+    mlrun.mlconf.debug.expose_internal_api_endpoints = True
 
 
 @router.put(
@@ -34,4 +34,4 @@ def expose_internal_api_endpoints():
     responses={http.HTTPStatus.ACCEPTED.value: {}},
 )
 def mask_internal_api_endpoints():
-    mlrun.config.config.debug.expose_internal_api_endpoints = False
+    mlrun.mlconf.debug.expose_internal_api_endpoints = False

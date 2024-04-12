@@ -24,6 +24,32 @@ from .base import BaseMerger
 from .conversion import PandasConversionMixin
 
 
+def spark_df_to_pandas(spark_df):
+    # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
+    # when we upgrade pyspark, we should check whether this workaround is still necessary
+    # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
+    if semver.parse(pd.__version__)["major"] >= 2:
+        import pyspark.sql.functions as pyspark_functions
+
+        type_conversion_dict = {}
+        for field in spark_df.schema.fields:
+            if str(field.dataType) == "TimestampType":
+                spark_df = spark_df.withColumn(
+                    field.name,
+                    pyspark_functions.date_format(
+                        pyspark_functions.to_timestamp(field.name),
+                        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
+                    ),
+                )
+                type_conversion_dict[field.name] = "datetime64[ns]"
+        df = PandasConversionMixin.toPandas(spark_df)
+        if type_conversion_dict:
+            df = df.astype(type_conversion_dict)
+        return df
+    else:
+        return PandasConversionMixin.toPandas(spark_df)
+
+
 class SparkFeatureMerger(BaseMerger):
     engine = "spark"
     support_offline = True
@@ -166,29 +192,7 @@ class SparkFeatureMerger(BaseMerger):
     def get_df(self, to_pandas=True):
         if to_pandas:
             if self._pandas_df is None:
-                df = self._result_df
-                # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
-                # when we upgrade pyspark, we should check whether this workaround is still necessary
-                # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
-                if semver.parse(pd.__version__)["major"] >= 2:
-                    import pyspark.sql.functions as pyspark_functions
-
-                    type_conversion_dict = {}
-                    for field in df.schema.fields:
-                        if str(field.dataType) == "TimestampType":
-                            df = df.withColumn(
-                                field.name,
-                                pyspark_functions.date_format(
-                                    pyspark_functions.to_timestamp(field.name),
-                                    "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
-                                ),
-                            )
-                            type_conversion_dict[field.name] = "datetime64[ns]"
-                    df = PandasConversionMixin.toPandas(df)
-                    if type_conversion_dict:
-                        df = df.astype(type_conversion_dict)
-                else:
-                    df = PandasConversionMixin.toPandas(df)
+                df = spark_df_to_pandas(self._result_df)
                 self._pandas_df = df
                 self._set_indexes(self._pandas_df)
             return self._pandas_df

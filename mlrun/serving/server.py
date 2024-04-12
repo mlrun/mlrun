@@ -23,6 +23,7 @@ import uuid
 from typing import Optional, Union
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.helpers
 import mlrun.model_monitoring
 from mlrun.config import config
@@ -52,7 +53,7 @@ class _StreamContext:
         Initialize _StreamContext object.
         :param enabled:      A boolean indication for applying the stream context
         :param parameters:   Dictionary of optional parameters, such as `log_stream` and `stream_args`. Note that these
-                             parameters might be relevant to the output source such as `kafka_bootstrap_servers` if
+                             parameters might be relevant to the output source such as `kafka_brokers` if
                              the output source is from type Kafka.
         :param function_uri: Full value of the function uri, usually it's <project-name>/<function-name>
         """
@@ -188,11 +189,6 @@ class GraphServer(ModelObj):
 
     def init_object(self, namespace):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
-        return (
-            v2_serving_async_handler
-            if config.datastore.async_source_mode == "enabled"
-            else v2_serving_handler
-        )
 
     def test(
         self,
@@ -310,17 +306,14 @@ class GraphServer(ModelObj):
 
     def wait_for_completion(self):
         """wait for async operation to complete"""
-        self.graph.wait_for_completion()
+        return self.graph.wait_for_completion()
 
 
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
 
-    data = os.environ.get("SERVING_SPEC_ENV", "")
-    if not data:
-        raise MLRunInvalidArgumentError("failed to find spec env var")
-    spec = json.loads(data)
     context.logger.info("Initializing server from spec")
+    spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -334,11 +327,18 @@ def v2_serving_init(context, namespace=None):
     context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
-    server.init_states(context, namespace or get_caller_globals())
+    kwargs = {}
+    if hasattr(context, "is_mock"):
+        kwargs["is_mock"] = context.is_mock
+    server.init_states(
+        context,
+        namespace or get_caller_globals(),
+        **kwargs,
+    )
     context.logger.info("Initializing graph steps")
-    serving_handler = server.init_object(namespace or get_caller_globals())
+    server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
-    setattr(context, "mlrun_handler", serving_handler)
+    setattr(context, "mlrun_handler", v2_serving_handler)
     setattr(context, "_server", server)
     context.logger.info_with("Serving was initialized", verbose=server.verbose)
     if server.verbose:
@@ -351,7 +351,7 @@ def v2_serving_init(context, namespace=None):
             "Setting termination callback to terminate graph on worker shutdown"
         )
 
-        def termination_callback():
+        async def termination_callback():
             context.logger.info("Termination callback called")
             server.wait_for_completion()
             context.logger.info("Termination of async flow is completed")
@@ -363,7 +363,7 @@ def v2_serving_init(context, namespace=None):
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
 
-        def drain_callback():
+        async def drain_callback():
             context.logger.info("Drain callback called")
             server.wait_for_completion()
             context.logger.info(
@@ -384,11 +384,6 @@ def v2_serving_handler(context, event, get_body=False):
             event.body = None
 
     return context._server.run(event, context, get_body)
-
-
-async def v2_serving_async_handler(context, event, get_body=False):
-    """hook for nuclio handler()"""
-    return await context._server.run(event, context, get_body)
 
 
 def create_graph_server(

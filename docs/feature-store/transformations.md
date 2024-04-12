@@ -39,6 +39,7 @@ to the [feature store example](./basic-demo.html).
 - [Aggregations](#aggregations)
 - [Built-in transformations](#built-in-transformations)
 - [Custom transformations](#custom-transformations)
+- [Data transformation steps](#data-transformation-steps)
 
 ## Aggregations
 
@@ -56,7 +57,7 @@ where `[a-z]+` is the name of an aggregation.
 
 ```{admonition} Warning
 You must ensure that your features will not conflict with the automatically generated feature names. For example, 
-when using `add_aggregation()` on a feature X, you may get a genegated feature name of `X_count_1h`. 
+when using `add_aggregation()` on a feature X, you may get a generated feature name of `X_count_1h`. 
 But if your dataset already contains `X_count_1h`, this would result in either unreliable aggregations or errors.
 ```
 
@@ -145,7 +146,7 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 ## Built-in transformations
 
 MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.html) that can be 
-applied as steps in the feature-set's internal execution graph. To add steps to the graph,  
+applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
 reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
@@ -214,7 +215,7 @@ steps. When implementing custom transformations, the code has to support all eng
 
 ```{admonition} Note
 The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
-[here](../serving/available-steps.html#data-transformations).
+[here](../serving/available-steps.html#data-transformation-steps).
 ```
 
 The following are the main differences between transformation steps executing on different engines:
@@ -278,10 +279,25 @@ feature_set = fstore.FeatureSet("fs-new",
                                 entities=[fstore.Entity("id")], 
                                 engine="pandas",
                                 )
-# Adding multiply step, with specific parameters
-feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
+# Adding multiply step, with specific class parameters passed as kwargs
+feature_set.graph.to(class_name="MultiplyFeature", feature="number1", value=4)
 df_pandas = feature_set.ingest(data)
 ```
+
+## Data transformation steps
+
+The following table lists the available data-transformation steps. The next table details the ingestion engines support of these steps.
+
+| Class name            | Description                           | Storey | Spark | Pandas | 
+|----------------------------|----------------------------------| ---- | ---- | ---- | 
+| {py:meth}`#mlrun.feature_store.FeatureSet.add_aggregation`    | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. | Y  <br>Not supported with online target SQLTarget | Y  | N  | 
+| {py:meth}`mlrun.feature_store.steps.DateExtractor`            | Extract a date-time component. | Y | N  <br>Supports part extract (ex. day_of_week) but does not support boolean (ex. is_leap_year) | Y | 
+| {py:meth}`mlrun.feature_store.steps.DropFeatures`             | Drop features from feature list.  | Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.Imputer`                  | Replace None values with default values. | Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.MapValues`                | Map column values to new values.  | Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.OneHotEncoder`            | Create new binary fields, one per category (one hot encoded).  |  Y      | Y     | Y      | 
+| {py:meth}`mlrun.feature_store.steps.SetEventMetadata`         | Set the event metadata (id, key, timestamp) from the event body. | Y      | N     | N      | 
+| {py:meth}`mlrun.feature_store.steps.FeaturesetValidator`      | Validate feature values according to the feature set validation policy | Y      | N     | Y      | 
 
 
 

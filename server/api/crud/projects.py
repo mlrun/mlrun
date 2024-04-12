@@ -163,7 +163,7 @@ class Projects(
             )
 
         # verify project can be deleted in nuclio
-        if mlrun.config.config.nuclio_dashboard_url:
+        if mlrun.mlconf.nuclio_dashboard_url:
             nuclio_client = server.api.utils.clients.nuclio.Client()
             nuclio_client.delete_project(
                 session,
@@ -414,7 +414,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        if not mlrun.config.config.nuclio_dashboard_url:
+        if not mlrun.mlconf.nuclio_dashboard_url:
             return
 
         nuclio_client = server.api.utils.clients.nuclio.Client()

@@ -16,6 +16,7 @@ import ast
 import base64
 import json
 import typing
+import warnings
 from urllib.parse import ParseResult, urlparse, urlunparse
 
 import pydantic
@@ -68,6 +69,9 @@ class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton
     def get(self, key):
         return self._data.get(key, None)
 
+    def remove(self, key):
+        self._data.pop(key, None)
+
 
 class DatastoreProfileBasic(DatastoreProfile):
     type: str = pydantic.Field("basic")
@@ -80,12 +84,22 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.Field("kafka_target")
     _private_attributes = "kwargs_private"
     bootstrap_servers: str
+    brokers: str
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
+    def __pydantic_post_init__(self):
+        if self.bootstrap_servers:
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                # TODO: Remove this in 1.9.0
+                FutureWarning,
+            )
+
     def attributes(self):
-        attributes = {"bootstrap_servers": self.bootstrap_servers}
+        attributes = {"brokers": self.brokers or self.bootstrap_servers}
         if self.kwargs_public:
             attributes = merge(attributes, self.kwargs_public)
         if self.kwargs_private:
@@ -132,6 +146,22 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         return attributes
 
 
+class DatastoreProfileV3io(DatastoreProfile):
+    type: str = pydantic.Field("v3io")
+    v3io_access_key: typing.Optional[str] = None
+    _private_attributes = "v3io_access_key"
+
+    def url(self, subpath):
+        subpath = subpath.lstrip("/")
+        return f"v3io:///{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.v3io_access_key:
+            res["V3IO_ACCESS_KEY"] = self.v3io_access_key
+        return res
+
+
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.Field("s3")
     _private_attributes = ("access_key_id", "secret_key")
@@ -156,7 +186,7 @@ class DatastoreProfileS3(DatastoreProfile):
             res["AWS_PROFILE"] = self.profile_name
         if self.assume_role_arn:
             res["MLRUN_AWS_ROLE_ARN"] = self.assume_role_arn
-        return res if res else None
+        return res
 
     def url(self, subpath):
         return f"s3:/{subpath}"
@@ -199,7 +229,7 @@ class DatastoreProfileRedis(DatastoreProfile):
             res["REDIS_USER"] = self.username
         if self.password:
             res["REDIS_PASSWORD"] = self.password
-        return res if res else None
+        return res
 
     def url(self, subpath):
         return self.endpoint_url + subpath
@@ -220,7 +250,7 @@ class DatastoreProfileDBFS(DatastoreProfile):
             res["DATABRICKS_TOKEN"] = self.token
         if self.endpoint_url:
             res["DATABRICKS_HOST"] = self.endpoint_url
-        return res if res else None
+        return res
 
 
 class DatastoreProfileGCS(DatastoreProfile):
@@ -247,7 +277,7 @@ class DatastoreProfileGCS(DatastoreProfile):
             res["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         if self.gcp_credentials:
             res["GCP_CREDENTIALS"] = self.gcp_credentials
-        return res if res else None
+        return res
 
 
 class DatastoreProfileAzureBlob(DatastoreProfile):
@@ -292,7 +322,31 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
             res["sas_token"] = self.sas_token
         if self.credential:
             res["credential"] = self.credential
-        return res if res else None
+        return res
+
+
+class DatastoreProfileHdfs(DatastoreProfile):
+    type: str = pydantic.Field("hdfs")
+    _private_attributes = "token"
+    host: typing.Optional[str] = None
+    port: typing.Optional[int] = None
+    http_port: typing.Optional[int] = None
+    user: typing.Optional[str] = None
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.host:
+            res["HDFS_HOST"] = self.host
+        if self.port:
+            res["HDFS_PORT"] = self.port
+        if self.port:
+            res["HDFS_HTTP_PORT"] = self.http_port
+        if self.user:
+            res["HDFS_USER"] = self.user
+        return res or None
+
+    def url(self, subpath):
+        return f"hdfs://{self.host}:{self.http_port}{subpath}"
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):
@@ -346,6 +400,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
         ds_profile_factory = {
+            "v3io": DatastoreProfileV3io,
             "s3": DatastoreProfileS3,
             "redis": DatastoreProfileRedis,
             "basic": DatastoreProfileBasic,
@@ -354,6 +409,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "dbfs": DatastoreProfileDBFS,
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
+            "hdfs": DatastoreProfileHdfs,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
@@ -382,6 +438,18 @@ def datastore_profile_read(url, project_name="", secrets: dict = None):
     public_profile = mlrun.db.get_run_db().get_datastore_profile(
         profile_name, project_name
     )
+    # The mlrun.db.get_run_db().get_datastore_profile() function is capable of returning
+    # two distinct types of objects based on its execution context.
+    # If it operates from the client or within the pod (which is the common scenario),
+    # it yields an instance of `mlrun.datastore.DatastoreProfile`. Conversely,
+    # when executed on the server with a direct call to `sqldb`, it produces an instance of
+    # mlrun.common.schemas.DatastoreProfile.
+    # In the latter scenario, an extra conversion step is required to transform the object
+    # into mlrun.datastore.DatastoreProfile.
+    if isinstance(public_profile, mlrun.common.schemas.DatastoreProfile):
+        public_profile = DatastoreProfile2Json.create_from_json(
+            public_json=public_profile.object
+        )
     project_ds_name_private = DatastoreProfile.generate_secret_key(
         profile_name, project_name
     )
@@ -406,3 +474,7 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
     It's beneficial for testing purposes.
     """
     TemporaryClientDatastoreProfiles().add(profile)
+
+
+def remove_temporary_client_datastore_profile(profile_name: str):
+    TemporaryClientDatastoreProfiles().remove(profile_name)

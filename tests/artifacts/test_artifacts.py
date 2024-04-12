@@ -22,10 +22,12 @@ from contextlib import nullcontext as does_not_raise
 
 import pandas as pd
 import pytest
+import yaml
 
 import mlrun
 import mlrun.artifacts
 from mlrun.artifacts.manager import extend_artifact_path
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.utils import StorePrefix
 from tests import conftest
 
@@ -380,6 +382,27 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
 
 
 @pytest.mark.parametrize(
+    "body_size,expectation",
+    [
+        (
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+        ),
+        (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, does_not_raise()),
+    ],
+)
+def test_ensure_fail_on_oversized_artifact(body_size, expectation):
+    artifact = mlrun.artifacts.Artifact(
+        "artifact-name",
+        is_inline=True,
+        body="a" * body_size,
+    )
+    context = mlrun.get_or_create_ctx("test")
+    with expectation:
+        context.log_artifact(item=artifact)
+
+
+@pytest.mark.parametrize(
     "df, fail",
     [
         (pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]}), False),
@@ -565,3 +588,32 @@ def test_register_artifacts(rundb_mock):
 
     artifact = project.get_artifact(artifact_key)
     assert artifact.tree == expected_tree
+
+
+def test_producer_in_exported_artifact():
+    project_name = "my-project"
+    project = mlrun.new_project(project_name, save=False)
+
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=results_dir
+    )
+
+    assert artifact.producer.get("kind") == "project"
+    assert artifact.producer.get("name") == project_name
+
+    artifact_path = f"{results_dir}/x.yaml"
+    artifact.export(artifact_path)
+
+    with open(artifact_path) as file:
+        exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
+        assert "producer" in exported_artifact["spec"]
+        assert exported_artifact["spec"]["producer"]["kind"] == "project"
+        assert exported_artifact["spec"]["producer"]["name"] == project_name
+
+    # remove the producer from the artifact and export it again
+    artifact.producer = None
+    artifact.export(artifact_path)
+
+    with open(artifact_path) as file:
+        exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
+        assert "producer" not in exported_artifact["spec"]

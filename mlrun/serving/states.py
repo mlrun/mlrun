@@ -590,7 +590,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes"]
+    _dict_fields = _task_step_fields + ["routes", "engine"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -603,6 +603,7 @@ class RouterStep(TaskStep):
         function: str = None,
         input_path: str = None,
         result_path: str = None,
+        engine: str = None,
     ):
         super().__init__(
             class_name,
@@ -615,6 +616,8 @@ class RouterStep(TaskStep):
         )
         self._routes: ObjectDict = None
         self.routes = routes
+        self.engine = engine
+        self._controller = None
 
     def get_children(self):
         """get child steps (routes)"""
@@ -683,6 +686,33 @@ class RouterStep(TaskStep):
 
         self._set_error_handler()
         self._post_init(mode)
+
+        if self.engine == "async":
+            self._build_async_flow()
+            self._run_async_flow()
+
+    def _build_async_flow(self):
+        """initialize and build the async/storey DAG"""
+
+        self.respond()
+        source, self._wait_for_result = _init_async_objects(self.context, [self])
+        source.to(self.async_object)
+
+        self._async_flow = source
+
+    def _run_async_flow(self):
+        self._controller = self._async_flow.run()
+
+    def run(self, event, *args, **kwargs):
+        if self._controller:
+            # async flow (using storey)
+            event._awaitable_result = None
+            resp = self._controller.emit(
+                event, return_awaitable_result=self._wait_for_result
+            )
+            return resp.await_result()
+
+        return super().run(event, *args, **kwargs)
 
     def __getitem__(self, name):
         return self._routes[name]
@@ -1160,19 +1190,11 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            if config.datastore.async_source_mode == "enabled":
-                resp_awaitable = self._controller.emit(
-                    event, await_result=self._wait_for_result
-                )
-                if self._wait_for_result:
-                    return resp_awaitable
-                return self._await_and_return_id(resp_awaitable, event)
-            else:
-                resp = self._controller.emit(
-                    event, return_awaitable_result=self._wait_for_result
-                )
-                if self._wait_for_result and resp:
-                    return resp.await_result()
+            resp = self._controller.emit(
+                event, return_awaitable_result=self._wait_for_result
+            )
+            if self._wait_for_result and resp:
+                return resp.await_result()
             event = copy(event)
             event.body = {"id": event.id}
             return event
@@ -1210,6 +1232,7 @@ class FlowStep(BaseStep):
 
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
+
         if self._controller:
             if hasattr(self._controller, "terminate"):
                 self._controller.terminate()
@@ -1501,21 +1524,18 @@ def _init_async_objects(context, steps):
                     endpoint = None
                     options = {}
                     options.update(step.options)
-                    kafka_bootstrap_servers = options.pop(
-                        "kafka_bootstrap_servers", None
-                    )
-                    if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
-                        topic, bootstrap_servers = parse_kafka_url(
-                            stream_path, kafka_bootstrap_servers
-                        )
+                    kafka_brokers = options.pop("kafka_brokers", None)
+                    if stream_path.startswith("kafka://") or kafka_brokers:
+                        topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
                         kafka_producer_options = options.pop(
-                            "kafka_producer_options", None
+                            "kafka_producer_options",
+                            options.pop("kafka_bootstrap_servers", None),
                         )
 
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
-                            bootstrap_servers=bootstrap_servers,
+                            brokers=brokers,
                             producer_options=kafka_producer_options,
                             context=context,
                             **options,
@@ -1542,6 +1562,7 @@ def _init_async_objects(context, steps):
                     result_path=step.result_path,
                     name=step.name,
                     context=context,
+                    pass_context=step._inject_context,
                 )
             if (
                 respond_supported
@@ -1554,9 +1575,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-
     explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
 
+    # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(
         context=context,
         explicit_ack=explicit_ack,

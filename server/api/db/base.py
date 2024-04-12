@@ -70,6 +70,7 @@ class DBInterface(ABC):
         only_uids: bool = False,
         last_update_time_from: datetime.datetime = None,
         states: list[str] = None,
+        specific_uids: list[str] = None,
     ):
         pass
 
@@ -107,6 +108,8 @@ class DBInterface(ABC):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> mlrun.lists.RunList:
         pass
 
@@ -301,6 +304,8 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        page: int = None,
+        page_size: int = None,
     ):
         pass
 
@@ -757,3 +762,45 @@ class DBInterface(ABC):
         project: str,
     ) -> list[mlrun.common.schemas.DatastoreProfile]:
         pass
+
+    # Pagination Cache Methods
+    # They are not abstract methods because they are not required for all DBs.
+    # However, they do raise NotImplementedError for DBs that do not implement them.
+    def store_paginated_query_cache_record(
+        self,
+        session,
+        user: str,
+        function: str,
+        current_page: int,
+        page_size: int,
+        kwargs: dict,
+    ):
+        raise NotImplementedError
+
+    def get_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        raise NotImplementedError
+
+    def list_paginated_query_cache_record(
+        self,
+        session,
+        key: str = None,
+        user: str = None,
+        function: str = None,
+        last_accessed_before: datetime = None,
+        order_by: Optional[mlrun.common.schemas.OrderType] = None,
+        as_query: bool = False,
+    ):
+        raise NotImplementedError
+
+    def delete_paginated_query_cache_record(
+        self,
+        session,
+        key: str,
+    ):
+        raise NotImplementedError
+
+    # EO Pagination Section

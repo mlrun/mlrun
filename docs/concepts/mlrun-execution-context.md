@@ -85,5 +85,5 @@ if __name__ == "__main__":
     context.log_result("accuracy", p1 * 2)
 ```
 
-> Note: The context object is expected to be used as part of a run, if you are looking for a similar API to use on your local environment (outside a local run) you can use a '~mlrun.projects.MLRunProject' object. 
+> Note: The context object is expected to be used as part of a run. If you are looking for a similar API to use on your local environment (outside a local run) you can use the '~mlrun.projects.MLRunProject' object. 
 

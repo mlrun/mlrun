@@ -206,7 +206,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
             ).as_df(
                 start_time=start_time,
                 end_time=end_time,
-                time_column=mm_constant.EventFieldType.TIMESTAMP,
+                time_column=mm_constant.FeatureSetFeatures.time_stamp(),
             ),
             start_time,
             end_time,

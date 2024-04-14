@@ -191,15 +191,22 @@ class DataStore:
             filters_inner,
             kwargs,
         ):
-            filters_inner = filters_inner or []
+            datetime_filter = []
             find_filters(
                 partitions_time_attributes,
                 start_time_inner,
                 end_time_inner,
-                filters_inner,
+                datetime_filter,
                 time_column,
             )
-            kwargs["filters"] = filters_inner
+            if datetime_filter and filters_inner:
+                total_filters = datetime_filter + filters_inner
+            elif datetime_filter:
+                total_filters = datetime_filter
+            else:
+                total_filters = filters_inner
+
+            kwargs["filters"] = total_filters
 
         def reader(*args, **kwargs):
             if start_time or end_time:

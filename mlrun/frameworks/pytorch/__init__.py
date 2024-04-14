@@ -112,7 +112,7 @@ def train(
 
                                             {
                                                 "/.../custom_optimizer.py": "optimizer",
-                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                                "/.../custom_layers.py": ["layer1", "layer2"],
                                             }
 
                                         All the paths will be accessed from the given 'custom_objects_directory',
@@ -264,7 +264,7 @@ def evaluate(
 
                                          {
                                              "/.../custom_optimizer.py": "optimizer",
-                                             "/.../custom_layers.py": ["layer1", "layer2"]
+                                             "/.../custom_layers.py": ["layer1", "layer2"],
                                          }
 
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning

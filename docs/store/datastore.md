@@ -79,8 +79,8 @@ remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
   
 ## Data store profiles
 
-```{admonition} Notes
-- Datastore profiles are not part of a project export/import.
+```{admonition} Note
+Datastore profiles are not part of a project export/import.
 ```
 
 You can use a data store profile to manage datastore credentials. A data store profile 
@@ -114,8 +114,8 @@ More options:
     register_temporary_client_datastore_profile(local_redis_profile)
     ```
 
-```{admonition} Notes
-- Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+```{admonition} Note
+Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
 
 See also:

@@ -83,18 +83,7 @@ if __name__ == "__main__":
     p2 = context.get_param('p2', 'a-string')
     # do something
     context.log_result("accuracy", p1 * 2)
-    # commit the tracking results to the DB (and mark as completed)
-    context.commit(completed=True)
 ```
 
-Note that MLRun context is also a python context and can be used in a `with` statement (eliminating the need for `commit`).
-
-```python
-if __name__ == "__main__":
-    with mlrun.get_or_create_ctx('train') as context:
-        p1 = context.get_param('p1', 1)
-        p2 = context.get_param('p2', 'a-string')
-        # do something
-        context.log_result("accuracy", p1 * 2)
-```
+> Note: The context object is expected to be used as part of a run, if you are looking for a similar API to use on your local environment (outside a local run) you can use a '~mlrun.projects.MLRunProject' object. 
 

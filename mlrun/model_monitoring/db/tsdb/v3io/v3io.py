@@ -67,17 +67,6 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         if create_table:
             self._create_tsdb_table()
 
-    @staticmethod
-    def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:
-        return mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
-            container=v3io_container,
-        )
-
-    def _get_v3io_container(self) -> str:
-        if self.table == "app-results":
-            return f"users/pipelines/{self.project}/monitoring-apps"
-
     def apply_monitoring_stream_steps(
         self,
         graph,
@@ -197,16 +186,6 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
                 event=event,
             )
 
-    def _create_tsdb_table(self) -> None:
-        logger.info("Creating table in V3IO TSDB", table=self.table)
-
-        self._frames_client.create(
-            backend=_TSDB_BE,
-            table=self.table,
-            if_exists=IGNORE,
-            rate=_TSDB_RATE,
-        )
-
     def delete_tsdb_resources(self, table: str = None):
         table = table or self.table
         try:
@@ -220,40 +199,6 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
                     f"Failed to delete TSDB table '{table}'",
                     err=mlrun.errors.err_to_str(e),
                 )
-
-    def get_records(
-        self,
-        table: str = None,
-        columns: list[str] = None,
-        filter_query: str = "",
-        start: str = "now-1h",
-        end: str = "now",
-    ) -> pd.DataFrame:
-        """
-         Getting records from V3IO TSDB data collection.
-        :param table:            Path to the collection to query.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
-                                 divided by ' AND '.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :return: DataFrame with the provided attributes from the data collection.
-        """
-        table = table or self.table
-        return self._frames_client.read(
-            backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
-            table=table,
-            columns=columns,
-            filter=filter_query,
-            start=start,
-            end=end,
-        )
 
     def get_endpoint_real_time_metrics(
         self,
@@ -287,7 +232,7 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         metrics_mapping = {}
 
         try:
-            data = self.get_records(
+            data = self._get_records(
                 table=self.table,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
@@ -311,3 +256,58 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
             logger.warn("Failed to read tsdb", err=err, endpoint=endpoint_id)
 
         return metrics_mapping
+
+    @staticmethod
+    def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:
+        return mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
+            container=v3io_container,
+        )
+
+    def _get_v3io_container(self) -> str:
+        if self.table == "app-results":
+            return f"users/pipelines/{self.project}/monitoring-apps"
+
+    def _get_records(
+        self,
+        table: str = None,
+        columns: list[str] = None,
+        filter_query: str = "",
+        start: str = "now-1h",
+        end: str = "now",
+    ) -> pd.DataFrame:
+        """
+         Getting records from V3IO TSDB data collection.
+        :param table:            Path to the collection to query.
+        :param columns:          Columns to include in the result.
+        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
+                                 divided by ' AND '.
+        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
+                                 earliest time.
+        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
+                                 earliest time.
+        :return: DataFrame with the provided attributes from the data collection.
+        """
+        table = table or self.table
+        return self._frames_client.read(
+            backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
+            table=table,
+            columns=columns,
+            filter=filter_query,
+            start=start,
+            end=end,
+        )
+
+    def _create_tsdb_table(self) -> None:
+        logger.info("Creating table in V3IO TSDB", table=self.table)
+
+        self._frames_client.create(
+            backend=_TSDB_BE,
+            table=self.table,
+            if_exists=IGNORE,
+            rate=_TSDB_RATE,
+        )

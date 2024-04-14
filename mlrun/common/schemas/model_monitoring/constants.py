@@ -308,4 +308,6 @@ class ControllerPolicy:
     BASE_PERIOD = "base_period"
 
 
-MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"
+class HistogramDataDriftApplicationConstants:
+    NAME = "histogram-data-drift"
+    GENERAL_RESULT_NAME = "general_drift"

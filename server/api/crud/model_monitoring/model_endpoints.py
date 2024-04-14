@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-import itertools
 import os
 import typing
 
@@ -202,7 +200,7 @@ class ModelEndpoints:
         """Get features to the feature set according to the model object"""
         features = []
         if model.spec.inputs:
-            for feature in itertools.chain(model.spec.inputs, model.spec.outputs):
+            for feature in model.spec.inputs + model.spec.outputs:
                 name = mlrun.feature_store.api.norm_column_name(feature.name)
                 features.append(
                     mlrun.feature_store.Feature(

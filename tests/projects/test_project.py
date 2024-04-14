@@ -2088,7 +2088,7 @@ class TestModelMonitoring:
             (
                 True,
                 mm_consts.constants.MonitoringFunctionNames.list()
-                + [mm_consts.constants.MLRunHistogramDataDriftApplication.NAME],
+                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
             ),
             (False, mm_consts.constants.MonitoringFunctionNames.list()),
         ],

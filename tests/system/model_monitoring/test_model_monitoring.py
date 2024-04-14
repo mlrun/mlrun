@@ -1141,7 +1141,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     def _wait_for_deployments(self) -> None:
         for fn_name in mm_constants.MonitoringFunctionNames.list() + [
-            mm_constants.MLRunHistogramDataDriftApplication.NAME
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
         ]:
             fn = self.project.get_function(key=fn_name)
             fn._wait_for_function_deployment(db=fn._get_db())

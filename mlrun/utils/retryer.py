@@ -117,7 +117,7 @@ class Retryer:
         self._raise_last_exception()
 
     def _prepare(self):
-        self.start_time = time.time()
+        self.start_time = time.monotonic()
         self.last_exception = None
 
         # Check if backoff is just a simple interval
@@ -173,7 +173,7 @@ class Retryer:
         ) from self.last_exception
 
     def _timeout_exceeded(self, next_interval=None):
-        now = time.time()
+        now = time.monotonic()
         if next_interval:
             now = now + next_interval
         return self.timeout is not None and now >= self.start_time + self.timeout

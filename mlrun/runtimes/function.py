@@ -25,6 +25,7 @@ import requests
 import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
+from mlrun_pipelines.common.ops import deploy_op
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -37,7 +38,6 @@ from mlrun.common.schemas import AuthInfo
 
 from ..config import config as mlconf
 from ..errors import err_to_str
-from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import (

@@ -389,6 +389,8 @@ def import_function_to_dict(url, secrets=None):
     code = get_in(runtime, "spec.build.functionSourceCode")
     update_in(runtime, "metadata.build.code_origin", url)
     cmd = code_file = get_in(runtime, "spec.command", "")
+    # use kind = "job" by default if not specified
+    runtime.setdefault("kind", "job")
     if " " in cmd:
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
@@ -535,7 +537,7 @@ def new_function(
     if source:
         runner.spec.build.source = source
     if handler:
-        if kind in [RuntimeKinds.serving, RuntimeKinds.application]:
+        if kind in RuntimeKinds.handlerless_runtimes():
             raise MLRunInvalidArgumentError(
                 f"Handler is not supported for {kind} runtime"
             )
@@ -628,6 +630,8 @@ def code_to_function(
     - mpijob: run distributed Horovod jobs over the MPI job operator
     - spark: run distributed Spark job using Spark Kubernetes Operator
     - remote-spark: run distributed Spark job on remote Spark service
+    - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+    - application: run a long living application (e.g. a web server, UI, etc.)
 
     Learn more about [Kinds of function (runtimes)](../concepts/functions-overview.html).
 
@@ -847,6 +851,7 @@ def _run_pipeline(
     ops=None,
     url=None,
     cleanup_ttl=None,
+    timeout=60,
 ):
     """remote KubeFlow pipeline execution
 
@@ -884,6 +889,7 @@ def _run_pipeline(
         ops=ops,
         artifact_path=artifact_path,
         cleanup_ttl=cleanup_ttl,
+        timeout=timeout,
     )
     logger.info(f"Pipeline run id={pipeline_run_id}, check UI for progress")
     return pipeline_run_id
@@ -961,7 +967,7 @@ def wait_for_pipeline_completion(
         show_kfp_run(resp)
 
     status = resp["run"]["status"] if resp else "unknown"
-    message = resp["run"].get("message", "")
+    message = resp["run"].get("message", "") if resp else ""
     if expected_statuses:
         if status not in expected_statuses:
             raise RuntimeError(

@@ -16,7 +16,6 @@ import json
 import os
 import pathlib
 import time
-import unittest.mock
 
 import pandas as pd
 import pytest
@@ -750,30 +749,3 @@ def test_mock_invoke():
 
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
-
-
-def test_deploy_with_dashboard_argument():
-    fn = mlrun.new_function("tests", kind="serving")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
-    db_instance = fn._get_db()
-    db_instance.remote_builder = unittest.mock.Mock(
-        return_value={
-            "data": {
-                "metadata": {
-                    "name": "test",
-                },
-                "status": {
-                    "state": "ready",
-                    "external_invocation_urls": ["http://test-url.com"],
-                },
-            },
-        },
-    )
-    db_instance.get_builder_status = unittest.mock.Mock(
-        return_value=(None, None),
-    )
-
-    mlrun.deploy_function(fn)
-
-    # test that the remote builder was called even with dashboard argument
-    assert db_instance.remote_builder.call_count == 1

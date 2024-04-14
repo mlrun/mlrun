@@ -543,11 +543,16 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo
+        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # todo: verify that the function name is normalized
+        if auth_info:
+            # TODO: remove in 1.9.0
+            warnings.warn(
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                FutureWarning,
+            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
@@ -570,9 +575,7 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(
-            self, False, builder_env=builder_env, force_build=force_build
-        )
+        data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -613,7 +616,7 @@ class RemoteRuntime(KubeResource):
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
             try:
-                text, last_log_timestamp = db.get_builder_status(
+                text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
             except mlrun.db.RunDBError:
@@ -995,10 +998,10 @@ class RemoteRuntime(KubeResource):
         ]
 
         if command:
-            sidecar["command"] = command
+            sidecar["command"] = mlrun.utils.helpers.as_list(command)
 
         if args:
-            sidecar["args"] = args
+            sidecar["args"] = mlrun.utils.helpers.as_list(args)
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

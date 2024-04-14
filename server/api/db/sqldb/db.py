@@ -348,6 +348,8 @@ class SQLDB(DBInterface):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -394,6 +396,9 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+
+        query = self._paginate_query(query, page, page_size)
+
         if not return_as_run_structs:
             return query.all()
 
@@ -1581,6 +1586,8 @@ class SQLDB(DBInterface):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        page: int = None,
+        page_size: int = None,
     ) -> list[dict]:
         project = project or config.default_project
         uids = None
@@ -1591,7 +1598,9 @@ class SQLDB(DBInterface):
         if not tag and hash_key:
             uids = [hash_key]
         functions = []
-        for function in self._find_functions(session, name, project, uids, labels):
+        for function in self._find_functions(
+            session, name, project, uids, labels, page=page, page_size=page_size
+        ):
             function_dict = function.struct
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
@@ -3745,7 +3754,9 @@ class SQLDB(DBInterface):
             value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
         )
 
-    def _find_functions(self, session, name, project, uids=None, labels=None):
+    def _find_functions(
+        self, session, name, project, uids=None, labels=None, page=None, page_size=None
+    ):
         query = self._query(session, Function, project=project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
@@ -3753,7 +3764,9 @@ class SQLDB(DBInterface):
             query = query.filter(Function.uid.in_(uids))
 
         labels = label_set(labels)
-        return self._add_labels_filter(session, query, Function, labels)
+        query = self._add_labels_filter(session, query, Function, labels)
+        query = self._paginate_query(query, page, page_size)
+        return query
 
     def _delete(self, session, cls, **kw):
         query = session.query(cls).filter_by(**kw)
@@ -4642,20 +4655,29 @@ class SQLDB(DBInterface):
         user: str,
         function: str,
         current_page: int,
+        page_size: int,
         kwargs: dict,
     ):
         # generate key hash from user, function, current_page and kwargs
         key = hashlib.sha256(
-            f"{user}/{function}/{current_page}/{kwargs}".encode()
+            f"{user}/{function}/{page_size}/{kwargs}".encode()
         ).hexdigest()
-        param_record = PaginationCache(
-            key=key,
-            user=user,
-            function=function,
-            current_page=current_page,
-            kwargs=kwargs,
-            last_accessed=datetime.now(timezone.utc),
-        )
+        existing_record = self.get_paginated_query_cache_record(session, key)
+        if existing_record:
+            existing_record.current_page = current_page
+            existing_record.last_accessed = datetime.now(timezone.utc)
+            param_record = existing_record
+        else:
+            param_record = PaginationCache(
+                key=key,
+                user=user,
+                function=function,
+                current_page=current_page,
+                page_size=page_size,
+                kwargs=kwargs,
+                last_accessed=datetime.now(timezone.utc),
+            )
+
         self._upsert(session, [param_record])
         return key
 
@@ -4764,3 +4786,13 @@ class SQLDB(DBInterface):
         metadata = MetaData(bind=session.bind)
         metadata.reflect()
         return table_name in metadata.tables.keys()
+
+    @staticmethod
+    def _paginate_query(query, page: int = None, page_size: int = None):
+        if page is not None:
+            page_size = page_size or config.httpdb.pagination.default_page_size
+            if query.count() < page_size * (page - 1):
+                raise StopIteration
+            query = query.limit(page_size).offset((page - 1) * page_size)
+
+        return query

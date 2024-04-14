@@ -12,12 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import traceback
+import typing
+from http import HTTPStatus
 
-from fastapi import APIRouter, Depends
+import sqlalchemy.orm
+from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import server.api.api.utils
+import server.api.crud.model_monitoring.deployment
+import server.api.crud.runtimes.nuclio.function
+import server.api.launcher
+import server.api.utils.auth.verifier
 import server.api.utils.clients.async_nuclio
+import server.api.utils.clients.chief
+import server.api.utils.singletons.project_member
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.utils import logger
 from server.api.api import deps
+from server.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()
 
@@ -146,3 +162,438 @@ async def delete_api_gateway(
 
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
         return await client.delete_api_gateway(project_name=project, name=gateway)
+
+
+@router.post("/projects/{project}/nuclio/{name}/deploy")
+async def deploy_function(
+    project: str,
+    name: str,
+    request: Request,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
+    client_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
+):
+    data = None
+    try:
+        data = await request.json()
+    except ValueError:
+        server.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
+
+    logger.info("Deploying function", data=data, project=project, name=name)
+    function = data.get("function")
+    function.setdefault("metadata", {})
+    function["metadata"]["name"] = name
+    function["metadata"]["project"] = project
+    await run_in_threadpool(
+        server.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_info,
+    )
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
+        project,
+        name,
+        mlrun.common.schemas.AuthorizationAction.update,
+        auth_info,
+    )
+
+    # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
+    # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Requesting to deploy serving function with track models, re-routing to chief",
+                name=name,
+                project=project,
+                function=function,
+            )
+            chief_client = server.api.utils.clients.chief.Client()
+            return await chief_client.build_function(request=request, json=data)
+
+    fn = await run_in_threadpool(
+        _deploy_function,
+        db_session,
+        auth_info,
+        project,
+        name,
+        function,
+        data.get("builder_env"),
+        client_version,
+        client_python_version,
+    )
+
+    return {
+        "data": fn.to_dict(),
+    }
+
+
+@router.get("/projects/{project}/nuclio/{name}/deploy")
+async def deploy_status(
+    project: str = "",
+    name: str = "",
+    tag: str = "",
+    last_log_timestamp: float = 0.0,
+    verbose: bool = False,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
+):
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
+        project or mlrun.mlconf.default_project,
+        name,
+        # store since with the current mechanism we update the status (and store the function) in the DB when a client
+        # query for the status
+        mlrun.common.schemas.AuthorizationAction.store,
+        auth_info,
+    )
+    fn = await run_in_threadpool(
+        server.api.crud.Functions().get_function, db_session, name, project, tag
+    )
+    if not fn:
+        server.api.api.utils.log_and_raise(
+            HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
+        )
+
+    if fn.get("kind") not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        server.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
+        )
+
+    return await run_in_threadpool(
+        _handle_nuclio_deploy_status,
+        db_session,
+        auth_info,
+        fn,
+        name,
+        project,
+        tag,
+        last_log_timestamp,
+        verbose,
+    )
+
+
+def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+    # The expected result of this method is an access-key placed in an internal project-secret.
+    # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
+    # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
+    # (which is the recommended option for users) is to retrieve a new access-key from the project owner and use it.
+    logger.info(
+        "Getting project secret",
+        project_name=project_name,
+        namespace=mlrun.mlconf.namespace,
+    )
+    provider = mlrun.common.schemas.SecretProviderName.kubernetes
+    secret_value = Secrets().get_project_secret(
+        project_name,
+        provider,
+        secret_key,
+        allow_secrets_from_k8s=True,
+    )
+    user_provided_key = secret_value is not None
+    internal_key_name = Secrets().generate_client_project_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
+
+    if not user_provided_key:
+        secret_value = Secrets().get_project_secret(
+            project_name,
+            provider,
+            internal_key_name,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+        )
+        if not secret_value:
+            project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                db_session, project_name
+            )
+
+            secret_value = project_owner.access_key
+            if not secret_value:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"No model monitoring access key. Failed to generate one for owner of project {project_name}",
+                )
+
+            logger.info(
+                "Filling model monitoring access-key from project owner",
+                project_name=project_name,
+                project_owner=project_owner.username,
+            )
+
+    secrets = mlrun.common.schemas.SecretsData(
+        provider=provider, secrets={internal_key_name: secret_value}
+    )
+    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
+    if user_provided_key:
+        logger.info(
+            "Deleting user-provided access-key - replaced with an internal secret"
+        )
+        Secrets().delete_project_secret(project_name, provider, secret_key)
+
+    return secret_value
+
+
+def create_model_monitoring_stream(
+    project: str,
+    stream_path: str,
+    access_key: str = None,
+    stream_args: dict = None,
+):
+    if stream_path.startswith("v3io://"):
+        import v3io.dataplane
+
+        _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+        # TODO: How should we configure sharding here?
+        logger.info(
+            "Creating stream",
+            project=project,
+            stream_path=stream_path,
+            container=container,
+            endpoint=mlrun.mlconf.v3io_api,
+        )
+
+        v3io_client = v3io.dataplane.Client(
+            endpoint=mlrun.mlconf.v3io_api, access_key=access_key
+        )
+
+        response = v3io_client.stream.create(
+            container=container,
+            stream_path=stream_path,
+            shard_count=stream_args.shard_count,
+            retention_period_hours=stream_args.retention_period_hours,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            access_key=access_key,
+        )
+
+        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            response.raise_for_status([409, 204])
+
+
+def _deploy_function(
+    db_session: sqlalchemy.orm.Session,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    project: str,
+    name: str,
+    function: dict,
+    builder_env: dict,
+    client_version: str,
+    client_python_version: str,
+):
+    fn = None
+    try:
+        fn = mlrun.new_function(runtime=function, project=project, name=name)
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        server.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
+        )
+
+    if fn.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        server.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
+        )
+
+    fn: mlrun.runtimes.RemoteRuntime
+    try:
+        # Connect to run db
+        run_db = server.api.api.utils.get_run_db_instance(db_session)
+        fn.set_db_connection(run_db)
+
+        # Enrich runtime
+        launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
+        launcher.enrich_runtime(runtime=fn, full=True)
+
+        fn.save(versioned=False)
+        fn.pre_deploy_validation()
+        fn = _deploy_nuclio_runtime(
+            auth_info,
+            builder_env,
+            client_python_version,
+            client_version,
+            db_session,
+            fn,
+        )
+        fn.save(versioned=True)
+        logger.info("Resolved function", fn=fn.to_yaml())
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        server.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
+        )
+    return fn
+
+
+def _deploy_nuclio_runtime(
+    auth_info, builder_env, client_python_version, client_version, db_session, fn
+):
+    monitoring_application = (
+        fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+        == mm_constants.ModelMonitoringAppLabel.VAL
+    )
+    serving_to_monitor = (
+        fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
+    )
+    if monitoring_application or serving_to_monitor:
+        if not mlrun.mlconf.is_ce_mode():
+            model_monitoring_access_key = process_model_monitoring_secret(
+                db_session,
+                fn.metadata.project,
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+            )
+        else:
+            model_monitoring_access_key = None
+
+        monitoring_deployment = (
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=fn.metadata.project,
+                auth_info=auth_info,
+                db_session=db_session,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
+        )
+        if monitoring_application:
+            fn = monitoring_deployment.apply_and_create_stream_trigger(
+                function=fn,
+                function_name=fn.metadata.name,
+            )
+
+        if serving_to_monitor:
+            if not mlrun.mlconf.is_ce_mode():
+                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
+                    monitoring_deployment.deploy_model_monitoring_stream_processing(
+                        overwrite=True
+                    )
+
+    server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+        fn,
+        auth_info=auth_info,
+        client_version=client_version,
+        client_python_version=client_python_version,
+        builder_env=builder_env,
+    )
+    return fn
+
+
+def _handle_nuclio_deploy_status(
+    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
+):
+    (
+        state,
+        _,
+        nuclio_name,
+        last_log_timestamp,
+        text,
+        status,
+    ) = server.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
+        name,
+        project,
+        tag,
+        # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+        last_log_timestamp=last_log_timestamp or 1.0,
+        verbose=verbose,
+        auth_info=auth_info,
+    )
+    if state in ["ready", "scaledToZero"]:
+        logger.info("Nuclio function deployed successfully", name=name)
+    if state in ["error", "unhealthy"]:
+        logger.error(f"Nuclio deploy error, {text}", name=name)
+
+    internal_invocation_urls = status.get("internalInvocationUrls", [])
+    external_invocation_urls = status.get("externalInvocationUrls", [])
+
+    # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+    # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+    # and hence, for BC it would be filled with the external invocation url first item
+    # or completely empty.
+    address = external_invocation_urls[0] if external_invocation_urls else ""
+
+    # the built and pushed image name used to run the nuclio function container
+    container_image = status.get("containerImage", "")
+
+    # we don't want to store the function on all requests to get the deploy status, therefore we verify
+    # that changes were actually made and if that's the case then we store the function
+    if _is_nuclio_deploy_status_changed(
+        previous_status=fn.get("status", {}),
+        new_status=status,
+        new_state=state,
+        new_nuclio_name=nuclio_name,
+    ):
+        mlrun.utils.update_in(fn, "status.nuclio_name", nuclio_name)
+        mlrun.utils.update_in(
+            fn, "status.internal_invocation_urls", internal_invocation_urls
+        )
+        mlrun.utils.update_in(
+            fn, "status.external_invocation_urls", external_invocation_urls
+        )
+        mlrun.utils.update_in(fn, "status.state", state)
+        mlrun.utils.update_in(fn, "status.address", address)
+        mlrun.utils.update_in(fn, "status.container_image", container_image)
+
+        versioned = False
+        if state == "ready":
+            # Versioned means the version will be saved in the DB forever, we don't want to spam
+            # the DB with intermediate or unusable versions, only successfully deployed versions
+            versioned = True
+        server.api.crud.Functions().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+        )
+
+    return Response(
+        content=text,
+        media_type="text/plain",
+        headers={
+            "x-mlrun-function-status": state,
+            "x-mlrun-last-timestamp": str(last_log_timestamp),
+            "x-mlrun-address": address,
+            "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+            "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
+            "x-mlrun-container-image": container_image,
+            "x-mlrun-name": nuclio_name,
+        },
+    )
+
+
+def _is_nuclio_deploy_status_changed(
+    previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
+) -> bool:
+    # get relevant fields from the new status
+    new_container_image = new_status.get("containerImage", "")
+    new_internal_invocation_urls = new_status.get("internalInvocationUrls", [])
+    new_external_invocation_urls = new_status.get("externalInvocationUrls", [])
+    address = new_external_invocation_urls[0] if new_external_invocation_urls else ""
+
+    # Determine if any of the relevant fields have changed
+    has_changed = (
+        previous_status.get("nuclio_name", "") != new_nuclio_name
+        or previous_status.get("state") != new_state
+        or previous_status.get("container_image", "") != new_container_image
+        or previous_status.get("internal_invocation_urls", [])
+        != new_internal_invocation_urls
+        or previous_status.get("external_invocation_urls", [])
+        != new_external_invocation_urls
+        or previous_status.get("address", "") != address
+    )
+    return has_changed

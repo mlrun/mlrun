@@ -25,7 +25,10 @@ import server.api.crud
 import server.api.main
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
-from tests.api.utils.clients.test_log_collector import BaseLogCollectorResponse
+from tests.api.utils.clients.test_log_collector import (
+    BaseLogCollectorResponse,
+    ListRunsResponse,
+)
 
 
 class TestCollectRunSLogs:
@@ -209,7 +212,7 @@ class TestCollectRunSLogs:
         assert len(runs) == 2
 
         # change mlrun config so that the old run will be considered as old
-        mlrun.config.config.runtime_resources_deletion_grace_period = 2
+        mlrun.mlconf.runtime_resources_deletion_grace_period = 2
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -266,8 +269,8 @@ class TestCollectRunSLogs:
         #         int(config.log_collector.failed_runs_grace_period)
         #         / int(config.log_collector.periodic_start_log_interval)
         #     )
-        mlrun.config.config.log_collector.failed_runs_grace_period = 20
-        mlrun.config.config.log_collector.periodic_start_log_interval = 10
+        mlrun.mlconf.log_collector.failed_runs_grace_period = 20
+        mlrun.mlconf.log_collector.periodic_start_log_interval = 10
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             side_effect=[
@@ -482,6 +485,9 @@ class TestCollectRunSLogs:
 
         run_uids = [run_uid for run_uid, _ in run_uids_to_state]
 
+        # the first run is not currently being log collected
+        run_uids_log_collected = run_uids[1:]
+
         # update requested logs field to True
         server.api.utils.singletons.db.get_db().update_runs_requested_logs(
             db, run_uids, True
@@ -492,24 +498,29 @@ class TestCollectRunSLogs:
             requested_logs_modes=[True],
             only_uids=False,
         )
-        assert len(runs) == 5
+        assert len(runs) == len(run_uids)
 
         log_collector._call = unittest.mock.AsyncMock(return_value=None)
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=ListRunsResponse(run_uids=run_uids_log_collected)
+        )
 
         await server.api.main._verify_log_collection_stopped_on_startup()
 
+        assert log_collector._call_stream.call_count == 1
+        assert log_collector._call_stream.call_args[0][0] == "ListRunsInProgress"
         assert log_collector._call.call_count == 1
         assert log_collector._call.call_args[0][0] == "StopLogs"
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
 
         # one of the runs is in running state
-        run_uids = run_uids[: len(run_uids) - 1]
-        assert len(stop_log_request.runUIDs) == len(run_uids)
+        expected_run_uids = run_uids_log_collected[:-1]
+        assert len(stop_log_request.runUIDs) == len(expected_run_uids)
         assert (
             deepdiff.DeepDiff(
                 list(stop_log_request.runUIDs),
-                run_uids,
+                expected_run_uids,
                 ignore_order=True,
             )
             == {}
@@ -517,7 +528,7 @@ class TestCollectRunSLogs:
 
         # update requested logs field to False for one run
         server.api.utils.singletons.db.get_db().update_runs_requested_logs(
-            db, [run_uids[0]], False
+            db, [run_uids[1]], False
         )
 
         runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
@@ -527,17 +538,26 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 4
 
+        # mock it again so the stream will run again
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=ListRunsResponse(run_uids=run_uids_log_collected)
+        )
+
         await server.api.main._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call.call_count == 2
         assert log_collector._call.call_args[0][0] == "StopLogs"
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
-        assert len(stop_log_request.runUIDs) == 3
+        assert len(stop_log_request.runUIDs) == 2
+
+        # the first run is not currently being log collected, second run has requested logs set to False
+        # and the last run is in running state
+        expected_run_uids = run_uids_log_collected[1:-1]
         assert (
             deepdiff.DeepDiff(
                 list(stop_log_request.runUIDs),
-                run_uids[1:],
+                expected_run_uids,
                 ignore_order=True,
             )
             == {}

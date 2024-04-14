@@ -115,7 +115,9 @@ class SparkHadoopTestBase(TestMLRunSystem):
         )
 
     def ds_upload_src(self, ds_profile, bucket):
-        store, _ = store_manager.get_or_create_store(f"ds://{ds_profile.name}/{bucket}")
+        store, _, _ = store_manager.get_or_create_store(
+            f"ds://{ds_profile.name}/{bucket}"
+        )
         store.upload(
             f"/bigdata/{self.pq_source}",
             os.path.relpath(str(self.get_assets_path() / self.pq_source)),

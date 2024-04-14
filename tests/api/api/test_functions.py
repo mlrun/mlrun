@@ -18,7 +18,6 @@ import unittest.mock
 from http import HTTPStatus
 from types import ModuleType
 
-import deepdiff
 import fastapi.testclient
 import httpx
 import kubernetes.client.rest
@@ -31,14 +30,15 @@ import mlrun.artifacts.model
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.model_monitoring.tracking_policy
 import server.api.api.endpoints.functions
+import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud
 import server.api.main
 import server.api.utils.builder
 import server.api.utils.clients.chief
 import server.api.utils.clients.iguazio
+import server.api.utils.functions
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 import tests.api.api.utils
@@ -87,6 +87,89 @@ def test_build_status_pod_not_found(
         },
     )
     assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+@pytest.mark.asyncio
+async def test_list_functions_with_pagination(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    """
+    Test list functions with pagination.
+    Create 25 functions, request the first page, then use token to request 2nd and 3rd pages.
+    3rd page will contain only 5 functions instead of 10.
+    The 4th request with the token will return 404 as the token is now expired.
+    Requesting the 4th page without token will return 0 functions.
+    """
+    await tests.api.api.utils.create_project_async(async_client, PROJECT)
+
+    number_of_functions = 25
+    page_size = 10
+    for counter in range(number_of_functions):
+        function_name = f"function-name-{counter}"
+        function = {
+            "kind": "job",
+            "metadata": {
+                "name": function_name,
+                "project": "project-name",
+                "tag": "function-tag",
+            },
+            "spec": {"image": "mlrun/mlrun"},
+        }
+
+        post_function_response = await async_client.post(
+            f"projects/{PROJECT}/functions/{function_name}",
+            json=function,
+        )
+
+        assert post_function_response.status_code == HTTPStatus.OK.value
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions",
+        params={
+            "page": 1,
+            "page-size": page_size,
+        },
+    )
+    _assert_pagination_info(response, 1, page_size, page_size, "function-name-0")
+    page_token = response.json()["pagination"]["page-token"]
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions",
+        params={
+            "page-token": page_token,
+        },
+    )
+    _assert_pagination_info(response, 2, page_size, page_size, "function-name-10")
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions",
+        params={
+            "page-token": page_token,
+        },
+    )
+    _assert_pagination_info(response, 3, 5, page_size, "function-name-20")
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions",
+        params={
+            "page-token": page_token,
+        },
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+def _assert_pagination_info(
+    response,
+    expected_page,
+    expected_results_count,
+    expected_page_size,
+    expected_first_result_name,
+):
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.json()["pagination"]["page"] == expected_page
+    assert response.json()["pagination"]["page-size"] == expected_page_size
+    assert len(response.json()["funcs"]) == expected_results_count
+    assert response.json()["funcs"][0]["metadata"]["name"] == expected_first_result_name
 
 
 @pytest.mark.asyncio
@@ -354,15 +437,15 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
         assert response.json() == expected_response
 
 
+@pytest.mark.usefixtures("httpserver", "k8s_secrets_mock")
 def test_tracking_on_serving(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    httpserver,
-    monkeypatch,
-    k8s_secrets_mock,
-):
-    """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
-    generated as expected when the user applies model monitoring on a serving function
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Validate that `.set_tracking()` configurations are applied to
+    a serving function for model monitoring.
     """
 
     # Generate a test project
@@ -381,7 +464,7 @@ def test_tracking_on_serving(
 
     functions_to_monkeypatch = {
         server.api.api.utils: ["apply_enrichment_and_validation_on_function"],
-        server.api.api.endpoints.functions: [
+        server.api.api.endpoints.nuclio: [
             "process_model_monitoring_secret",
             "create_model_monitoring_stream",
         ],
@@ -411,18 +494,6 @@ def test_tracking_on_serving(
 
     assert function_from_db["spec"]["track_models"]
 
-    tracking_policy_default = (
-        mlrun.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
-    )
-    assert (
-        deepdiff.DeepDiff(
-            tracking_policy_default,
-            function_from_db["spec"]["tracking_policy"],
-            ignore_order=True,
-        )
-        == {}
-    )
-
 
 def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions: list):
     """Monkey patching a provided list of functions. Each function will be converted into `unittest.mock.Mock()`"""
@@ -447,14 +518,14 @@ def test_build_function_with_mlrun_bool(
             "tag": "latest",
         },
     }
-    original_build_function = server.api.api.endpoints.functions._build_function
+    original_build_function = server.api.utils.functions.build_function
     for with_mlrun in [True, False]:
         request_body = {
             "function": function_dict,
             "with_mlrun": with_mlrun,
         }
         function = mlrun.new_function(runtime=function_dict)
-        server.api.api.endpoints.functions._build_function = unittest.mock.Mock(
+        server.api.utils.functions.build_function = unittest.mock.Mock(
             return_value=(function, True)
         )
         response = client.post(
@@ -462,11 +533,8 @@ def test_build_function_with_mlrun_bool(
             json=request_body,
         )
         assert response.status_code == HTTPStatus.OK.value
-        assert (
-            server.api.api.endpoints.functions._build_function.call_args[0][3]
-            == with_mlrun
-        )
-    server.api.api.endpoints.functions._build_function = original_build_function
+        assert server.api.utils.functions.build_function.call_args[0][3] == with_mlrun
+    server.api.utils.functions.build_function = original_build_function
 
 
 @pytest.mark.parametrize(
@@ -692,6 +760,39 @@ def test_build_no_access_key(
     assert response.status_code == expected_status_code
     if expected_reason:
         assert response.json()["detail"]["reason"] == expected_reason
+
+
+def test_build_clone_target_dir_backwards_compatability(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    clone_target_dir = "/some/path"
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "clone_target_dir": clone_target_dir,
+        },
+    }
+
+    monkeypatch.setattr(
+        server.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.json()["data"]["spec"]["clone_target_dir"] == clone_target_dir
 
 
 def test_start_function_succeeded(

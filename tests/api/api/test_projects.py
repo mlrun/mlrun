@@ -65,11 +65,11 @@ LIST_FUNCTION_API = "projects/{project}/functions"
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
-        mlrun.config.config.httpdb.projects.leader = "nop"
+        mlrun.mlconf.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
         server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
-        mlrun.config.config.httpdb.projects.leader = "mlrun"
+        mlrun.mlconf.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
@@ -677,9 +677,7 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.config.config.log_collector.mode = (
-        mlrun.common.schemas.LogsCollectorMode.sidecar
-    )
+    mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
     project_name = "project-name"
 
@@ -967,14 +965,26 @@ def test_delete_project_not_found_in_leader(
     mock_project_follower_iguazio_client,
     delete_api_version: str,
 ) -> None:
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+    archived_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="archived-project"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+        status=mlrun.common.schemas.ProjectStatus(
+            state=mlrun.common.schemas.ProjectState.archived
+        ),
+    )
+
+    online_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="online-project"),
         spec=mlrun.common.schemas.ProjectSpec(),
     )
 
-    response = unversioned_client.post("v1/projects", json=project.dict())
+    response = unversioned_client.post("v1/projects", json=archived_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project, response)
+    _assert_project_response(archived_project, response)
+
+    response = unversioned_client.post("v1/projects", json=online_project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(online_project, response)
 
     with unittest.mock.patch.object(
         mock_project_follower_iguazio_client,
@@ -982,14 +992,40 @@ def test_delete_project_not_found_in_leader(
         side_effect=mlrun.errors.MLRunNotFoundError("Project not found"),
     ):
         response = unversioned_client.delete(
-            f"{delete_api_version}/projects/{project.metadata.name}",
+            f"{delete_api_version}/projects/{archived_project.metadata.name}",
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
 
         response = unversioned_client.get(
-            f"v1/projects/{project.metadata.name}",
+            f"v1/projects/{archived_project.metadata.name}",
         )
         assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{online_project.metadata.name}",
+        )
+        if response.status_code == HTTPStatus.ACCEPTED.value:
+            assert delete_api_version == "v2"
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                background_task.metadata.name
+            )
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+            assert (
+                "Failed to delete project online-project. Project not found in leader, but it is not in archived state."
+                in background_task.status.error
+            )
+
+        else:
+            assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+        response = unversioned_client.get(
+            f"v1/projects/{online_project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.OK.value
 
 
 # Test should not run more than a few seconds because we test that if the background task fails,
@@ -1345,9 +1381,15 @@ def _assert_db_resources_in_project(
         # Label doesn't have project attribute
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
-            if cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags":
+            if (
                 # Artifact table is deprecated, we are using ArtifactV2 instead
+                cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
+            ) or (
+                # PaginationCache is not a project-level table
+                cls.__name__ == "PaginationCache"
+            ):
                 continue
+
             number_of_cls_records = (
                 db_session.query(cls).filter_by(project=project).count()
             )

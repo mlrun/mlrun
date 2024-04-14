@@ -291,6 +291,9 @@ class RemoteRuntime(KubeResource):
     def status(self, status):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
+    def pre_deploy_validation(self):
+        pass
+
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
@@ -540,11 +543,16 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo
+        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # todo: verify that the function name is normalized
+        if auth_info:
+            # TODO: remove in 1.9.0
+            warnings.warn(
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                FutureWarning,
+            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
@@ -567,9 +575,7 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(
-            self, False, builder_env=builder_env, force_build=force_build
-        )
+        data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -603,7 +609,6 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def _wait_for_function_deployment(self, db, verbose=False):
-        text = ""
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
@@ -611,7 +616,7 @@ class RemoteRuntime(KubeResource):
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
             try:
-                text, last_log_timestamp = db.get_builder_status(
+                text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
             except mlrun.db.RunDBError:
@@ -772,6 +777,9 @@ class RemoteRuntime(KubeResource):
                 mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key
         return runtime_env
+
+    def _get_serving_spec(self):
+        return None
 
     def _get_nuclio_config_spec_env(self):
         env_dict = {}
@@ -957,6 +965,53 @@ class RemoteRuntime(KubeResource):
         if resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
+
+    def with_sidecar(
+        self,
+        name: str = None,
+        image: str = None,
+        ports: typing.Optional[typing.Union[int, list[int]]] = None,
+        command: typing.Optional[str] = None,
+        args: typing.Optional[list[str]] = None,
+    ):
+        """
+        Add a sidecar container to the function pod
+        :param name:    Sidecar container name.
+        :param image:   Sidecar container image.
+        :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
+        :param command: Sidecar container command instead of the image entrypoint.
+        :param args:    Sidecar container command args (requires command to be set).
+        """
+        name = name or f"{self.metadata.name}-sidecar"
+        sidecar = self._set_sidecar(name)
+        if image:
+            sidecar["image"] = image
+
+        ports = mlrun.utils.helpers.as_list(ports)
+        sidecar["ports"] = [
+            {
+                "name": "http",
+                "containerPort": port,
+                "protocol": "TCP",
+            }
+            for port in ports
+        ]
+
+        if command:
+            sidecar["command"] = mlrun.utils.helpers.as_list(command)
+
+        if args:
+            sidecar["args"] = mlrun.utils.helpers.as_list(args)
+
+    def _set_sidecar(self, name: str) -> dict:
+        self.spec.config.setdefault("spec.sidecars", [])
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if sidecar["name"] == name:
+                return sidecar
+
+        sidecars.append({"name": name})
+        return sidecars[-1]
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

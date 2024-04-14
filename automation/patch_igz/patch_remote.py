@@ -17,6 +17,7 @@
 import io
 import json
 import logging
+import os
 import shlex
 import subprocess
 import typing
@@ -195,7 +196,7 @@ class MLRunPatcher:
                 "deployment",
                 "mlrun-api-chief",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -209,7 +210,7 @@ class MLRunPatcher:
                 "deployment",
                 "mlrun-api-worker",
                 "-p",
-                f"'{self._deploy_patch}'",
+                f"{self._deploy_patch}",
             ]
         )
 
@@ -308,17 +309,21 @@ class MLRunPatcher:
         )
 
     def _reset_mlrun_db(self):
-        curr_worker_replicas = self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "get",
-                "deployment",
-                "mlrun-api-worker",
-                "-o=jsonpath='{.spec.replicas}'",
-            ]
-        ).strip()
+        curr_worker_replicas = (
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "get",
+                    "deployment",
+                    "mlrun-api-worker",
+                    "-o=jsonpath='{.spec.replicas}'",
+                ]
+            )
+            .strip()
+            .strip("'")
+        )
         logger.info("Detected current worker replicas: %s", curr_worker_replicas)
 
         logger.info("Scaling down mlrun-api-chief")
@@ -391,6 +396,8 @@ class MLRunPatcher:
                 "exec",
                 "-it",
                 mlrun_db_pod,
+                "-c",
+                "mlrun-db",
                 "--",
                 "mysql",
                 "-u",
@@ -398,7 +405,7 @@ class MLRunPatcher:
                 "-S",
                 "/var/run/mysqld/mysql.sock",
                 "-e",
-                "'DROP DATABASE mlrun; CREATE DATABASE mlrun'",
+                "DROP DATABASE mlrun; CREATE DATABASE mlrun",
             ],
             live=True,
         )
@@ -441,6 +448,7 @@ class MLRunPatcher:
 
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):
+        env = os.environ | (env or {})
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env
         )

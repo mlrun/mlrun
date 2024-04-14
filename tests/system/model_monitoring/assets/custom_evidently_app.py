@@ -19,6 +19,7 @@ from uuid import UUID
 import pandas as pd
 from sklearn.datasets import load_iris
 
+import mlrun.common.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
@@ -49,6 +50,7 @@ if _HAS_EVIDENTLY:
         PlotType,
         ReportFilter,
     )
+    from evidently.ui.type_aliases import STR_UUID
     from evidently.ui.workspace import Workspace
 
     _PROJECT_NAME = "Iris Monitoring"
@@ -125,37 +127,37 @@ if _HAS_EVIDENTLY:
         project.save()
         return project
 
-    def create_demo_project(workspace_path: str) -> tuple[Workspace, Project]:
-        workspace = Workspace.create(workspace_path)
-        project = _create_evidently_project(workspace)
-        return workspace, project
-
 
 class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     NAME = "evidently-app-test"
 
-    def _lazy_init(self, *args, **kwargs) -> None:
-        super()._lazy_init(*args, **kwargs)
+    def __init__(
+        self,
+        evidently_workspace_path: str,
+        evidently_project_id: "STR_UUID",
+        with_training_set: bool,
+    ) -> None:
+        super().__init__(evidently_workspace_path, evidently_project_id)
         self._init_evidently_project()
-        self._init_iris_data()
+        self._init_iris_data(with_training_set)
 
-    def _init_iris_data(self) -> None:
+    def _init_iris_data(self, with_training_set: bool) -> None:
         iris = load_iris()
-        self.columns = [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]
+        if with_training_set:
+            self.columns = [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        else:
+            self.columns = [f"f{i}" for i in range(4)]
         self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
     def _init_evidently_project(self) -> None:
         if self.evidently_project is None:
             if isinstance(self.evidently_project_id, str):
                 self.evidently_project_id = UUID(self.evidently_project_id)
-            self.context.logger.info(
-                "Creating evidently project", id=self.evidently_project_id
-            )
             self.evidently_project = _create_evidently_project(
                 self.evidently_workspace, self.evidently_project_id
             )
@@ -163,8 +165,8 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         sample_df: pd.DataFrame,
         start_infer_time: pd.Timestamp,
         end_infer_time: pd.Timestamp,

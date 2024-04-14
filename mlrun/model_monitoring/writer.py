@@ -13,24 +13,23 @@
 # limitations under the License.
 
 import json
-from http import HTTPStatus
-
-from v3io.dataplane import Client as V3IOClient
+from typing import Any, NewType
 
 import mlrun.common.model_monitoring
+import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.model_monitoring
-import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring.constants import (
-    AppResultEvent,
-    FileTargetKind,
-    RawEvent,
-    ResultStatusApp,
-    WriterEvent,
-)
+import mlrun.model_monitoring.db.stores
+from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
+
+_TSDB_BE = "tsdb"
+_TSDB_RATE = "1/s"
+_TSDB_TABLE = "app-results"
+_RawEvent = dict[str, Any]
+_AppResultEvent = NewType("_AppResultEvent", _RawEvent)
 
 
 class _WriterEventError:
@@ -48,7 +47,7 @@ class _WriterEventTypeError(_WriterEventError, TypeError):
 class _Notifier:
     def __init__(
         self,
-        event: AppResultEvent,
+        event: _AppResultEvent,
         notification_pusher: CustomNotificationPusher,
         severity: NotificationSeverity = NotificationSeverity.WARNING,
     ) -> None:
@@ -99,79 +98,38 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(self, project: str) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-        self._v3io_container = self.get_v3io_container(self.name)
-        self._kv_client = self._get_v3io_client().kv
+
         self._custom_notifier = CustomNotificationPusher(
             notification_types=[NotificationKind.slack]
         )
-        self._kv_schemas = []
 
-    @staticmethod
-    def get_v3io_container(project_name: str) -> str:
-        return f"users/pipelines/{project_name}/monitoring-apps"
-
-    @staticmethod
-    def _get_v3io_client() -> V3IOClient:
-        return mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
+    def _update_kv_db(self, event: _AppResultEvent) -> None:
+        event = _AppResultEvent(event.copy())
+        application_result_store = mlrun.model_monitoring.get_store_object(
+            project=self.project
         )
+        application_result_store.write_application_result(event=event)
 
-    def _update_kv_db(self, event: AppResultEvent) -> None:
-        event = AppResultEvent(event.copy())
-        endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
-        app_name = event.pop(WriterEvent.APPLICATION_NAME)
-        metric_name = event.pop(WriterEvent.RESULT_NAME)
-        attributes = {metric_name: json.dumps(event)}
-        self._kv_client.update(
-            container=self._v3io_container,
-            table_path=endpoint_id,
-            key=app_name,
-            attributes=attributes,
-        )
-        if endpoint_id not in self._kv_schemas:
-            self._generate_kv_schema(endpoint_id)
-        logger.info("Updated V3IO KV successfully", key=app_name)
-
-    def _generate_kv_schema(self, endpoint_id: str):
-        """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
-        fields = [
-            {"name": WriterEvent.RESULT_NAME, "type": "string", "nullable": False}
-        ]
-        res = self._kv_client.create_schema(
-            container=self._v3io_container,
-            table_path=endpoint_id,
-            key=WriterEvent.APPLICATION_NAME,
-            fields=fields,
-        )
-        if res.status_code != HTTPStatus.OK.value:
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
-            )
-        else:
-            logger.info(
-                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
-            )
-            self._kv_schemas.append(endpoint_id)
-
-    def _update_tsdb(self, event: AppResultEvent) -> None:
+    def _update_tsdb(self, event: _AppResultEvent) -> None:
+        event = _AppResultEvent(event.copy())
         # TODO: remove create_table=True in 1.9.0 (backwards compatibility)
-        tsdb_store = mlrun.model_monitoring.get_tsdb_store(
+        tsdb_store = mlrun.model_monitoring.get_tsdb_target(
             project=self.project,
-            table=FileTargetKind.TSDB_APPLICATION_TABLE,
-            container=self._v3io_container,
+            table=mm_constants.TSDBTarget.APP_RESULTS_TABLE,
+            # container=self._v3io_container,
             create_table=True,
         )
 
         tsdb_store.write_application_event(event=event)
 
     @staticmethod
-    def _reconstruct_event(event: RawEvent) -> AppResultEvent:
+    def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
         """
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         try:
-            result_event = AppResultEvent(
+            result_event = _AppResultEvent(
                 {key: event[key] for key in WriterEvent.list()}
             )
             result_event[WriterEvent.CURRENT_STATS] = json.loads(
@@ -188,7 +146,7 @@ class ModelMonitoringWriter(StepToDict):
                 f"The event is of type: {type(event)}, expected a dictionary"
             ) from err
 
-    def do(self, event: RawEvent) -> None:
+    def do(self, event: _RawEvent) -> None:
         event = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
         self._update_tsdb(event)

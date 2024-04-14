@@ -15,10 +15,16 @@
 import hashlib
 from dataclasses import dataclass
 from enum import Enum, IntEnum
-from typing import Any, NewType, Optional
+from typing import Optional
 
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
+
+
+class MonitoringStrEnum(StrEnum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 class EventFieldType:
@@ -77,6 +83,20 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
+class FeatureSetFeatures(MonitoringStrEnum):
+    LATENCY = EventFieldType.LATENCY
+    ERROR_COUNT = EventFieldType.ERROR_COUNT
+    METRICS = EventFieldType.METRICS
+
+    @classmethod
+    def time_stamp(cls):
+        return EventFieldType.TIMESTAMP
+
+    @classmethod
+    def entity(cls):
+        return EventFieldType.ENDPOINT_ID
+
+
 class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     CURRENT_STATS = "current_stats"
@@ -89,7 +109,7 @@ class ApplicationEvent:
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent(StrEnum):
+class WriterEvent(MonitoringStrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
@@ -100,10 +120,6 @@ class WriterEvent(StrEnum):
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
     CURRENT_STATS = "current_stats"
-
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:
@@ -124,7 +140,6 @@ class EventKeyMetrics:
 
 class TimeSeriesTarget:
     TSDB = "tsdb"
-    V3IO_TSDB = "v3io-tsdb"
 
 
 class ModelEndpointTarget:
@@ -136,7 +151,7 @@ class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
-    KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
+    KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
 
 
@@ -147,6 +162,9 @@ class ModelMonitoringStoreKinds:
 
 class SchedulingKeys:
     LAST_ANALYZED = "last_analyzed"
+    ENDPOINT_ID = "endpoint_id"
+    APPLICATION_NAME = "application_name"
+    UID = "uid"
 
 
 class FileTargetKind:
@@ -156,8 +174,8 @@ class FileTargetKind:
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
-    MONITORING_APPS = "monitoring-apps"
-    TSDB_APPLICATION_TABLE = "app-results"
+    APP_RESULTS = "app_results"
+    MONITORING_SCHEDULES = "monitoring_schedules"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -180,20 +198,16 @@ class PrometheusMetric:
     DRIFT_STATUS = "drift_status"
 
 
-class MonitoringFunctionNames:
-    WRITER = "model-monitoring-writer"
-    BATCH = "model-monitoring-batch"
-    APPLICATION_CONTROLLER = "model-monitoring-controller"
-    STREAM = None
+class PrometheusEndpoints(MonitoringStrEnum):
+    MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
+    MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
+    MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
 
-    @staticmethod
-    def all():
-        return [
-            MonitoringFunctionNames.WRITER,
-            MonitoringFunctionNames.STREAM,
-            MonitoringFunctionNames.BATCH,
-            MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        ]
+
+class MonitoringFunctionNames(MonitoringStrEnum):
+    STREAM = "model-monitoring-stream"
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
+    WRITER = "model-monitoring-writer"
 
 
 @dataclass
@@ -294,6 +308,12 @@ class ControllerPolicy:
     BASE_PERIOD = "base_period"
 
 
-RawEvent = dict[str, Any]
-AppResultEvent = NewType("AppResultEvent", RawEvent)
+class TSDBTarget:
+    V3IO_TSDB = "v3io-tsdb"
+    PROMETHEUS = "prometheus"
+    APP_RESULTS_TABLE = "app-results"
+    V3IO_BE = "tsdb"
+    V3IO_RATE = "1/s"
+
+
 MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"

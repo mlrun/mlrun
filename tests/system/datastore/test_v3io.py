@@ -117,7 +117,8 @@ class TestV3ioDataStore(TestMLRunSystem):
             f.write(data)
         data_item = mlrun.run.get_dataitem(self._object_url)
         self._logger.debug(
-            f"test_v3io_large_object_upload - finished to write locally in {time.monotonic() - first_start_time} seconds"
+            f"test_v3io_large_object_upload - finished to write locally in {time.monotonic() - first_start_time} "
+            "seconds"
         )
         self._logger.debug(
             "Exercising the DataItem upload flow",

@@ -34,7 +34,7 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-@pytest.mark.parametrize("use_datastore_profile", [True])
+@pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestV3ioDataStore(TestMLRunSystem):
     test_dir = "/bigdata/v3io_tests"
     test_dir_url = f"v3io://{test_dir}"

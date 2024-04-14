@@ -1,7 +1,7 @@
 (using-mlrun)=
 # Using MLRun 
 
-```{div} full-width
+
 MLRun is an open MLOps platform for quickly building and managing continuous ML applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
@@ -12,15 +12,12 @@ This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks), and 
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
-```
-
-
 <a id="mlops-tasks"></a>
 ## MLOps tasks
 
-`````{div} full-width
+`````{div} 
 
-````{grid} 4
+````{grid} 4 
 :gutter: 2
 
 ```{grid-item-card} Project management and CI/CD automation
@@ -143,8 +140,6 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 MLRun includes the following major components:
 
-`````{div} full-width
-
 ````{grid} 6
 :gutter: 2
 
@@ -206,7 +201,7 @@ MLRun includes the following major components:
 
 **{ref}`Real-time monitoring <monitoring>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
-`````
+
 
 ```{toctree}
 :hidden:

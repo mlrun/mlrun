@@ -524,6 +524,91 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
         expected_uids.remove(run["metadata"]["uid"])
 
 
+def test_list_runs_with_pagination(db: Session, client: TestClient):
+    """
+    Test list runs with pagination.
+    Create 25 runs, request the first page, then use token to request 2nd and 3rd pages.
+    3rd page will contain only 5 runs instead of 10.
+    The 4th request with the token will return 404 as the token is now expired.
+    Requesting the 4th page without token will return 0 runs.
+    """
+    # Create runs
+    number_of_runs = 25
+    project = "my_project"
+    for counter in range(number_of_runs):
+        uid = f"uid_{counter}"
+        name = f"run_{counter}"
+        run = {
+            "metadata": {
+                "name": name,
+                "uid": uid,
+                "project": project,
+            },
+        }
+        server.api.crud.Runs().store_run(db, run, uid, project=project)
+
+    # Test pagination
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page": 1,
+            "page-size": 10,
+            "sort": True,
+        },
+        10,
+        project=project,
+    )
+    assert pagination["page"] == 1
+    assert pagination["page-size"] == 10
+    assert runs[0]["metadata"]["name"] == "run_24"
+
+    token = pagination["page-token"]
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page-token": token,
+        },
+        10,
+        project=project,
+    )
+    assert pagination["page"] == 2
+    assert pagination["page-size"] == 10
+    assert runs[0]["metadata"]["name"] == "run_14"
+
+    runs, pagination = _list_and_assert_objects(
+        client,
+        {
+            "page-token": token,
+        },
+        5,
+        project=project,
+    )
+    assert pagination["page"] == 3
+    assert pagination["page-size"] == 10
+    assert runs[0]["metadata"]["name"] == "run_4"
+
+    response = client.get(
+        RUNS_API_ENDPOINT.format(project=project),
+        params={
+            "page-token": token,
+        },
+    )
+    # token is expired
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "page": 4,
+            "page-size": 10,
+            "sort": True,
+        },
+        0,
+        project=project,
+    )
+    assert not runs
+
+
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
     server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.AsyncMock()
@@ -541,8 +626,8 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
 
     # delete runs from all projects
     second_project = "some-project2"
-    _store_run(db, uid=None, project=project)
-    _store_run(db, uid=None, project=second_project)
+    _store_run(db, uid=None, project=project, name="run-1")
+    _store_run(db, uid=None, project=second_project, name="run-2")
     all_runs = server.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
     response = client.delete(RUNS_API_ENDPOINT.format(project="*"))
@@ -857,9 +942,9 @@ def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
         assert background_task.status.error == "some error"
 
 
-def _store_run(db, uid, project="some-project"):
+def _store_run(db, uid, project="some-project", name="run-name"):
     run_with_nan_float = {
-        "metadata": {"name": "run-name"},
+        "metadata": {"name": name},
         "status": {"artifacts": [{"preview": [[0.0, float("Nan"), 1.3]]}]},
     }
     if not uid:
@@ -875,8 +960,17 @@ def _list_and_assert_objects(
     response = client.get(RUNS_API_ENDPOINT.format(project=project), params=params)
     assert response.status_code == HTTPStatus.OK.value, response.text
 
+    response_json = response.json()
     runs = response.json()["runs"]
     assert len(runs) == expected_number_of_runs
+
+    if (
+        "pagination" in response_json
+        and response_json["pagination"]
+        and response_json["pagination"]["page"]
+    ):
+        return runs, response_json["pagination"]
+
     return runs
 
 

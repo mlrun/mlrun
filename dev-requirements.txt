@@ -25,6 +25,7 @@ graphviz~=0.20.0
 nuclio-sdk>=0.5
 avro~=1.11
 sqlalchemy-utils~=0.39.0
+snowflake-connector-python~=3.7
 
 # frameworks tests
 scikit-learn~=1.4

@@ -24,8 +24,8 @@ MLRUN_ROOT_DIR = "/mlrun_tests"
 def is_databricks_configured(config_file_path=None):
     if not config_file_path:
         return all(os.environ.get(var) for var in MUST_HAVE_VARIABLES)
-    with config_file_path.open() as fp:
-        config = yaml.safe_load(fp)
+    with open(config_file_path) as yaml_file:
+        config = yaml.safe_load(yaml_file)
     return all(config["env"].get(key) for key in MUST_HAVE_VARIABLES)
 
 

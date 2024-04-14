@@ -107,13 +107,9 @@ def get_stream_pusher(stream_path: str, **kwargs):
     :param stream_path:        path/url of stream
     """
 
-    if stream_path.startswith("kafka://") or "kafka_bootstrap_servers" in kwargs:
-        topic, bootstrap_servers = parse_kafka_url(
-            stream_path, kwargs.get("kafka_bootstrap_servers")
-        )
-        return KafkaOutputStream(
-            topic, bootstrap_servers, kwargs.get("kafka_producer_options")
-        )
+    if stream_path.startswith("kafka://") or "kafka_brokers" in kwargs:
+        topic, brokers = parse_kafka_url(stream_path, kwargs.get("kafka_brokers"))
+        return KafkaOutputStream(topic, brokers, kwargs.get("kafka_producer_options"))
     elif stream_path.startswith("http://") or stream_path.startswith("https://"):
         return HTTPOutputStream(stream_path=stream_path)
     elif "://" not in stream_path:

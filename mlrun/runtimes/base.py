@@ -23,6 +23,7 @@ from typing import Callable, Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -634,7 +635,9 @@ class BaseRuntime(ModelObj):
         image = image or self.spec.image or ""
 
         image = enrich_image_url(image, client_version, client_python_version)
-        if not image.startswith("."):
+        if not image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
             return image
         registry, repository = get_parsed_docker_registry()
         if registry:
@@ -839,6 +842,12 @@ class BaseRuntime(ModelObj):
             or build.requirements
             or (build.source and not build.load_source_on_run)
         )
+
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        pass
 
     def prepare_image_for_deploy(self):
         """

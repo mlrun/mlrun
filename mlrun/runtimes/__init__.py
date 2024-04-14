@@ -155,6 +155,22 @@ class RuntimeKinds:
         ]
 
     @staticmethod
+    def pure_nuclio_deployed_runtimes():
+        return [
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
+        ]
+
+    @staticmethod
+    def handlerless_runtimes():
+        return [
+            RuntimeKinds.serving,
+            # Application runtime handler is internal reverse proxy
+            RuntimeKinds.application,
+        ]
+
+    @staticmethod
     def local_runtimes():
         return [
             RuntimeKinds.local,

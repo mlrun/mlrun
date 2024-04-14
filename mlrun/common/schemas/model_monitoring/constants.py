@@ -83,12 +83,6 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
-class MonitoringStrEnum(StrEnum):
-    @classmethod
-    def list(cls):
-        return list(map(lambda c: c.value, cls))
-
-
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
     ERROR_COUNT = EventFieldType.ERROR_COUNT
@@ -157,7 +151,7 @@ class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
-    KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
+    KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
 
 
@@ -210,18 +204,10 @@ class PrometheusEndpoints(MonitoringStrEnum):
     MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
 
 
-class MonitoringFunctionNames:
-    WRITER = "model-monitoring-writer"
-    APPLICATION_CONTROLLER = "model-monitoring-controller"
+class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
-
-    @staticmethod
-    def all():
-        return [
-            MonitoringFunctionNames.WRITER,
-            MonitoringFunctionNames.STREAM,
-            MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        ]
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
+    WRITER = "model-monitoring-writer"
 
 
 @dataclass

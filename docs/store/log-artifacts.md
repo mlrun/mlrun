@@ -53,9 +53,9 @@ project.log_artifact("plotly-art",
 ## Logging Plotly artifacts 
 This example illustrates using MLRun to convert and handle the object: 
 ```python
-# use mlrun to convert the python object
+# Use mlrun to convert the python object
 plotly_artifact = mlrun.artifacts.PlotlyArtifact(figure=fig, key="sin_x") 
-# log the artifact
+# Log the artifact
 context.log_artifact(plotly_artifact) 
 ```
 ## Logging directory artifacts 

@@ -25,6 +25,7 @@ from uuid import uuid4
 import deepdiff
 import fastapi.testclient
 import mergedeep
+import mlrun_pipelines.common.models
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -1640,9 +1641,9 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
 def _mock_pipelines(project_name):
     mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
-        mlrun.run.RunStatuses.running: 4,
-        mlrun.run.RunStatuses.succeeded: 3,
-        mlrun.run.RunStatuses.failed: 2,
+        mlrun_pipelines.common.models.RunStatuses.running: 4,
+        mlrun_pipelines.common.models.RunStatuses.succeeded: 3,
+        mlrun_pipelines.common.models.RunStatuses.failed: 2,
     }
     pipelines = []
     for status, count in status_count_map.items():
@@ -1651,4 +1652,4 @@ def _mock_pipelines(project_name):
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(None, None, pipelines)
     )
-    return status_count_map[mlrun.run.RunStatuses.running]
+    return status_count_map[mlrun_pipelines.common.models.RunStatuses.running]

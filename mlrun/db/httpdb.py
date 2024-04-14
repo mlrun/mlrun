@@ -14,7 +14,6 @@
 import enum
 import http
 import re
-import tempfile
 import time
 import traceback
 import typing
@@ -24,9 +23,9 @@ from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
 
-import kfp
 import requests
 import semver
+from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.schemas
@@ -45,7 +44,6 @@ from ..utils import (
     datetime_to_iso,
     dict_to_json,
     logger,
-    new_pipe_metadata,
     normalize_name,
     version,
 )
@@ -1631,14 +1629,11 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_metadata(
+            pipe_file = compile_pipeline(
                 artifact_path=artifact_path,
                 cleanup_ttl=cleanup_ttl,
-                op_transformers=ops,
-            )
-            kfp.compiler.Compiler().compile(
-                pipeline, pipe_file, type_check=False, pipeline_conf=conf
+                ops=ops,
+                pipeline=pipeline,
             )
 
         if pipe_file.endswith(".yaml"):

@@ -16,6 +16,7 @@ import os
 from unittest.mock import Mock
 
 import deepdiff
+import mlrun_pipelines.common.mounts
 import pytest
 import requests
 
@@ -111,15 +112,21 @@ def test_mount_v3io():
         {"remote": "~/custom-remote", "expect_failure": True},
         {
             "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path")
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                )
             ],
             "remote": "~/custom-remote",
             "expect_failure": True,
         },
         {
             "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
-                mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                ),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path-2", "volume-sub-path-2"
+                ),
             ],
             "remote": "~/custom-remote",
             "set_user": True,
@@ -150,8 +157,12 @@ def test_mount_v3io():
         },
         {
             "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
-                mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                ),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path-2", "volume-sub-path-2"
+                ),
             ],
             "set_user": True,
             "expected_volume": {

@@ -19,6 +19,7 @@ import typing
 
 import fastapi.concurrency
 import humanfriendly
+import mlrun_pipelines.common.models
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -400,7 +401,10 @@ class Projects(
             return collections.defaultdict(lambda: None)
 
         for pipeline in pipelines:
-            if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
+            if (
+                pipeline["status"]
+                not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+            ):
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
 

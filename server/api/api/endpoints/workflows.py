@@ -20,6 +20,7 @@ from http import HTTPStatus
 from typing import Dict, Optional
 
 import fastapi
+import mlrun_pipelines.common.models
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -217,7 +218,7 @@ async def submit_workflow(
                 workflow_request=updated_request,
                 auth_info=auth_info,
             )
-            status = mlrun.run.RunStatuses.running
+            status = mlrun_pipelines.common.models.RunStatuses.running
             run_uid = run.uid()
     except Exception as error:
         logger.error(traceback.format_exc())
@@ -231,7 +232,7 @@ async def submit_workflow(
     return mlrun.common.schemas.WorkflowResponse(
         project=project.metadata.name,
         name=workflow_spec.name,
-        status=status,
+        status=str(status),
         run_id=run_uid,
         schedule=workflow_spec.schedule,
     )

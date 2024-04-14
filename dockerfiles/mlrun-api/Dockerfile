@@ -65,7 +65,9 @@ ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 COPY . .
 
-RUN python -m pip install .[complete-api]
+RUN python -m pip install .[complete-api] &&\
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 VOLUME /mlrun/db
 
 CMD ["python",  "-m",  "server.api",  "db"]

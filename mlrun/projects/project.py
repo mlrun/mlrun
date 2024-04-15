@@ -2028,7 +2028,6 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-
         :param default_controller_image:        Deprecated.
         :param base_period:                     The time period in minutes in which the model monitoring controller
                                                 function is triggered. By default, the base period is 10 minutes.
@@ -2083,7 +2082,6 @@ class MlrunProject(ModelObj):
         :param image:                    The image of the model monitoring controller, writer & monitoring
                                          stream functions, which are real time nuclio functions.
                                          By default, the image is mlrun/mlrun.
-        :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(

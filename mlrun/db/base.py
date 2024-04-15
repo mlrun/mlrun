@@ -760,7 +760,7 @@ class RunDBInterface(ABC):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
+    ) -> None:
         pass
 
     @abstractmethod

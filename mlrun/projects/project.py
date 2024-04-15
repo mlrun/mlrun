@@ -1792,7 +1792,10 @@ class MlrunProject(ModelObj):
                 dataitem.remove_local()
 
                 return self.log_artifact(
-                    artifact, local_path=temp_dir, artifact_path=artifact_path
+                    artifact,
+                    local_path=temp_dir,
+                    artifact_path=artifact_path,
+                    upload=True,
                 )
 
         else:

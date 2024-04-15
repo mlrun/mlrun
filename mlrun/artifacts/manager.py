@@ -268,7 +268,8 @@ class ArtifactManager:
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
-            upload = False
+            if upload is None:
+                upload = False
 
         # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it
         # already exists. In this case set the target_path to the src_path and set upload to False

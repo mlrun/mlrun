@@ -21,6 +21,7 @@ from .api_gateway import (
     APIGatewayMetadata,
     APIGatewaysOutput,
     APIGatewaySpec,
+    APIGatewayState,
     APIGatewayStatus,
     APIGatewayUpstream,
 )
@@ -151,12 +152,14 @@ from .notification import (
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pagination import PaginationInfo
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOutput,
     ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,

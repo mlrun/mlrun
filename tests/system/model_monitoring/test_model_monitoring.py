@@ -1140,11 +1140,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         return model.uri
 
     def _wait_for_deployments(self) -> None:
-        for fn_name in [
-            mm_constants.MonitoringFunctionNames.STREAM,
-            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            mm_constants.MonitoringFunctionNames.WRITER,
-            mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+        for fn_name in mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
         ]:
             fn = self.project.get_function(key=fn_name)
             fn._wait_for_function_deployment(db=fn._get_db())

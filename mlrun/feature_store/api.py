@@ -136,7 +136,10 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+            vector,
+            entity_rows=trades,
+            entity_timestamp_column="time",
+            query="ticker in ['GOOG'] and bid>100",
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -307,7 +310,7 @@ def get_online_feature_service(
 
             Example::
 
-                svc = get_online_feature_service(vector_uri, entity_keys=['ticker'])
+                svc = get_online_feature_service(vector_uri, entity_keys=["ticker"])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)
@@ -456,7 +459,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun')
+        config = RunConfig(image="mlrun/mlrun")
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets
@@ -1121,9 +1124,10 @@ def _ingest_with_spark(
             df_to_write = target.prepare_spark_df(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
+            write_format = spark_options.pop("format", None)
             if overwrite:
                 write_spark_dataframe_with_options(
-                    spark_options, df_to_write, "overwrite"
+                    spark_options, df_to_write, "overwrite", write_format=write_format
                 )
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
@@ -1131,7 +1135,7 @@ def _ingest_with_spark(
                 df_to_write.persist()
                 if df_to_write.count() > 0:
                     write_spark_dataframe_with_options(
-                        spark_options, df_to_write, "append"
+                        spark_options, df_to_write, "append", write_format=write_format
                     )
             target.update_resource_status("ready")
 

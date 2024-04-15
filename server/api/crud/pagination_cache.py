@@ -19,7 +19,6 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import server.api.crud
 import server.api.utils.singletons.db
 from mlrun import mlconf
 

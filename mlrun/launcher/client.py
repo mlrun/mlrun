@@ -47,7 +47,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         If build is needed, set the image as the base_image for the build.
         If image is not given set the default one.
         """
-        if runtime.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        if runtime.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
             return
 
         require_build = runtime.requires_build()
@@ -129,7 +129,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             logger.info("no returned result (job may still be in progress)")
             results_tbl.append(run.to_dict())
 
-        if mlrun.utils.is_ipython and mlrun.config.config.ipython_widget:
+        if mlrun.utils.is_ipython and mlrun.mlconf.ipython_widget:
             results_tbl.show()
             print()
             ui_url = mlrun.utils.get_ui_url(project, uid)

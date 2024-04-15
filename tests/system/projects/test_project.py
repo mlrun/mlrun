@@ -165,7 +165,7 @@ class TestProject(TestMLRunSystem):
         # build function with image that has a protocol prefix
         self.project.build_function(
             fn,
-            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            image=f"https://{mlrun.mlconf.httpdb.builder.docker_registry}/test/image:v3",
             base_image="mlrun/mlrun",
             commands=["echo 1"],
         )

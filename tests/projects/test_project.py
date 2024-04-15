@@ -29,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring as mm_consts
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -49,53 +50,6 @@ def context():
 
 def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
-
-
-class RemoteBuilderMock:
-    kind = "http"
-
-    def __init__(self):
-        def _remote_builder_handler(
-            func,
-            with_mlrun,
-            mlrun_version_specifier=None,
-            skip_deployed=False,
-            builder_env=None,
-            force_build=False,
-        ):
-            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
-            # it overrides the mock args - this way the value will remain as it was.
-            return {
-                "ready": True,
-                "data": {
-                    "spec": {
-                        "clone_target_dir": func.spec.clone_target_dir,
-                    },
-                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
-                },
-            }
-
-        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
-
-    def get_build_config_and_target_dir(self):
-        self.remote_builder.assert_called_once()
-        call_args = self.remote_builder.call_args
-
-        build_runtime = call_args.args[0]
-        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
-
-
-@pytest.fixture
-def remote_builder_mock(monkeypatch):
-    builder_mock = RemoteBuilderMock()
-
-    monkeypatch.setattr(
-        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
-    )
-    monkeypatch.setattr(
-        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
-    )
-    return builder_mock
 
 
 def test_sync_functions(rundb_mock):
@@ -1474,7 +1428,7 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
 
 
 def test_get_or_create_project_no_db():
-    mlrun.config.config.dbpath = ""
+    mlrun.mlconf.dbpath = ""
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name
@@ -1726,11 +1680,14 @@ def test_create_api_gateway_valid(
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
             path="/",
-            host="http://gateway-f1-f2-project-name.some-domain.com",
+            host="gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
             authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
             if not with_basic_auth
             else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        ),
+        status=mlrun.common.schemas.APIGatewayStatus(
+            state=mlrun.common.schemas.APIGatewayState.ready,
         ),
     )
     project_name = "project-name"
@@ -1765,7 +1722,7 @@ def test_create_api_gateway_valid(
 
     gateway = project.store_api_gateway(api_gateway)
 
-    assert gateway.invoke_url == "http://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if with_basic_auth:
         assert gateway.authentication.authentication_mode == "basicAuth"
     else:
@@ -2128,15 +2085,10 @@ class TestModelMonitoring:
         [
             (
                 True,
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list()
-                + [
-                    mlrun.common.schemas.model_monitoring.constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
-                ],
+                mm_consts.constants.MonitoringFunctionNames.list()
+                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
             ),
-            (
-                False,
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list(),
-            ),
+            (False, mm_consts.constants.MonitoringFunctionNames.list()),
         ],
     )
     def test_disable(

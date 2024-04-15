@@ -34,7 +34,7 @@ dependency-injector~=4.41
 # should be identical to gcs and s3fs.
 fsspec>=2023.9.2, <2024.4
 v3iofs~=0.1.17
-storey~=1.7.6
+storey~=1.7.7
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above

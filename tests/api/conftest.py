@@ -64,6 +64,7 @@ def api_config_test():
     server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
+    server.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
 
     # we need to override the run db container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed
@@ -181,7 +182,7 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config.iguazio_api_url = api_url
+    mlrun.mlconf.iguazio_api_url = api_url
     return api_url
 
 
@@ -424,7 +425,7 @@ def mock_project_follower_iguazio_client(
     """
     This fixture mocks the project leader iguazio client.
     """
-    mlrun.config.config.httpdb.projects.leader = "iguazio"
+    mlrun.mlconf.httpdb.projects.leader = "iguazio"
     mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
     old_iguazio_client = server.api.utils.clients.iguazio.Client
     server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient

@@ -628,7 +628,7 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         response = self._session.request(
-            method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs
+            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
             try:

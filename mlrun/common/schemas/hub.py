@@ -59,28 +59,26 @@ class HubSource(BaseModel):
         return f"{self.spec.path}/{self.spec.object_type}/{self.spec.channel}/{relative_path}"
 
     def get_catalog_uri(self):
-        return self.get_full_uri(mlrun.config.config.hub.catalog_filename)
+        return self.get_full_uri(mlrun.mlconf.hub.catalog_filename)
 
     @classmethod
     def generate_default_source(cls):
-        if not mlrun.config.config.hub.default_source.create:
+        if not mlrun.mlconf.hub.default_source.create:
             return None
 
         now = datetime.now(timezone.utc)
         hub_metadata = HubObjectMetadata(
-            name=mlrun.config.config.hub.default_source.name,
-            description=mlrun.config.config.hub.default_source.description,
+            name=mlrun.mlconf.hub.default_source.name,
+            description=mlrun.mlconf.hub.default_source.description,
             created=now,
             updated=now,
         )
         return cls(
             metadata=hub_metadata,
             spec=HubSourceSpec(
-                path=mlrun.config.config.hub.default_source.url,
-                channel=mlrun.config.config.hub.default_source.channel,
-                object_type=HubSourceType(
-                    mlrun.config.config.hub.default_source.object_type
-                ),
+                path=mlrun.mlconf.hub.default_source.url,
+                channel=mlrun.mlconf.hub.default_source.channel,
+                object_type=HubSourceType(mlrun.mlconf.hub.default_source.object_type),
             ),
             status=ObjectStatus(state="created"),
         )

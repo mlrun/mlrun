@@ -973,6 +973,72 @@ class SQLRunDB(RunDBInterface):
     ) -> "mlrun.common.schemas.WorkflowResponse":
         raise NotImplementedError()
 
+    def remote_builder(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        raise NotImplementedError()
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def set_run_notifications(
+        self,
+        project: str,
+        runs: list[mlrun.model.RunObject],
+        notifications: list[mlrun.model.Notification],
+    ):
+        raise NotImplementedError()
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        raise NotImplementedError()
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        raise NotImplementedError
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
+
     def _transform_db_error(self, func, *args, **kwargs):
         try:
             return func(*args, **kwargs)

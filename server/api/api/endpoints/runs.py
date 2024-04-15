@@ -24,9 +24,9 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
+import server.api.utils.pagination
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
-from mlrun.utils.helpers import datetime_from_iso
 from server.api.api import deps
 from server.api.api.utils import log_and_raise
 
@@ -213,6 +213,9 @@ async def list_runs(
     ),
     max_partitions: int = Query(0, alias="max-partitions", ge=0),
     with_notifications: bool = Query(False, alias="with-notifications"),
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -223,60 +226,49 @@ async def list_runs(
             auth_info,
         )
 
-    if (
-        not name
-        and not uid
-        and not labels
-        and not state
-        and not last
-        and not start_time_from
-        and not start_time_to
-        and not last_update_time_from
-        and not last_update_time_to
-        and not partition_by
-        and not partition_sort_by
-        and not iter
-    ):
-        # default to last week on no filter
-        start_time_from = (
-            datetime.datetime.now() - datetime.timedelta(days=7)
-        ).isoformat()
-        partition_by = mlrun.common.schemas.RunPartitionByField.name
-        partition_sort_by = mlrun.common.schemas.SortField.updated
+    paginator = server.api.utils.pagination.Paginator()
 
-    runs = await run_in_threadpool(
-        server.api.crud.Runs().list_runs,
+    async def _filter_runs(_runs):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            _runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
+
+    runs, page_info = await paginator.paginate_permission_filtered_request(
         db_session,
-        name,
-        uid,
-        project,
-        labels,
-        [state] if state is not None else None,
-        sort,
-        last,
-        iter,
-        datetime_from_iso(start_time_from),
-        datetime_from_iso(start_time_to),
-        datetime_from_iso(last_update_time_from),
-        datetime_from_iso(last_update_time_to),
-        partition_by,
-        rows_per_partition,
-        partition_sort_by,
-        partition_order,
-        max_partitions,
+        server.api.crud.Runs().list_runs,
+        _filter_runs,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        name=name,
+        uid=uid,
+        project=project,
+        labels=labels,
+        state=state,
+        sort=sort,
+        last=last,
+        iter=iter,
+        start_time_from=start_time_from,
+        start_time_to=start_time_to,
+        last_update_time_from=last_update_time_from,
+        last_update_time_to=last_update_time_to,
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
+        max_partitions=max_partitions,
         with_notifications=with_notifications,
     )
-    filtered_runs = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.run,
-        runs,
-        lambda run: (
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            run.get("metadata", {}).get("uid"),
-        ),
-        auth_info,
-    )
     return {
-        "runs": filtered_runs,
+        "runs": runs,
+        "pagination": page_info,
     }
 
 
@@ -321,7 +313,7 @@ async def delete_runs(
             name,
             project=project,
             labels=labels,
-            states=[state] if state is not None else None,
+            state=state,
             start_time_from=start_time_from,
             return_as_run_structs=False,
         )

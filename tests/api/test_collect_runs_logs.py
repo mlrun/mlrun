@@ -212,7 +212,7 @@ class TestCollectRunSLogs:
         assert len(runs) == 2
 
         # change mlrun config so that the old run will be considered as old
-        mlrun.config.config.runtime_resources_deletion_grace_period = 2
+        mlrun.mlconf.runtime_resources_deletion_grace_period = 2
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -269,8 +269,8 @@ class TestCollectRunSLogs:
         #         int(config.log_collector.failed_runs_grace_period)
         #         / int(config.log_collector.periodic_start_log_interval)
         #     )
-        mlrun.config.config.log_collector.failed_runs_grace_period = 20
-        mlrun.config.config.log_collector.periodic_start_log_interval = 10
+        mlrun.mlconf.log_collector.failed_runs_grace_period = 20
+        mlrun.mlconf.log_collector.periodic_start_log_interval = 10
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             side_effect=[

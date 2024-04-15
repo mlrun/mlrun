@@ -15,14 +15,9 @@
 from typing import Callable, Union
 
 import numpy as np
-import semver
 import tensorflow as tf
 from tensorflow import Tensor, Variable
-
-if semver.VersionInfo.parse(tf.__version__) < semver.VersionInfo(2, 6):
-    from tensorflow.keras.callbacks import Callback
-else:
-    from keras.callbacks import Callback
+from tensorflow.python.keras.callbacks import Callback
 
 import mlrun
 

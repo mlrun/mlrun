@@ -552,9 +552,9 @@ def get_model(model_dir, suffix=""):
 
     example::
 
-        model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
+        model_file, model_artifact, extra_data = get_model(models_path, suffix=".pkl")
         model = load(open(model_file, "rb"))
-        categories = extra_data['categories'].as_df()
+        categories = extra_data["categories"].as_df()
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
@@ -663,8 +663,11 @@ def update_model(
 
     example::
 
-        update_model(model_path, metrics={'speed': 100},
-                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+        update_model(
+            model_path,
+            metrics={"speed": 100},
+            extra_data={"my_data": b"some text", "file": "s3://mybucket/.."},
+        )
 
     :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict

@@ -140,11 +140,15 @@ def new_project(
     example::
 
         # create a project with local and hub functions, a workflow, and an artifact
-        project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
-        project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://auto-trainer', 'train')
-        project.set_artifact('data', Artifact(target_path=data_url))
-        project.set_workflow('main', "./myflow.py")
+        project = mlrun.new_project(
+            "myproj", "./", init_git=True, description="my new project"
+        )
+        project.set_function(
+            "prep_data.py", "prep-data", image="mlrun/mlrun", handler="prep_data"
+        )
+        project.set_function("hub://auto-trainer", "train")
+        project.set_artifact("data", Artifact(target_path=data_url))
+        project.set_workflow("main", "./myflow.py")
         project.save()
 
         # run the "main" workflow (watch=True to wait for run completion)
@@ -154,19 +158,25 @@ def new_project(
 
         # create a new project from a zip template (can also use yaml/git templates)
         # initialize a local git, and register the git remote path
-        project = mlrun.new_project("myproj", "./", init_git=True,
-                                    remote="git://github.com/mlrun/project-demo.git",
-                                    from_template="http://mysite/proj.zip")
+        project = mlrun.new_project(
+            "myproj",
+            "./",
+            init_git=True,
+            remote="git://github.com/mlrun/project-demo.git",
+            from_template="http://mysite/proj.zip",
+        )
         project.run("main", watch=True)
 
 
     example using project_setup.py to init the project objects::
 
             def setup(project):
-                project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-                project.set_function('hub://auto-trainer', 'train')
-                project.set_artifact('data', Artifact(target_path=data_url))
-                project.set_workflow('main', "./myflow.py")
+                project.set_function(
+                    "prep_data.py", "prep-data", image="mlrun/mlrun", handler="prep_data"
+                )
+                project.set_function("hub://auto-trainer", "train")
+                project.set_artifact("data", Artifact(target_path=data_url))
+                project.set_workflow("main", "./myflow.py")
                 return project
 
 
@@ -298,7 +308,7 @@ def load_project(
         # When using git as the url source the context directory must be an empty or
         # non-existent folder as the git repo will be cloned there
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
-        project.run("main", arguments={'data': data_url})
+        project.run("main", arguments={"data": data_url})
 
 
     project_setup.py example::
@@ -437,9 +447,11 @@ def get_or_create_project(
     Usage example::
 
         # load project from the DB (if exist) or the source repo
-        project = get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
+        project = get_or_create_project(
+            "myproj", "./", "git://github.com/mlrun/demo-xgb-project.git"
+        )
         project.pull("development")  # pull the latest code from git
-        project.run("main", arguments={'data': data_url})  # run the workflow "main"
+        project.run("main", arguments={"data": data_url})  # run the workflow "main"
 
 
     project_setup.py example::
@@ -1344,13 +1356,15 @@ class MlrunProject(ModelObj):
         example::
 
             # register a simple file artifact
-            project.set_artifact('data', target_path=data_url)
+            project.set_artifact("data", target_path=data_url)
             # register a model artifact
-            project.set_artifact('model', ModelArtifact(model_file="model.pkl"), target_path=model_dir_url)
+            project.set_artifact(
+                "model", ModelArtifact(model_file="model.pkl"), target_path=model_dir_url
+            )
 
             # register a path to artifact package (will be imported on project load)
             # to generate such package use `artifact.export(target_path)`
-            project.set_artifact('model', 'https://mystuff.com/models/mymodel.zip')
+            project.set_artifact("model", "https://mystuff.com/models/mymodel.zip")
 
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object/dict (or its subclasses) or path to artifact
@@ -1569,7 +1583,9 @@ class MlrunProject(ModelObj):
                 "age": [42, 52, 36, 24, 73],
                 "testScore": [25, 94, 57, 62, 70],
             }
-            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            df = pd.DataFrame(
+                raw_data, columns=["first_name", "last_name", "age", "testScore"]
+            )
             project.log_dataset("mydf", df=df, stats=True)
 
         :param key:           artifact key
@@ -1643,13 +1659,16 @@ class MlrunProject(ModelObj):
 
         example::
 
-            project.log_model("model", body=dumps(model),
-                              model_file="model.pkl",
-                              metrics=context.results,
-                              training_set=training_df,
-                              label_column='label',
-                              feature_vector=feature_vector_uri,
-                              labels={"app": "fraud"})
+            project.log_model(
+                "model",
+                body=dumps(model),
+                model_file="model.pkl",
+                metrics=context.results,
+                training_set=training_df,
+                label_column="label",
+                feature_vector=feature_vector_uri,
+                labels={"app": "fraud"},
+            )
 
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
@@ -1898,8 +1917,9 @@ class MlrunProject(ModelObj):
         Create a monitoring function object without setting it to the project
 
         examples::
-            project.create_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.create_model_monitoring_function(
+                application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
+            )
 
         :param func:                    Code url, None refers to current Notebook
         :param name:                    Name of the function, can be specified with a tag to support
@@ -2114,19 +2134,20 @@ class MlrunProject(ModelObj):
         examples::
 
             proj.set_function(func_object)
-            proj.set_function('./src/mycode.py', 'ingest',
-                              image='myrepo/ing:latest', with_repo=True)
-            proj.set_function('http://.../mynb.ipynb', 'train')
-            proj.set_function('./func.yaml')
-            proj.set_function('hub://get_toy_data', 'getdata')
+            proj.set_function(
+                "./src/mycode.py", "ingest", image="myrepo/ing:latest", with_repo=True
+            )
+            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function("./func.yaml")
+            proj.set_function("hub://get_toy_data", "getdata")
 
             # set function requirements
 
             # by providing a list of packages
-            proj.set_function('my.py', requirements=["requests", "pandas"])
+            proj.set_function("my.py", requirements=["requests", "pandas"])
 
             # by providing a path to a pip requirements file
-            proj.set_function('my.py', requirements="requirements.txt")
+            proj.set_function("my.py", requirements="requirements.txt")
 
         :param func:                Function object or spec/code url, None refers to current Notebook
         :param name:                Name of the function (under the project), can be specified with a tag to support
@@ -2604,9 +2625,9 @@ class MlrunProject(ModelObj):
 
         read secrets from a source provider to be used in workflows, example::
 
-            proj.with_secrets('file', 'file.txt')
-            proj.with_secrets('inline', {'key': 'val'})
-            proj.with_secrets('env', 'ENV1,ENV2', prefix='PFX_')
+            proj.with_secrets("file", "file.txt")
+            proj.with_secrets("inline", {"key": "val"})
+            proj.with_secrets("env", "ENV1,ENV2", prefix="PFX_")
 
         Vault secret source has several options::
 
@@ -2617,7 +2638,7 @@ class MlrunProject(ModelObj):
         The 2nd option uses the current project name as context.
         Can also use empty secret list::
 
-            proj.with_secrets('vault', [])
+            proj.with_secrets("vault", [])
 
         This will enable access to all secrets in vault registered to the current project.
 
@@ -2655,8 +2676,8 @@ class MlrunProject(ModelObj):
         example secrets file::
 
             # this is an env file
-            AWS_ACCESS_KEY_ID-XXXX
-            AWS_SECRET_ACCESS_KEY=YYYY
+            AWS_ACCESS_KEY_ID = XXXX
+            AWS_SECRET_ACCESS_KEY = YYYY
 
         usage::
 
@@ -3033,8 +3054,11 @@ class MlrunProject(ModelObj):
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})
-            run2 = project.run_function("train", params={"label_columns": LABELS},
-                                                 inputs={"dataset":run1.outputs["data"]})
+            run2 = project.run_function(
+                "train",
+                params={"label_columns": LABELS},
+                inputs={"dataset": run1.outputs["data"]},
+            )
 
         :param function:        name of the function (in the project) or function object
         :param handler:         name of the function handler
@@ -3422,9 +3446,9 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all artifacts in project
-            latest_artifacts = project.list_artifacts('', tag='latest')
+            latest_artifacts = project.list_artifacts("", tag="latest")
             # check different artifact versions for a specific artifact, return as objects list
-            result_versions = project.list_artifacts('results', tag='*').to_objects()
+            result_versions = project.list_artifacts("results", tag="*").to_objects()
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
             case-sensitive. This means that querying for ``~name`` may return artifacts named
@@ -3474,7 +3498,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all models in project
-            latest_models = project.list_models('', tag='latest')
+            latest_models = project.list_models("", tag="latest")
 
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
@@ -3579,14 +3603,14 @@ class MlrunProject(ModelObj):
         Example::
 
             # return a list of runs matching the name and label and compare
-            runs = project.list_runs(name='download', labels='owner=admin')
+            runs = project.list_runs(name="download", labels="owner=admin")
             runs.compare()
 
             # multi-label filter can also be provided
-            runs = project.list_runs(name='download', labels=["kind=job", "owner=admin"])
+            runs = project.list_runs(name="download", labels=["kind=job", "owner=admin"])
 
             # If running in Jupyter, can use the .show() function to display the results
-            project.list_runs(name='').show()
+            project.list_runs(name="").show()
 
 
         :param name: Name of the run to retrieve.

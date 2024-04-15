@@ -406,12 +406,17 @@ class BigQuerySource(BaseSourceDriver):
 
          # use sql query
          query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
-         source = BigQuerySource("bq1", query=query_string,
-                                 gcp_project="my_project",
-                                 materialization_dataset="dataviews")
+         source = BigQuerySource(
+             "bq1",
+             query=query_string,
+             gcp_project="my_project",
+             materialization_dataset="dataviews",
+         )
 
          # read a table
-         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+         source = BigQuerySource(
+             "bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project"
+         )
 
 
     :parameter name: source name

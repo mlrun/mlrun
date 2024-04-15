@@ -63,11 +63,11 @@ class V2ModelServer(StepToDict):
             class MyClass(V2ModelServer):
                 def load(self):
                     # load and initialize the model and/or other elements
-                    model_file, extra_data = self.get_model(suffix='.pkl')
+                    model_file, extra_data = self.get_model(suffix=".pkl")
                     self.model = load(open(model_file, "rb"))
 
                 def predict(self, request):
-                    events = np.array(request['inputs'])
+                    events = np.array(request["inputs"])
                     dmatrix = xgb.DMatrix(events)
                     result: xgb.DMatrix = self.model.predict(dmatrix)
                     return {"outputs": result.tolist()}
@@ -176,9 +176,9 @@ class V2ModelServer(StepToDict):
         ::
 
             def load(self):
-                model_file, extra_data = self.get_model(suffix='.pkl')
+                model_file, extra_data = self.get_model(suffix=".pkl")
                 self.model = load(open(model_file, "rb"))
-                categories = extra_data['categories'].as_df()
+                categories = extra_data["categories"].as_df()
 
         Parameters
         ----------

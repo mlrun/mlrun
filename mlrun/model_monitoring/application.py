@@ -93,13 +93,18 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 endpoint_id: str,
                 output_stream_uri: str,
             ) -> ModelMonitoringApplicationResult:
-                self.context.log_artifact(TableArtifact("sample_df_stats", df=self.dict_to_histogram(sample_df_stats)))
+                self.context.log_artifact(
+                    TableArtifact(
+                        "sample_df_stats", df=self.dict_to_histogram(sample_df_stats)
+                    )
+                )
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
                     kind=mm_constant.ResultKindApp.data_drift,
                     status=mm_constant.ResultStatusApp.detected,
                 )
+
 
         # mlrun: end-code
     """

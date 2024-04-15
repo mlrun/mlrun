@@ -19,10 +19,23 @@ You can apply this method to the project object or the context object when loggi
 Each object type requires a different way to convert it for logging the object to a file. This is just an example of one type.
 ```
 To log an artifacts file, specify the local file path to the file using the `local_path`, or use the `body` to dump the object content.
+
+**Log with body**
 ```python
     project.log_artifact(
         "some-data",
         body=b"abc is 123",
+        format="txt",
+        labels={"Test": "label-test"},
+    )
+```
+**Log with local path**
+```python
+    with open("file.txt","w") as f:
+        f.write("abc is 123")
+    
+    project.log_artifact(
+        "file-example",
         local_path="file.txt",
         labels={"Test": "label-test"},
     )

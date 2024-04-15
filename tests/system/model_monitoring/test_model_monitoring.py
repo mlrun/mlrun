@@ -826,13 +826,9 @@ class TestBatchDrift(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
 
-        controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
-        )
-
-        controller._wait_for_function_deployment(db=controller._get_db())
         # Generate a dataframe that will be written as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
         infer_results_df = pd.DataFrame(
@@ -1139,13 +1135,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         )
         return model.uri
 
-    def _wait_for_deployments(self) -> None:
-        for fn_name in mm_constants.MonitoringFunctionNames.list() + [
-            mm_constants.HistogramDataDriftApplicationConstants.NAME
-        ]:
-            fn = self.project.get_function(key=fn_name)
-            fn._wait_for_function_deployment(db=fn._get_db())
-
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
         tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
@@ -1175,9 +1164,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
-
-        self._wait_for_deployments()
 
         model_uri = self._log_model()
 

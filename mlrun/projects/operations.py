@@ -95,8 +95,11 @@ def run_function(
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
         DATA_PATH = "s3://bigdata/data.parquet"
         function = mlrun.import_function("hub://auto-trainer")
-        run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
-                                      inputs={"dataset": DATA_PATH})
+        run1 = run_function(
+            function,
+            params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+            inputs={"dataset": DATA_PATH},
+        )
 
     example (use with project)::
 
@@ -115,8 +118,12 @@ def run_function(
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url}, outputs=["data"])
-            run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
-                                         inputs={"dataset": run1.outputs["data"]})
+            run2 = run_function(
+                "train",
+                params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                inputs={"dataset": run1.outputs["data"]},
+            )
+
 
         project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 

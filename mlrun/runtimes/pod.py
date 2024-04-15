@@ -1278,9 +1278,9 @@ class KubeResource(BaseRuntime):
             from kubernetes import client as k8s_client
 
             security_context = k8s_client.V1SecurityContext(
-                        run_as_user=1000,
-                        run_as_group=3000,
-                    )
+                run_as_user=1000,
+                run_as_group=3000,
+            )
             function.with_security_context(security_context)
 
         More info:

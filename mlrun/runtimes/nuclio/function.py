@@ -345,17 +345,21 @@ class RemoteRuntime(KubeResource):
 
             git::
 
-                fn.with_source_archive("git://github.com/org/repo#my-branch",
-                        handler="main:handler",
-                        workdir="path/inside/repo")
+                fn.with_source_archive(
+                    "git://github.com/org/repo#my-branch",
+                    handler="main:handler",
+                    workdir="path/inside/repo",
+                )
 
             s3::
 
                 fn.spec.nuclio_runtime = "golang"
-                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                fn.with_source_archive(
+                    "s3://my-bucket/path/in/bucket/my-functions-archive",
                     handler="my_func:Handler",
                     workdir="path/inside/functions/archive",
-                    runtime="golang")
+                    runtime="golang",
+                )
         """
         self.spec.build.source = source
         # update handler in function_handler

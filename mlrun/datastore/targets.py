@@ -1539,8 +1539,9 @@ class KafkaTarget(BaseStoreTarget):
                 # TODO: Remove this in 1.9.0
                 FutureWarning,
             )
-        if bootstrap_servers is not None:
-            attrs["brokers"] = brokers or bootstrap_servers
+            brokers = brokers or bootstrap_servers
+        if brokers:
+            attrs["brokers"] = brokers
         if producer_options is not None:
             attrs["producer_options"] = producer_options
 

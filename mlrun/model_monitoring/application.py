@@ -93,13 +93,18 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 endpoint_id: str,
                 output_stream_uri: str,
             ) -> ModelMonitoringApplicationResult:
-                self.context.log_artifact(TableArtifact("sample_df_stats", df=self.dict_to_histogram(sample_df_stats)))
+                self.context.log_artifact(
+                    TableArtifact(
+                        "sample_df_stats", df=self.dict_to_histogram(sample_df_stats)
+                    )
+                )
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
                     kind=mm_constant.ResultKindApp.data_drift,
                     status=mm_constant.ResultStatusApp.detected,
                 )
+
 
         # mlrun: end-code
     """
@@ -203,7 +208,11 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
             json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS]),
             ParquetTarget(
                 path=event[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
-            ).as_df(start_time=start_time, end_time=end_time, time_column="timestamp"),
+            ).as_df(
+                start_time=start_time,
+                end_time=end_time,
+                time_column=mm_constant.FeatureSetFeatures.time_stamp(),
+            ),
             start_time,
             end_time,
             pd.Timestamp(event[mm_constant.ApplicationEvent.LAST_REQUEST]),

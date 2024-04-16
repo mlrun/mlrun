@@ -367,8 +367,8 @@ class ServingRuntime(RemoteRuntime):
 
         Example, create a function (from the notebook), add a model class, and deploy::
 
-            fn = code_to_function(kind='serving')
-            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
+            fn = code_to_function(kind="serving")
+            fn.add_model("boost", model_path, model_class="MyClass", my_arg=5)
             fn.deploy()
 
         only works with router topology, for nested topologies (model under router under flow)
@@ -450,7 +450,7 @@ class ServingRuntime(RemoteRuntime):
 
         example::
 
-            fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
+            fn.add_child_function("enrich", "./enrich.ipynb", "mlrun/mlrun")
 
         :param name:   child function name
         :param url:    function/code url, support .py, .ipynb, .yaml extensions
@@ -731,8 +731,11 @@ class ServingRuntime(RemoteRuntime):
         example::
 
             serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
-            serving_fn.add_model('my-classifier',model_path=model_path,
-                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.add_model(
+                "my-classifier",
+                model_path=model_path,
+                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+            )
             serving_fn.plot(rankdir="LR")
 
         :param filename:  target filepath for the image (None for the notebook)

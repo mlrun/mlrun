@@ -24,6 +24,9 @@ max-line-length = 120
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"
 
+[tool.ruff.format]
+docstring-code-format = true
+
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
 python_files = [

@@ -61,6 +61,25 @@ def test_compiled_function_config_nuclio_python():
     ), "wrong handler"
 
 
+def test_compiled_function_config_sidecar_image_enrichment():
+    mlrun.mlconf.httpdb.builder.docker_registry = "docker.io"
+    name = f"{examples_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    fn.with_sidecar("my-sidecar", ".mlrun/mlrun")
+    (
+        name,
+        project,
+        config,
+    ) = server.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    assert mlrun.utils.get_in(config, "spec.sidecars"), "No sidecars"
+    assert (
+        mlrun.utils.get_in(config, "spec.sidecars")[0]["image"]
+        == "docker.io/mlrun/mlrun:unstable"
+    ), "Image not enriched"
+
+
 @pytest.mark.parametrize(
     "handler, expected",
     [

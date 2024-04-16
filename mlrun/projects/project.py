@@ -2669,17 +2669,20 @@ class MlrunProject(ModelObj):
         file_path: str = None,
         provider: typing.Union[str, mlrun.common.schemas.SecretProviderName] = None,
     ):
-        """set project secrets from dict or secrets env file
+        """
+        Set project secrets from dict or secrets env file
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
         V3IO paths/credentials and MLrun service API address are dropped from the secrets
 
-        example secrets file::
+        example secrets file:
+
+        .. code-block:: text
 
             # this is an env file
-            AWS_ACCESS_KEY_ID = XXXX
-            AWS_SECRET_ACCESS_KEY = YYYY
+            AWS_ACCESS_KEY_ID=XXXX
+            AWS_SECRET_ACCESS_KEY=YYYY
 
-        usage::
+        usage:
 
             # read env vars from dict or file and set as project secrets
             project.set_secrets({"SECRET1": "value"})

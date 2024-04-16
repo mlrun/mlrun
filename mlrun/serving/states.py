@@ -1530,7 +1530,7 @@ def _init_async_objects(context, steps):
                     if not kafka_brokers and "kafka_bootstrap_servers" in options:
                         kafka_brokers = options.pop("kafka_bootstrap_servers")
                         warnings.warn(
-                            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in"
+                            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
                             "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
                             FutureWarning,
                         )

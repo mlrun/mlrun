@@ -89,13 +89,15 @@ class TestV3ioDataStore(TestMLRunSystem):
     @pytest.mark.skip(
         reason="Skipping this test as it hangs when running against the CI system. ML-5598"
     )
-    def test_v3io_large_object_upload(self, tmp_path):
+    @pytest.mark.parametrize(
+        "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]
+    )  # 4MB and 20MB
+    def test_v3io_large_object_upload(self, tmp_path, file_size):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
 
         with open(tempfile_1_path, "wb") as f:
-            file_size = 20 * 1024 * 1024  # 20MB
             f.truncate(file_size)
             r = random.Random(123)
             for i in range(min(100, file_size)):

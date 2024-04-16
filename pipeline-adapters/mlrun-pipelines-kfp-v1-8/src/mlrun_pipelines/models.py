@@ -58,10 +58,6 @@ class PipelineRun(FlexibleMapper):
     def id(self):
         return self._external_data["id"]
 
-    @id.setter
-    def id(self, _id):
-        self._external_data["id"] = _id
-
     @property
     def name(self):
         return self._external_data["name"]

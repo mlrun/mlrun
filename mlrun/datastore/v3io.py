@@ -99,7 +99,7 @@ class V3ioStore(DataStore):
         file_size = os.path.getsize(src_path)  # in bytes
         if file_size <= ONE_MB:
             with open(src_path, "rb") as source_file:
-                data = source_file.read()
+                data = memoryview(source_file.read())
             self._do_object_request(
                 self.object.put,
                 container=container,

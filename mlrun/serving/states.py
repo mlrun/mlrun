@@ -17,6 +17,7 @@ __all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 import os
 import pathlib
 import traceback
+import warnings
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
@@ -1524,9 +1525,16 @@ def _init_async_objects(context, steps):
                     endpoint = None
                     options = {}
                     options.update(step.options)
-                    kafka_brokers = options.pop(
-                        "kafka_brokers", options.pop("kafka_bootstrap_servers", None)
-                    )
+
+                    kafka_brokers = options.pop("kafka_brokers", None)
+                    if not kafka_brokers and "kafka_bootstrap_servers" in options:
+                        kafka_brokers = options.pop("kafka_bootstrap_servers")
+                        warnings.warn(
+                            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in"
+                            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
+                            FutureWarning,
+                        )
+
                     if stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 

@@ -2676,7 +2676,7 @@ class MlrunProject(ModelObj):
 
         example secrets file:
 
-        .. code-block:: text
+        .. code-block:: shell
 
             # this is an env file
             AWS_ACCESS_KEY_ID=XXXX

@@ -23,7 +23,6 @@ import kfp_server_api
 import mlrun_pipelines
 import mlrun_pipelines.common.helpers
 import mlrun_pipelines.common.ops
-import mlrun_pipelines.patcher
 import sqlalchemy.orm
 from mlrun_pipelines.mixins import PipelineProviderMixin
 from mlrun_pipelines.models import PipelineExperiment, PipelineRun

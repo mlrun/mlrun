@@ -20,6 +20,7 @@ import typing
 import uuid
 
 import mlrun_pipelines.common.models
+import mlrun_pipelines.patcher
 from kfp.compiler import compiler
 from mlrun_pipelines.helpers import new_pipe_metadata
 

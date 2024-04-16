@@ -379,7 +379,7 @@ def build_op(
     if func_url and not function:
         cmd += [func_url]
 
-    generate_image_builder_pipeline_node(name, function, func_url, cmd)
+    return generate_image_builder_pipeline_node(name, function, func_url, cmd)
 
 
 def deploy_op(
@@ -425,7 +425,7 @@ def deploy_op(
         runtime = f"{function.to_dict()}"
         cmd += [runtime]
 
-    generate_deployer_pipeline_node(
+    return generate_deployer_pipeline_node(
         name,
         function,
         func_url,

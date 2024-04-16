@@ -69,7 +69,7 @@ from .utils.version import Version
 
 __version__ = Version().get()["version"]
 
-VolumeMount = mlrun_pipelines.common.mounts
+VolumeMount = mlrun_pipelines.common.mounts.VolumeMount
 mount_v3io = mlrun_pipelines.mounts.mount_v3io
 v3io_cred = mlrun_pipelines.mounts.v3io_cred
 auto_mount = mlrun_pipelines.mounts.auto_mount

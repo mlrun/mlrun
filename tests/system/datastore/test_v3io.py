@@ -73,7 +73,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     def teardown_class(cls):
         dir_data_item = mlrun.get_dataitem(cls.test_dir_url)
         try:
-            #  a workaround for deleting test folder (dataitem does not support recursive delete)
+            # a workaround for deleting test folder (DataItem does not support recursive delete)
             dir_data_item._store.rm(path=cls.test_dir, recursive=True)
         except Exception:
             cls._logger.warning(

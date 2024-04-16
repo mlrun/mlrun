@@ -2079,7 +2079,7 @@ class TestModelMonitoring:
     @staticmethod
     @pytest.fixture
     def project() -> mlrun.projects.MlrunProject:
-        return unittest.mock.Mock()  # spec_set=mlrun.projects.MlrunProject)
+        return unittest.mock.Mock()
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -2113,3 +2113,17 @@ class TestModelMonitoring:
         assert (
             deleted_fns == expected_deleted_fns
         ), "The deleted functions are different than expexted"
+
+    @staticmethod
+    def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:
+        with unittest.mock.patch.object(
+            project, "_wait_for_functions_deployment", autospec=True
+        ) as mock:
+            mlrun.projects.MlrunProject.enable_model_monitoring(
+                project, deploy_histogram_data_drift_app=False, wait_for_deployment=True
+            )
+
+        mock.assert_called_once()
+        assert (
+            mock.call_args_list[0].args[0] == mm_consts.MonitoringFunctionNames.list()
+        ), "Expected to wait for the infra functions"

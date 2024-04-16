@@ -210,7 +210,6 @@ def mlrun_op(
             image = image or function.spec.kfp_image or config.dask_kfp_image
 
     image = image or config.kfp_image
-    image = "laury/mlrun:kfp2"
 
     if runobj:
         handler = handler or runobj.spec.handler_name

@@ -20,6 +20,7 @@ import time
 import traceback
 import typing
 import warnings
+from copy import deepcopy
 from datetime import datetime, timedelta
 from os import path, remove
 from typing import Optional, Union
@@ -281,6 +282,52 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def paginate_api_call(
+        self,
+        method,
+        path,
+        error=None,
+        params=None,
+        body=None,
+        json=None,
+        headers=None,
+        timeout=45,
+        version=None,
+    ) -> typing.Generator[requests.Response, None, None]:
+        def _api_call(_params):
+            return self.api_call(
+                method=method,
+                path=path,
+                error=error,
+                params=_params,
+                body=body,
+                json=json,
+                headers=headers,
+                timeout=timeout,
+                version=version,
+            )
+
+        first_page_params = deepcopy(params) or {}
+        first_page_params["page"] = 1
+        first_page_params["page-size"] = config.httpdb.pagination.default_page_size
+        response = _api_call(first_page_params)
+        page_token = response.json().get("pagination", {}).get("page-token")
+        if not page_token:
+            yield response
+            return
+
+        params_with_page_token = deepcopy(params) or {}
+        params_with_page_token["page-token"] = page_token
+        while page_token:
+            yield response
+            try:
+                response = _api_call(params_with_page_token)
+            except mlrun.errors.MLRunNotFoundError:
+                # pagination token expired
+                break
+
+            page_token = response.json().get("pagination", {}).get("page-token", None)
 
     def _init_session(self, retry_on_post: bool = False):
         return mlrun.utils.HTTPSessionWithRetry(
@@ -793,8 +840,11 @@ class HTTPRunDB(RunDBInterface):
             )
         error = "list runs"
         _path = self._path_of("runs", project)
-        resp = self.api_call("GET", _path, error, params=params)
-        return RunList(resp.json()["runs"])
+        responses = self.paginate_api_call("GET", _path, error, params=params)
+        runs = []
+        for response in responses:
+            runs.extend(response.json()["runs"])
+        return RunList(runs)
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
         """Delete a group of runs identified by the parameters of the function.
@@ -1097,8 +1147,11 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list functions"
         path = f"projects/{project}/functions"
-        resp = self.api_call("GET", path, error, params=params)
-        return resp.json()["funcs"]
+        functions = []
+        responses = self.paginate_api_call("GET", path, error, params=params)
+        for response in responses:
+            functions.extend(response.json()["funcs"])
+        return functions
 
     def list_runtime_resources(
         self,

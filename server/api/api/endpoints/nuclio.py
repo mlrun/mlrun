@@ -482,8 +482,8 @@ def _deploy_nuclio_runtime(
                     client_version
                 ) < semver.Version.parse("1.6.3"):
                     raise mlrun.errors.MLRunBadRequestError(
-                        f"Serving function can't be deploy with `mlrun/mlrun` image and "
-                        f"client version lower when 1.6.3 while set tracking is on."
+                        "Serving function can't be deploy with `mlrun/mlrun` image and "
+                        "client version lower when 1.6.3 while set tracking is on."
                     )
                 if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
                     monitoring_deployment.deploy_model_monitoring_stream_processing(

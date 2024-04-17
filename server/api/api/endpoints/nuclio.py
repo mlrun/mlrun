@@ -478,9 +478,12 @@ def _deploy_nuclio_runtime(
 
         if serving_to_monitor:
             if not mlrun.mlconf.is_ce_mode():
-                if fn.spec.image.startswith("mlrun/") and semver.Version.parse(
-                    client_version
-                ) < semver.Version.parse("1.6.3"):
+                if (
+                    fn.spec.image.startswith("mlrun/")
+                    and client_version
+                    and semver.Version.parse(client_version)
+                    < semver.Version.parse("1.6.3")
+                ):
                     raise mlrun.errors.MLRunBadRequestError(
                         f"Serving function can't be deploy with {fn.spec.image} image and client version lower "
                         "when 1.6.3 while set-tracking feature is on."

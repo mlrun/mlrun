@@ -107,7 +107,7 @@ class V3ioStore(DataStore):
         with open(src_path, "rb") as file_obj:
             append = False
             while True:
-                data = file_obj.read(max_chunk_size)
+                data = memoryview(file_obj.read(max_chunk_size))
                 if not data:
                     break
                 self._do_object_request(

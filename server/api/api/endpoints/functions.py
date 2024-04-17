@@ -19,6 +19,7 @@ from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List, Optional
 
+import semver
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -789,10 +790,7 @@ def _deploy_nuclio_runtime(
             model_monitoring_access_key = None
         if serving_to_monitor:
             _deploy_serving_monitoring(
-                auth_info,
-                db_session,
-                fn,
-                model_monitoring_access_key,
+                auth_info, db_session, fn, model_monitoring_access_key, client_version
             )
         if monitoring_application:
             fn = _deploy_monitoring_application(
@@ -813,6 +811,7 @@ def _deploy_serving_monitoring(
     db_session,
     fn,
     model_monitoring_access_key,
+    client_version,
 ):
     try:
         # Handle model monitoring
@@ -832,6 +831,15 @@ def _deploy_serving_monitoring(
 
         overwrite_stream = False
         if not mlrun.mlconf.is_ce_mode():
+            if (
+                fn.spec.image.startswith("mlrun/")
+                and client_version
+                and semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
+            ):
+                raise mlrun.errors.MLRunBadRequestError(
+                    "On deploy of serving-functions which is based on mlrun image "
+                    "('mlrun/') and with set-tracking enabled, client version must be >= 1.6.3"
+                )
             if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger(
                 project=fn.metadata.project,
                 db_session=db_session,

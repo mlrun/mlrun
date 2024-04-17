@@ -333,6 +333,18 @@ class HTTPRunDB(RunDBInterface):
 
             page_token = response.json().get("pagination", {}).get("page-token", None)
 
+    @staticmethod
+    def process_paginated_responses(
+        responses: typing.Generator[requests.Response, None, None], key: str = "data"
+    ) -> list[typing.Any]:
+        """
+        Processes the paginated responses and returns the combined data
+        """
+        data = []
+        for response in responses:
+            data.extend(response.json().get(key, []))
+        return data
+
     def _init_session(self, retry_on_post: bool = False):
         return mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=config.httpdb.retry_api_call_on_exception
@@ -845,10 +857,7 @@ class HTTPRunDB(RunDBInterface):
         error = "list runs"
         _path = self._path_of("runs", project)
         responses = self.paginated_api_call("GET", _path, error, params=params)
-        runs = []
-        for response in responses:
-            runs.extend(response.json()["runs"])
-        return RunList(runs)
+        return RunList(self.process_paginated_responses(responses, "runs"))
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
         """Delete a group of runs identified by the parameters of the function.
@@ -1151,11 +1160,8 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list functions"
         path = f"projects/{project}/functions"
-        functions = []
         responses = self.paginated_api_call("GET", path, error, params=params)
-        for response in responses:
-            functions.extend(response.json()["funcs"])
-        return functions
+        return self.process_paginated_responses(responses, "funcs")
 
     def list_runtime_resources(
         self,

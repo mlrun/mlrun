@@ -1533,6 +1533,11 @@ class KafkaTarget(BaseStoreTarget):
     ):
         attrs = {}
         if bootstrap_servers:
+            if brokers:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "KafkaTarget cannot be created with both the 'brokers' parameter and the deprecated "
+                    "'bootstrap_servers' parameter. Please use 'brokers' only."
+                )
             warnings.warn(
                 "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
                 "use 'brokers' instead.",

@@ -99,19 +99,6 @@ class V3ioStore(DataStore):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         file_size = os.path.getsize(src_path)  # in bytes
-        if file_size <= V3IO_UPLOAD_CHUNK_SIZE:
-            with open(src_path, "rb") as source_file:
-                data = memoryview(source_file.read())
-            self._do_object_request(
-                self.object.put,
-                container=container,
-                path=path,
-                body=data,
-                append=False,
-            )
-            return
-        # chunk must be a multiple of the ALLOCATIONGRANULARITY
-        # https://docs.python.org/3/library/mmap.html
         with open(src_path, "rb") as file_obj:
             file_offset = 0
             while file_offset < file_size:

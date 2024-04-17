@@ -298,6 +298,7 @@ class HTTPRunDB(RunDBInterface):
         """
         Calls the api with pagination, yielding each page of the response
         """
+
         def _api_call(_params):
             return self.api_call(
                 method=method,

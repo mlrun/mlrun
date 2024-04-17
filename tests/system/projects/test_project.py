@@ -20,6 +20,7 @@ import shutil
 import sys
 from sys import executable
 
+import mlrun_pipelines.common.models
 import pandas as pd
 import pytest
 from kfp import dsl
@@ -184,7 +185,9 @@ class TestProject(TestMLRunSystem):
         # load project from context dir and run a workflow
         project2 = mlrun.load_project(str(self.assets_path), name=name)
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
         # test the list_runs/artifacts/functions methods
         runs_list = project2.list_runs(name="test", labels=f"workflow={run.run_id}")
@@ -215,7 +218,9 @@ class TestProject(TestMLRunSystem):
         project = mlrun.load_project(str(self.assets_path), name=name)
         # Don't provide an artifact-path, to verify that the run-id is added by default
         workflow_run = project.run("main", watch=True)
-        assert workflow_run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            workflow_run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
         # check that the functions running in the workflow had the output_path set correctly
         db = mlrun.get_run_db()
@@ -243,7 +248,9 @@ class TestProject(TestMLRunSystem):
         project2.spec.load_source_on_run = True
         run = project2.run("main", artifact_path=f"v3io:///projects/{name}")
         run.wait_for_completion()
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     def test_run_git_build(self):
         name = "pipe3"
@@ -263,7 +270,9 @@ class TestProject(TestMLRunSystem):
             arguments={"build": 1},
         )
         run.wait_for_completion()
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     @staticmethod
     def _assert_cli_output(output: str, project_name: str):
@@ -274,7 +283,9 @@ class TestProject(TestMLRunSystem):
         db = mlrun.get_run_db()
         pipeline = db.get_pipeline(run_id, project=project_name)
         state = pipeline["run"]["status"]
-        assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     def test_run_cli(self):
         # load project from git
@@ -364,7 +375,9 @@ class TestProject(TestMLRunSystem):
             workflow_handler=pipe_test,
         )
         run.wait_for_completion()
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     def test_cli_no_save_flag(self):
         # load project from git
@@ -485,7 +498,9 @@ class TestProject(TestMLRunSystem):
             artifact_path=f"v3io:///projects/{name}",
             watch=True,
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         fn = project.get_function("gen-iris", ignore_cache=True)
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
@@ -574,7 +589,9 @@ class TestProject(TestMLRunSystem):
             engine=engine,
         )
 
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         # run.run_id can be empty in case of a local engine:
         assert run.run_id is not None, "workflow's run id failed to fetch"
 
@@ -632,7 +649,9 @@ class TestProject(TestMLRunSystem):
             watch=True,
             engine="remote",
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
 
     def test_kfp_from_local_code(self):
@@ -664,7 +683,9 @@ class TestProject(TestMLRunSystem):
             "main",
             watch=True,
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
 
     def test_local_cli(self):
@@ -914,13 +935,13 @@ class TestProject(TestMLRunSystem):
         # scheduling project with non-remote source (scheduling)
         run = project.run("main", schedule="*/10 * * * *")
         assert (
-            run.state == mlrun.run.RunStatuses.failed
+            run.state == mlrun_pipelines.common.models.RunStatuses.failed
         ), f"pipeline should failed, state = {run.state}"
 
         # scheduling project with non-remote source (single run)
         run = project.run("main", engine="remote")
         assert (
-            run.state == mlrun.run.RunStatuses.failed
+            run.state == mlrun_pipelines.common.models.RunStatuses.failed
         ), f"pipeline should failed, state = {run.state}"
 
     def test_remote_workflow_source(self):
@@ -946,7 +967,7 @@ class TestProject(TestMLRunSystem):
             source=temporary_source,
             artifact_path=artifact_path,
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded
+        assert run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
         assert project_from_db.source == expected_source
@@ -974,7 +995,7 @@ class TestProject(TestMLRunSystem):
             watch=True,
         )
         assert (
-            run.state == mlrun.run.RunStatuses.failed
+            run.state == mlrun_pipelines.common.models.RunStatuses.failed
         ), "pipeline supposed to fail since newflow is not in the temporary source"
 
     def test_workflow_image_fails(self):
@@ -997,7 +1018,7 @@ class TestProject(TestMLRunSystem):
             "bad-image",
             engine="remote",
         )
-        assert run.state == mlrun.run.RunStatuses.failed
+        assert run.state == mlrun_pipelines.common.models.RunStatuses.failed
 
     def _assert_scheduled(self, project_name, schedule_str):
         schedule = self._run_db.get_schedule(project_name, "main")
@@ -1042,7 +1063,7 @@ class TestProject(TestMLRunSystem):
             True,
             _assert_workflow_status,
             workflow,
-            mlrun.run.RunStatuses.running,
+            mlrun_pipelines.common.models.RunStatuses.running,
         )
 
         # obtain the first run in the workflow when it began running
@@ -1064,7 +1085,7 @@ class TestProject(TestMLRunSystem):
             True,
             _assert_workflow_status,
             workflow,
-            mlrun.run.RunStatuses.failed,
+            mlrun_pipelines.common.models.RunStatuses.failed,
         )
 
     def test_project_build_image(self):

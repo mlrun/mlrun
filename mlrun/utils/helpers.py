@@ -41,6 +41,7 @@ import semver
 import yaml
 from dateutil import parser
 from deprecated import deprecated
+from mlrun_pipelines.models import PipelineRun
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -784,34 +785,6 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: typing.List[typing.Callable] = None,
-):
-    from kfp.dsl import PipelineConf
-
-    def _set_artifact_path(task):
-        from kubernetes import client as k8s_client
-
-        task.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_ARTIFACT_PATH", value=artifact_path)
-        )
-        return task
-
-    conf = PipelineConf()
-    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
-
-    if cleanup_ttl:
-        conf.set_ttl_seconds_after_finished(cleanup_ttl)
-    if artifact_path:
-        conf.add_op_transformer(_set_artifact_path)
-    if op_transformers:
-        for op_transformer in op_transformers:
-            conf.add_op_transformer(op_transformer)
-    return conf
-
-
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
@@ -1377,7 +1350,7 @@ def is_link_artifact(artifact):
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
-def format_run(run: dict, with_project=False) -> dict:
+def format_run(run: PipelineRun, with_project=False) -> dict:
     fields = [
         "id",
         "name",
@@ -1414,7 +1387,7 @@ def format_run(run: dict, with_project=False) -> dict:
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
-    if run["status"] is None:
+    if run.get("status", None) is None:
         run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
 
     return run

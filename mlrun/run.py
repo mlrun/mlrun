@@ -29,11 +29,13 @@ from typing import Dict, List, Optional, Tuple, Union
 import nuclio
 import yaml
 from kfp import Client
+from mlrun_pipelines.common.models import RunStatuses
+from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
-from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -67,41 +69,6 @@ from .utils import (
     run_keys,
     update_in,
 )
-
-
-class RunStatuses(object):
-    succeeded = "Succeeded"
-    failed = "Failed"
-    skipped = "Skipped"
-    error = "Error"
-    running = "Running"
-
-    @staticmethod
-    def all():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-            RunStatuses.running,
-        ]
-
-    @staticmethod
-    def stable_statuses():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-        ]
-
-    @staticmethod
-    def transient_statuses():
-        return [
-            status
-            for status in RunStatuses.all()
-            if status not in RunStatuses.stable_statuses()
-        ]
 
 
 def function_to_module(code="", workdir=None, secrets=None, silent=False):
@@ -1004,7 +971,7 @@ def get_pipeline(
     :param project:    the project of the pipeline run
     :param remote:     read kfp data from mlrun service (default=True)
 
-    :return: kfp run dict
+    :return: kfp run
     """
     namespace = namespace or mlconf.namespace
     if remote:
@@ -1028,7 +995,7 @@ def get_pipeline(
                 not format_
                 or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(resp)
+                resp = format_summary_from_kfp_run(PipelineRun(resp))
 
     show_kfp_run(resp)
     return resp

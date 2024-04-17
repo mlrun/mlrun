@@ -2072,6 +2072,26 @@ def test_load_project_dir(project_file_name, expectation):
     finally:
         shutil.rmtree(project_dir)
 
+def test_workflow_path_with_project_workdir():
+    project_name = "project1"
+
+    project = mlrun.new_project(project_name, save=False,context="./context")
+    workflow_path = "workflow.py"
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec(path=workflow_path)
+    #with_out_workdir
+    path = workflow_spec.get_source_file(project.spec.get_code_path())
+    assert path == "./context/workflow.py"
+
+    #with__subpath
+    project = mlrun.new_project(project_name, save=False,context="./context",subpath="./subpath")
+    path = workflow_spec.get_source_file(project.spec.get_code_path())
+    assert path == "./context/./subpath/workflow.py"
+
+    #with__workdir
+    project.spec.workdir = "./workdir"
+    path = workflow_spec.get_source_file(project.spec.get_code_path())
+    assert path == "./context/./workdir/workflow.py"
+
 
 class TestModelMonitoring:
     """Test model monitoring project methods"""

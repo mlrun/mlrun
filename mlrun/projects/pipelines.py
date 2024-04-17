@@ -521,7 +521,7 @@ class _PipelineRunner(abc.ABC):
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
         if not (workflow_handler and callable(workflow_handler)):
-            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
             workflow_handler = create_pipeline(
                 project,
                 workflow_file,
@@ -553,7 +553,7 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         pipeline_context.set(project, workflow_spec)
-        workflow_file = workflow_spec.get_source_file(project.spec.context)
+        workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
             project,

@@ -591,7 +591,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes", "engine"]
+    _dict_fields = _task_step_fields + ["routes"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -604,7 +604,6 @@ class RouterStep(TaskStep):
         function: str = None,
         input_path: str = None,
         result_path: str = None,
-        engine: str = None,
     ):
         super().__init__(
             class_name,
@@ -617,8 +616,6 @@ class RouterStep(TaskStep):
         )
         self._routes: ObjectDict = None
         self.routes = routes
-        self.engine = engine
-        self._controller = None
 
     def get_children(self):
         """get child steps (routes)"""
@@ -687,33 +684,6 @@ class RouterStep(TaskStep):
 
         self._set_error_handler()
         self._post_init(mode)
-
-        if self.engine == "async":
-            self._build_async_flow()
-            self._run_async_flow()
-
-    def _build_async_flow(self):
-        """initialize and build the async/storey DAG"""
-
-        self.respond()
-        source, self._wait_for_result = _init_async_objects(self.context, [self])
-        source.to(self.async_object)
-
-        self._async_flow = source
-
-    def _run_async_flow(self):
-        self._controller = self._async_flow.run()
-
-    def run(self, event, *args, **kwargs):
-        if self._controller:
-            # async flow (using storey)
-            event._awaitable_result = None
-            resp = self._controller.emit(
-                event, return_awaitable_result=self._wait_for_result
-            )
-            return resp.await_result()
-
-        return super().run(event, *args, **kwargs)
 
     def __getitem__(self, name):
         return self._routes[name]

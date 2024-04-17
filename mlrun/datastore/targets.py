@@ -1532,6 +1532,8 @@ class KafkaTarget(BaseStoreTarget):
         **kwargs,
     ):
         attrs = {}
+
+        # TODO: Remove this in 1.9.0
         if bootstrap_servers:
             if brokers:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1541,10 +1543,10 @@ class KafkaTarget(BaseStoreTarget):
             warnings.warn(
                 "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
                 "use 'brokers' instead.",
-                # TODO: Remove this in 1.9.0
                 FutureWarning,
             )
-            brokers = brokers or bootstrap_servers
+            brokers = bootstrap_servers
+
         if brokers:
             attrs["brokers"] = brokers
         if producer_options is not None:

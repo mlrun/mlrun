@@ -30,7 +30,7 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
-V3IO_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 100
+V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 100
 
 
 class V3ioStore(DataStore):
@@ -98,7 +98,7 @@ class V3ioStore(DataStore):
         return self._sanitize_storage_options(res)
 
     def _upload(
-        self, key: str, src_path: str, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE
+        self, key: str, src_path: str, max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE
     ):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
@@ -132,7 +132,7 @@ class V3ioStore(DataStore):
         ).body
 
     def _put(
-        self, key, data, append=False, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE
+        self, key, data, append=False, max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE
     ):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))

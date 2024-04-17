@@ -132,15 +132,6 @@ class V3ioStore(DataStore):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
-        if buffer_size <= V3IO_UPLOAD_CHUNK_SIZE:
-            self._do_object_request(
-                self.object.put,
-                container=container,
-                path=path,
-                body=data,
-                append=append,
-            )
-            return
         buffer_offset = 0
         try:
             data = memoryview(data)

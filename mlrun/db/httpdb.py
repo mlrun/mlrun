@@ -283,7 +283,7 @@ class HTTPRunDB(RunDBInterface):
 
         return response
 
-    def paginate_api_call(
+    def paginated_api_call(
         self,
         method,
         path,
@@ -295,6 +295,9 @@ class HTTPRunDB(RunDBInterface):
         timeout=45,
         version=None,
     ) -> typing.Generator[requests.Response, None, None]:
+        """
+        Calls the api with pagination, yielding each page of the response
+        """
         def _api_call(_params):
             return self.api_call(
                 method=method,
@@ -840,7 +843,7 @@ class HTTPRunDB(RunDBInterface):
             )
         error = "list runs"
         _path = self._path_of("runs", project)
-        responses = self.paginate_api_call("GET", _path, error, params=params)
+        responses = self.paginated_api_call("GET", _path, error, params=params)
         runs = []
         for response in responses:
             runs.extend(response.json()["runs"])
@@ -1148,7 +1151,7 @@ class HTTPRunDB(RunDBInterface):
         error = "list functions"
         path = f"projects/{project}/functions"
         functions = []
-        responses = self.paginate_api_call("GET", path, error, params=params)
+        responses = self.paginated_api_call("GET", path, error, params=params)
         for response in responses:
             functions.extend(response.json()["funcs"])
         return functions

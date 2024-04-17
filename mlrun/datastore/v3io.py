@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import time
 from datetime import datetime
 
@@ -105,21 +104,20 @@ class V3ioStore(DataStore):
     ):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
-        file_size = os.path.getsize(src_path)  # in bytes
-
         with open(src_path, "rb") as file_obj:
-            file_offset = 0
-            while file_offset < file_size:
-                chunk_size = min(file_size - file_offset, max_chunk_size)
-                append = file_offset != 0
+            append = False
+            while True:
+                data = file_obj.read(max_chunk_size)
+                if not data:
+                    break
                 self._do_object_request(
                     self.object.put,
                     container=container,
                     path=path,
-                    body=file_obj.read(chunk_size),
+                    body=data,
                     append=append,
                 )
-                file_offset += chunk_size
+                append = True
 
     def upload(self, key, src_path):
         return self._upload(key, src_path)

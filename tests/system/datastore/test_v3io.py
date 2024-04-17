@@ -86,9 +86,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
         uploaded_data_item.upload(second_file_path)
 
-    @pytest.mark.skip(
-        reason="Skipping this test as it hangs when running against the CI system. ML-5598"
-    )
     @pytest.mark.parametrize(
         "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]
     )  # 4MB and 20MB

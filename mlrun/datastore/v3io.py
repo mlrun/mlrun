@@ -93,7 +93,9 @@ class V3ioStore(DataStore):
         )
         return self._sanitize_storage_options(res)
 
-    def _upload(self, key: str, src_path: str, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE):
+    def _upload(
+        self, key: str, src_path: str, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE
+    ):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         file_size = os.path.getsize(src_path)  # in bytes
@@ -137,7 +139,9 @@ class V3ioStore(DataStore):
             num_bytes=size,
         ).body
 
-    def _put(self, key, data, append=False, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE):
+    def _put(
+        self, key, data, append=False, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE
+    ):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes

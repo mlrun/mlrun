@@ -30,7 +30,7 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
-MAX_CHUNK_SIZE = 1024 * 1024 * 100
+V3IO_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 100
 
 
 class V3ioStore(DataStore):
@@ -93,11 +93,11 @@ class V3ioStore(DataStore):
         )
         return self._sanitize_storage_options(res)
 
-    def _upload(self, key: str, src_path: str, max_chunk_size: int = MAX_CHUNK_SIZE):
+    def _upload(self, key: str, src_path: str, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         file_size = os.path.getsize(src_path)  # in bytes
-        if file_size <= MAX_CHUNK_SIZE:
+        if file_size <= V3IO_UPLOAD_CHUNK_SIZE:
             with open(src_path, "rb") as source_file:
                 data = memoryview(source_file.read())
             self._do_object_request(
@@ -137,11 +137,11 @@ class V3ioStore(DataStore):
             num_bytes=size,
         ).body
 
-    def _put(self, key, data, append=False, max_chunk_size: int = MAX_CHUNK_SIZE):
+    def _put(self, key, data, append=False, max_chunk_size: int = V3IO_UPLOAD_CHUNK_SIZE):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
-        if buffer_size <= MAX_CHUNK_SIZE:
+        if buffer_size <= V3IO_UPLOAD_CHUNK_SIZE:
             self._do_object_request(
                 self.object.put,
                 container=container,

@@ -209,8 +209,9 @@ class DataStore:
             kwargs["filters"] = total_filters
 
         def reader(*args, **kwargs):
-            if start_time or end_time:
-                if time_column is None:
+            time_limit = start_time or end_time
+            if time_limit or filters:
+                if time_column is None and time_limit:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "When providing start_time or end_time, must provide time_column"
                     )
@@ -231,6 +232,7 @@ class DataStore:
                     ):
                         raise ex
 
+                    #  TODO fix this code, if end_time has tz and start_time is None?
                     if start_time.tzinfo:
                         start_time_inner = start_time.replace(tzinfo=None)
                         end_time_inner = end_time.replace(tzinfo=None)
@@ -566,7 +568,7 @@ class DataItem:
         :param end_time:    filters out data after this time
         :param time_column: Store timestamp_key will be used if None.
                             The results will be filtered by this column and start_time & end_time.
-        :param filters: (list of tuples, optional): List of filter conditions as tuples.
+        :param filters: (list of tuples, optional): List of filters conditions as tuples.
                                                     Each tuple should be in the format (column_name, operator, value).
                                                     Supported operators: '=', '>=', '<=', '>', '<'.
                                                     Example: ('Product', '=', 'Computer')]

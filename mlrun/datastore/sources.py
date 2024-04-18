@@ -284,6 +284,7 @@ class ParquetSource(BaseSourceDriver):
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
+    :param filters: (list of tuples, optional): List of filters conditions as tuples.
     """
 
     kind = "parquet"
@@ -300,6 +301,7 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
+        filters: list = None,
     ):
         super().__init__(
             name,
@@ -311,6 +313,7 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
+        self.filters = filters
 
     @property
     def start_time(self):
@@ -393,7 +396,7 @@ class ParquetSource(BaseSourceDriver):
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
             format="parquet",
-            filters=filters,
+            filters=filters or self.filters,
             **reader_args,
         )
 

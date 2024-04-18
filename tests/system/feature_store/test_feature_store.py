@@ -4813,6 +4813,22 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
+    # @pytest.mark.parametrize("with_indexes", [True, False])
+    def test_parquet_filters(self):
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
+        print(self.assets_path)
+        v3io_parquet_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_{uuid.uuid4()}.parquet"
+        df.to_parquet(v3io_parquet_path)
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path=v3io_parquet_path,
+            filters=[("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")],
+        )
+        assert_frame_equal(parquet_source.to_dataframe(), filtered_df)
+        #  TODO complete assert target.to_dataframe, ingest+ get_offine features.
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

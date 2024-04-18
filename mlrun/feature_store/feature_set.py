@@ -913,7 +913,7 @@ class FeatureSet(ModelObj):
         :param end_time:     filter by end time
         :param time_column:  specify the time column name in the file
         :param kwargs:       additional reader (csv, parquet, ..) args
-        :param filters: (list of tuples, optional): List of filter conditions as tuples.
+        :param filters: (list of tuples, optional): List of filters conditions as tuples.
                                                     Each tuple should be in the format (column_name, operator, value).
                                                     Supported operators: '=', '>=', '<=', '>', '<'.
                                                     Example: ('Product', '=', 'Computer')]

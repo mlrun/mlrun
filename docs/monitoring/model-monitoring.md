@@ -1,15 +1,11 @@
 (model-monitoring)=
 # Model monitoring user flow
-```{note}
-This is currently a beta feature. 
-```
+
 This page gives an overview of the model monitoring feature. See a complete example in the tutorial [Model monitoring and drift detection](../tutorials/05-model-monitoring.html).
 
 ## Architecture
 
 <img src="../_static/images/model-monitoring.png" width="1100" >
-
-<br>
 
 The model monitoring process flow starts with collecting operational data. The operational data is converted to vectors, which are posted to the Model Server. 
 The model server is then wrapped around a machine learning model that uses a function to calculate predictions based on the available vectors. Next, the model 
@@ -24,11 +20,6 @@ When you enable model monitoring, you effectively deploy three components:
 - application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The frequency is determined by `base_period`. 
 - stream function: monitors the log of the data stream. It is triggered when a new log entry is detected. The monitored data is used to create real-time dashboards, detect drift, and analyze performance.
 - writer function: writes to the database and outputs alerts.
-
-## Drift analysis
-The model monitoring feature provides drift analysis monitoring. Model drift in machine learning is a situation where the statistical properties of the target variable (what the model is 
-trying to predict) change over time. In other words, the production data has changed significantly over the course of time and no longer matches the input data used to train the model. 
-So, for this new data, accuracy of the model predictions is low. Drift analysis statistics are computed once an hour. For more information see [Concept Drift](https://www.iguazio.com/glossary/concept-drift/).
 
 ## APIs
 

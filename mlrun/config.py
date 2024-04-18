@@ -548,11 +548,11 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
-            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
-            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/nosql",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/nosql",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",

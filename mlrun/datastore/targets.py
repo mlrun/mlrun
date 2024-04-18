@@ -1390,6 +1390,39 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
+    @property
+    def _target_path_object(self):
+        path = self.path or mlrun.mlconf.redis.url
+        if self._resource and path:
+            parsed_url = urlparse(path)
+            if not parsed_url.path or parsed_url.path == "/":
+                kind_prefix = (
+                    "sets"
+                    if self._resource.kind
+                    == mlrun.common.schemas.ObjectKind.feature_set
+                    else "vectors"
+                )
+                kind = self.kind
+                name = self._resource.metadata.name
+                project = (
+                    self._resource.metadata.project or mlrun.mlconf.default_project
+                )
+                data_prefix = get_default_prefix_for_target(kind).format(
+                    ds_profile_name=parsed_url.netloc,
+                    authority=parsed_url.netloc,
+                    project=project,
+                    kind=kind,
+                    name=name,
+                )
+                if path.startswith("rediss://"):
+                    data_prefix.replace("redis://", "rediss://", 1)
+                if not self.run_id:
+                    version = self._resource.metadata.tag
+                    name = f"{name}-{version or 'latest'}"
+                path = f"{data_prefix}/{kind_prefix}/{name}"
+                return TargetPathObject(path, self.run_id, False)
+        return super()._target_path_object
+
     # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
     # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
     # Then look for username and password at REDIS_xxx secrets

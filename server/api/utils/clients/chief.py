@@ -199,6 +199,46 @@ class Client(
                 **(await chief_response.json())
             )
 
+    async def store_alert(
+        self, project: str, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT", f"projects/{project}/alerts/{name}", request, json
+        )
+
+    async def delete_alert(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/alerts/{name}", request
+        )
+
+    async def reset_alert(
+        self, project: str, name: int, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/alerts/{name}/reset", request
+        )
+
+    async def set_event(
+        self, project: str, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Events are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/events/{name}", request, json
+        )
+
     async def set_schedule_notifications(
         self, project: str, schedule_name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:

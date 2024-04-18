@@ -42,6 +42,8 @@ class SlackNotification(NotificationBase):
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
+        alert: mlrun.common.schemas.AlertConfig = None,
+        event_data: mlrun.common.schemas.Event = None,
     ):
         webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env(
             "SLACK_WEBHOOK"
@@ -53,7 +55,7 @@ class SlackNotification(NotificationBase):
             )
             return
 
-        data = self._generate_slack_data(message, severity, runs)
+        data = self._generate_slack_data(message, severity, runs, alert, event_data)
 
         async with aiohttp.ClientSession() as session:
             async with session.post(webhook, json=data) as response:
@@ -66,12 +68,14 @@ class SlackNotification(NotificationBase):
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
+        alert: mlrun.common.schemas.AlertConfig = None,
+        event_data: mlrun.common.schemas.Event = None,
     ) -> dict:
         data = {
             "blocks": [
                 {
-                    "type": "section",
-                    "text": self._get_slack_row(f"[{severity}] {message}"),
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": f"[{severity}] {message}"},
                 },
             ]
         }
@@ -80,21 +84,45 @@ class SlackNotification(NotificationBase):
                 {"type": "section", "text": self._get_slack_row(self.name)}
             )
 
-        if not runs:
-            return data
+        if alert:
+            fields = self._get_alert_fields(alert, event_data)
 
-        if isinstance(runs, list):
-            runs = mlrun.lists.RunList(runs)
+            for i in range(len(fields)):
+                data["blocks"].append({"type": "section", "text": fields[i]})
+        else:
+            if not runs:
+                return data
 
-        fields = [self._get_slack_row("*Runs*"), self._get_slack_row("*Results*")]
-        for run in runs:
-            fields.append(self._get_run_line(run))
-            fields.append(self._get_run_result(run))
+            if isinstance(runs, list):
+                runs = mlrun.lists.RunList(runs)
 
-        for i in range(0, len(fields), 8):
-            data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
+            fields = [self._get_slack_row("*Runs*"), self._get_slack_row("*Results*")]
+            for run in runs:
+                fields.append(self._get_run_line(run))
+                fields.append(self._get_run_result(run))
+
+            for i in range(0, len(fields), 8):
+                data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
 
         return data
+
+    def _get_alert_fields(
+        self,
+        alert: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+    ) -> list:
+        line = [
+            self._get_slack_row(f":bell: {alert.name} alert has occurred"),
+            self._get_slack_row(f"*Project:*\n{alert.project}"),
+            self._get_slack_row(f"*UID:*\n{event_data.entity.id}"),
+        ]
+        if event_data.value is not None:
+            line.append(self._get_slack_row(f"*Event data:*\n{event_data.value}"))
+
+        if url := mlrun.utils.helpers.get_ui_url(alert.project, event_data.entity.id):
+            line.append(self._get_slack_row(f"*Overview:*\n<{url}|*Job overview*>"))
+
+        return line
 
     def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]

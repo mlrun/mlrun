@@ -401,18 +401,11 @@ class NotificationPusher(_NotificationPusherBase):
                 )[0]
             )
 
-        def _add_build_step(*_):
-            # TODO: implement build step notification data
-            pass
-
-        def _add_serving_step(_, _node_template):
-            pattern = r"^(.+)/(.+)@(.+)$"
-            match = re.match(
-                pattern,
-                _node_template["metadata"]["annotations"]["mlrun/function-uri"],
+        def _add_deploy_function_step(_, _node_template):
+            project, name, hash_key = self._extract_function_uri(
+                _node_template["metadata"]["annotations"]["mlrun/function-uri"]
             )
-            if match:
-                project, name, hash_key = match.groups()
+            if name:
                 function = db.get_function(
                     project=project, name=name, hash_key=hash_key
                 )
@@ -425,8 +418,8 @@ class NotificationPusher(_NotificationPusherBase):
 
         step_methods = {
             mlrun.kfpops.PipelineRunType.run: _add_run_step,
-            mlrun.kfpops.PipelineRunType.build: _add_build_step,
-            mlrun.kfpops.PipelineRunType.deploy: _add_serving_step,
+            mlrun.kfpops.PipelineRunType.build: _add_deploy_function_step,
+            mlrun.kfpops.PipelineRunType.deploy: _add_deploy_function_step,
         }
 
         workflow_id = run.status.results.get("workflow_id", None)
@@ -480,6 +473,20 @@ class NotificationPusher(_NotificationPusherBase):
             return json.loads(kfp_run["pipeline_runtime"]["workflow_manifest"])
         except Exception:
             return None
+
+    def _extract_function_uri(self, function_uri):
+        project, name, hash_key = None, None, None
+        hashed_pattern = r"^(.+)/(.+)@(.+)$"
+        pattern = r"^(.+)/(.+)$"
+        match = re.match(hashed_pattern, function_uri)
+        if match:
+            project, name, hash_key = match.groups()
+        else:
+            match = re.match(pattern, function_uri)
+            if match:
+                project, name = match.groups()
+                hash_key = ""
+        return project, name, hash_key
 
 
 class CustomNotificationPusher(_NotificationPusherBase):

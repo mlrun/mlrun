@@ -106,13 +106,15 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _skip_set_environment():
         return True
 
-    def test_v3io_large_object_upload(self, tmp_path):
+    @pytest.mark.parametrize(
+        "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]
+    )  # 4MB and 20MB
+    def test_v3io_large_object_upload(self, tmp_path, file_size):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
         first_start_time = time.monotonic()
         with open(tempfile_1_path, "wb") as f:
-            file_size = 20 * 1024 * 1024  # 20MB
             data = os.urandom(file_size)
             f.write(data)
         data_item = mlrun.run.get_dataitem(self._object_url)

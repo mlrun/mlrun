@@ -26,7 +26,8 @@ decorators-and-auto-logging
 submitting-tasks-jobs-to-functions
 workflow-overview
 /runtimes/multiple-funcs-exithandler
-/runtimes/multiple_parallel_workflow
+/runtimes/multiple-parallel-workflow
+/runtimes/conditional-workflow
 /runtimes/configuring-job-resources
 scheduled-jobs
 notifications

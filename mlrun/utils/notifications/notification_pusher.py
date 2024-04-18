@@ -14,18 +14,25 @@
 
 import asyncio
 import datetime
+import json
 import os
+import re
 import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
+
+import kfp
 
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
 import mlrun.errors
+import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
+import mlrun.runtimes.constants
 import mlrun.utils.helpers
+from mlrun import mlconf
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
@@ -238,20 +245,7 @@ class NotificationPusher(_NotificationPusherBase):
             custom_message = (
                 f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )
-            db = mlrun.get_run_db()
-
-            workflow_id = run.status.results.get("workflow_id", None)
-            if workflow_id:
-                workflow_runs = db.list_runs(
-                    project=run.metadata.project,
-                    labels=f"workflow={workflow_id}",
-                )
-                logger.debug(
-                    "Found workflow runs, extending notification runs",
-                    workflow_id=workflow_id,
-                    workflow_runs_amount=len(workflow_runs),
-                )
-                runs.extend(workflow_runs)
+            runs.extend(self.get_workflow_steps(run))
 
         message = (
             self.messages.get(run.state(), "").format(resource=resource)
@@ -394,6 +388,98 @@ class NotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
+
+    def get_workflow_steps(self, run: mlrun.model.RunObject) -> list:
+        steps = []
+        db = mlrun.get_run_db()
+
+        def _add_run_step(_node_name, _):
+            steps.append(
+                db.list_runs(
+                    project=run.metadata.project,
+                    labels=f"mlrun/runner-pod={_node_name}",
+                )[0]
+            )
+
+        def _add_build_step(*_):
+            # TODO: implement build step notification data
+            pass
+
+        def _add_serving_step(_, _node_template):
+            pattern = r"^(.+)/(.+)@(.+)$"
+            match = re.match(
+                pattern,
+                _node_template["metadata"]["annotations"]["mlrun/function-uri"],
+            )
+            if match:
+                project, name, hash_key = match.groups()
+                function = db.get_function(
+                    project=project, name=name, hash_key=hash_key
+                )
+                function["status"] = {
+                    "state": mlrun.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                        node["phase"]
+                    ),
+                }
+                steps.append(function)
+
+        step_methods = {
+            mlrun.kfpops.PipelineRunType.run: _add_run_step,
+            mlrun.kfpops.PipelineRunType.build: _add_build_step,
+            mlrun.kfpops.PipelineRunType.deploy: _add_serving_step,
+        }
+
+        workflow_id = run.status.results.get("workflow_id", None)
+        if not workflow_id:
+            return steps
+
+        workflow_manifest = self._get_workflow_manifest(workflow_id)
+        if not workflow_manifest:
+            return steps
+
+        try:
+            workflow_nodes = sorted(
+                workflow_manifest["status"]["nodes"].items(),
+                key=lambda _node: _node[1]["finishedAt"],
+            )
+            for node_name, node in workflow_nodes:
+                if node["type"] != "Pod":
+                    # Skip the parent DAG node
+                    continue
+
+                node_template = next(
+                    template
+                    for template in workflow_manifest["spec"]["templates"]
+                    if template["name"] == node["templateName"]
+                )
+                step_type = node_template["metadata"]["annotations"].get(
+                    "mlrun/pipeline-step-type"
+                )
+                step_method = step_methods.get(step_type)
+                if step_method:
+                    step_method(node_name, node_template)
+            return steps
+        except Exception:
+            # If we fail to read the pipeline steps, we will return the list of runs that have the same workflow id
+            return db.list_runs(
+                project=run.metadata.project,
+                labels=f"workflow={workflow_id}",
+            )
+
+    @staticmethod
+    def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
+        kfp_client = kfp.Client(namespace=mlconf.namespace)
+
+        # arbitrary timeout of 5 seconds, the workflow should be done by now
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        if not kfp_run:
+            return None
+
+        kfp_run = kfp_run.to_dict()
+        try:
+            return json.loads(kfp_run["pipeline_runtime"]["workflow_manifest"])
+        except Exception:
+            return None
 
 
 class CustomNotificationPusher(_NotificationPusherBase):

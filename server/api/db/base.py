@@ -696,6 +696,26 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def delete_alert_template(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        pass
+
+    @abstractmethod
     def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
         pass
 

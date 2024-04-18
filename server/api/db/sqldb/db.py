@@ -67,6 +67,7 @@ from server.api.db.sqldb.helpers import (
 from server.api.db.sqldb.models import (
     AlertConfig,
     AlertState,
+    AlertTemplate,
     Artifact,
     ArtifactV2,
     BackgroundTask,
@@ -4214,6 +4215,42 @@ class SQLDB(DBInterface):
         data_version_record = DataVersion(version=version, created=now)
         self._upsert(session, [data_version_record])
 
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        template_record = self._get_alert_template_record(
+            session, template.template_name
+        )
+        if not template_record:
+            return self._create_alert_template(session, template)
+        template_record.full_object = template.dict()
+
+        self._upsert(session, [template_record])
+        return self._transform_alert_template_record_to_schema(
+            self._get_alert_template_record(session, template.template_name)
+        )
+
+    def _create_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        template_record = self._transform_alert_template_schema_to_record(template)
+        self._upsert(session, [template_record])
+        return self._transform_alert_template_record_to_schema(template_record)
+
+    def delete_alert_template(self, session, name: str):
+        self._delete(session, AlertTemplate, name=name)
+
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        query = self._query(session, AlertTemplate)
+        return list(map(self._transform_alert_template_record_to_schema, query.all()))
+
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        return self._transform_alert_template_record_to_schema(
+            self._get_alert_template_record(session, name)
+        )
+
     def store_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig
     ) -> mlrun.common.schemas.AlertConfig:
@@ -4307,6 +4344,28 @@ class SQLDB(DBInterface):
         ]
 
     @staticmethod
+    def _transform_alert_template_schema_to_record(
+        alert_template: mlrun.common.schemas.AlertTemplate,
+    ) -> AlertTemplate:
+        template_record = AlertTemplate(
+            id=alert_template.template_id,
+            name=alert_template.template_name,
+        )
+        template_record.full_object = alert_template.dict()
+        return template_record
+
+    @staticmethod
+    def _transform_alert_template_record_to_schema(
+        template_record: AlertTemplate,
+    ) -> mlrun.common.schemas.AlertTemplate:
+        if template_record is None:
+            return None
+
+        template = mlrun.common.schemas.AlertTemplate(**template_record.full_object)
+        template.template_id = template_record.id
+        return template
+
+    @staticmethod
     def _transform_alert_config_record_to_schema(
         alert_config_record: AlertConfig,
     ) -> mlrun.common.schemas.AlertConfig:
@@ -4328,6 +4387,9 @@ class SQLDB(DBInterface):
         )
         alert_record.full_object = alert.dict()
         return alert_record
+
+    def _get_alert_template_record(self, session, name: str) -> AlertTemplate:
+        return self._query(session, AlertTemplate, name=name).one_or_none()
 
     def _get_alert_record(self, session, name: str, project: str) -> AlertConfig:
         return self._query(

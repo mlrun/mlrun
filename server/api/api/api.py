@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends
 
 from server.api.api import deps
 from server.api.api.endpoints import (
+    alert_template,
     alerts,
     artifacts,
     artifacts_v2,
@@ -162,6 +163,11 @@ api_router.include_router(
 api_router.include_router(
     alerts.router,
     tags=["alerts"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    alert_template.router,
+    tags=["alert-templates"],
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(

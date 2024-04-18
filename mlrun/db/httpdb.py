@@ -529,6 +529,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("feature_store_default_targets")
                 or config.feature_store.default_targets
             )
+            config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
 
         except Exception as exc:
             logger.warning(
@@ -3667,6 +3668,16 @@ class HTTPRunDB(RunDBInterface):
         """
         pass
 
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
     def submit_workflow(
         self,
         project: str,
@@ -3874,6 +3885,96 @@ class HTTPRunDB(RunDBInterface):
                 load_source_on_run=func.spec.build.load_source_on_run,
                 default_docker_registry=config.httpdb.builder.docker_registry,
             )
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        """
+        Generate an event.
+        :param name: The name of the event.
+        :param event_data: The data of the event.
+        :param project: The project that the event belongs to.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/events/{name}"
+        error_message = f"post event {project}/events/{name}"
+        if isinstance(event_data, mlrun.common.schemas.Event):
+            event_data = event_data.dict()
+        self.api_call(
+            "POST", endpoint_path, error_message, body=dict_to_json(event_data)
+        )
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        project="",
+    ):
+        """
+        Create/modify an alert.
+        :param alert_name: The name of the alert.
+        :param alert_data: The data of the alert.
+        :param project: the project that the alert belongs to.
+        :return: The created/modified alert.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}"
+        error_message = f"put alert {project}/alerts/{alert_name}"
+        if isinstance(alert_data, mlrun.common.schemas.AlertConfig):
+            alert_data = alert_data.dict()
+        body = _as_json(alert_data)
+        response = self.api_call("PUT", endpoint_path, error_message, body=body)
+        return mlrun.common.schemas.AlertConfig(**response.json())
+
+    def get_alert_config(self, alert_name: str, project=""):
+        """
+        Retrieve an alert.
+        :param alert_name: The name of the alert to retrieve.
+        :param project: The project that the alert belongs to.
+        :return: The alert object.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}"
+        error_message = f"get alert {project}/alerts/{alert_name}"
+        response = self.api_call("GET", endpoint_path, error_message)
+        return mlrun.common.schemas.AlertConfig(**response.json())
+
+    def list_alerts_configs(self, project=""):
+        """
+        Retrieve list of alerts of a project.
+        :param project: The project name.
+        :return: All the alerts objects of the project.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts"
+        error_message = f"get alerts {project}/alerts"
+        response = self.api_call("GET", endpoint_path, error_message).json()
+        results = []
+        for item in response:
+            results.append(mlrun.common.schemas.AlertConfig(**item))
+        return results
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        """
+        Delete an alert.
+        :param alert_name: The name of the alert to delete.
+        :param project: The project that the alert belongs to.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}"
+        error_message = f"delete alert {project}/alerts/{alert_name}"
+        self.api_call("DELETE", endpoint_path, error_message)
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        """
+        Reset an alert.
+        :param alert_name: The name of the alert to reset.
+        :param project: The project that the alert belongs to.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}/reset"
+        error_message = f"post alert {project}/alerts/{alert_name}/reset"
+        self.api_call("POST", endpoint_path, error_message)
 
 
 def _as_json(obj):

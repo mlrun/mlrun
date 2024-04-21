@@ -1420,7 +1420,9 @@ class MlrunProject(ModelObj):
                     artifact.src_path = path.join(
                         self.spec.get_code_path(), artifact.src_path
                     )
-                producer = self._resolve_artifact_producer(artifact, project_tag)
+                producer, is_retained_producer = self._resolve_artifact_producer(
+                    artifact, project_tag
+                )
                 # log the artifact only if it doesn't already exist
                 if (
                     producer.name != self.metadata.name
@@ -1430,7 +1432,11 @@ class MlrunProject(ModelObj):
                 ):
                     continue
                 artifact_manager.log_artifact(
-                    producer, artifact, artifact_path=artifact_path
+                    producer,
+                    artifact,
+                    artifact_path=artifact_path,
+                    project=self.metadata.name,
+                    is_retained_producer=is_retained_producer,
                 )
 
     def _get_artifact_manager(self):
@@ -1525,7 +1531,7 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             artifact_path, self.metadata.name
         )
-        producer = self._resolve_artifact_producer(item)
+        producer, is_retained_producer = self._resolve_artifact_producer(item)
         if producer.name != self.metadata.name:
             # the artifact producer is retained, log it only if it doesn't already exist
             if existing_artifact := self._resolve_existing_artifact(
@@ -1550,6 +1556,8 @@ class MlrunProject(ModelObj):
             upload=upload,
             labels=labels,
             target_path=target_path,
+            project=self.metadata.name,
+            is_retained_producer=is_retained_producer,
             **kwargs,
         )
         return item
@@ -1779,14 +1787,16 @@ class MlrunProject(ModelObj):
                 artifact = get_artifact(spec)
                 with open(f"{temp_dir}/_body", "rb") as fp:
                     artifact.spec._body = fp.read()
-                artifact.target_path = ""
 
                 # if the dataitem is not a file, it means we downloaded it from a remote source to a temp file,
                 # so we need to remove it after we're done with it
                 dataitem.remove_local()
 
                 return self.log_artifact(
-                    artifact, local_path=temp_dir, artifact_path=artifact_path
+                    artifact,
+                    local_path=temp_dir,
+                    artifact_path=artifact_path,
+                    upload=True,
                 )
 
         else:
@@ -3949,7 +3959,7 @@ class MlrunProject(ModelObj):
         self,
         artifact: typing.Union[str, Artifact],
         project_producer_tag: str = None,
-    ) -> typing.Optional[ArtifactProducer]:
+    ) -> tuple[ArtifactProducer, bool]:
         """
         Resolve the artifact producer of the given artifact.
         If the artifact's producer is a run, the artifact is registered with the original producer.
@@ -3958,10 +3968,10 @@ class MlrunProject(ModelObj):
         :param artifact:                The artifact to resolve its producer.
         :param project_producer_tag:    The tag to use for the project as the producer. If not provided, a tag will be
         generated for the project.
-        :return:                        A tuple of the resolved producer and the resolved artifact.
+        :return:                        A tuple of the resolved producer and whether it is retained or not.
         """
 
-        if not isinstance(artifact, str) and artifact.producer:
+        if not isinstance(artifact, str) and artifact.spec.producer:
             # if the artifact was imported from a yaml file, the producer can be a dict
             if isinstance(artifact.spec.producer, ArtifactProducer):
                 producer_dict = artifact.spec.producer.get_meta()
@@ -3974,7 +3984,7 @@ class MlrunProject(ModelObj):
                     kind=producer_dict.get("kind", ""),
                     project=producer_dict.get("project", ""),
                     tag=producer_dict.get("tag", ""),
-                )
+                ), True
 
         # do not retain the artifact's producer, replace it with the project as the producer
         project_producer_tag = project_producer_tag or self._get_project_tag()
@@ -3983,7 +3993,7 @@ class MlrunProject(ModelObj):
             name=self.metadata.name,
             project=self.metadata.name,
             tag=project_producer_tag,
-        )
+        ), False
 
     def _resolve_existing_artifact(
         self,

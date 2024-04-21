@@ -144,6 +144,7 @@ class HTTPRunDB(RunDBInterface):
         password = parsed_url.password or config.httpdb.password
         self.user = username
         self.password = password
+        self.token = None
 
         if config.auth_with_client_id:
             token_endpoint = mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT")
@@ -156,7 +157,9 @@ class HTTPRunDB(RunDBInterface):
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
                 parsed_url.hostname, username, password, config.httpdb.token
             )
-            self.token = StaticTokenProvider(token)
+
+            if token:
+                self.token = StaticTokenProvider(token)
 
     def __repr__(self):
         cls = self.__class__.__name__

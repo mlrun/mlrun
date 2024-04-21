@@ -112,9 +112,10 @@ class OAuthClientIDTokenProvider(TokenProvider):
                     error = data.get("error")
                 except Exception:
                     pass
-            logger.warning("Retrieving token failed: ", error=error)
+            logger.warning("Retrieving token failed", error=error)
             if raise_on_error:
                 mlrun.errors.raise_for_status(response)
+            return
 
         self._parse_response(response.json())
 
@@ -125,14 +126,16 @@ class OAuthClientIDTokenProvider(TokenProvider):
         expires_in = data.get("expires_in")
         if not self.token or not expires_in:
             token_str = "****" if self.token else "missing"
-            logger.warning("Failed to parse token response", token=token_str, expires_in=expires_in)
+            logger.warning(
+                "Failed to parse token response", token=token_str, expires_in=expires_in
+            )
             return
 
         now = datetime.now()
         self.token_expiry_time = now + timedelta(seconds=expires_in)
         self.token_refresh_time = now + timedelta(seconds=expires_in / 2)
         logger.info(
-            "Successfully retrieved client-id token.",
+            "Successfully retrieved client-id token",
             expiry=str(self.token_expiry_time),
             refresh=str(self.token_refresh_time),
         )

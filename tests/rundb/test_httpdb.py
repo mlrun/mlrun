@@ -14,6 +14,7 @@
 
 import codecs
 import datetime
+import os
 import sys
 import time
 from collections import namedtuple
@@ -28,12 +29,14 @@ from uuid import uuid4
 
 import deepdiff
 import pytest
+import requests_mock as requests_mock_package
 
 import mlrun.artifacts.base
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
+from mlrun.db.auth_utils import StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -323,8 +326,70 @@ def test_bearer_auth(create_server):
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
-    db.token = token
+    db.token = StaticTokenProvider(token)
     db.list_runs()
+
+
+def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
+    token_url = "https://mock/token_endpoint/protocol/openid-connect/token"
+    test_env = {
+        "MLRUN_AUTH_TOKEN_ENDPOINT": token_url,
+        "MLRUN_AUTH_CLIENT_ID": "some-client-id",
+        "MLRUN_AUTH_CLIENT_SECRET": "some-client-secret",
+    }
+
+    mlrun.mlconf.auth_with_client_id = True
+    os.environ.update(test_env)
+
+    expected_token = "my-cool-token"
+    # Set a 4-second expiry, so a refresh will happen in 2 seconds
+    requests_mock.post(
+        token_url, json={"access_token": expected_token, "expires_in": 4}
+    )
+
+    db_url = "http://mock-server:1919"
+    db = HTTPRunDB(db_url)
+    db.connect()
+    token = db.token.get_token()
+    assert token == expected_token
+
+    time.sleep(1)
+    token = db.token.get_token()
+    assert token == expected_token
+
+    time.sleep(1.5)
+    expected_token = "my-other-cool-token"
+    requests_mock.post(
+        token_url, json={"access_token": expected_token, "expires_in": 4}
+    )
+    token = db.token.get_token()
+    assert token == expected_token
+
+    # Check that httpdb attaches the token to API calls as Authorization header.
+    # Using trigger-migrations since it needs no payload and returns nothing, so easy to simulate.
+    requests_mock.post(f"{db_url}/api/v1/operations/migrations", status_code=200)
+    db.trigger_migrations()
+
+    expected_auth = f"Bearer {expected_token}"
+    last_request = requests_mock.last_request
+    assert last_request.headers["Authorization"] == expected_auth
+
+    # Check flow where we fail token retrieval while token is still active.
+    requests_mock.reset_mock()
+    requests_mock.post(token_url, status_code=401)
+
+    time.sleep(2)
+    db.trigger_migrations()
+
+    request_history = requests_mock.request_history
+    # We expect 2 calls - one for the token (which failed but didn't fail the flow) and one for the actual api call.
+    assert len(request_history) == 2
+    # The token should still be the previous token, since it was not refreshed but it's not expired yet.
+    assert request_history[-1].headers["Authorization"] == expected_auth
+
+    mlrun.mlconf.auth_with_client_id = False
+    for key in test_env:
+        del os.environ[key]
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:

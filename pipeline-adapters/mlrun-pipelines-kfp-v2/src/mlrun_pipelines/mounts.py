@@ -159,7 +159,6 @@ def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
     raise NotImplementedError
 
 
-# auto_mount has to be moved to the mlrun_pipelines.common
 def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
     """choose the mount based on env variables and params
 

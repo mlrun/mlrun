@@ -17,7 +17,6 @@ __all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 import os
 import pathlib
 import traceback
-import warnings
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
@@ -26,7 +25,10 @@ import mlrun
 
 from ..config import config
 from ..datastore import get_stream_pusher
-from ..datastore.utils import parse_kafka_url
+from ..datastore.utils import (
+    get_kafka_brokers_from_dict,
+    parse_kafka_url,
+)
 from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
@@ -1496,14 +1498,7 @@ def _init_async_objects(context, steps):
                     options = {}
                     options.update(step.options)
 
-                    kafka_brokers = options.pop("kafka_brokers", None)
-                    if not kafka_brokers and "kafka_bootstrap_servers" in options:
-                        kafka_brokers = options.pop("kafka_bootstrap_servers")
-                        warnings.warn(
-                            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
-                            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
-                            FutureWarning,
-                        )
+                    kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
 
                     if stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)

@@ -15,6 +15,7 @@
 import tarfile
 import tempfile
 import typing
+import warnings
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
@@ -164,3 +165,18 @@ def _generate_sql_query_with_time_filter(
             query = query.filter(getattr(table.c, time_column) <= end_time)
 
     return query, parse_dates
+
+
+def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str]:
+    get_or_pop = options.pop if pop else options.get
+    kafka_brokers = get_or_pop("kafka_brokers", None)
+    if kafka_brokers:
+        return kafka_brokers
+    kafka_bootstrap_servers = get_or_pop("kafka_bootstrap_servers", None)
+    if kafka_bootstrap_servers:
+        warnings.warn(
+            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
+            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
+            FutureWarning,
+        )
+    return kafka_bootstrap_servers

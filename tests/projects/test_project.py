@@ -248,7 +248,7 @@ def test_build_project_from_minimal_dict():
 
 
 @pytest.mark.parametrize(
-    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "url,project_name,project_files,clone,allow_cross_project,num_of_files_to_create,create_child_dir,"
     "override_context,expect_error,error_msg",
     [
         (
@@ -258,6 +258,37 @@ def test_build_project_from_minimal_dict():
             / "project.zip",
             "pipe2",
             ["prep_data.py", "project.yaml"],
+            True,
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "different1name",
+            ["prep_data.py", "project.yaml"],
+            True,
+            False,
+            3,
+            True,
+            "",
+            True,
+            "project name mismatch",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "different1name",
+            ["prep_data.py", "project.yaml"],
+            True,
             True,
             3,
             True,
@@ -273,6 +304,7 @@ def test_build_project_from_minimal_dict():
             "pipe2",
             ["prep_data.py", "project.yaml"],
             True,
+            False,
             3,
             True,
             "",
@@ -284,6 +316,7 @@ def test_build_project_from_minimal_dict():
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
+            False,
             3,
             True,
             "",
@@ -297,6 +330,7 @@ def test_build_project_from_minimal_dict():
             / "project.zip",
             "pipe2",
             ["prep_data.py", "project.yaml"],
+            False,
             False,
             3,
             True,
@@ -312,6 +346,7 @@ def test_build_project_from_minimal_dict():
             "pipe2",
             ["prep_data.py", "project.yaml"],
             False,
+            False,
             3,
             True,
             "",
@@ -322,6 +357,7 @@ def test_build_project_from_minimal_dict():
             "git://github.com/mlrun/project-demo.git",
             "pipe",
             [],
+            False,
             False,
             3,
             True,
@@ -334,6 +370,7 @@ def test_build_project_from_minimal_dict():
             "git://github.com/mlrun/project-demo.git",
             "pipe",
             [],
+            False,
             False,
             0,
             False,
@@ -349,6 +386,7 @@ def test_build_project_from_minimal_dict():
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
+            False,
             0,
             False,
             "",
@@ -359,6 +397,7 @@ def test_build_project_from_minimal_dict():
             "ssh://git@something/something",
             "something",
             [],
+            False,
             False,
             0,
             False,
@@ -375,6 +414,7 @@ def test_load_project(
     project_name,
     project_files,
     clone,
+    allow_cross_project,
     num_of_files_to_create,
     create_child_dir,
     override_context,
@@ -402,11 +442,25 @@ def test_load_project(
 
     if expect_error:
         with pytest.raises(Exception) as exc:
-            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+            mlrun.load_project(
+                context=context,
+                url=url,
+                clone=clone,
+                save=False,
+                name=project_name,
+                allow_cross_project=allow_cross_project,
+            )
         assert error_msg in str(exc.value)
         return
 
-    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+    project = mlrun.load_project(
+        context=context,
+        url=url,
+        clone=clone,
+        save=False,
+        name=project_name,
+        allow_cross_project=allow_cross_project,
+    )
 
     for temp_file in temp_files:
         # verify that the context directory was cleaned if clone is True
@@ -420,6 +474,55 @@ def test_load_project(
     assert project.spec.source == str(url)
     for project_file in project_files:
         assert os.path.exists(os.path.join(context, project_file))
+
+
+@pytest.mark.parametrize(
+    "from_template,project_name,override_context,expect_error,error_msg",
+    [
+        (
+            str(
+                pathlib.Path(tests.conftest.tests_root_directory)
+                / "projects"
+                / "assets"
+                / "project.zip"
+            ),
+            "different1name",
+            "",
+            False,
+            "",
+        ),
+    ],
+)
+def test_new_project(
+    context,
+    from_template,
+    project_name,
+    override_context,
+    expect_error,
+    error_msg,
+):
+    # use override context to test invalid paths - it will not be deleted on teardown
+    context = override_context or context
+
+    if expect_error:
+        with pytest.raises(Exception) as exc:
+            mlrun.new_project(
+                context=context,
+                from_template=from_template,
+                save=False,
+                name=project_name,
+            )
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.new_project(
+        context=context,
+        from_template=from_template,
+        save=False,
+        name=project_name,
+    )
+
+    assert project.name == project_name
 
 
 @pytest.mark.parametrize("op", ["new", "load"])

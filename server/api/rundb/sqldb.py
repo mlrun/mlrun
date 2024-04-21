@@ -233,13 +233,24 @@ class SQLRunDB(RunDBInterface):
             producer_id=tree,
         )
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+        secrets: dict = None,
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
             self.session,
             key,
             tag,
             project,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):

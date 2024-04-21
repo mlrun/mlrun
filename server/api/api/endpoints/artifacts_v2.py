@@ -226,6 +226,8 @@ async def delete_artifact(
     tree: str = None,
     tag: str = None,
     object_uid: str = Query(None, alias="object-uid"),
+    deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+    secrets: dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -244,6 +246,9 @@ async def delete_artifact(
         project,
         object_uid,
         producer_id=tree,
+        deletion_strategy=deletion_strategy,
+        secrets=secrets,
+        auth_info=auth_info,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -255,6 +260,8 @@ async def delete_artifacts(
     tag: str = "",
     tree: str = None,
     labels: list[str] = Query([], alias="label"),
+    deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+    secrets: dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -281,7 +288,9 @@ async def delete_artifacts(
         name,
         tag,
         labels,
-        auth_info,
         producer_id=tree,
+        deletion_strategy=deletion_strategy,
+        secrets=secrets,
+        auth_info=auth_info,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

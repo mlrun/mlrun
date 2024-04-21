@@ -22,6 +22,7 @@ import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+import server.api.api.endpoints.files
 import server.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
@@ -188,8 +189,41 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         object_uid: str = None,
         producer_id: str = None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+        secrets: dict = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
+
+        obj_path = ""
+
+        # delete artifacts data by deletion strategy
+        if deletion_strategy in [
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
+        ]:
+            try:
+                server.api.api.endpoints.files.delete_files_with_project_secrets(
+                    project=project,
+                    secrets=secrets,
+                    auth_info=auth_info,
+                    obj_path=obj_path,
+                )
+            except Exception as err:
+                logger.debug(
+                    "Failed delete artifacts data",
+                    path=obj_path,
+                    deletion_strategy=deletion_strategy,
+                    err=err_to_str(err),
+                )
+                if (
+                    deletion_strategy
+                    == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+                ):
+                    raise mlrun.errors.MLRunInternalServerError(
+                        "Failed to delete artifact data"
+                    )
+
         return server.api.utils.singletons.db.get_db().del_artifact(
             db_session, key, tag, project, object_uid, producer_id=producer_id
         )

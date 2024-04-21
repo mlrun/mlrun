@@ -13,10 +13,12 @@
 # limitations under the License.
 #
 import asyncio
+import datetime
 import re
 from typing import Optional
 
 import semver
+from humanfriendly import InvalidTimespan, parse_timespan
 from timelength import TimeLength
 
 import mlrun
@@ -122,3 +124,15 @@ def is_request_from_leader(
     if projects_role and projects_role.value == leader_name:
         return True
     return False
+
+
+def string_to_timedelta(date_str, raise_on_error=True):
+    date_str = date_str.strip().lower()
+    try:
+        seconds = parse_timespan(date_str)
+    except InvalidTimespan as exc:
+        if raise_on_error:
+            raise exc
+        return None
+
+    return datetime.timedelta(seconds=seconds)

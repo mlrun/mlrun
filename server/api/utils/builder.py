@@ -777,6 +777,19 @@ def build_runtime(
     return True
 
 
+def resolve_and_enrich_image_target(
+    image_target: str,
+    registry: str = None,
+    client_version: str = None,
+    client_python_version: str = None,
+) -> str:
+    image_target = resolve_image_target(image_target, registry)
+    image_target = mlrun.utils.enrich_image_url(
+        image_target, client_version, client_python_version
+    )
+    return image_target
+
+
 def resolve_image_target(image_target: str, registry: str = None) -> str:
     if registry:
         return "/".join([registry, image_target])

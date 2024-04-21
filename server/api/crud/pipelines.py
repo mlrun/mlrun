@@ -373,7 +373,9 @@ class Pipelines(
                         parsed_runtime = ast.literal_eval(runtime)
                     except Exception as exc:
                         logger.warning(
-                            "Failed parsing runtime. Skipping", runtime=runtime, exc=exc
+                            "Failed parsing runtime. Skipping",
+                            runtime=runtime,
+                            exc=err_to_str(exc),
                         )
                     else:
                         if isinstance(parsed_runtime, dict):

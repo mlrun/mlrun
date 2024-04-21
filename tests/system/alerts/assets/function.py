@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,5 +14,5 @@
 #
 
 
-ONE_GB = 1024 * 1024 * 1024
-ONE_MB = 1024 * 1024
+def handler():
+    raise Exception("This function intentionally fails")

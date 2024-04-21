@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 import os
+import os.path
 import tempfile
 import uuid
-from pathlib import Path
 
 import dask.dataframe as dd
 import pandas as pd
@@ -40,94 +40,88 @@ from tests.datastore.databricks_utils import (
 
 @pytest.mark.skipif(
     not is_databricks_configured(
-        Path(__file__).absolute().parent / "test-dbfs-store.yml"
+        os.path.join(os.path.dirname(__file__), "test-dbfs-store.yml")
     ),
     reason="DBFS storage parameters not configured",
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestDBFSStore:
-    here = Path(__file__).absolute().parent
-    config_file_path = here / "test-dbfs-store.yml"
-    with config_file_path.open() as fp:
-        config = yaml.safe_load(fp)
-    parquets_dir = "/parquets"
-    csv_dir = "/csv"
-    test_file_path = str(here / "test.txt")
-    json_path = str(here / "test_data.json")
-    parquet_path = str(here / "test_data.parquet")
-    additional_parquet_path = str(here / "additional_data.parquet")
-    csv_path = str(here / "test_data.csv")
-    additional_csv_path = str(here / "additional_data.csv")
+    class_dir = "/dbfs_store"
+    test_dir = f"{MLRUN_ROOT_DIR}{class_dir}"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    profile_name = "dbfs_ds_profile"
+    here = os.path.dirname(__file__)
+    config_file_path = os.path.join(here, "test-dbfs-store.yml")
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    test_file = os.path.join(assets_path, "test.txt")
 
-    def setup_class(self):
-        env_params = self.config["env"]
+    @classmethod
+    def setup_class(cls):
+        with open(cls.config_file_path) as yaml_file:
+            cls.config = yaml.safe_load(yaml_file)
+        env_params = cls.config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param
-        self.dbfs_store_dir = "/dbfs_store"
-        self.dbfs_store_path = f"{MLRUN_ROOT_DIR}{self.dbfs_store_dir}"
-        self._dbfs_schema = "dbfs://"
-        self.workspace = WorkspaceClient()
-        self.profile_name = "dbfs_ds_profile"
+        cls.token = env_params.get("DATABRICKS_TOKEN", None)
+        cls.host = env_params.get("DATABRICKS_HOST", None)
+        cls.workspace = WorkspaceClient()
+        with open(cls.test_file) as f:
+            cls.test_string = f.read()
 
-        with open(self.test_file_path) as f:
-            self.test_string = f.read()
-
-        self.profile = DatastoreProfileDBFS(
-            name=self.profile_name,
+        cls.profile = DatastoreProfileDBFS(
+            name=cls.profile_name,
             endpoint_url=env_params["DATABRICKS_HOST"],
             token=env_params["DATABRICKS_TOKEN"],
+        )
+        setup_dbfs_dirs(
+            workspace=cls.workspace,
+            specific_test_class_dir=cls.class_dir,
+            subdirs=[],
         )
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
-        setup_dbfs_dirs(
-            workspace=self.workspace,
-            specific_test_class_dir=self.dbfs_store_dir,
-            subdirs=[self.parquets_dir, self.csv_dir],
-        )
-        register_temporary_client_datastore_profile(self.profile)
-        store_manager.reset_secrets()
+        self.object_file = f"/file_{uuid.uuid4()}.txt"
         env_params = self.config["env"]
         if use_datastore_profile:
+            self.prefix_url = f"ds://{self.profile_name}"
             for key, env_param in env_params.items():
                 os.environ[key] = "wrong_value"
         else:
+            self.prefix_url = "dbfs://"
             for key, env_param in env_params.items():
                 os.environ[key] = env_param
+        self.run_dir_url = f"{self.prefix_url}{self.run_dir}"
+        self.object_url = f"{self.run_dir_url}{self.object_file}"
+        register_temporary_client_datastore_profile(self.profile)
+        store_manager.reset_secrets()
 
-    def teardown_class(self):
+    @classmethod
+    def teardown_class(cls):
         teardown_dbfs_dirs(
-            workspace=self.workspace, specific_test_class_dir=self.dbfs_store_dir
+            workspace=cls.workspace, specific_test_class_dir=cls.class_dir
         )
 
-    def _get_data_item(self, secrets={}, use_profile=False):
-        object_path = f"{self.dbfs_store_path}/file_{uuid.uuid4()}.txt"
-        object_url = (
-            f"ds://{self.profile_name}{object_path}"
-            if use_profile
-            else f"{self._dbfs_schema}{object_path}"
-        )
-        return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
+    def teardown_method(self, method):
+        os.environ["DATABRICKS_TOKEN"] = self.token
+        os.environ["DATABRICKS_HOST"] = self.host
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
     def test_put_get_and_download(
         self, use_datastore_profile, use_secrets_as_parameters
     ):
         secrets = {}
-        token = self.config["env"].get("DATABRICKS_TOKEN", None)
-        host = self.config["env"].get("DATABRICKS_HOST", None)
         if use_secrets_as_parameters:
             os.environ["DATABRICKS_TOKEN"] = ""
-            #  Verify that we are using the profile secret:
+            # Verify that we are using the correct profile secret by deliberately
+            # setting an incorrect token as the secret or env.
+            # We expect that the correct token, which is saved in the datastore profile, will be utilized.
             secrets = (
                 {"DATABRICKS_TOKEN": "wrong_token", "DATABRICKS_HOST": "wrong_host"}
                 if use_datastore_profile
-                else {"DATABRICKS_TOKEN": token, "DATABRICKS_HOST": host}
+                else {"DATABRICKS_TOKEN": self.token, "DATABRICKS_HOST": self.host}
             )
-        data_item, _ = self._get_data_item(
-            secrets=secrets,
-            use_profile=use_datastore_profile,
-        )
+        data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)
         response = data_item.get()
         assert response.decode() == self.test_string
@@ -145,33 +139,33 @@ class TestDBFSStore:
             content = temp_file.read()
             assert content == self.test_string
 
-    def test_stat(self, use_datastore_profile):
-        data_item, _ = self._get_data_item(use_profile=use_datastore_profile)
+    def test_stat(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
     #
-    def test_list_dir(self, use_datastore_profile):
-        data_item, object_url = self._get_data_item(use_profile=use_datastore_profile)
+    def test_list_dir(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
-        file_name_length = len(object_url.split("/")[-1]) + 1
+        file_name_length = len(self.object_url.split("/")[-1]) + 1
         dir_dataitem = mlrun.run.get_dataitem(
-            object_url[:-file_name_length],
+            self.object_url[:-file_name_length],
         )
         dir_list = dir_dataitem.listdir()
-        assert object_url.split("/")[-1] in dir_list
+        assert self.object_url.split("/")[-1] in dir_list
 
-    def test_upload(self, use_datastore_profile):
-        data_item, _ = self._get_data_item(use_profile=use_datastore_profile)
-        data_item.upload(self.test_file_path)
+    def test_upload(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.upload(self.test_file)
         response = data_item.get()
         assert response.decode() == self.test_string
 
     #
-    def test_rm(self, use_datastore_profile):
-        data_item, _ = self._get_data_item(use_profile=use_datastore_profile)
-        data_item.upload(self.test_file_path)
+    def test_rm(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.upload(self.test_file)
         data_item.stat()
         data_item.delete()
         with pytest.raises(FileNotFoundError) as file_not_found_error:
@@ -179,205 +173,76 @@ class TestDBFSStore:
         assert "No file or directory exists on path" in str(file_not_found_error.value)
 
     @pytest.mark.parametrize(
-        "file_extension, local_file_path, reader",
+        "file_format, pd_reader, dd_reader, reader_args",
         [
-            (
-                "parquet",
-                parquet_path,
-                pd.read_parquet,
-            ),
-            ("csv", csv_path, pd.read_csv),
-            ("json", json_path, pd.read_json),
+            ("parquet", pd.read_parquet, dd.read_parquet, {}),
+            ("csv", pd.read_csv, dd.read_csv, {}),
+            ("json", pd.read_json, dd.read_json, {"orient": "records"}),
         ],
     )
     def test_as_df(
         self,
-        use_datastore_profile,
-        file_extension: str,
-        local_file_path: str,
-        reader: callable,
-    ):
-        source = reader(local_file_path)
-        upload_file_path = (
-            f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
-        )
-        dataitem_url = (
-            f"ds://{self.profile_name}{upload_file_path}"
-            if use_datastore_profile
-            else self._dbfs_schema + upload_file_path
-        )
-        upload_data_item = mlrun.run.get_dataitem(dataitem_url)
-        upload_data_item.upload(local_file_path)
-        response = upload_data_item.as_df()
-        assert source.equals(response)
-
-    @pytest.mark.parametrize(
-        "file_extension, local_file_path, reader, reader_args",
-        [
-            ("parquet", parquet_path, dd.read_parquet, {}),
-            ("csv", csv_path, dd.read_csv, {}),
-            ("json", json_path, dd.read_json, {"orient": "values"}),
-        ],
-    )
-    def test_as_df_dd(
-        self,
-        use_datastore_profile,
-        file_extension: str,
-        local_file_path: str,
-        reader: callable,
+        use_datastore_profile: bool,
+        file_format: str,
+        pd_reader: callable,
+        dd_reader: callable,
         reader_args: dict,
     ):
-        if use_datastore_profile:
-            pytest.skip(
-                "dask dataframe is not supported by datastore profile."
-            )  # TODO add support
-        source = reader(local_file_path, **reader_args)
-        upload_file_path = (
-            f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
-        )
-        dataitem_url = (
-            f"ds://{self.profile_name}{upload_file_path}"
-            if use_datastore_profile
-            else self._dbfs_schema + upload_file_path
-        )
-        upload_data_item = mlrun.run.get_dataitem(dataitem_url)
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
+        local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+
+        source = pd_reader(local_file_path, **reader_args)
+        upload_data_item = mlrun.run.get_dataitem(dataframe_url)
         upload_data_item.upload(local_file_path)
-        response = upload_data_item.as_df(df_module=dd, **reader_args)
-        assert dd.assert_eq(source, response)
+        response = upload_data_item.as_df(**reader_args)
+        pd.testing.assert_frame_equal(source, response)
 
-    def _setup_df_dir(
-        self, use_profile, first_file_path, second_file_path, file_extension, directory
-    ):
-        upload_file_path = (
-            f"{self.dbfs_store_path}{directory}/file_{uuid.uuid4()}.{file_extension}"
-        )
-        dataitem_url = (
-            f"ds://{self.profile_name}{upload_file_path}"
-            if use_profile
-            else self._dbfs_schema + upload_file_path
-        )
-
-        uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
-        uploaded_data_item.upload(first_file_path)
-
-        upload_file_path = (
-            f"{self.dbfs_store_path}{directory}/file_{uuid.uuid4()}.{file_extension}"
-        )
-        dataitem_url = (
-            f"ds://{self.profile_name}{upload_file_path}"
-            if use_profile
-            else self._dbfs_schema + upload_file_path
-        )
-        uploaded_data_item = mlrun.run.get_dataitem(dataitem_url)
-        uploaded_data_item.upload(second_file_path)
-        upload_directory = os.path.dirname(upload_file_path)
-        return (
-            f"ds://{self.profile_name}{upload_directory}"
-            if use_profile
-            else self._dbfs_schema + upload_directory
-        )
+        # dask
+        source = dd_reader(local_file_path, **reader_args)
+        response = upload_data_item.as_df(**reader_args, df_module=dd)
+        dd.assert_eq(source, response)
 
     @pytest.mark.parametrize(
-        "directory, file_format, file_extension, files_paths, reader",
+        "file_format, pd_reader, dd_reader, reset_index",
         [
-            (
-                parquets_dir,
-                "parquet",
-                "parquet",
-                [parquet_path, additional_parquet_path],
-                pd.read_parquet,
-            ),
-            (csv_dir, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv),
+            ("parquet", pd.read_parquet, dd.read_parquet, False),
+            ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
-    def test_check_read_df_dir(
-        self,
-        use_datastore_profile,
-        directory: str,
-        file_format: str,
-        file_extension: str,
-        files_paths: list[Path],
-        reader: callable,
-    ):
-        first_file_path = files_paths[0]
-        second_file_path = files_paths[1]
-        dir_url = self._setup_df_dir(
-            use_profile=use_datastore_profile,
-            first_file_path=first_file_path,
-            second_file_path=second_file_path,
-            file_extension=file_extension,
-            directory=directory,
-        )
+    def test_as_df_directory(self, file_format, pd_reader, dd_reader, reset_index):
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
-        dir_data_item = mlrun.run.get_dataitem(dir_url)
-        response_df = (
-            dir_data_item.as_df(format=file_format)
-            .sort_values("Name")
-            .reset_index(drop=True)
+        # upload
+        dt1 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df1.{file_format}",
         )
-        df = reader(files_paths[0])
-        additional_df = reader(second_file_path)
-        appended_df = (
-            pd.concat([df, additional_df], axis=0)
-            .sort_values("Name")
-            .reset_index(drop=True)
-        )
-        assert response_df.equals(appended_df)
+        dt2 = mlrun.run.get_dataitem(f"{dataframes_url}/df2.{file_format}")
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        dt_dir = mlrun.run.get_dataitem(dataframes_url)
+        df1 = pd_reader(df1_path)
+        df2 = pd_reader(df2_path)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
+        tested_df = dt_dir.as_df(format=file_format)
+        if reset_index:
+            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
+        pd.testing.assert_frame_equal(tested_df, expected_df)
 
-    @pytest.mark.parametrize(
-        "directory, file_format, file_extension, files_paths, reader",
-        [
-            (
-                parquets_dir,
-                "parquet",
-                "parquet",
-                [parquet_path, additional_parquet_path],
-                dd.read_parquet,
-            ),
-            (csv_dir, "csv", "csv", [csv_path, additional_csv_path], dd.read_csv),
-        ],
-    )
-    def test_check_read_df_dir_dd(
-        self,
-        use_datastore_profile,
-        directory: str,
-        file_format: str,
-        file_extension: str,
-        files_paths: list[Path],
-        reader: callable,
-    ):
-        if use_datastore_profile:
-            pytest.skip(
-                "dask dataframe is not supported by datastore profile."
-            )  # TODO add support
-        first_file_path = files_paths[0]
-        second_file_path = files_paths[1]
-        df_url = self._setup_df_dir(
-            use_profile=use_datastore_profile,
-            first_file_path=first_file_path,
-            second_file_path=second_file_path,
-            file_extension=file_extension,
-            directory=directory,
-        )
-        dir_data_item = mlrun.run.get_dataitem(df_url)
-        response_df = (
-            dir_data_item.as_df(format=file_format, df_module=dd)
-            .sort_values("Name")
-            .reset_index(drop=True)
-        )
-        df = reader(first_file_path)
-        additional_df = reader(second_file_path)
-        appended_df = (
-            dd.concat([df, additional_df], axis=0)
-            .sort_values("Name")
-            .reset_index(drop=True)
-        )
-        assert dd.assert_eq(appended_df, response_df)
+        # dask
+        dd_df1 = dd_reader(df1_path)
+        dd_df2 = dd_reader(df2_path)
+        expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
+        tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
+        dd.assert_eq(tested_dd_df, expected_dd_df)
 
     def test_multiple_dataitems(self, use_datastore_profile):
         if not use_datastore_profile:
             pytest.skip("test_multiple_dataitems relevant for profiles only.")
-        data_item, _ = self._get_data_item(use_profile=use_datastore_profile)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         test_profile = DatastoreProfileDBFS(
             name="test_profile",
             endpoint_url="test_host",
@@ -387,4 +252,4 @@ class TestDBFSStore:
         test_data_item = mlrun.run.get_dataitem(
             "ds://test_profile/test_directory/test_file.txt", secrets={}
         )
-        assert data_item.store.to_dict() != test_data_item.store.to_dict()
+        assert data_item.store.to_dict() != test_data_item._store.to_dict()

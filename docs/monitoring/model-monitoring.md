@@ -2,7 +2,9 @@
 # Model monitoring user flow
 
 This page gives an overview of the model monitoring feature. See a complete example in the tutorial [Model monitoring and drift detection](../tutorials/05-model-monitoring.html).
-
+```{admonition} Note
+If you are using the CE version, see {ref}`legacy-model-monitoring`.
+```
 ## Architecture
 
 <img src="../_static/images/model-monitoring.png" width="1100" >

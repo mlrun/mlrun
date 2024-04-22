@@ -360,10 +360,13 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
     db.connect()
     token = db.token_provider.get_token()
     assert token == expected_token
+    assert len(requests_mock.request_history) == 1
 
     time.sleep(1)
     token = db.token_provider.get_token()
     assert token == expected_token
+    # verify no additional calls were made (too early)
+    assert len(requests_mock.request_history) == 1
 
     time.sleep(1.5)
     expected_token = "my-other-cool-token"

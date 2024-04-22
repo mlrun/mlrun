@@ -1523,9 +1523,7 @@ class KafkaTarget(BaseStoreTarget):
 
         # define target
         kafka_target = KafkaTarget(
-            name="kafka",
-            path="my_topic",
-            bootstrap_servers="localhost:9092"
+            name="kafka", path="my_topic", bootstrap_servers="localhost:9092"
         )
 
         # ingest

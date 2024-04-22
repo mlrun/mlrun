@@ -417,34 +417,6 @@ def get_func_selector(project, name=None, tag=None):
     return s
 
 
-class k8s_resource:
-    kind = ""
-    per_run = False
-    per_function = False
-    k8client = None
-
-    def deploy_function(self, function):
-        pass
-
-    def release_function(self, function):
-        pass
-
-    def submit_run(self, function, runobj):
-        pass
-
-    def get_object(self, name, namespace=None):
-        return None
-
-    def get_status(self, name, namespace=None):
-        return None
-
-    def del_object(self, name, namespace=None):
-        pass
-
-    def get_pods(self, name, namespace=None, master=False):
-        return {}
-
-
 def enrich_function_from_dict(function, function_dict):
     override_function = mlrun.new_function(runtime=function_dict, kind=function.kind)
     for attribute in [

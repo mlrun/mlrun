@@ -931,7 +931,7 @@ class RunSpec(ModelObj):
 
         >>> run_spec.inputs = {
         ...     "my_input": "...",
-        ...     "my_hinted_input : pandas.DataFrame": "..."
+        ...     "my_hinted_input : pandas.DataFrame": "...",
         ... }
 
         :param inputs: The inputs to set.
@@ -1275,7 +1275,7 @@ class RunTemplate(ModelObj):
 
         example::
 
-            grid_params = {"p1": [2,4,1], "p2": [10,20]}
+            grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
             task = mlrun.new_task("grid-search")
             task.with_hyper_params(grid_params, selector="max.accuracy")
         """

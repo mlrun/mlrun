@@ -352,7 +352,6 @@ class EventStreamProcessor:
                     rate="10/m",
                     time_col=EventFieldType.TIMESTAMP,
                     container=self.tsdb_container,
-                    access_key=self.v3io_access_key,
                     v3io_frames=self.v3io_framesd,
                     infer_columns_from_data=True,
                     index_cols=[

@@ -22,7 +22,7 @@ import mlrun.common.schemas
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 from server.api.api import deps
-from server.api.api.endpoints.functions import process_model_monitoring_secret
+from server.api.api.endpoints.nuclio import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
@@ -71,6 +71,7 @@ async def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
+    deploy_histogram_data_drift_app: bool = True,
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -86,6 +87,7 @@ async def enable_model_monitoring(
     :param image:       The image of the model monitoring controller, writer & monitoring
                         stream functions, which are real time nuclio functions.
                         By default, the image is mlrun/mlrun.
+    :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
     """
 
     model_monitoring_access_key = None
@@ -97,7 +99,7 @@ async def enable_model_monitoring(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
         )
 
-    return MonitoringDeployment(
+    MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
@@ -105,6 +107,7 @@ async def enable_model_monitoring(
     ).deploy_monitoring_functions(
         image=image,
         base_period=base_period,
+        deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
     )
 
 
@@ -159,3 +162,31 @@ async def update_model_monitoring_controller(
         base_period=base_period,
         overwrite=True,
     )
+
+
+@router.post("/deploy-histogram-data-drift-app")
+def deploy_histogram_data_drift_app(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    image: str = "mlrun/mlrun",
+) -> None:
+    """
+    Deploy the histogram data drift app on the go.
+
+    :param commons: The common parameters of the request.
+    :param image:   The image of the application, defaults to "mlrun/mlrun".
+    """
+    model_monitoring_access_key = None
+    if not mlrun.mlconf.is_ce_mode():
+        # Generate V3IO Access Key
+        model_monitoring_access_key = process_model_monitoring_secret(
+            commons.db_session,
+            commons.project,
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+        )
+
+    MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=model_monitoring_access_key,
+    ).deploy_histogram_data_drift_app(image=image)

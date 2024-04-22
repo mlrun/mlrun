@@ -104,12 +104,12 @@ def get_monitoring_parquet_path(
 def get_stream_path(
     project: str = None,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-):
+) -> typing.Union[list[str]]:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param function_name:    Application name. Default is model_monitoring_stream.
+    :param function_name:       Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """
@@ -126,6 +126,17 @@ def get_stream_path(
         function_name=function_name,
     )
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )
+    if isinstance(
+        stream_uri, list
+    ):  # ML-6043 - server side gets the new  and the old stream uris.
+        return [
+            mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+                stream_uri=stream_uri_item, project=project, function_name=function_name
+            )
+            for stream_uri_item in stream_uri
+        ]
+    return [
+        mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+            stream_uri=stream_uri, project=project, function_name=function_name
+        )
+    ]

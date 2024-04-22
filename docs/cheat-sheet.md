@@ -691,8 +691,8 @@ redis_target.write_dataframe(df=redis_df)
 # Kafka (see docs for writing online features)
 kafka_target = KafkaTarget(
     name="write",
-    bootstrap_servers='localhost:9092',
-    topic='topic',
+    brokers="localhost:9092",
+    path="topic",
 )
 kafka_target.write_dataframe(df=kafka_df)
 ```

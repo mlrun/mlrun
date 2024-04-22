@@ -17,7 +17,7 @@ from typing import Callable, Union
 import numpy as np
 import tensorflow as tf
 from tensorflow import Tensor, Variable
-from tensorflow.keras.callbacks import Callback
+from tensorflow.python.keras.callbacks import Callback
 
 import mlrun
 

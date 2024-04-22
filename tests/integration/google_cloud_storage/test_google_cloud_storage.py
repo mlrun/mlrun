@@ -14,15 +14,15 @@
 #
 import json
 import os
+import os.path
 import tempfile
 import uuid
-from pathlib import Path
 
+import dask.dataframe as dd
 import fsspec
 import pandas as pd
 import pytest
 import yaml
-from pandas.testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
@@ -30,17 +30,15 @@ from mlrun.datastore import store_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileGCS,
     register_temporary_client_datastore_profile,
+    remove_temporary_client_datastore_profile,
 )
 from mlrun.utils import logger
 
-here = Path(__file__).absolute().parent
-config_file_path = here / "test-google-cloud-storage.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+here = os.path.dirname(__file__)
+config_file_path = os.path.join(here, "test-google-cloud-storage.yml")
+with open(config_file_path) as yaml_file:
+    config = yaml.safe_load(yaml_file)
 
-test_filename = here / "test.txt"
-with open(test_filename) as f:
-    test_string = f.read()
 
 credential_params = ["credentials_json_file"]
 
@@ -60,34 +58,39 @@ def google_cloud_storage_configured():
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
-    #  must be static, in order to get access from setup_class or teardown_class.
-    @staticmethod
-    def clean_test_directory(bucket_name, object_dir, gcs_fs):
-        test_dir = f"{bucket_name}/{object_dir}/"
-        if gcs_fs.exists(test_dir):
-            gcs_fs.delete(test_dir, recursive=True)
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    bucket_name = config["env"].get("bucket_name")
+    test_dir = "test_mlrun_gcs_objects"
+    run_dir = f"{test_dir}/run_{uuid.uuid4()}"
+    profile_name = "gcs_profile"
+    credentials_path = config["env"].get("credentials_json_file")
+    test_file = os.path.join(assets_path, "test.txt")
 
-    def setup_class(self):
-        self._bucket_name = config["env"].get("bucket_name")
-        self.object_dir = "test_mlrun_gcs_objects"
-        self.profile_name = "gcs_profile"
-        self.credentials_path = config["env"].get("credentials_json_file")
+    @classmethod
+    def clean_test_directory(cls):
+        cls.setup_mapping = {
+            "credentials_file": cls._setup_by_google_credentials_file,
+            "serialized_json": cls._setup_by_serialized_json_content,
+        }
+        full_test_dir = f"{cls.bucket_name}/{cls.test_dir}/"
+        if cls._gcs_fs.exists(full_test_dir):
+            cls._gcs_fs.delete(full_test_dir, recursive=True)
 
+    @classmethod
+    def setup_class(cls):
+        with open(cls.test_file) as f:
+            cls.test_string = f.read()
         try:
-            credentials = json.loads(self.credentials_path)
+            credentials = json.loads(cls.credentials_path)
             token = credentials
-            self.credentials = self.credentials_path
+            cls.credentials = cls.credentials_path
         except json.JSONDecodeError:
-            token = self.credentials_path
-            with open(self.credentials_path) as gcs_credentials_path:
-                self.credentials = gcs_credentials_path.read()
+            token = cls.credentials_path
+            with open(cls.credentials_path) as gcs_credentials_path:
+                cls.credentials = gcs_credentials_path.read()
 
-        self._gcs_fs = fsspec.filesystem("gcs", token=token)
-        self.clean_test_directory(
-            bucket_name=self._bucket_name,
-            object_dir=self.object_dir,
-            gcs_fs=self._gcs_fs,
-        )
+        cls._gcs_fs = fsspec.filesystem("gcs", token=token)
+        cls.clean_test_directory()
 
     def _setup_profile(self, profile_auth_by):
         if profile_auth_by:
@@ -101,169 +104,205 @@ class TestGoogleCloudStorage:
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         store_manager.reset_secrets()
-        object_file = f"file_{uuid.uuid4()}.txt"
-        self._object_path = self.object_dir + "/" + object_file
+        object_file = f"/file_{uuid.uuid4()}.txt"
+        self._object_path = f"{self.run_dir}{object_file}"
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         os.environ.pop("GCP_CREDENTIALS", None)
+        remove_temporary_client_datastore_profile(self.profile_name)
         self._bucket_path = (
-            f"ds://{self.profile_name}/{self._bucket_name}"
+            f"ds://{self.profile_name}/{self.bucket_name}"
             if use_datastore_profile
-            else "gcs://" + self._bucket_name
+            else f"gcs://{self.bucket_name}"
         )
-        self._object_url = self._bucket_path + "/" + self._object_path
+        self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
+        self._object_url = f"{self.run_dir_url}{object_file}"
         logger.info(f"Object URL: {self._object_url}")
+        self.storage_options = {}
 
-    def teardown_class(self):
-        self.clean_test_directory(
-            bucket_name=self._bucket_name,
-            object_dir=self.object_dir,
-            gcs_fs=self._gcs_fs,
+    @classmethod
+    def teardown_class(cls):
+        cls.clean_test_directory()
+
+    def teardown_method(self, method):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
+        os.environ.pop("GCP_CREDENTIALS", None)
+
+    def _setup_by_google_credentials_file(self, use_datastore_profile, use_secrets):
+        # We give priority to profiles, then to secrets, and finally to environment variables.
+        self.storage_options = {}
+        if use_datastore_profile:
+            self._setup_profile(profile_auth_by="credentials_json_file")
+            if use_secrets:
+                self.storage_options = {"GOOGLE_APPLICATION_CREDENTIALS": "wrong path"}
+            else:
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
+        else:
+            if use_secrets:
+                self.storage_options = {
+                    "GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path
+                }
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
+            else:
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
+
+    def _setup_by_serialized_json_content(self, use_datastore_profile, use_secrets):
+        self.storage_options = {}
+        if use_datastore_profile:
+            self._setup_profile(profile_auth_by="gcp_credentials")
+            if use_secrets:
+                self.storage_options = {"GCP_CREDENTIALS": "wrong credentials"}
+            else:
+                os.environ["GCP_CREDENTIALS"] = "wrong credentials"
+        else:
+            if use_secrets:
+                self.storage_options = {"GCP_CREDENTIALS": self.credentials}
+                os.environ["GCP_CREDENTIALS"] = "wrong credentials"
+            else:
+                os.environ["GCP_CREDENTIALS"] = self.credentials
+
+    @pytest.mark.parametrize(
+        "setup_by, use_secrets",
+        [
+            ("credentials_file", False),
+            ("credentials_file", True),
+            ("serialized_json", False),
+            ("serialized_json", True),
+        ],
+    )
+    def test_perform_google_cloud_storage_tests(
+        self, use_datastore_profile, setup_by, use_secrets
+    ):
+        # TODO: split to smaller tests by datastore conventions
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
+        data_item = mlrun.run.get_dataitem(
+            self._object_url, secrets=self.storage_options
         )
-
-    def _perform_google_cloud_storage_tests(self, secrets={}):
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
-        data_item.put(test_string)
+        data_item.put(self.test_string)
 
         response = data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
+        assert response.decode() == self.test_string
 
         response = data_item.get(offset=20)
-        assert response.decode() == test_string[20:], "Partial result not as expected"
+        assert response.decode() == self.test_string[20:]
 
         stat = data_item.stat()
-        assert stat.size == len(test_string), "Stat size different than expected"
+        assert stat.size == len(self.test_string)
 
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             data_item.download(temp_file.name)
             content = temp_file.read()
-            assert content == test_string
+            assert content == self.test_string
 
-        dir_list = mlrun.run.get_dataitem(self._bucket_path, secrets=secrets).listdir()
-        assert self._object_path in dir_list, "File not in container dir-list"
+        dir_list = mlrun.run.get_dataitem(
+            self._bucket_path, secrets=self.storage_options
+        ).listdir()
+        assert self._object_path in dir_list
         listdir_dataitem_parent = mlrun.run.get_dataitem(
-            os.path.dirname(self._object_url), secrets=secrets
+            os.path.dirname(self._object_url), secrets=self.storage_options
         )
         listdir_parent = listdir_dataitem_parent.listdir()
-        assert (
-            os.path.basename(self._object_path) in listdir_parent
-        ), "File not in parent dir-list"
+        assert os.path.basename(self._object_path) in listdir_parent
 
         data_item.delete()
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) not in listdir_parent
 
-        upload_data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
-        upload_data_item.upload(test_filename)
+        upload_data_item = mlrun.run.get_dataitem(
+            self._object_url, secrets=self.storage_options
+        )
+        upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
-
-        #  as_df tests
-        upload_parquet_file_path = f"{os.path.dirname(self._object_url)}/file.parquet"
-        upload_parquet_data_item = mlrun.run.get_dataitem(
-            upload_parquet_file_path, secrets=secrets
-        )
-        test_parquet = here / "test_data.parquet"
-        upload_parquet_data_item.upload(str(test_parquet))
-        response = upload_parquet_data_item.as_df()
-        assert pd.read_parquet(test_parquet).equals(response)
-
-        upload_csv_file_path = f"{os.path.dirname(self._object_url)}/file.csv"
-        upload_csv_data_item = mlrun.run.get_dataitem(
-            upload_csv_file_path, secrets=secrets
-        )
-        test_csv = here / "test_data.csv"
-        upload_csv_data_item.upload(str(test_csv))
-        response = upload_csv_data_item.as_df()
-        assert pd.read_csv(test_csv).equals(response)
-
-        upload_json_file_path = f"{os.path.dirname(self._object_url)}/file.json"
-        upload_json_data_item = mlrun.run.get_dataitem(
-            upload_json_file_path, secrets=secrets
-        )
-        test_json = here / "test_data.json"
-        upload_json_data_item.upload(str(test_json))
-        response = upload_json_data_item.as_df()
-        assert pd.read_json(test_json).equals(response)
-
-    @pytest.mark.parametrize("use_secrets", (True, False))
-    def test_using_google_credentials_file(self, use_datastore_profile, use_secrets):
-        # We give priority to profiles, then to secrets, and finally to environment variables.
-        secrets = {}
-        if use_datastore_profile:
-            self._setup_profile(profile_auth_by="credentials_json_file")
-            if use_secrets:
-                secrets = {"GOOGLE_APPLICATION_CREDENTIALS": "wrong path"}
-            else:
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
-        else:
-            if use_secrets:
-                secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
-            else:
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
-        self._perform_google_cloud_storage_tests(secrets=secrets)
-
-    @pytest.mark.parametrize("use_secrets", (True, False))
-    def test_using_serialized_json_content(self, use_datastore_profile, use_secrets):
-        secrets = {}
-        if use_datastore_profile:
-            self._setup_profile(profile_auth_by="gcp_credentials")
-            if use_secrets:
-                secrets = {"GCP_CREDENTIALS": "wrong credentials"}
-            else:
-                os.environ["GCP_CREDENTIALS"] = "wrong credentials"
-        else:
-            if use_secrets:
-                secrets = {"GCP_CREDENTIALS": self.credentials}
-                os.environ["GCP_CREDENTIALS"] = "wrong credentials"
-            else:
-                os.environ["GCP_CREDENTIALS"] = self.credentials
-        self._perform_google_cloud_storage_tests(secrets=secrets)
+        assert response.decode() == self.test_string
 
     @pytest.mark.parametrize(
-        "file_format, write_method",
-        [("parquet", pd.DataFrame.to_parquet), ("csv", pd.DataFrame.to_csv)],
+        "setup_by, use_secrets",
+        [
+            ("credentials_file", False),
+            ("credentials_file", True),
+            ("serialized_json", False),
+            ("serialized_json", True),
+        ],
     )
-    def test_directory(self, use_datastore_profile, file_format, write_method):
-        secrets = {}
-        if use_datastore_profile:
-            self._setup_profile(profile_auth_by="credentials_json_file")
-        else:
-            secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
-        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
-        dataframes_url = f"{self._bucket_path}/{self.object_dir}{dataframes_dir}"
-        # generate dfs
-        # Define data for the first DataFrame
-        data1 = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
-        # Define data for the second DataFrame
-        data2 = {"Column1": [4, 5, 6], "Column2": ["X", "Y", "Z"]}
+    @pytest.mark.parametrize(
+        "file_format, pd_reader, dd_reader, reader_args",
+        [
+            ("parquet", pd.read_parquet, dd.read_parquet, {}),
+            ("csv", pd.read_csv, dd.read_csv, {}),
+            ("json", pd.read_json, dd.read_json, {"orient": "records"}),
+        ],
+    )
+    def test_as_df(
+        self,
+        use_datastore_profile,
+        setup_by,
+        use_secrets,
+        file_format,
+        pd_reader,
+        dd_reader,
+        reader_args,
+    ):
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
+        filename = f"df_{uuid.uuid4()}.{file_format}"
+        dataframe_url = f"{self.run_dir_url}/{filename}"
+        local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
-        # Create the DataFrames
-        df1 = pd.DataFrame(data1)
-        df2 = pd.DataFrame(data2)
-        with (
-            tempfile.NamedTemporaryFile(
-                suffix=f".{file_format}", delete=True
-            ) as temp_file1,
-            tempfile.NamedTemporaryFile(
-                suffix=f".{file_format}", delete=True
-            ) as temp_file2,
-        ):
-            # Save DataFrames as files
-            write_method(df1, temp_file1.name, index=False)
-            write_method(df2, temp_file2.name, index=False)
-            #  upload
-            dt1 = mlrun.run.get_dataitem(
-                dataframes_url + f"/df1.{file_format}", secrets=secrets
-            )
-            dt2 = mlrun.run.get_dataitem(
-                dataframes_url + f"/df2.{file_format}", secrets=secrets
-            )
-            dt1.upload(src_path=temp_file1.name)
-            dt2.upload(src_path=temp_file2.name)
-            dt_dir = mlrun.run.get_dataitem(dataframes_url, secrets=secrets)
-            tested_df = dt_dir.as_df(format=f"{file_format}")
-            expected_df = pd.concat([df1, df2], ignore_index=True)
-            assert_frame_equal(
-                tested_df.reset_index(drop=True), expected_df, check_like=True
-            )
+        source = pd_reader(local_file_path, **reader_args)
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(**reader_args)
+        pd.testing.assert_frame_equal(source, response)
+
+        # dask
+        source = dd_reader(local_file_path, **reader_args)
+        response = upload_data_item.as_df(**reader_args, df_module=dd)
+        dd.assert_eq(source, response)
+
+    @pytest.mark.parametrize(
+        "file_format, pd_reader, dd_reader, reset_index",
+        [
+            ("parquet", pd.read_parquet, dd.read_parquet, False),
+            ("csv", pd.read_csv, dd.read_csv, True),
+        ],
+    )
+    def test_as_df_directory(
+        self,
+        use_datastore_profile,
+        file_format,
+        pd_reader,
+        dd_reader,
+        reset_index,
+    ):
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
+        dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
+        df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
+        df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
+
+        # upload
+        dt1 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options
+        )
+        dt2 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options
+        )
+        dt1.upload(src_path=df1_path)
+        dt2.upload(src_path=df2_path)
+        dt_dir = mlrun.run.get_dataitem(dataframes_url, secrets=self.storage_options)
+        df1 = pd_reader(df1_path)
+        df2 = pd_reader(df2_path)
+        expected_df = pd.concat([df1, df2], ignore_index=True)
+        tested_df = dt_dir.as_df(format=file_format)
+        if reset_index:
+            tested_df = tested_df.sort_values("ID").reset_index(drop=True)
+        pd.testing.assert_frame_equal(tested_df, expected_df)
+
+        # dask
+        dd_df1 = dd_reader(df1_path)
+        dd_df2 = dd_reader(df2_path)
+        expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
+        tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
+        dd.assert_eq(tested_dd_df, expected_dd_df)

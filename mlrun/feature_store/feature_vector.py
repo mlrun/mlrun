@@ -486,6 +486,7 @@ class FeatureVector(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
+
             features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
             vector = fstore.FeatureVector("my-vec", features)
 
@@ -852,7 +853,7 @@ class FeatureVector(ModelObj):
 
                 Example::
 
-                    svc = vector_uri.get_online_feature_service(entity_keys=['ticker'])
+                    svc = vector_uri.get_online_feature_service(entity_keys=["ticker"])
                     try:
                         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                         print(resp)

@@ -144,13 +144,13 @@ class HTTPRunDB(RunDBInterface):
         password = parsed_url.password or config.httpdb.password
         self.user = username
         self.password = password
-        self.token = None
+        self.token_provider = None
 
         if config.auth_with_client_id:
             token_endpoint = mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT")
             client_id = mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID")
             client_secret = mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET")
-            self.token = OAuthClientIDTokenProvider(
+            self.token_provider = OAuthClientIDTokenProvider(
                 token_endpoint, client_id, client_secret
             )
         else:
@@ -159,7 +159,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             if token:
-                self.token = StaticTokenProvider(token)
+                self.token_provider = StaticTokenProvider(token)
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -229,18 +229,19 @@ class HTTPRunDB(RunDBInterface):
 
         if self.user:
             kw["auth"] = (self.user, self.password)
-        elif self.token:
-            token = self.token.get_token()
-            # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-            if self.token.is_iguazio_session():
-                session_cookie = f'j:{{"sid": "{token}"}}'
-                cookies = {
-                    "session": session_cookie,
-                }
-                kw["cookies"] = cookies
-            else:
-                if "Authorization" not in kw.setdefault("headers", {}):
-                    kw["headers"].update({"Authorization": "Bearer " + token})
+        elif self.token_provider:
+            token = self.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.token_provider.is_iguazio_session():
+                    session_cookie = f'j:{{"sid": "{token}"}}'
+                    cookies = {
+                        "session": session_cookie,
+                    }
+                    kw["cookies"] = cookies
+                else:
+                    if "Authorization" not in kw.setdefault("headers", {}):
+                        kw["headers"].update({"Authorization": "Bearer " + token})
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}

@@ -136,6 +136,7 @@ class OAuthClientIDTokenProvider(TokenProvider):
         self.token_refresh_time = now + timedelta(seconds=expires_in / 2)
         logger.info(
             "Successfully retrieved client-id token",
+            expires_in=expires_in,
             expiry=str(self.token_expiry_time),
             refresh=str(self.token_refresh_time),
         )

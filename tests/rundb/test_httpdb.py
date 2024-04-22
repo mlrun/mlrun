@@ -326,11 +326,19 @@ def test_bearer_auth(create_server):
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         db.list_runs()
 
-    db.token = StaticTokenProvider(token)
+    db.token_provider = StaticTokenProvider(token)
     db.list_runs()
 
 
 def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
+    """
+    Test the httpdb behavior when using a client-id OAuth token. Test verifies that:
+    - Token is retrieved successfully, and kept in the httpdb class.
+    - Token is added as Bearer token when issuing API calls to BE.
+    - Token is refreshed when its expiry time is nearing.
+    - Some error flows when token cannot be retrieved - such as that token is still used while it hasn't expired.
+    """
+
     token_url = "https://mock/token_endpoint/protocol/openid-connect/token"
     test_env = {
         "MLRUN_AUTH_TOKEN_ENDPOINT": token_url,
@@ -350,19 +358,19 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
     db_url = "http://mock-server:1919"
     db = HTTPRunDB(db_url)
     db.connect()
-    token = db.token.get_token()
+    token = db.token_provider.get_token()
     assert token == expected_token
 
     time.sleep(1)
-    token = db.token.get_token()
+    token = db.token_provider.get_token()
     assert token == expected_token
 
     time.sleep(1.5)
     expected_token = "my-other-cool-token"
     requests_mock.post(
-        token_url, json={"access_token": expected_token, "expires_in": 4}
+        token_url, json={"access_token": expected_token, "expires_in": 3}
     )
-    token = db.token.get_token()
+    token = db.token_provider.get_token()
     assert token == expected_token
 
     # Check that httpdb attaches the token to API calls as Authorization header.
@@ -374,7 +382,7 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
     last_request = requests_mock.last_request
     assert last_request.headers["Authorization"] == expected_auth
 
-    # Check flow where we fail token retrieval while token is still active.
+    # Check flow where we fail token retrieval while token is still active (not expired).
     requests_mock.reset_mock()
     requests_mock.post(token_url, status_code=401)
 
@@ -386,6 +394,15 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
     assert len(request_history) == 2
     # The token should still be the previous token, since it was not refreshed but it's not expired yet.
     assert request_history[-1].headers["Authorization"] == expected_auth
+
+    # Now let the token expire, and verify commands still go out, only without auth
+    time.sleep(2)
+    requests_mock.reset_mock()
+
+    db.trigger_migrations()
+    assert len(requests_mock.request_history) == 2
+    assert "Authorization" not in requests_mock.last_request.headers
+    assert db.token_provider.token is None
 
     mlrun.mlconf.auth_with_client_id = False
     for key in test_env:

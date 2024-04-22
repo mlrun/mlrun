@@ -301,7 +301,7 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        filters: list = None,
+        filters: Optional[list[tuple]] = None,
     ):
         super().__init__(
             name,
@@ -347,6 +347,7 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         context=None,
+        filters=None,
     ):
         import storey
 
@@ -364,6 +365,7 @@ class ParquetSource(BaseSourceDriver):
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,
+            filters=self.filters or filters,
             **attributes,
         )
 

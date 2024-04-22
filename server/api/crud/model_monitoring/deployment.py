@@ -29,10 +29,10 @@ import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
-import server.api.api.endpoints.functions
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
+import server.api.utils.functions
 import server.api.utils.scheduler
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
@@ -112,7 +112,7 @@ class MonitoringDeployment:
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
-    ) -> dict[str, typing.Any]:
+    ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
         to monitor the log of the data stream. It is triggered when a new log entry is detected.
@@ -151,22 +151,22 @@ class MonitoringDeployment:
             # Adding label to the function - will be used to identify the stream pod
             fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
 
-            fn, ready = server.api.api.endpoints.functions._build_function(
-                db_session=self.db_session,
-                auth_info=self.auth_info,
-                function=fn,
+            fn, ready = server.api.utils.functions.build_function(
+                db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-            return {
-                "stream_data": fn.to_dict(),
-                "stream_ready": ready,
-            }
+
+            logger.debug(
+                "Submitted the stream deployment",
+                stream_data=fn.to_dict(),
+                stream_ready=ready,
+            )
 
     def deploy_model_monitoring_controller(
         self,
         base_period: int,
         controller_image: str = "mlrun/mlrun",
         overwrite: bool = False,
-    ) -> dict[str, typing.Any]:
+    ) -> None:
         """
         Deploy model monitoring application controller function.
         The main goal of the controller function is to handle the monitoring processing and triggering applications.
@@ -177,8 +177,6 @@ class MonitoringDeployment:
                                             By default, the image is mlrun/mlrun.
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
-
-        :return: Model monitoring controller job as a runtime function.
         """
         if not self._check_if_already_deployed(
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -201,20 +199,19 @@ class MonitoringDeployment:
                 "cron_interval",
                 spec=nuclio.CronTrigger(interval=f"{base_period}m"),
             )
-            fn, ready = server.api.api.endpoints.functions._build_function(
-                db_session=self.db_session,
-                auth_info=self.auth_info,
-                function=fn,
+            fn, ready = server.api.utils.functions.build_function(
+                db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
 
-            return {
-                "controller_data": fn.to_dict(),
-                "controller_ready": ready,
-            }
+            logger.debug(
+                "Submitted the controller deployment",
+                controller_data=fn.to_dict(),
+                controller_ready=ready,
+            )
 
     def deploy_model_monitoring_writer_application(
         self, writer_image: str = "mlrun/mlrun", overwrite: bool = False
-    ) -> dict[str, typing.Any]:
+    ) -> None:
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
         to write all the monitoring application result to the databases. It is triggered by those applications.
@@ -236,16 +233,15 @@ class MonitoringDeployment:
             # Adding label to the function - will be used to identify the writer pod
             fn.metadata.labels = {"type": "model-monitoring-writer"}
 
-            fn, ready = server.api.api.endpoints.functions._build_function(
-                db_session=self.db_session,
-                auth_info=self.auth_info,
-                function=fn,
+            fn, ready = server.api.utils.functions.build_function(
+                db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
 
-            return {
-                "writer_data": fn.to_dict(),
-                "writer_ready": ready,
-            }
+            logger.debug(
+                "Submitted the writer deployment",
+                writer_data=fn.to_dict(),
+                writer_ready=ready,
+            )
 
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
@@ -531,7 +527,7 @@ class MonitoringDeployment:
         func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
             project=self.project,
             func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
-            name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+            name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
             application_class="HistogramDataDriftApplication",
             image=image,
         )
@@ -547,10 +543,15 @@ class MonitoringDeployment:
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
 
-        server.api.api.endpoints.functions._build_function(
+        fn, ready = server.api.utils.functions.build_function(
             db_session=self.db_session, auth_info=self.auth_info, function=func
         )
-        logger.info("Submitted the deployment")
+
+        logger.debug(
+            "Submitted the histogram data drift app deployment",
+            app_data=fn.to_dict(),
+            app_ready=ready,
+        )
 
     def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
         """

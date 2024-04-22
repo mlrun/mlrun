@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import tempfile
 from os import path
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 import yaml
@@ -69,8 +70,8 @@ class ModelArtifactSpec(ArtifactSpec):
         model_file=None,
         metrics=None,
         paraemeters=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
         framework=None,
         algorithm=None,
         feature_vector=None,
@@ -92,8 +93,8 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_file = model_file
         self.metrics = metrics or {}
         self.parameters = paraemeters or {}
-        self.inputs: list[Feature] = inputs or []
-        self.outputs: list[Feature] = outputs or []
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.framework = framework
         self.algorithm = algorithm
         self.feature_vector = feature_vector
@@ -102,21 +103,21 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> list[Feature]:
+    def inputs(self) -> ObjectList:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: list[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> list[Feature]:
+    def outputs(self) -> ObjectList:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: list[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
 
 
@@ -176,22 +177,22 @@ class ModelArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", ModelArtifactSpec)
 
     @property
-    def inputs(self) -> list[Feature]:
+    def inputs(self) -> ObjectList:
         """input feature list"""
         return self.spec.inputs
 
     @inputs.setter
-    def inputs(self, inputs: list[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         """input feature list"""
         self.spec.inputs = inputs
 
     @property
-    def outputs(self) -> list[Feature]:
+    def outputs(self) -> ObjectList:
         """input feature list"""
         return self.spec.outputs
 
     @outputs.setter
-    def outputs(self, outputs: list[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         """input feature list"""
         self.spec.outputs = outputs
 
@@ -445,14 +446,14 @@ class LegacyModelArtifact(LegacyArtifact):
         **kwargs,
     ):
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
-        self._inputs: ObjectList = None
-        self._outputs: ObjectList = None
+        self._inputs: Optional[ObjectList] = None
+        self._outputs: Optional[ObjectList] = None
 
         self.model_file = model_file
         self.parameters = parameters or {}
         self.metrics = metrics or {}
-        self.inputs: list[Feature] = inputs or []
-        self.outputs: list[Feature] = outputs or []
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.extra_data = extra_data or {}
         self.framework = framework
         self.algorithm = algorithm
@@ -462,21 +463,21 @@ class LegacyModelArtifact(LegacyArtifact):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> list[Feature]:
+    def inputs(self) -> Optional[ObjectList]:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: list[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> list[Feature]:
+    def outputs(self) -> Optional[ObjectList]:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: list[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
@@ -552,9 +553,9 @@ def get_model(model_dir, suffix=""):
 
     example::
 
-        model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
+        model_file, model_artifact, extra_data = get_model(models_path, suffix=".pkl")
         model = load(open(model_file, "rb"))
-        categories = extra_data['categories'].as_df()
+        categories = extra_data["categories"].as_df()
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
@@ -663,8 +664,11 @@ def update_model(
 
     example::
 
-        update_model(model_path, metrics={'speed': 100},
-                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+        update_model(
+            model_path,
+            metrics={"speed": 100},
+            extra_data={"my_data": b"some text", "file": "s3://mybucket/.."},
+        )
 
     :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict

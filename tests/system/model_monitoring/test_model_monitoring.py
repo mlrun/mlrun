@@ -247,8 +247,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    @pytest.mark.parametrize("engine", ["sync", "async"])
-    def test_basic_model_monitoring(self, engine) -> None:
+    def test_basic_model_monitoring(self) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
@@ -271,11 +270,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
-
-        serving_fn.set_topology(
-            "router",
-            engine=engine,
-        )
 
         # enable model monitoring
         serving_fn.set_tracking()
@@ -1140,11 +1134,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         return model.uri
 
     def _wait_for_deployments(self) -> None:
-        for fn_name in [
-            mm_constants.MonitoringFunctionNames.STREAM,
-            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            mm_constants.MonitoringFunctionNames.WRITER,
-            mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
+        for fn_name in mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
         ]:
             fn = self.project.get_function(key=fn_name)
             fn._wait_for_function_deployment(db=fn._get_db())

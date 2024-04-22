@@ -22,8 +22,8 @@ import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
-    MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
     EventFieldType,
+    HistogramDataDriftApplicationConstants,
     ResultKindApp,
     ResultStatusApp,
 )
@@ -94,7 +94,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     and the status is returned.
     """
 
-    NAME: Final[str] = MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+    NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
     METRIC_KIND: Final[ResultKindApp] = ResultKindApp.data_drift
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
@@ -148,7 +148,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         status = self._value_classifier.value_to_status(value)
         results.append(
             ModelMonitoringApplicationResult(
-                name="general_drift",
+                name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
                 value=value,
                 kind=self.METRIC_KIND,
                 status=status,

@@ -581,6 +581,16 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
     def get_log_size(self, uid, project=""):
         pass
 
@@ -646,9 +656,34 @@ class NopDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
     ) -> None:
-        raise NotImplementedError
+        pass
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
         raise NotImplementedError
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass

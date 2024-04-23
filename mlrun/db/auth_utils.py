@@ -69,7 +69,7 @@ class OAuthClientIDTokenProvider(TokenProvider):
     def _refresh_token_if_needed(self):
         now = datetime.now()
         if self.token:
-            if self.token_refresh_time and now < self.token_refresh_time:
+            if self.token_refresh_time and now <= self.token_refresh_time:
                 return self.token
 
             # We only cleanup if token was really expired - even if we fail in refreshing the token, we can still

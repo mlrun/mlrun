@@ -634,6 +634,58 @@ class RunDBInterface(ABC):
     def delete_api_gateway(self, name, project=None):
         pass
 
+    @abstractmethod
+    def remote_builder(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def deploy_nuclio_function(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        builder_env: Optional[dict] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    @abstractmethod
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        project="",
+    ):
+        pass
+
+    @abstractmethod
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def list_alerts_configs(self, project=""):
+        pass
+
+    @abstractmethod
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",
@@ -644,6 +696,16 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        pass
+
+    @abstractmethod
     def set_run_notifications(
         self,
         project: str,
@@ -652,6 +714,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def store_run_notifications(
         self,
         notification_objects: list[mlrun.model.Notification],
@@ -661,40 +724,60 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def get_log_size(self, uid, project=""):
         pass
 
+    @abstractmethod
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
+    @abstractmethod
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass
 
+    @abstractmethod
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         pass
 
+    @abstractmethod
     def delete_datastore_profile(
         self, name: str, project: str
     ) -> mlrun.common.schemas.DatastoreProfile:
         pass
 
+    @abstractmethod
     def list_datastore_profiles(
         self, project: str
     ) -> list[mlrun.common.schemas.DatastoreProfile]:
         pass
 
+    @abstractmethod
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         pass
 
+    @abstractmethod
     def function_status(self, project, name, kind, selector):
         pass
 
+    @abstractmethod
     def start_function(
         self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
     ):
         pass
 
+    @abstractmethod
     def submit_workflow(
         self,
         project: str,
@@ -713,6 +796,7 @@ class RunDBInterface(ABC):
     ) -> "mlrun.common.schemas.WorkflowResponse":
         pass
 
+    @abstractmethod
     def update_model_monitoring_controller(
         self,
         project: str,
@@ -721,6 +805,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def enable_model_monitoring(
         self,
         project: str,
@@ -728,9 +813,10 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
     ) -> None:
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
-        raise NotImplementedError
+        pass

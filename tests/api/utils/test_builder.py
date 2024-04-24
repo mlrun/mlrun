@@ -885,7 +885,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             None,
             None,
             [
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             ],
             ["mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"],
             "/empty/requirements.txt",
@@ -898,7 +898,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             None,
             [
                 "some command",
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}",
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}",
             ],
             ["mlrun~=1.4"],
             "/empty/requirements.txt",
@@ -910,7 +910,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             "",
             "1.4.0",
             [
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             ],
             ["mlrun[complete]==1.4.0"],
             "/empty/requirements.txt",
@@ -922,7 +922,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             "",
             "1.4.0",
             [
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             ],
             ["mlrun[complete]==1.4.0", "pandas"],
             "/empty/requirements.txt",

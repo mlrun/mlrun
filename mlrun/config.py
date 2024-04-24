@@ -240,6 +240,7 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/mlrun",
+            "application": "python:3.9-slim",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -548,10 +549,9 @@ default_config = {
     "feature_store": {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
-            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
-            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/nosql",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -687,6 +687,10 @@ default_config = {
         "access_key": "",
     },
     "grafana_url": "",
+    "alerts": {
+        # supported modes: "enabled", "disabled".
+        "mode": "disabled"
+    },
 }
 
 _is_running_as_api = None
@@ -1077,7 +1081,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
-    ) -> str:
+    ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
         :param project:         Project name.
@@ -1093,7 +1097,8 @@ class Config:
                                 relative artifact path will be taken from the global MLRun artifact path.
         :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind. Can be either a single path
+                                or a list of paths in the case of the online model monitoring stream path.
         """
 
         if target != "offline":
@@ -1115,10 +1120,22 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project,
-                kind=kind,
-            )
+            elif kind == "stream":  # return list for mlrun<1.6.3 BC
+                return [
+                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project,
+                        kind=kind,
+                    ),  # old stream uri (pipelines) for BC ML-6043
+                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                        project=project,
+                        kind=kind,
+                    ),  # new stream uri (projects)
+                ]
+            else:
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project,
+                    kind=kind,
+                )
 
         # Get the current offline path from the configuration
         file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(

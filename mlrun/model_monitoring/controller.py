@@ -25,12 +25,16 @@ import nuclio
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.feature_store as fstore
 import mlrun.model_monitoring.db.stores
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
+from mlrun.datastore.targets import ParquetTarget
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     batch_dict2timedelta,
+    calculate_inputs_statistics,
     get_monitoring_parquet_path,
     get_stream_path,
 )
@@ -350,7 +354,7 @@ class MonitoringApplicationController:
                             app.status.state == "ready"
                             # workaround for the default app, as its `status.state` is `None`
                             or app.metadata.name
-                            == mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                            == mm_constants.HistogramDataDriftApplicationConstants.NAME
                         )
                     }
                 )
@@ -408,6 +412,8 @@ class MonitoringApplicationController:
             if result:
                 self.context.log_results(result)
 
+        self._delete_old_parquet(endpoints=endpoints)
+
     @classmethod
     def model_endpoint_process(
         cls,
@@ -436,6 +442,10 @@ class MonitoringApplicationController:
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         start_times: set[datetime.datetime] = set()
         try:
+            m_fs = fstore.get_feature_set(
+                endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
+            )
+
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
                     project=project,
@@ -447,16 +457,65 @@ class MonitoringApplicationController:
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
+                    try:
+                        # Get application sample data
+                        offline_response = cls._get_sample_df(
+                            feature_set=m_fs,
+                            endpoint_id=endpoint_id,
+                            start_infer_time=start_infer_time,
+                            end_infer_time=end_infer_time,
+                            parquet_directory=parquet_directory,
+                            storage_options=storage_options,
+                            application_name=application,
+                        )
+
+                        df = offline_response.to_dataframe()
+                        parquet_target_path = offline_response.vector.get_target_path()
+
+                        if len(df) == 0:
+                            logger.info(
+                                "During this time window, the endpoint has not received any data",
+                                endpoint=endpoint[mm_constants.EventFieldType.UID],
+                                start_time=start_infer_time,
+                                end_time=end_infer_time,
+                            )
+                            continue
+
+                    except FileNotFoundError:
+                        logger.warn(
+                            "No parquets were written yet",
+                            endpoint=endpoint[mm_constants.EventFieldType.UID],
+                        )
+                        continue
+
+                    # Get the timestamp of the latest request:
+                    latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
+
+                    # Get the feature stats from the model endpoint for reference data
+                    feature_stats = json.loads(
+                        endpoint[mm_constants.EventFieldType.FEATURE_STATS]
+                    )
+
+                    # Pad the original feature stats to accommodate current
+                    # data out of the original range (unless already padded)
+                    pad_features_hist(FeatureStats(feature_stats))
+
+                    # Get the current stats:
+                    current_stats = calculate_inputs_statistics(
+                        sample_set_statistics=feature_stats, inputs=df
+                    )
+
                     cls._push_to_applications(
+                        current_stats=current_stats,
+                        feature_stats=feature_stats,
                         start_infer_time=start_infer_time,
                         end_infer_time=end_infer_time,
                         endpoint_id=endpoint_id,
-                        latest_request=endpoint[
-                            mm_constants.EventFieldType.LAST_REQUEST
-                        ],
+                        latest_request=latest_request,
                         project=project,
                         applications_names=[application],
                         model_monitoring_access_key=model_monitoring_access_key,
+                        parquet_target_path=parquet_target_path,
                     )
                     start_times.add(start_infer_time)
         except Exception:
@@ -468,49 +527,51 @@ class MonitoringApplicationController:
         if start_times:
             return {endpoint_id: [str(t) for t in sorted(list(start_times))]}
 
-    # def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
-    #     """
-    #     Delete application parquets older than the argument days.
-    #
-    #     :param endpoints: A list of dictionaries of model endpoints records.
-    #     """
-    #     if self.parquet_directory.startswith("v3io:///"):
-    #         # create fs with access to the user side (under projects)
-    #         store, _, _ = mlrun.store_manager.get_or_create_store(
-    #             self.parquet_directory,
-    #             {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
-    #         )
-    #         fs = store.filesystem
-    #
-    #         # calculate time threshold (keep only files from the last 24 hours)
-    #         time_to_keep = (
-    #             datetime.datetime.now(tz=datetime.timezone.utc)
-    #             - datetime.timedelta(days=days)
-    #         ).timestamp()
-    #
-    #         for endpoint in endpoints:
-    #             try:
-    #                 apps_parquet_directories = fs.listdir(
-    #                     path=f"{self.parquet_directory}"
-    #                     f"/key={endpoint[mm_constants.EventFieldType.UID]}"
-    #                 )
-    #                 for directory in apps_parquet_directories:
-    #                     if directory["mtime"] < time_to_keep:
-    #                         # Delete files
-    #                         fs.rm(path=directory["name"], recursive=True)
-    #                         # Delete directory
-    #                         fs.rmdir(path=directory["name"])
-    #             except FileNotFoundError:
-    #                 logger.info(
-    #                     "Application parquet directory is empty, "
-    #                     "probably parquets have not yet been created for this app",
-    #                     endpoint=endpoint[mm_constants.EventFieldType.UID],
-    #                     path=f"{self.parquet_directory}"
-    #                     f"/key={endpoint[mm_constants.EventFieldType.UID]}",
-    #                 )
+    def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
+        """
+        Delete application parquets older than the argument days.
+
+        :param endpoints: A list of dictionaries of model endpoints records.
+        """
+        if self.parquet_directory.startswith("v3io:///"):
+            # create fs with access to the user side (under projects)
+            store, _, _ = mlrun.store_manager.get_or_create_store(
+                self.parquet_directory,
+                {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
+            )
+            fs = store.filesystem
+
+            # calculate time threshold (keep only files from the last 24 hours)
+            time_to_keep = (
+                datetime.datetime.now(tz=datetime.timezone.utc)
+                - datetime.timedelta(days=days)
+            ).timestamp()
+
+            for endpoint in endpoints:
+                try:
+                    apps_parquet_directories = fs.listdir(
+                        path=f"{self.parquet_directory}"
+                        f"/key={endpoint[mm_constants.EventFieldType.UID]}"
+                    )
+                    for directory in apps_parquet_directories:
+                        if directory["mtime"] < time_to_keep:
+                            # Delete files
+                            fs.rm(path=directory["name"], recursive=True)
+                            # Delete directory
+                            fs.rmdir(path=directory["name"])
+                except FileNotFoundError:
+                    logger.info(
+                        "Application parquet directory is empty, "
+                        "probably parquets have not yet been created for this app",
+                        endpoint=endpoint[mm_constants.EventFieldType.UID],
+                        path=f"{self.parquet_directory}"
+                        f"/key={endpoint[mm_constants.EventFieldType.UID]}",
+                    )
 
     @staticmethod
     def _push_to_applications(
+        current_stats,
+        feature_stats,
         start_infer_time,
         end_infer_time,
         endpoint_id,
@@ -518,10 +579,13 @@ class MonitoringApplicationController:
         project,
         applications_names,
         model_monitoring_access_key,
+        parquet_target_path,
     ):
         """
         Pushes data to multiple stream applications.
 
+        :param current_stats:       Current statistics of input data.
+        :param feature_stats:       Statistics of train features.
         :param start_infer_time:    The beginning of the infer interval window.
         :param end_infer_time:      The end of the infer interval window.
         :param endpoint_id:         Identifier for the model endpoint.
@@ -532,6 +596,9 @@ class MonitoringApplicationController:
         """
 
         data = {
+            mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(current_stats),
+            mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
+            mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: parquet_target_path,
             mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
@@ -557,3 +624,50 @@ class MonitoringApplicationController:
             get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
                 [data]
             )
+
+    @staticmethod
+    def _get_sample_df(
+        feature_set: mlrun.common.schemas.FeatureSet,
+        endpoint_id: str,
+        start_infer_time: datetime.datetime,
+        end_infer_time: datetime.datetime,
+        parquet_directory: str,
+        storage_options: dict,
+        application_name: str,
+    ) -> mlrun.feature_store.OfflineVectorResponse:
+        """
+        Retrieves a sample DataFrame of the current input according to the provided infer interval window.
+
+        :param feature_set:         The main feature set.
+        :param endpoint_id:         Identifier for the model endpoint.
+        :param start_infer_time:    The beginning of the infer interval window.
+        :param end_infer_time:      The end of the infer interval window.
+        :param parquet_directory:   Directory where Parquet files are stored.
+        :param storage_options:     Storage options for accessing the data.
+        :param application_name:    Current application name.
+
+        :return: OfflineVectorResponse that can be used for generating a sample DataFrame for the specified endpoint.
+
+        """
+        features = [f"{feature_set.metadata.name}.*"]
+        vector = fstore.FeatureVector(
+            name=f"{endpoint_id}_vector",
+            features=features,
+            with_indexes=True,
+        )
+        vector.metadata.tag = application_name
+        vector.feature_set_objects = {feature_set.metadata.name: feature_set}
+
+        # get offline features based on application start and end time.
+        # store the result parquet by partitioning by controller end processing time
+        offline_response = vector.get_offline_features(
+            start_time=start_infer_time,
+            end_time=end_infer_time,
+            timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,
+            target=ParquetTarget(
+                path=parquet_directory
+                + f"/key={endpoint_id}/{int(start_infer_time.timestamp())}/{application_name}.parquet",
+                storage_options=storage_options,
+            ),
+        )
+        return offline_response

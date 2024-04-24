@@ -35,6 +35,7 @@ import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import server.api.api.endpoints.functions
 import server.api.crud
+import server.api.utils.functions
 import tests.api.api.utils
 import tests.api.conftest
 from mlrun.config import config as mlconf
@@ -421,7 +422,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     @staticmethod
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
-        server.api.api.endpoints.functions._build_function(
+        server.api.utils.functions.build_function(
             db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 

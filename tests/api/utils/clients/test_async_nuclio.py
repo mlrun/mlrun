@@ -85,12 +85,13 @@ async def test_nuclio_delete_api_gateway(
     nuclio_client,
     mock_aioresponse,
 ):
-    request_url = f"{api_url}/api/api_gateways/test-basic"
+    request_url = f"{api_url}/api/api_gateways/"
     mock_aioresponse.delete(
         request_url,
+        payload={"metadata": {"name": "test-basic"}},
         status=http.HTTPStatus.NO_CONTENT,
     )
-    nuclio_client.delete_api_gateway("test-basic", "default")
+    await nuclio_client.delete_api_gateway("test-basic", "default")
 
 
 @pytest.mark.asyncio
@@ -130,3 +131,18 @@ async def test_nuclio_store_api_gateway(
         api_gateway_name="new-gw",
         api_gateway=api_gateway.to_scheme(),
     )
+
+
+@pytest.mark.asyncio
+async def test_nuclio_delete_function(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    request_url = f"{api_url}/api/functions/"
+    mock_aioresponse.delete(
+        request_url,
+        payload={"metadata": {"name": "test-basic"}},
+        status=http.HTTPStatus.NO_CONTENT,
+    )
+    await nuclio_client.delete_function("test-basic", "default")

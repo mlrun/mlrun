@@ -136,9 +136,12 @@ def patch_project(
     return project
 
 
-@router.get("/projects/{name}", response_model=mlrun.common.schemas.Project)
+@router.get("/projects/{name}", response_model=mlrun.common.schemas.ProjectOutput)
 async def get_project(
     name: str,
+    format_: mlrun.common.schemas.ProjectsFormat = fastapi.Query(
+        mlrun.common.schemas.ProjectsFormat.full, alias="format"
+    ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         server.api.api.deps.get_db_session
     ),
@@ -147,7 +150,11 @@ async def get_project(
     ),
 ):
     project = await run_in_threadpool(
-        get_project_member().get_project, db_session, name, auth_info.session
+        get_project_member().get_project,
+        db_session,
+        name,
+        auth_info.session,
+        format_=format_,
     )
     # skip permission check if it's the leader
     if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):

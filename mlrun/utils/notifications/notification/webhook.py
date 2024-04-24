@@ -36,6 +36,8 @@ class WebhookNotification(NotificationBase):
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
+        alert: mlrun.common.schemas.AlertConfig = None,
+        event_data: mlrun.common.schemas.Event = None,
     ):
         url = self.params.get("url", None)
         method = self.params.get("method", "post").lower()
@@ -46,8 +48,16 @@ class WebhookNotification(NotificationBase):
         request_body = {
             "message": message,
             "severity": severity,
-            "runs": runs,
         }
+
+        if runs:
+            request_body["runs"] = runs
+
+        if alert:
+            request_body["alert"] = alert.dict()
+            if event_data:
+                request_body["value"] = event_data.value
+                request_body["id"] = event_data.entity.id
 
         if custom_html:
             request_body["custom_html"] = custom_html

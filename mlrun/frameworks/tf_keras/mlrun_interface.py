@@ -19,7 +19,8 @@ from typing import Union
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.callbacks import (
+from tensorflow.keras.optimizers import Optimizer
+from tensorflow.python.keras.callbacks import (
     BaseLogger,
     Callback,
     CSVLogger,
@@ -27,7 +28,6 @@ from tensorflow.keras.callbacks import (
     ProgbarLogger,
     TensorBoard,
 )
-from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 

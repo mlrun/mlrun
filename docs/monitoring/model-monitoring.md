@@ -11,7 +11,7 @@ If you are using the CE version, see {ref}`legacy-model-monitoring`.
 
 The model monitoring process flow starts with collecting operational data. The operational data is converted to vectors, which are posted to the Model Server. 
 The model server is then wrapped around a machine learning model that uses a function to calculate predictions based on the available vectors. Next, the model 
-server creates a log for the input and output of the vectors, and the entries are written to the production data stream (a v3io stream). While the model server 
+server creates a log for the input and output of the vectors, and the entries are written to the production data stream. While the model server 
 is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. The stream function examines 
 the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
 The parquet files are written as a feature set under the model monitoring project. The parquet files can be read either using `pandas.read_parquet` or `feature_set.get_offline_features`, 
@@ -27,13 +27,13 @@ When you enable model monitoring, you effectively deploy three components:
 
 The model monitoring APIs are configured per project. The APIs are:
 
-- {py:meth}`~mlrun.db.httpdb.HTTPRunDB.enable_model_monitoring` &mdash; brings up the controller and schedules it according to the `base_period`; deploys the writer.
-- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; brings up the controller and schedules it according to the `base_period`; deploys the writer.
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Update or set a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; creates a function but does not set it. It's useful for troubleshooting, since it does  not register the function to the project.
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
 - {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Sets the Kafka or SQL credentials to be used by the project's model monitoring infrastructure functions. 
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; disables the controller. 
 
 ## Configuration flow
 

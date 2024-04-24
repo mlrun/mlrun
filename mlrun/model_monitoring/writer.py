@@ -230,6 +230,8 @@ class ModelMonitoringWriter(StepToDict):
         logger.info("Starting to write event", event=event)
         self._update_tsdb(event)
         self._update_kv_db(event)
+        logger.info("Completed event DB writes")
+
         _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
         if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
@@ -251,4 +253,3 @@ class ModelMonitoringWriter(StepToDict):
                 event_value,
                 self.project,
             )
-        logger.info("Completed event DB writes")

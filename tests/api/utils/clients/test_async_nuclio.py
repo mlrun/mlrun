@@ -69,11 +69,11 @@ async def test_nuclio_get_api_gateway(
     )
     r = await nuclio_client.get_api_gateway("test-basic", "default")
     received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
-    assert received_api_gateway.name == api_gateway.name
-    assert received_api_gateway.description == api_gateway.description
+    assert received_api_gateway.name == api_gateway.spec.name
+    assert received_api_gateway.description == api_gateway.spec.description
     assert (
         received_api_gateway.authentication.authentication_mode
-        == api_gateway.authentication.authentication_mode
+        == api_gateway.spec.authentication.authentication_mode
     )
     assert received_api_gateway.functions == ["test", "test2"]
     assert received_api_gateway.canary == [20, 80]

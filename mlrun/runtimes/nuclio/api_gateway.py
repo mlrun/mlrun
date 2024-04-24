@@ -22,6 +22,7 @@ from requests.auth import HTTPBasicAuth
 import mlrun
 import mlrun.common.schemas
 
+from ...model import ModelObj
 from ..utils import logger
 from .function import RemoteRuntime, get_fullname, min_nuclio_versions
 from .serving import ServingRuntime
@@ -92,7 +93,80 @@ class BasicAuth(APIGatewayAuthenticator):
         }
 
 
-class APIGateway:
+class APIGatewayMetadata(ModelObj):
+    _dict_fields = ["name", "namespace", "labels", "annotations", "creation_timestamp"]
+
+    def __init__(
+        self,
+        name: str,
+        project: str,
+        namespace: str = None,
+        labels: dict = None,
+        annotations: dict = None,
+        creation_timestamp: str = None,
+    ):
+        self.name = name
+        self.namespace = namespace
+        self.project = project
+        self.labels = labels or {}
+        self.annotations = annotations or {}
+        self.creation_timestamp = creation_timestamp
+
+
+class APIGatewaySpec(ModelObj):
+    _dict_fields = [
+        "name",
+        "description",
+        "host",
+        "path",
+        "authentication",
+        "functions",
+    ]
+
+    def __init__(
+        self,
+        name: str = "",
+        description: str = "",
+        host: str = None,
+        path: str = "/",
+        authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
+        functions: Union[
+            list[str],
+            Union[
+                list[
+                    Union[
+                        RemoteRuntime,
+                        ServingRuntime,
+                    ]
+                ],
+                Union[RemoteRuntime, ServingRuntime],
+            ],
+        ] = None,
+        canary: Optional[list[int]] = None,
+    ):
+        self.name = name
+        self.description = description
+        self.host = host
+        self.path = path
+        self.authentication = authentication
+        self.functions = functions or []
+        self.canary = canary
+
+
+class APIGateway(ModelObj):
+    _dict_fields = [
+        "name",
+        "project",
+        "functions",
+        "description",
+        "path",
+        "authentication",
+        "host",
+        "canary",
+        "invoke_url",
+        "state",
+    ]
+
     @min_nuclio_versions("1.13.1")
     def __init__(
         self,
@@ -134,21 +208,26 @@ class APIGateway:
         :param host:  The host of the API gateway (optional). If not set, it will be automatically generated
         :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
         """
-        self.functions = None
-        self._validate(
-            project=project,
-            functions=functions,
+        self.metadata = APIGatewayMetadata(
             name=name,
+            project=project,
+        )
+
+        self.spec = APIGatewaySpec(
+            name=name,
+            description=description,
+            host=host,
+            path=path,
+            authentication=authentication,
+            functions=None,
             canary=canary,
         )
-        self.project = project
-        self.name = name
-        self.host = host
 
-        self.path = path
-        self.description = description
-        self.canary = canary
-        self.authentication = authentication
+        self._validate(
+            functions=functions,
+            canary=canary,
+        )
+
         self.state = ""
 
     def invoke(
@@ -181,7 +260,7 @@ class APIGateway:
             )
 
         if (
-            self.authentication.authentication_mode
+            self.spec.authentication.authentication_mode
             == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
             and not auth
         ):
@@ -227,15 +306,15 @@ class APIGateway:
         """
         Synchronize the API gateway from the server.
         """
-        synced_gateway = mlrun.get_run_db().get_api_gateway(self.name, self.project)
+        synced_gateway = mlrun.get_run_db().get_api_gateway(self.metadata.name, self.metadata.project)
         synced_gateway = self.from_scheme(synced_gateway)
 
-        self.host = synced_gateway.host
-        self.path = synced_gateway.path
-        self.authentication = synced_gateway.authentication
-        self.functions = synced_gateway.functions
-        self.canary = synced_gateway.canary
-        self.description = synced_gateway.description
+        self.spec.host = synced_gateway.spec.host
+        self.spec.path = synced_gateway.spec.path
+        self.spec.authentication = synced_gateway.spec.authentication
+        self.spec.functions = synced_gateway.spec.functions
+        self.spec.canary = synced_gateway.spec.canary
+        self.spec.description = synced_gateway.spec.description
         self.state = synced_gateway.state
 
     def with_basic_auth(self, username: str, password: str):
@@ -245,7 +324,7 @@ class APIGateway:
         :param username: (str) The username for basic authentication.
         :param password: (str) The password for basic authentication.
         """
-        self.authentication = BasicAuth(username=username, password=password)
+        self.spec.authentication = BasicAuth(username=username, password=password)
 
     def with_canary(
         self,
@@ -276,8 +355,8 @@ class APIGateway:
                 f"Gateway with canary can be created only with two functions, "
                 f"the number of functions passed is {len(functions)}"
             )
-        self.functions = self._validate_functions(self.project, functions)
-        self.canary = self._validate_canary(canary)
+        self.spec.functions = self._validate_functions(self.metadata.project, functions)
+        self.spec.canary = self._validate_canary(canary)
 
     @classmethod
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
@@ -305,37 +384,37 @@ class APIGateway:
         upstreams = (
             [
                 mlrun.common.schemas.APIGatewayUpstream(
-                    nucliofunction={"name": self.functions[0]},
-                    percentage=self.canary[0],
+                    nucliofunction={"name": self.spec.functions[0]},
+                    percentage=self.spec.canary[0],
                 ),
                 mlrun.common.schemas.APIGatewayUpstream(
                     # do not set percent for the second function,
                     # so we can define which function to display as a primary one in UI
-                    nucliofunction={"name": self.functions[1]},
+                    nucliofunction={"name": self.spec.functions[1]},
                 ),
             ]
-            if self.canary
+            if self.spec.canary
             else [
                 mlrun.common.schemas.APIGatewayUpstream(
                     nucliofunction={"name": function_name},
                 )
-                for function_name in self.functions
+                for function_name in self.spec.functions
             ]
         )
         api_gateway = mlrun.common.schemas.APIGateway(
-            metadata=mlrun.common.schemas.APIGatewayMetadata(name=self.name, labels={}),
+            metadata=mlrun.common.schemas.APIGatewayMetadata(name=self.metadata.name, labels={}),
             spec=mlrun.common.schemas.APIGatewaySpec(
-                name=self.name,
-                description=self.description,
-                host=self.host,
-                path=self.path,
+                name=self.spec.name,
+                description=self.spec.description,
+                host=self.spec.host,
+                path=self.spec.path,
                 authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
-                    self.authentication.authentication_mode
+                    self.spec.authentication.authentication_mode
                 ),
                 upstreams=upstreams,
             ),
         )
-        api_gateway.spec.authentication = self.authentication.to_scheme()
+        api_gateway.spec.authentication = self.spec.authentication.to_scheme()
         return api_gateway
 
     @property
@@ -347,15 +426,13 @@ class APIGateway:
 
         :return: (str) The invoke URL.
         """
-        host = self.host
-        if not self.host.startswith("http"):
-            host = f"https://{self.host}"
-        return urljoin(host, self.path)
+        host = self.spec.host
+        if not self.spec.host.startswith("http"):
+            host = f"https://{self.spec.host}"
+        return urljoin(host, self.spec.path)
 
     def _validate(
         self,
-        name: str,
-        project: str,
         functions: Union[
             list[str],
             Union[
@@ -370,19 +447,19 @@ class APIGateway:
         ],
         canary: Optional[list[int]] = None,
     ):
-        if not name:
+        if not self.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway name cannot be empty"
             )
 
-        self.functions = self._validate_functions(project=project, functions=functions)
+        self.spec.functions = self._validate_functions(project=self.metadata.project, functions=functions)
 
         # validating canary
         if canary:
             self._validate_canary(canary)
 
     def _validate_canary(self, canary: list[int]):
-        if len(self.functions) != len(canary):
+        if len(self.spec.functions) != len(canary):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function and canary lists lengths do not match"
             )
@@ -475,3 +552,43 @@ class APIGateway:
         else:
             # Nuclio only supports 1 or 2 upstream functions
             return None, None
+
+    @property
+    def name(self):
+        return self.metadata.name
+
+    @name.setter
+    def name(self, value):
+        self.metadata.name = value
+
+    @property
+    def description(self):
+        return self.spec.description
+
+    @description.setter
+    def description(self, value):
+        self.spec.description = value
+
+    @property
+    def host(self):
+        return self.spec.host
+
+    @host.setter
+    def host(self, value):
+        self.spec.host = value
+
+    @property
+    def path(self):
+        return self.spec.path
+
+    @path.setter
+    def path(self, value):
+        self.spec.path = value
+
+    @property
+    def authentication(self):
+        return self.spec.authentication
+
+    @authentication.setter
+    def authentication(self, value):
+        self.spec.authentication = value

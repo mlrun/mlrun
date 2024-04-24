@@ -23,7 +23,10 @@
 ### Documentation
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|NA        | New page describing {ref}`log-artifacts`.
+|NA        | New page describing {ref}`log-artifacts`.                                 |
+|NA        | New page describing {ref}`parallel-workflows`.                                 |
+|NA        | New page describing {ref}`conditional-workflow`.                                 |
+|NA        | New page describing {ref}`exithandler-workflow`.                                 |
 
 ### Breaking change
 | ID          |Description                                                               |

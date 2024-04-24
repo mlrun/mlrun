@@ -1095,9 +1095,7 @@ def _generate_project(
             "some-label": "some-label-value",
         }
     if default_function_node_selector is None:
-        default_function_node_selector = {
-            "zone": "us-west-1"
-        }
+        default_function_node_selector = {"zone": "us-west-1"}
     if annotations is None:
         annotations = {
             "some-annotation": "some-annotation-value",

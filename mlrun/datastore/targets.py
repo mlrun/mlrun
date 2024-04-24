@@ -1392,9 +1392,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
     @property
     def _target_path_object(self):
-        path = self.path or mlrun.mlconf.redis.url
-        if self._resource and path:
-            parsed_url = urlparse(path)
+        url = self.path or mlrun.mlconf.redis.url
+        if self._resource and url:
+            parsed_url = urlparse(url)
             if not parsed_url.path or parsed_url.path == "/":
                 kind_prefix = (
                     "sets"
@@ -1414,13 +1414,13 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
                     kind=kind,
                     name=name,
                 )
-                if path.startswith("rediss://"):
-                    data_prefix.replace("redis://", "rediss://", 1)
+                if url.startswith("rediss://"):
+                    data_prefix = data_prefix.replace("redis://", "rediss://", 1)
                 if not self.run_id:
                     version = self._resource.metadata.tag
                     name = f"{name}-{version or 'latest'}"
-                path = f"{data_prefix}/{kind_prefix}/{name}"
-                return TargetPathObject(path, self.run_id, False)
+                url = f"{data_prefix}/{kind_prefix}/{name}"
+                return TargetPathObject(url, self.run_id, False)
         return super()._target_path_object
 
     # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.

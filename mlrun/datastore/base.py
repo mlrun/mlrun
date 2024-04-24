@@ -182,7 +182,7 @@ class DataStore:
     def _parquet_reader(
         df_module, url, file_system, time_column, start_time, end_time, filters
     ):
-        from storey.utils import find_filters, find_partitions
+        from storey.utils import combine_filters, find_filters, find_partitions
 
         def set_filters(
             partitions_time_attributes,
@@ -191,20 +191,17 @@ class DataStore:
             filters_inner,
             kwargs,
         ):
-            datetime_filter = []
+            datetime_filters = []
             find_filters(
                 partitions_time_attributes,
                 start_time_inner,
                 end_time_inner,
-                datetime_filter,
+                datetime_filters,
                 time_column,
             )
-            if datetime_filter and filters_inner:
-                total_filters = datetime_filter + filters_inner
-            elif datetime_filter:
-                total_filters = datetime_filter
-            else:
-                total_filters = filters_inner
+            total_filters = combine_filters(
+                datetime_filters=datetime_filters, additional_filters=filters_inner
+            )
 
             kwargs["filters"] = total_filters
 

@@ -365,7 +365,7 @@ class ParquetSource(BaseSourceDriver):
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,
-            filters=self.filters or filters,
+            additional_filters=self.filters or filters,
             **attributes,
         )
 

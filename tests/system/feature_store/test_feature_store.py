@@ -4818,16 +4818,49 @@ class TestFeatureStore(TestMLRunSystem):
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)
         filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
-        print(self.assets_path)
-        v3io_parquet_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_{uuid.uuid4()}.parquet"
-        df.to_parquet(v3io_parquet_path)
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_source_{run_uuid}.parquet"
+        v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_target_{run_uuid}"
+        df.to_parquet(v3io_parquet_source_path)
         parquet_source = ParquetSource(
             "parquet_source",
-            path=v3io_parquet_path,
+            path=v3io_parquet_source_path,
             filters=[("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")],
         )
-        assert_frame_equal(parquet_source.to_dataframe(), filtered_df)
-        #  TODO complete assert target.to_dataframe, ingest+ get_offine features.
+        result = parquet_source.to_dataframe()
+        assert_frame_equal(
+            result.sort_values(by="patient_id").reset_index(drop=True),
+            filtered_df.sort_values(by="patient_id").reset_index(drop=True),
+        )
+        feature_set = fstore.FeatureSet(
+            "test-fs", entities=[fstore.Entity("patient_id")]
+        )
+
+        target = ParquetTarget(
+            name="department_based_target",
+            path=v3io_parquet_target_path,
+            partitioned=True,
+            partition_cols=["department"],
+        )
+        feature_set.ingest(source=parquet_source, targets=[target])
+        room_filtered_df = filtered_df.query("room == 1")
+        result = target.as_df(filters=("room", "=", 1)).reset_index(drop=False)
+        # We want to include patient_id in the comparison and to sort both the columns and the values.
+        result = (
+            result.reindex(sorted(result.columns), axis=1)
+            .sort_values(by="patient_id")
+            .reset_index(drop=True)
+        )
+        expected = (
+            room_filtered_df.sort_values(by="patient_id")
+            .reset_index(drop=True)
+            .reindex(sorted(room_filtered_df.columns), axis=1)
+        )
+        #  reset category type to string:
+        result["department"] = result["department"].astype("str")
+        assert_frame_equal(result, expected, check_like=True)
+
+        #  TODO complete assert get_offine features.
 
 
 def verify_purge(fset, targets):

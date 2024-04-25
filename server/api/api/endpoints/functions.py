@@ -40,6 +40,7 @@ import server.api.db.session
 import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
+import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.chief
 import server.api.utils.functions
 import server.api.utils.pagination
@@ -185,6 +186,23 @@ async def delete_function(
             await run_in_threadpool(
                 get_scheduler().delete_schedule, db_session, project, name
             )
+
+    fn = await run_in_threadpool(
+        server.api.crud.Functions().get_function, db_session, name, project
+    )
+    if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
+        # getting all function tags, so we can delete all nuclio functions mapped to given function
+
+        all_nuclio_functions_mapped_to_function = await run_in_threadpool(
+            server.api.crud.Functions().list_functions, db_session, project, name
+        )
+        async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+            for function in all_nuclio_functions_mapped_to_function:
+                nuclio_name = mlrun.runtimes.nuclio.function.get_fullname(
+                    name, project, function.get("metadata", {}).get("tag")
+                )
+                await client.delete_function(name=nuclio_name, project_name=project)
+
     await run_in_threadpool(
         server.api.crud.Functions().delete_function, db_session, project, name
     )

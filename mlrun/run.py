@@ -114,16 +114,18 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
 
     example::
 
-        mod = mlrun.function_to_module('./examples/training.py')
-        task = mlrun.new_task(inputs={'infile.txt': '../examples/infile.txt'})
-        context = mlrun.get_or_create_ctx('myfunc', spec=task)
-        mod.my_job(context, p1=1, p2='x')
+        mod = mlrun.function_to_module("./examples/training.py")
+        task = mlrun.new_task(inputs={"infile.txt": "../examples/infile.txt"})
+        context = mlrun.get_or_create_ctx("myfunc", spec=task)
+        mod.my_job(context, p1=1, p2="x")
         print(context.to_yaml())
 
-        fn = mlrun.import_function('hub://open-archive')
+        fn = mlrun.import_function("hub://open-archive")
         mod = mlrun.function_to_module(fn)
-        data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
-        context = mlrun.get_or_create_ctx('myfunc')
+        data = mlrun.run.get_dataitem(
+            "https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz"
+        )
+        context = mlrun.get_or_create_ctx("myfunc")
         mod.open_archive(context, archive_url=data)
         print(context.to_yaml())
 
@@ -256,29 +258,31 @@ def get_or_create_ctx(
     Examples::
 
         # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-        context = get_or_create_ctx('train')
+        context = get_or_create_ctx("train")
 
         # get parameters from the runtime context (or use defaults)
-        p1 = context.get_param('p1', 1)
-        p2 = context.get_param('p2', 'a-string')
+        p1 = context.get_param("p1", 1)
+        p2 = context.get_param("p2", "a-string")
 
         # access input metadata, values, files, and secrets (passwords)
-        print(f'Run: {context.name} (uid={context.uid})')
-        print(f'Params: p1={p1}, p2={p2}')
+        print(f"Run: {context.name} (uid={context.uid})")
+        print(f"Params: p1={p1}, p2={p2}")
         print(f'accesskey = {context.get_secret("ACCESS_KEY")}')
-        input_str = context.get_input('infile.txt').get()
-        print(f'file: {input_str}')
+        input_str = context.get_input("infile.txt").get()
+        print(f"file: {input_str}")
 
         # RUN some useful code e.g. ML training, data prep, etc.
 
         # log scalar result values (job result metrics)
-        context.log_result('accuracy', p1 * 2)
-        context.log_result('loss', p1 * 3)
-        context.set_label('framework', 'sklearn')
+        context.log_result("accuracy", p1 * 2)
+        context.log_result("loss", p1 * 3)
+        context.set_label("framework", "sklearn")
 
         # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-        context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
-        context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
+        context.log_artifact(
+            "model.txt", body=b"abc is 123", labels={"framework": "xgboost"}
+        )
+        context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
 
@@ -348,7 +352,9 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
         function = mlrun.import_function("hub://auto-trainer")
         function = mlrun.import_function("./func.yaml")
-        function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
+        function = mlrun.import_function(
+            "https://raw.githubusercontent.com/org/repo/func.yaml"
+        )
 
     :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
@@ -447,12 +453,18 @@ def new_function(
     Example::
 
            # define a container based function (the `training.py` must exist in the container workdir)
-           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job')
+           f = new_function(
+               command="training.py -x {x}", image="myrepo/image:latest", kind="job"
+           )
            f.run(params={"x": 5})
 
            # define a container based function which reads its source from a git archive
-           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job',
-                            source='git://github.com/mlrun/something.git')
+           f = new_function(
+               command="training.py -x {x}",
+               image="myrepo/image:latest",
+               kind="job",
+               source="git://github.com/mlrun/something.git",
+           )
            f.run(params={"x": 5})
 
            # define a local handler function (execute a local function handler)
@@ -665,11 +677,15 @@ def code_to_function(
         import mlrun
 
         # create job function object from notebook code and add doc/metadata
-        fn = mlrun.code_to_function("file_utils", kind="job",
-                                    handler="open_archive", image="mlrun/mlrun",
-                                    description = "this function opens a zip archive into a local/mounted folder",
-                                    categories = ["fileutils"],
-                                    labels = {"author": "me"})
+        fn = mlrun.code_to_function(
+            "file_utils",
+            kind="job",
+            handler="open_archive",
+            image="mlrun/mlrun",
+            description="this function opens a zip archive into a local/mounted folder",
+            categories=["fileutils"],
+            labels={"author": "me"},
+        )
 
     example::
 
@@ -680,11 +696,15 @@ def code_to_function(
         Path("mover.py").touch()
 
         # create nuclio function object from python module call mover.py
-        fn = mlrun.code_to_function("nuclio-mover", kind="nuclio",
-                                    filename="mover.py", image="python:3.7",
-                                    description = "this function moves files from one system to another",
-                                    requirements = ["pandas"],
-                                    labels = {"author": "me"})
+        fn = mlrun.code_to_function(
+            "nuclio-mover",
+            kind="nuclio",
+            filename="mover.py",
+            image="python:3.9",
+            description="this function moves files from one system to another",
+            requirements=["pandas"],
+            labels={"author": "me"},
+        )
 
     """
     filebase, _ = path.splitext(path.basename(filename))
@@ -1098,13 +1118,25 @@ def wait_for_runs_completion(
     example::
 
         # run two training functions in parallel and wait for the results
-        inputs = {'dataset': cleaned_data}
-        run1 = train.run(name='train_lr', inputs=inputs, watch=False,
-                         params={'model_pkg_class': 'sklearn.linear_model.LogisticRegression',
-                                 'label_column': 'label'})
-        run2 = train.run(name='train_lr', inputs=inputs, watch=False,
-                         params={'model_pkg_class': 'sklearn.ensemble.RandomForestClassifier',
-                                 'label_column': 'label'})
+        inputs = {"dataset": cleaned_data}
+        run1 = train.run(
+            name="train_lr",
+            inputs=inputs,
+            watch=False,
+            params={
+                "model_pkg_class": "sklearn.linear_model.LogisticRegression",
+                "label_column": "label",
+            },
+        )
+        run2 = train.run(
+            name="train_lr",
+            inputs=inputs,
+            watch=False,
+            params={
+                "model_pkg_class": "sklearn.ensemble.RandomForestClassifier",
+                "label_column": "label",
+            },
+        )
         completed = wait_for_runs_completion([run1, run2])
 
     :param runs:    list of run objects (the returned values of function.run())

@@ -73,7 +73,8 @@ class TestV3ioDataStore(TestMLRunSystem):
     def teardown_class(cls):
         dir_data_item = mlrun.get_dataitem(cls.test_dir_url)
         try:
-            dir_data_item.delete(recursive=True)
+            # a workaround for deleting test folder (DataItem does not support recursive delete)
+            dir_data_item._store.rm(path=cls.test_dir, recursive=True)
         except Exception:
             cls._logger.warning(
                 f"failed to delete test directory {cls.test_dir_url} in test_v3io.py."
@@ -106,71 +107,74 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _skip_set_environment():
         return True
 
-    def test_v3io_large_object_upload(self, tmp_path):
+    @pytest.mark.parametrize(
+        "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]
+    )  # 4MB and 20MB
+    def test_v3io_large_object_upload(self, tmp_path, file_size):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
-        first_start_time = time.time()
+        first_start_time = time.monotonic()
         with open(tempfile_1_path, "wb") as f:
-            file_size = 20 * 1024 * 1024  # 20MB
             data = os.urandom(file_size)
             f.write(data)
         data_item = mlrun.run.get_dataitem(self._object_url)
         self._logger.debug(
-            f"test_v3io_large_object_upload - finished to write locally in {time.time() - first_start_time} seconds"
+            f"test_v3io_large_object_upload - finished to write locally in {time.monotonic() - first_start_time} "
+            "seconds"
         )
         self._logger.debug(
             "Exercising the DataItem upload flow",
             tempfile_1_path=tempfile_1_path,
             tempfile_2_path=tempfile_2_path,
         )
-        start_time = time.time()
+        start_time = time.monotonic()
         data_item.upload(tempfile_1_path)
         self._logger.debug(
-            f"test_v3io_large_object_upload - finished to upload in {time.time() - start_time} seconds"
+            f"test_v3io_large_object_upload - finished to upload in {time.monotonic() - start_time} seconds"
         )
-        start_time = time.time()
+        start_time = time.monotonic()
         data_item.download(tempfile_2_path)
         self._logger.debug(
-            f"test_v3io_large_object_upload - finished to download locally in {time.time() - start_time} seconds"
+            f"test_v3io_large_object_upload - finished to download locally in {time.monotonic() - start_time} seconds"
         )
-        start_time = time.time()
+        start_time = time.monotonic()
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
         assert (
             cmp_process.returncode == 0
         ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
         self._logger.debug(
-            f"test_v3io_large_object_upload - finished cmp 1 in {time.time() - start_time} seconds"
+            f"test_v3io_large_object_upload - finished cmp 1 in {time.monotonic() - start_time} seconds"
         )
         # Do the test again, this time exercising the v3io datastore _upload() loop
         self._logger.debug("Exercising the v3io _upload() loop")
         os.remove(tempfile_2_path)
         object_path = urlparse(self._object_url).path
-        start_time = time.time()
+        start_time = time.monotonic()
         data_item.store._upload(object_path, tempfile_1_path, max_chunk_size=100 * 1024)
         self._logger.debug(
             f"test_v3io_large_object_upload - finished to upload with store directly in"
-            f" {time.time() - start_time} seconds"
+            f" {time.monotonic() - start_time} seconds"
         )
         self._logger.debug("Downloading the object")
-        start_time = time.time()
+        start_time = time.monotonic()
         data_item.download(tempfile_2_path)
         self._logger.debug(
             f"test_v3io_large_object_upload - finished to download in the second time in"
-            f" {time.time() - start_time} seconds"
+            f" {time.monotonic() - start_time} seconds"
         )
-        start_time = time.time()
+        start_time = time.monotonic()
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
         assert (
             cmp_process.returncode == 0
         ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
         self._logger.debug(
-            f"test_v3io_large_object_upload - finished cmp 2 in {time.time() - start_time} seconds"
+            f"test_v3io_large_object_upload - finished cmp 2 in {time.monotonic() - start_time} seconds"
         )
         self._logger.debug(
-            f"total time of test_v3io_large_object_upload {time.time() - first_start_time}"
+            f"total time of test_v3io_large_object_upload {time.monotonic() - first_start_time}"
         )
 
     def test_v3io_large_object_put(self):
@@ -179,30 +183,30 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item = mlrun.run.get_dataitem(self._object_url)
         object_path = urlparse(self._object_url).path
 
-        first_start_time = time.time()
+        first_start_time = time.monotonic()
         data_item.put(generated_buffer)
         self._logger.debug(
-            f"test_v3io_large_object_put: put finished in : {time.time() - first_start_time} seconds"
+            f"test_v3io_large_object_put: put finished in : {time.monotonic() - first_start_time} seconds"
         )
-        start_time = time.time()
+        start_time = time.monotonic()
         returned_buffer = data_item.get()
         self._logger.debug(
-            f"test_v3io_large_object_put: first get finished in : {time.time() - start_time} seconds"
+            f"test_v3io_large_object_put: first get finished in : {time.monotonic() - start_time} seconds"
         )
         assert returned_buffer == generated_buffer
-        start_time = time.time()
+        start_time = time.monotonic()
         data_item.store._put(object_path, generated_buffer, max_chunk_size=100 * 1024)
         self._logger.debug(
-            f"test_v3io_large_object_put: store put finished in : {time.time() - start_time} seconds"
+            f"test_v3io_large_object_put: store put finished in : {time.monotonic() - start_time} seconds"
         )
-        start_time = time.time()
+        start_time = time.monotonic()
         returned_buffer = data_item.get()
         self._logger.debug(
-            f"test_v3io_large_object_put: second get finished in : {time.time() - start_time} seconds"
+            f"test_v3io_large_object_put: second get finished in : {time.monotonic() - start_time} seconds"
         )
         assert returned_buffer == generated_buffer
         self._logger.debug(
-            f"test_v3io_large_object_put: total time: {time.time() - first_start_time} seconds"
+            f"test_v3io_large_object_put: total time: {time.monotonic() - first_start_time} seconds"
         )
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])

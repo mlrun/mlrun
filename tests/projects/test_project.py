@@ -29,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring as mm_consts
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -892,10 +893,8 @@ def test_import_artifact_retain_producer(rundb_mock):
     # load a new project from the first project's context
     project_3 = mlrun.load_project(name="project-3", context=project_1.context)
 
-    # make sure the artifact was registered with the original producer
-    # the db key should include the run since it's a run artifact
-    db_key = f"{run_name}_{new_key}"
-    loaded_artifact = project_3.get_artifact(db_key)
+    # make sure the artifact was registered with the new key
+    loaded_artifact = project_3.get_artifact(new_key)
     assert loaded_artifact.producer == artifact.producer
 
 
@@ -2086,15 +2085,10 @@ class TestModelMonitoring:
         [
             (
                 True,
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list()
-                + [
-                    mlrun.common.schemas.model_monitoring.constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
-                ],
+                mm_consts.constants.MonitoringFunctionNames.list()
+                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
             ),
-            (
-                False,
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list(),
-            ),
+            (False, mm_consts.constants.MonitoringFunctionNames.list()),
         ],
     )
     def test_disable(

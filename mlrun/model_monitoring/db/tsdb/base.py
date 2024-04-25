@@ -15,6 +15,7 @@
 
 
 from abc import ABC
+
 import pandas as pd
 
 
@@ -74,7 +75,6 @@ class TSDBtarget(ABC):
                  includes timestamps and the values.
         """
         pass
-
 
     def get_records(
         self,

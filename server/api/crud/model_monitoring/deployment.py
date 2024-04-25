@@ -247,7 +247,6 @@ class MonitoringDeployment:
                 project=fn.metadata.project, access_key=self.model_monitoring_access_key
             )
 
-
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
     ) -> mlrun.runtimes.ServingRuntime:

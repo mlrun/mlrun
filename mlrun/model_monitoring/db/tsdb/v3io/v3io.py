@@ -20,9 +20,9 @@ import v3io_frames.errors
 from v3io.dataplane import Client as V3IOClient
 from v3io_frames.frames_pb2 import IGNORE
 
+import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.feature_store.steps
-import mlrun.common.model_monitoring
 import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps
 import mlrun.utils.v3io_clients
@@ -93,15 +93,18 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_application_full_path
         )
-        self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS] = (monitoring_application_path +
-                                                                mm_constants.V3IOTSDBTables.APP_RESULTS)
-        self.tables[mm_constants.V3IOTSDBTables.METRICS] = (monitoring_application_path +
-                                                            mm_constants.V3IOTSDBTables.METRICS)
-
+        self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS] = (
+            monitoring_application_path + mm_constants.V3IOTSDBTables.APP_RESULTS
+        )
+        self.tables[mm_constants.V3IOTSDBTables.METRICS] = (
+            monitoring_application_path + mm_constants.V3IOTSDBTables.METRICS
+        )
 
     def create_tsdb_application_tables(self):
-
-        application_tables = [mm_constants.V3IOTSDBTables.APP_RESULTS, mm_constants.V3IOTSDBTables.METRICS]
+        application_tables = [
+            mm_constants.V3IOTSDBTables.APP_RESULTS,
+            mm_constants.V3IOTSDBTables.METRICS,
+        ]
         for table in application_tables:
             logger.info("Creating table in V3IO TSDB", table=table)
             self._frames_client.create(
@@ -110,7 +113,6 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
                 if_exists=IGNORE,
                 rate=_TSDB_RATE,
             )
-
 
     def apply_monitoring_stream_steps(
         self,
@@ -205,10 +207,10 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         """
         Write a single application result event to the TSDB target.
         """
-        event[
-            mm_constants.WriterEvent.END_INFER_TIME
-        ] = datetime.datetime.fromisoformat(
-            event[mm_constants.WriterEvent.END_INFER_TIME]
+        event[mm_constants.WriterEvent.END_INFER_TIME] = (
+            datetime.datetime.fromisoformat(
+                event[mm_constants.WriterEvent.END_INFER_TIME]
+            )
         )
         del event[mm_constants.WriterEvent.RESULT_EXTRA_DATA]
         try:
@@ -223,7 +225,10 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
                     mm_constants.WriterEvent.RESULT_NAME,
                 ],
             )
-            logger.info("Updated V3IO TSDB successfully", table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS])
+            logger.info(
+                "Updated V3IO TSDB successfully",
+                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
+            )
         except v3io_frames.errors.Error as err:
             logger.warn(
                 "Could not write drift measures to TSDB",
@@ -315,7 +320,6 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
         )
-
 
     def get_records(
         self,

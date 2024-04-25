@@ -755,6 +755,13 @@ class Client(
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
+
+        if project.spec.default_function_node_selector is not None:
+            body["data"]["attributes"]["default_function_node_selector"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.spec.default_function_node_selector
+                )
+            )
         return body
 
     @staticmethod

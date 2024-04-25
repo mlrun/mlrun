@@ -34,8 +34,8 @@ from .constants import (
     PrometheusMetric,
     SchedulingKeys,
     TimeSeriesTarget,
-    V3IOTSDBTables,
     TSDBTarget,
+    V3IOTSDBTables,
     VersionedModel,
     WriterEvent,
 )

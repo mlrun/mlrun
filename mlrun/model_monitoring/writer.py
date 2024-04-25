@@ -16,7 +16,6 @@ import json
 from typing import Any, NewType
 
 import mlrun.common.model_monitoring
-import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores

@@ -437,7 +437,7 @@ class LogBatchWriter:
 
 def get_in(obj, keys, default=None):
     """
-    >>> get_in({'a': {'b': 1}}, 'a.b')
+    >>> get_in({"a": {"b": 1}}, "a.b")
     1
     """
     if isinstance(keys, str):

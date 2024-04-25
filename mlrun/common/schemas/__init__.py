@@ -144,8 +144,8 @@ from .model_monitoring import (
     MonitoringFunctionNames,
     PrometheusEndpoints,
     TimeSeriesTarget,
-    V3IOTSDBTables,
     TSDBTarget,
+    V3IOTSDBTables,
 )
 from .notification import (
     Notification,

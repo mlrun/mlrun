@@ -49,7 +49,7 @@ class Event(pydantic.BaseModel):
     kind: EventKind
     timestamp: Union[str, datetime] = None  # occurrence time
     entity: EventEntity
-    value: Optional[Union[float, str]] = None
+    value_dict: Optional[dict] = pydantic.Field(default_factory=dict)
 
     def is_valid(self):
         return self.entity.kind in _event_kind_entity_map[self.kind]

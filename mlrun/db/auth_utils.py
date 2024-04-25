@@ -18,8 +18,7 @@ from datetime import datetime, timedelta
 import requests
 
 import mlrun.errors
-
-from ..utils import logger
+from mlrun.utils import logger
 
 
 class TokenProvider(ABC):
@@ -44,7 +43,9 @@ class StaticTokenProvider(TokenProvider):
 
 
 class OAuthClientIDTokenProvider(TokenProvider):
-    def __init__(self, token_endpoint: str, client_id: str, client_secret: str):
+    def __init__(
+        self, token_endpoint: str, client_id: str, client_secret: str, timeout=5
+    ):
         if not token_endpoint or not client_id or not client_secret:
             raise mlrun.errors.MLRunValueError(
                 "Invalid client_id configuration for authentication. Must provide token endpoint, client-id and secret"
@@ -52,6 +53,14 @@ class OAuthClientIDTokenProvider(TokenProvider):
         self.token_endpoint = token_endpoint
         self.client_id = client_id
         self.client_secret = client_secret
+        self.timeout = timeout
+
+        # Since we're only issuing POST requests, which are actually a disguised GET, then it's ok to allow retries
+        # on them.
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_post=True,
+            verbose=True,
+        )
 
         self._cleanup()
         self._refresh_token_if_needed()
@@ -81,7 +90,6 @@ class OAuthClientIDTokenProvider(TokenProvider):
         return self.token
 
     def _issue_token_request(self, raise_on_error=False):
-        session = requests.Session()
         try:
             headers = {"Content-Type": "application/x-www-form-urlencoded"}
             request_body = {
@@ -89,10 +97,10 @@ class OAuthClientIDTokenProvider(TokenProvider):
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
             }
-            response = session.request(
+            response = self._session.request(
                 "POST",
                 self.token_endpoint,
-                timeout=5,
+                timeout=self.timeout,
                 headers=headers,
                 data=request_body,
             )
@@ -112,7 +120,9 @@ class OAuthClientIDTokenProvider(TokenProvider):
                     error = data.get("error")
                 except Exception:
                     pass
-            logger.warning("Retrieving token failed", error=error)
+            logger.warning(
+                "Retrieving token failed", status=response.status_code, error=error
+            )
             if raise_on_error:
                 mlrun.errors.raise_for_status(response)
             return

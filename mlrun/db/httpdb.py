@@ -38,6 +38,7 @@ import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
+from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -54,7 +55,6 @@ from ..utils import (
     normalize_name,
     version,
 )
-from .auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -146,12 +146,12 @@ class HTTPRunDB(RunDBInterface):
         self.password = password
         self.token_provider = None
 
-        if config.auth_with_client_id:
-            token_endpoint = mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT")
-            client_id = mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID")
-            client_secret = mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET")
+        if config.auth_with_client_id.enabled:
             self.token_provider = OAuthClientIDTokenProvider(
-                token_endpoint, client_id, client_secret
+                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                timeout=config.auth_with_client_id.request_timeout,
             )
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(

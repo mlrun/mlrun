@@ -14,7 +14,6 @@
 
 import codecs
 import datetime
-import os
 import sys
 import time
 from collections import namedtuple
@@ -330,7 +329,7 @@ def test_bearer_auth(create_server):
     db.list_runs()
 
 
-def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
+def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch):
     """
     Test the httpdb behavior when using a client-id OAuth token. Test verifies that:
     - Token is retrieved successfully, and kept in the httpdb class.
@@ -346,8 +345,9 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
         "MLRUN_AUTH_CLIENT_SECRET": "some-client-secret",
     }
 
-    mlrun.mlconf.auth_with_client_id = True
-    os.environ.update(test_env)
+    mlrun.mlconf.auth_with_client_id.enabled = True
+    for key, value in test_env.items():
+        monkeypatch.setenv(key, value)
 
     expected_token = "my-cool-token"
     # Set a 4-second expiry, so a refresh will happen in 2 seconds
@@ -406,10 +406,6 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker):
     assert len(requests_mock.request_history) == 2
     assert "Authorization" not in requests_mock.last_request.headers
     assert db.token_provider.token is None
-
-    mlrun.mlconf.auth_with_client_id = False
-    for key in test_env:
-        del os.environ[key]
 
 
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:

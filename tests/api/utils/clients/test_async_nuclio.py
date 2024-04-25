@@ -30,7 +30,7 @@ async def api_url() -> str:
 
 
 @pytest.fixture()
-async def nuclio_client(
+def nuclio_client(
     api_url,
 ) -> server.api.utils.clients.async_nuclio.Client:
     auth_info = mlrun.common.schemas.AuthInfo()

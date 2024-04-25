@@ -121,6 +121,7 @@ class APIGatewaySpec(ModelObj):
         "path",
         "authentication",
         "functions",
+        "canary",
     ]
 
     def __init__(
@@ -155,15 +156,8 @@ class APIGatewaySpec(ModelObj):
 
 class APIGateway(ModelObj):
     _dict_fields = [
-        "name",
-        "project",
-        "functions",
-        "description",
-        "path",
-        "authentication",
-        "host",
-        "canary",
-        "invoke_url",
+        "metadata",
+        "spec",
         "state",
     ]
 
@@ -306,7 +300,9 @@ class APIGateway(ModelObj):
         """
         Synchronize the API gateway from the server.
         """
-        synced_gateway = mlrun.get_run_db().get_api_gateway(self.metadata.name, self.metadata.project)
+        synced_gateway = mlrun.get_run_db().get_api_gateway(
+            self.metadata.name, self.metadata.project
+        )
         synced_gateway = self.from_scheme(synced_gateway)
 
         self.spec.host = synced_gateway.spec.host
@@ -367,7 +363,7 @@ class APIGateway(ModelObj):
             if api_gateway.status
             else mlrun.common.schemas.APIGatewayState.none
         )
-        api_gateway = cls(
+        new_api_gateway = cls(
             project=project,
             description=api_gateway.spec.description,
             name=api_gateway.spec.name,
@@ -377,8 +373,8 @@ class APIGateway(ModelObj):
             functions=functions,
             canary=canary,
         )
-        api_gateway.state = state
-        return api_gateway
+        new_api_gateway.state = state
+        return new_api_gateway
 
     def to_scheme(self) -> mlrun.common.schemas.APIGateway:
         upstreams = (
@@ -402,7 +398,9 @@ class APIGateway(ModelObj):
             ]
         )
         api_gateway = mlrun.common.schemas.APIGateway(
-            metadata=mlrun.common.schemas.APIGatewayMetadata(name=self.metadata.name, labels={}),
+            metadata=mlrun.common.schemas.APIGatewayMetadata(
+                name=self.metadata.name, labels={}
+            ),
             spec=mlrun.common.schemas.APIGatewaySpec(
                 name=self.spec.name,
                 description=self.spec.description,
@@ -452,7 +450,9 @@ class APIGateway(ModelObj):
                 "API Gateway name cannot be empty"
             )
 
-        self.spec.functions = self._validate_functions(project=self.metadata.project, functions=functions)
+        self.spec.functions = self._validate_functions(
+            project=self.metadata.project, functions=functions
+        )
 
         # validating canary
         if canary:

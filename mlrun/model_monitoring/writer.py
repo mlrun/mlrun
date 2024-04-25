@@ -117,6 +117,7 @@ class ModelMonitoringWriter(StepToDict):
             notification_types=[NotificationKind.slack]
         )
         self._create_tsdb_table()
+        self._endpoints_records = {}
 
     @staticmethod
     def get_v3io_container(project_name: str) -> str:
@@ -232,8 +233,10 @@ class ModelMonitoringWriter(StepToDict):
         _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
         if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
-            endpoint_record = get_endpoint_record(
-                project=self.project, endpoint_id=event[WriterEvent.ENDPOINT_ID]
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            endpoint_record = self._endpoints_records.setdefault(
+                endpoint_id,
+                get_endpoint_record(project=self.project, endpoint_id=endpoint_id),
             )
             event_value = {
                 "app_name": event[WriterEvent.APPLICATION_NAME],

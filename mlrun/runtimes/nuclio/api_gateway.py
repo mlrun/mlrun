@@ -105,6 +105,14 @@ class APIGatewayMetadata(ModelObj):
         annotations: dict = None,
         creation_timestamp: str = None,
     ):
+        """
+        :param project: The project name
+        :param name: The name of the API gateway
+        :param namespace: The namespace of the API gateway
+        :param labels: The labels of the API gateway
+        :param annotations: The annotations of the API gateway
+        :param creation_timestamp: The creation timestamp of the API gateway
+        """
         self.name = name
         self.namespace = namespace
         self.project = project
@@ -140,7 +148,8 @@ class APIGatewaySpec(ModelObj):
                         ServingRuntime,
                     ]
                 ],
-                Union[RemoteRuntime, ServingRuntime],
+                RemoteRuntime,
+                ServingRuntime,
             ],
         ],
         description: str = "",
@@ -150,6 +159,21 @@ class APIGatewaySpec(ModelObj):
         canary: Optional[list[int]] = None,
         project: str = None,
     ):
+        """
+        :param project: The project name
+        :param functions: The list of functions associated with the API gateway
+            Can be a list of function names (["my-func1", "my-func2"])
+            or a list or a single entity of
+            :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+
+        :param description: Optional description of the API gateway
+        :param path: Optional path of the API gateway, default value is "/"
+        :param authentication: The authentication for the API gateway of type
+                :py:class:`~mlrun.runtimes.nuclio.api_gateway.BasicAuth`
+        :param host:  The host of the API gateway (optional). If not set, it will be automatically generated
+        :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
+        """
         self.description = description
         self.host = host
         self.path = path
@@ -171,7 +195,8 @@ class APIGatewaySpec(ModelObj):
                         ServingRuntime,
                     ]
                 ],
-                Union[RemoteRuntime, ServingRuntime],
+                RemoteRuntime,
+                ServingRuntime,
             ],
         ],
         canary: Optional[list[int]] = None,
@@ -257,60 +282,34 @@ class APIGateway(ModelObj):
     @min_nuclio_versions("1.13.1")
     def __init__(
         self,
-        project,
-        name: str,
-        functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                Union[RemoteRuntime, ServingRuntime],
-            ],
-        ],
-        description: str = "",
-        path: str = "/",
-        authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
-        host: Optional[str] = None,
-        canary: Optional[list[int]] = None,
+        metadata: APIGatewayMetadata,
+        spec: APIGatewaySpec,
     ):
         """
         Initialize the APIGateway instance.
 
-        :param project: The project name
-        :param name: The name of the API gateway
-        :param functions: The list of functions associated with the API gateway
-            Can be a list of function names (["my-func1", "my-func2"])
-            or a list or a single entity of
-            :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
-            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
-
-        :param description: Optional description of the API gateway
-        :param path: Optional path of the API gateway, default value is "/"
-        :param authentication: The authentication for the API gateway of type
-                :py:class:`~mlrun.runtimes.nuclio.api_gateway.BasicAuth`
-        :param host:  The host of the API gateway (optional). If not set, it will be automatically generated
-        :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
+        :param metadata: (APIGatewayMetadata) The metadata of the API gateway.
+        :param spec: (APIGatewaySpec) The spec of the API gateway.
         """
-        self.metadata = APIGatewayMetadata(
-            name=name,
-            project=project,
-        )
-
-        self.spec = APIGatewaySpec(
-            functions=functions,
-            description=description,
-            host=host,
-            path=path,
-            authentication=authentication,
-            canary=canary,
-            project=project,
-        )
-
+        self.metadata = metadata
+        self.spec = spec
         self.state = ""
+
+    @property
+    def metadata(self) -> APIGatewayMetadata:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._metadata = self._verify_dict(metadata, "metadata", APIGatewayMetadata)
+
+    @property
+    def spec(self) -> APIGatewaySpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", APIGatewaySpec)
 
     def invoke(
         self,
@@ -453,14 +452,19 @@ class APIGateway(ModelObj):
             else mlrun.common.schemas.APIGatewayState.none
         )
         new_api_gateway = cls(
-            project=project,
-            description=api_gateway.spec.description,
-            name=api_gateway.spec.name,
-            host=api_gateway.spec.host,
-            path=api_gateway.spec.path,
-            authentication=APIGatewayAuthenticator.from_scheme(api_gateway.spec),
-            functions=functions,
-            canary=canary,
+            metadata=APIGatewayMetadata(
+                project=project,
+                name=api_gateway.spec.name,
+            ),
+            spec=APIGatewaySpec(
+                project=project,
+                description=api_gateway.spec.description,
+                host=api_gateway.spec.host,
+                path=api_gateway.spec.path,
+                authentication=APIGatewayAuthenticator.from_scheme(api_gateway.spec),
+                functions=functions,
+                canary=canary,
+            ),
         )
         new_api_gateway.state = state
         return new_api_gateway

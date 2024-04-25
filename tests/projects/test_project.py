@@ -1714,10 +1714,15 @@ def test_create_api_gateway_valid(
         project.set_function(f2)
         functions = [f1, f2]
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        name="gateway-f1-f2",
-        functions=functions,
-        canary=canary,
-        project=project_name,
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="gateway-f1-f2",
+            project=project_name,
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=functions,
+            canary=canary,
+            project=project_name,
+        ),
     )
     if with_basic_auth:
         api_gateway.with_basic_auth("test_username", "test_password")

@@ -23,7 +23,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
-from mlrun.datastore import parse_kafka_url
+from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
@@ -487,11 +487,8 @@ class ServingRuntime(RemoteRuntime):
                         "worker_allocation_mode", "static"
                     )
 
-                if (
-                    stream.path.startswith("kafka://")
-                    or "kafka_brokers" in stream.options
-                ):
-                    brokers = stream.options.get("kafka_brokers")
+                brokers = get_kafka_brokers_from_dict(stream.options)
+                if stream.path.startswith("kafka://") or brokers:
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)

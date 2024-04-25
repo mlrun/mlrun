@@ -437,7 +437,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_serving_with_kafka_queue(self, kafka_fixture):
-        kafka_consumer, _ = kafka_fixture
+        kafka_consumer, _, _ = kafka_fixture
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")
 

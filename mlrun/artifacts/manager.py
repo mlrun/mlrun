@@ -180,11 +180,13 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
+        project=None,
+        is_retained_producer=None,
         **kwargs,
     ) -> Artifact:
         """
         Log an artifact to the DB and upload it to the artifact store.
-        :param producer: The producer of the artifact, the producer depends from where the artifact is being logged.
+        :param producer: The producer of the artifact, the producer depends on where the artifact is being logged.
         :param item: The artifact to log.
         :param body: The body of the artifact.
         :param target_path: The target path of the artifact. (cannot be a relative path)
@@ -202,6 +204,9 @@ class ArtifactManager:
         :param labels: Labels to add to the artifact.
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
+        :param project: The project to log the artifact to. If not provided, will use the producer's project.
+        :param is_retained_producer: Whether the producer is retained or not. Relevant to register artifacts flow
+        where a project may log artifacts which were produced by another producer.
         :param kwargs: Arguments to pass to the artifact class.
         :return: The logged artifact.
         """
@@ -226,7 +231,7 @@ class ArtifactManager:
 
         if db_key is None:
             # set the default artifact db key
-            if producer.kind == "run":
+            if producer.kind == "run" and not is_retained_producer:
                 # When the producer's type is "run,"
                 # we generate a different db_key than the one we obtained in the request.
                 # As a result, a new artifact for the requested key will be created,
@@ -251,8 +256,11 @@ class ArtifactManager:
             item.labels.update({"workflow-id": item.producer.get("workflow")})
 
         item.iter = producer.iteration
-        project = producer.project
+        project = project or producer.project
         item.project = project
+        if is_retained_producer:
+            # if the producer is retained, we want to use the original target path
+            target_path = target_path or item.target_path
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
@@ -260,7 +268,8 @@ class ArtifactManager:
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
-            upload = False
+            if upload is None:
+                upload = False
 
         # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it
         # already exists. In this case set the target_path to the src_path and set upload to False
@@ -287,7 +296,9 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = template_artifact_path(artifact_path=target_path, project=project)
+        target_path = template_artifact_path(
+            artifact_path=target_path, project=producer.project
+        )
         item.target_path = target_path
 
         item.before_log()
@@ -303,7 +314,7 @@ class ArtifactManager:
                 item.upload(artifact_path=artifact_path)
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item)
+            self._log_to_db(db_key, project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(

@@ -64,7 +64,7 @@ from .store_resources import (
     parse_store_uri,
 )
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
-from .utils import parse_kafka_url
+from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 
 store_manager = StoreManager()
 
@@ -107,8 +107,9 @@ def get_stream_pusher(stream_path: str, **kwargs):
     :param stream_path:        path/url of stream
     """
 
-    if stream_path.startswith("kafka://") or "kafka_brokers" in kwargs:
-        topic, brokers = parse_kafka_url(stream_path, kwargs.get("kafka_brokers"))
+    kafka_brokers = get_kafka_brokers_from_dict(kwargs)
+    if stream_path.startswith("kafka://") or kafka_brokers:
+        topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
         return KafkaOutputStream(topic, brokers, kwargs.get("kafka_producer_options"))
     elif stream_path.startswith("http://") or stream_path.startswith("https://"):
         return HTTPOutputStream(stream_path=stream_path)

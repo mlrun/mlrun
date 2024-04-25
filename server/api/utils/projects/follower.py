@@ -150,7 +150,9 @@ class Member(
                 )
             else:
                 self._leader_client.update_project(leader_session, name, project)
-                return self.get_project(db_session, name, leader_session), False
+                return server.api.db.session.run_function_with_new_db_session(
+                    self.get_project, name, leader_session
+                ), False
 
     def patch_project(
         self,

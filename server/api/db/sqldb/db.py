@@ -2377,6 +2377,9 @@ class SQLDB(DBInterface):
         project_record.source = project.spec.source
         project_record.owner = project.spec.owner
         project_record.state = project.status.state
+        project_record.default_function_node_selector = (
+            project.spec.default_function_node_selector
+        )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
         self._upsert(session, [project_record])
@@ -3904,6 +3907,7 @@ class SQLDB(DBInterface):
                 spec=mlrun.common.schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
+                    default_function_node_selector=project_record.default_function_node_selector,
                 ),
                 status=mlrun.common.schemas.ObjectStatus(
                     state=project_record.state,

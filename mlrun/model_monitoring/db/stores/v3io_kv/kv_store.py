@@ -288,14 +288,14 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         tsdb_path, filtered_path = self._generate_tsdb_paths()
 
         # Delete time series DB resources
-        tsdb_target = mlrun.model_monitoring.get_tsdb_target(
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project,
             access_key=self.access_key,
             container=self.container,
         )
-        tsdb_target.delete_tsdb_resources()
+        tsdb_connector.delete_tsdb_resources()
 
-        if mlrun.mlconf.model_endpoint_monitoring.tsdb_target_type == "v3io-tsdb":
+        if mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type == "v3io-tsdb":
             # Final cleanup of tsdb path
             tsdb_path.replace("://u", ":///u")
             store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
@@ -345,13 +345,13 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             events_path
         )
 
-        tsdb_target = mlrun.model_monitoring.get_tsdb_target(
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project,
             access_key=access_key,
             container=container,
         )
 
-        return tsdb_target.get_endpoint_real_time_metrics(
+        return tsdb_connector.get_model_endpoint_real_time_metrics(
             endpoint_id=endpoint_id,
             metrics=metrics,
             start=start,

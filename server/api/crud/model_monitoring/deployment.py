@@ -597,20 +597,20 @@ class MonitoringDeployment:
         target table is created during the writer deployment"""
 
         if (
-            mlrun.mlconf.model_endpoint_monitoring.tsdb_target_type
+            mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
             == mm_constants.TSDBTarget.V3IO_TSDB
         ):
             tsdb_configurations = {
                 "access_key": kwargs["access_key"],
             }
 
-            tsdb_target: mlrun.model_monitoring.db.TSDBtarget = (
-                mlrun.model_monitoring.get_tsdb_target(
+            tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
+                mlrun.model_monitoring.get_tsdb_connector(
                     project=project, **tsdb_configurations
                 )
             )
 
-            tsdb_target.create_tsdb_application_tables()
+            tsdb_connector.create_tsdb_application_tables()
 
 
 def get_endpoint_features(

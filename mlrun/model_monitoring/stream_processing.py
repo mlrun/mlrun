@@ -330,10 +330,10 @@ class EventStreamProcessor:
         # Steps 20-21 - Prometheus branch
         if not mlrun.mlconf.is_ce_mode():
             # TSDB branch
-            tsdb_store = mlrun.model_monitoring.get_tsdb_target(
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=self.project, **self.tsdb_configurations
             )
-            tsdb_store.apply_monitoring_stream_steps(graph=graph)
+            tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
             # Step 12 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
             # stats and details about the events

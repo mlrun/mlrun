@@ -19,18 +19,18 @@ from abc import ABC
 import pandas as pd
 
 
-class TSDBtarget(ABC):
+class TSDBConnector(ABC):
     def __init__(self, project: str):
         """
-        Initialize a new TSDB target.
-        :param project:             The name of the project.
+        Initialize a new TSDB connector.
+        :param project: the name of the project.
         """
         self.project = project
 
     def apply_monitoring_stream_steps(self, graph):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
-        different key metric dictionaries in TSDB target. This data is being used by the monitoring dashboards in
+        different key metric dictionaries. This data is being used by the monitoring dashboards in
         grafana.
         There are 3 different key metric dictionaries that are being generated throughout these steps:
         - base_metrics (average latency and predictions over time)
@@ -41,17 +41,17 @@ class TSDBtarget(ABC):
 
     def write_application_event(self, event: dict):
         """
-        Write a single application result event to the TSDB target.
+        Write a single application result event to TSDB.
         """
         pass
 
     def delete_tsdb_resources(self):
         """
-        Delete all project resources in the TSDB target, such as model endpoints data and drift results.
+        Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
         """
         pass
 
-    def get_endpoint_real_time_metrics(
+    def get_model_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
         metrics: list[str],
@@ -59,7 +59,7 @@ class TSDBtarget(ABC):
         end: str = "now",
     ) -> dict[str, list[tuple[str, float]]]:
         """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
+        Getting metrics from the TSDB. There are pre-defined metrics for model endpoints such as
         `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
         :param endpoint_id:      The unique id of the model endpoint.
         :param metrics:          A list of real-time metrics to return for the model endpoint.
@@ -85,7 +85,7 @@ class TSDBtarget(ABC):
         end: str = "now",
     ) -> pd.DataFrame:
         """
-         Getting records from TSDB data collection.
+        Getting records from TSDB data collection.
         :param table:            Path to the collection to query.
         :param columns:          Columns to include in the result.
         :param filter_query:     Filter expression.
@@ -98,7 +98,7 @@ class TSDBtarget(ABC):
 
     def create_tsdb_application_tables(self):
         """
-        Create the application tables in the TSDB target. At the moment we support 2 types of application tables:
+        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
         """

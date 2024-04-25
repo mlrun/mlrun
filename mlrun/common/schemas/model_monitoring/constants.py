@@ -138,7 +138,7 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesTarget:
+class TimeSeriesConnector:
     TSDB = "tsdb"
 
 

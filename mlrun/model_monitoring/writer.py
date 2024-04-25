@@ -113,12 +113,12 @@ class ModelMonitoringWriter(StepToDict):
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())
         # TODO: remove create_table=True in 1.9.0 (backwards compatibility)
-        tsdb_store = mlrun.model_monitoring.get_tsdb_target(
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project,
             create_table=True,
         )
 
-        tsdb_store.write_application_event(event=event)
+        tsdb_connector.write_application_event(event=event)
 
     @staticmethod
     def _generate_event_on_drift(

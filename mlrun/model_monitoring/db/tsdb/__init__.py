@@ -18,25 +18,25 @@ import typing
 import mlrun.common.schemas.secret
 import mlrun.errors
 
-from .base import TSDBtarget
+from .base import TSDBConnector
 
 
 class ObjectTSDBFactory(enum.Enum):
-    """Enum class to handle the different TSDB target type values for storing real time metrics"""
+    """Enum class to handle the different TSDB connector type values for storing real time metrics"""
 
     v3io_tsdb = "v3io-tsdb"
 
-    def to_tsdb_target(self, project: str, **kwargs) -> TSDBtarget:
+    def to_tsdb_connector(self, project: str, **kwargs) -> TSDBConnector:
         """
-        Return a TSDBtarget object based on the provided enum value.
-        :param project:                    The name of the project.
-        :return: `TSDBtarget` object.
+        Return a TSDBConnector object based on the provided enum value.
+        :param project: The name of the project.
+        :return: `TSDBConnector` object.
         """
 
         if self == self.v3io_tsdb:
-            from .v3io.v3io import V3IOTSDBtarget
+            from .v3io.v3io import V3IOTSDBConnector
 
-            return V3IOTSDBtarget(project=project, **kwargs)
+            return V3IOTSDBConnector(project=project, **kwargs)
 
     @classmethod
     def _missing_(cls, value: typing.Any):
@@ -49,18 +49,18 @@ class ObjectTSDBFactory(enum.Enum):
         )
 
 
-def get_tsdb_target(project: str, **kwargs) -> TSDBtarget:
+def get_tsdb_connector(project: str, **kwargs) -> TSDBConnector:
     """
-    Getting the TSDB target type based on mlrun.config.model_endpoint_monitoring.tsdb_target_type.
-    :param project:         The name of the project.
-    :return: `TSDBtarget` object. The main goal of this object is to handle different operations on the
-             TSDB target such as updating drift metrics or write application record result.
+    Getting the TSDB connector type based on mlrun.config.model_endpoint_monitoring.tsdb_connector_type.
+    :param project: The name of the project.
+    :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
+             TSDB connector such as updating drift metrics or write application record result.
     """
 
     # Get store type value from ObjectTSDBFactory enum class
-    tsdb_target_type = ObjectTSDBFactory(
-        mlrun.mlconf.model_endpoint_monitoring.tsdb_target_type
+    tsdb_connector_type = ObjectTSDBFactory(
+        mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
     )
 
-    # Convert into TSDB store target object
-    return tsdb_target_type.to_tsdb_target(project=project, **kwargs)
+    # Convert into TSDB connector object
+    return tsdb_connector_type.to_tsdb_connector(project=project, **kwargs)

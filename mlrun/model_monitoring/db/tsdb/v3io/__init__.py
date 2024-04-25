@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .v3io import V3IOTSDBtarget
+from .v3io import V3IOTSDBConnector

@@ -32,9 +32,9 @@ _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 
 
-class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
+class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
     """
-    Handles the TSDB operations when the TSDB target is from type V3IO. To manage these operations we use V3IO Frames
+    Handles the TSDB operations when the TSDB connector is from type V3IO. To manage these operations we use V3IO Frames
     Client that provides API for executing commands on the V3IO TSDB table.
     """
 
@@ -102,7 +102,7 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
 
     def create_tsdb_application_tables(self):
         """
-        Create the application tables in the TSDB target. At the moment we support 2 types of application tables:
+        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a single numeric metric.
         """
@@ -127,7 +127,7 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
     ):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
-        different key metric dictionaries in TSDB target. This data is being used by the monitoring dashboards in
+        different key metric dictionaries.This data is being used by the monitoring dashboards in
         grafana. Results can be found under  v3io:///users/pipelines/project-name/model-endpoints/events/.
         In that case, we generate 3 different key  metric dictionaries:
         - base_metrics (average latency and predictions over time)
@@ -210,7 +210,7 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
 
     def write_application_event(self, event: dict):
         """
-        Write a single application result event to the TSDB target.
+        Write a single application result event to TSDB.
         """
         event[mm_constants.WriterEvent.END_INFER_TIME] = (
             datetime.datetime.fromisoformat(
@@ -252,7 +252,7 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         for table in tables:
             try:
                 self._frames_client.delete(
-                    backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
+                    backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
                     table=table,
                 )
             except v3io_frames.errors.DeleteError as e:
@@ -344,7 +344,7 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         :return: DataFrame with the provided attributes from the data collection.
         """
         return self._frames_client.read(
-            backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
+            backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
             table=table,
             columns=columns,
             filter=filter_query,

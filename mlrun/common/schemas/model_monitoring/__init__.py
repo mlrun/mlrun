@@ -33,7 +33,7 @@ from .constants import (
     PrometheusEndpoints,
     PrometheusMetric,
     SchedulingKeys,
-    TimeSeriesTarget,
+    TimeSeriesConnector,
     TSDBTarget,
     V3IOTSDBTables,
     VersionedModel,

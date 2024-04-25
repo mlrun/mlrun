@@ -1417,8 +1417,8 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
                 if url.startswith("rediss://"):
                     data_prefix = data_prefix.replace("redis://", "rediss://", 1)
                 if not self.run_id:
-                    version = self._resource.metadata.tag
-                    name = f"{name}-{version or 'latest'}"
+                    version = self._resource.metadata.tag or "latest"
+                    name = f"{name}-{version}"
                 url = f"{data_prefix}/{kind_prefix}/{name}"
                 return TargetPathObject(url, self.run_id, False)
         return super()._target_path_object

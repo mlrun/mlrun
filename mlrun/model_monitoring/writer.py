@@ -23,6 +23,7 @@ from v3io_frames.errors import Error as V3IOFramesError
 from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
+import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores
@@ -180,16 +181,17 @@ class ModelMonitoringWriter(StepToDict):
 
     @staticmethod
     def _generate_event_on_drift(
-        uid: str, drift_status: str, event_value: dict, project_name: str
-    ):
+        model_endpoint: str, drift_status: str, event_value: dict, project_name: str
+    ) -> None:
         if (
             drift_status == ResultStatusApp.detected
             or drift_status == ResultStatusApp.potential_detection
         ):
+            logger.info("Sending an alert")
             entity = {
                 "kind": alert_constants.EventEntityKind.MODEL,
                 "project": project_name,
-                "id": uid,
+                "model_endpoint": model_endpoint,
             }
             event_kind = (
                 alert_constants.EventKind.DRIFT_DETECTED

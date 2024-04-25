@@ -98,6 +98,8 @@ class TSDBtarget(ABC):
 
     def create_tsdb_application_tables(self):
         """
-        Create the application tables in the TSDB target.
+        Create the application tables in the TSDB target. At the moment we support 2 types of application tables:
+        - app_results: a detailed result that includes status, kind, extra data, etc.
+        - metrics: a basic key value that represents a numeric metric.
         """
         pass

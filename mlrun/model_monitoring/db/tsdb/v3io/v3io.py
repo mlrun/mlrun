@@ -101,6 +101,11 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
         )
 
     def create_tsdb_application_tables(self):
+        """
+        Create the application tables in the TSDB target. At the moment we support 2 types of application tables:
+        - app_results: a detailed result that includes status, kind, extra data, etc.
+        - metrics: a basic key value that represents a single numeric metric.
+        """
         application_tables = [
             mm_constants.V3IOTSDBTables.APP_RESULTS,
             mm_constants.V3IOTSDBTables.METRICS,
@@ -314,13 +319,6 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
 
         return metrics_mapping
 
-    @staticmethod
-    def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:
-        return mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
-            container=v3io_container,
-        )
-
     def get_records(
         self,
         table: str,
@@ -352,4 +350,11 @@ class V3IOTSDBtarget(mlrun.model_monitoring.db.TSDBtarget):
             filter=filter_query,
             start=start,
             end=end,
+        )
+
+    @staticmethod
+    def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:
+        return mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
+            container=v3io_container,
         )

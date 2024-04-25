@@ -75,8 +75,8 @@ async def test_nuclio_get_api_gateway(
         received_api_gateway.authentication.authentication_mode
         == api_gateway.spec.authentication.authentication_mode
     )
-    assert received_api_gateway.functions == ["test", "test2"]
-    assert received_api_gateway.canary == [20, 80]
+    assert received_api_gateway.spec.functions == ["test", "test2"]
+    assert received_api_gateway.spec.canary == [20, 80]
 
 
 @pytest.mark.asyncio

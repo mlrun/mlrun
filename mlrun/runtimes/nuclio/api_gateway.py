@@ -112,25 +112,25 @@ class APIGatewayMetadata(ModelObj):
         self.annotations = annotations or {}
         self.creation_timestamp = creation_timestamp
 
+        if not self.name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "API Gateway name cannot be empty"
+            )
+
 
 class APIGatewaySpec(ModelObj):
     _dict_fields = [
+        "functions",
         "name",
         "description",
         "host",
         "path",
         "authentication",
-        "functions",
         "canary",
     ]
 
     def __init__(
         self,
-        name: str = "",
-        description: str = "",
-        host: str = None,
-        path: str = "/",
-        authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
         functions: Union[
             list[str],
             Union[
@@ -142,16 +142,109 @@ class APIGatewaySpec(ModelObj):
                 ],
                 Union[RemoteRuntime, ServingRuntime],
             ],
-        ] = None,
+        ],
+        description: str = "",
+        host: str = None,
+        path: str = "/",
+        authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
         canary: Optional[list[int]] = None,
+        project: str = None,
     ):
-        self.name = name
         self.description = description
         self.host = host
         self.path = path
         self.authentication = authentication
-        self.functions = functions or []
+        self.functions = functions
         self.canary = canary
+
+        self.validate(project=project, functions=functions, canary=canary)
+
+    def validate(
+        self,
+        project: str,
+        functions: Union[
+            list[str],
+            Union[
+                list[
+                    Union[
+                        RemoteRuntime,
+                        ServingRuntime,
+                    ]
+                ],
+                Union[RemoteRuntime, ServingRuntime],
+            ],
+        ],
+        canary: Optional[list[int]] = None,
+    ):
+        self.functions = self._validate_functions(project=project, functions=functions)
+
+        # validating canary
+        if canary:
+            self.canary = self._validate_canary(canary)
+
+    def _validate_canary(self, canary: list[int]):
+        if len(self.functions) != len(canary):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function and canary lists lengths do not match"
+            )
+        for canary_percent in canary:
+            if canary_percent < 0 or canary_percent > 100:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The percentage value must be in the range from 0 to 100"
+                )
+        if sum(canary) != 100:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The sum of canary function percents should be equal to 100"
+            )
+        return canary
+
+    @staticmethod
+    def _validate_functions(
+        project: str,
+        functions: Union[
+            list[str],
+            Union[
+                list[
+                    Union[
+                        RemoteRuntime,
+                        ServingRuntime,
+                    ]
+                ],
+                Union[RemoteRuntime, ServingRuntime],
+            ],
+        ],
+    ):
+        if not isinstance(functions, list):
+            functions = [functions]
+
+        # validating functions
+        if not 1 <= len(functions) <= 2:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Gateway can be created from one or two functions, "
+                f"the number of functions passed is {len(functions)}"
+            )
+
+        function_names = []
+        for func in functions:
+            if isinstance(func, str):
+                function_names.append(func)
+                continue
+
+            function_name = (
+                func.metadata.name if hasattr(func, "metadata") else func.name
+            )
+            if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Input function {function_name} is not a Nuclio function"
+                )
+            if func.metadata.project != project:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"input function {function_name} "
+                    f"does not belong to this project"
+                )
+            nuclio_name = get_fullname(function_name, project, func.metadata.tag)
+            function_names.append(nuclio_name)
+        return function_names
 
 
 class APIGateway(ModelObj):
@@ -208,18 +301,13 @@ class APIGateway(ModelObj):
         )
 
         self.spec = APIGatewaySpec(
-            name=name,
+            functions=functions,
             description=description,
             host=host,
             path=path,
             authentication=authentication,
-            functions=None,
             canary=canary,
-        )
-
-        self._validate(
-            functions=functions,
-            canary=canary,
+            project=project,
         )
 
         self.state = ""
@@ -351,8 +439,9 @@ class APIGateway(ModelObj):
                 f"Gateway with canary can be created only with two functions, "
                 f"the number of functions passed is {len(functions)}"
             )
-        self.spec.functions = self._validate_functions(self.metadata.project, functions)
-        self.spec.canary = self._validate_canary(canary)
+        self.spec.validate(
+            project=self.metadata.project, functions=functions, canary=canary
+        )
 
     @classmethod
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
@@ -402,7 +491,7 @@ class APIGateway(ModelObj):
                 name=self.metadata.name, labels={}
             ),
             spec=mlrun.common.schemas.APIGatewaySpec(
-                name=self.spec.name,
+                name=self.metadata.name,
                 description=self.spec.description,
                 host=self.spec.host,
                 path=self.spec.path,
@@ -428,99 +517,6 @@ class APIGateway(ModelObj):
         if not self.spec.host.startswith("http"):
             host = f"https://{self.spec.host}"
         return urljoin(host, self.spec.path)
-
-    def _validate(
-        self,
-        functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                Union[RemoteRuntime, ServingRuntime],
-            ],
-        ],
-        canary: Optional[list[int]] = None,
-    ):
-        if not self.metadata.name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "API Gateway name cannot be empty"
-            )
-
-        self.spec.functions = self._validate_functions(
-            project=self.metadata.project, functions=functions
-        )
-
-        # validating canary
-        if canary:
-            self._validate_canary(canary)
-
-    def _validate_canary(self, canary: list[int]):
-        if len(self.spec.functions) != len(canary):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Function and canary lists lengths do not match"
-            )
-        for canary_percent in canary:
-            if canary_percent < 0 or canary_percent > 100:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The percentage value must be in the range from 0 to 100"
-                )
-        if sum(canary) != 100:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "The sum of canary function percents should be equal to 100"
-            )
-        return canary
-
-    @staticmethod
-    def _validate_functions(
-        project: str,
-        functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                Union[RemoteRuntime, ServingRuntime],
-            ],
-        ],
-    ):
-        if not isinstance(functions, list):
-            functions = [functions]
-
-        # validating functions
-        if not 1 <= len(functions) <= 2:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Gateway can be created from one or two functions, "
-                f"the number of functions passed is {len(functions)}"
-            )
-
-        function_names = []
-        for func in functions:
-            if isinstance(func, str):
-                function_names.append(func)
-                continue
-
-            function_name = (
-                func.metadata.name if hasattr(func, "metadata") else func.name
-            )
-            if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Input function {function_name} is not a Nuclio function"
-                )
-            if func.metadata.project != project:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"input function {function_name} "
-                    f"does not belong to this project"
-                )
-            nuclio_name = get_fullname(function_name, project, func.metadata.tag)
-            function_names.append(nuclio_name)
-        return function_names
 
     @staticmethod
     def _generate_basic_auth(username: str, password: str):

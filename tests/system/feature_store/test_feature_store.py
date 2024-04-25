@@ -4822,7 +4822,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
         return result
 
-    # @pytest.mark.parametrize("engine", ["local", "dask"])  #TODO return
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_parquet_filters(self, engine):
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
@@ -4880,6 +4879,9 @@ class TestFeatureStore(TestMLRunSystem):
         expected = self._get_sorted_df(filtered_df.query("bad == 95"), "patient_id")
         result = self._get_sorted_df(result, "patient_id")
         result["department"] = result["department"].astype("str")
+        if engine == "dask":
+            # Because Dask changes this column to "string[pyarrow]" type.
+            result["patient_id"] = result["patient_id"].astype("str")
         assert_frame_equal(result, expected)
 
 

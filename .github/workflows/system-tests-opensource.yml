@@ -140,10 +140,10 @@ jobs:
       with:
         version: "v3.9.1"
 
-    - uses: manusa/actions-setup-minikube@v2.7.2
+    - uses: manusa/actions-setup-minikube@v2.10.0
       with:
-        minikube version: "v1.28.0"
-        kubernetes version: "v1.23.9"
+        minikube version: "v1.32.0"
+        kubernetes version: "v1.28.5"
         driver: docker
         github token: ${{ github.token }}
         # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
@@ -167,6 +167,7 @@ jobs:
             --registry-secret-name="" \
             --sqlite /mlrun/db/mlrun.db \
             --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-log-collector-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
             --override-mlrun-ui-image="ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \

@@ -23,7 +23,7 @@ on:
 
     # * is a special character in YAML so you have to quote this string
     # Run the system tests every 8 hours (cron hours should divide 24 equally, otherwise there will be an overlap at the end of the day)
-    - cron:  '0 */8 * * *'
+    - cron: '0 */8 * * *'
 
   workflow_dispatch:
     inputs:
@@ -31,10 +31,6 @@ on:
         description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
         required: true
         default: 'ghcr.io/'
-      docker_repo:
-        description: 'Docker repo to pull images from (default: mlrun)'
-        required: true
-        default: 'mlrun'
       clean_resources_in_teardown:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
@@ -48,16 +44,22 @@ on:
         required: false
 
 concurrency: one-at-a-time
+
 jobs:
   system-test-cleanup:
     name: System Test Cleanup
-    runs-on: ubuntu-latest
+    runs-on: [ self-hosted, Linux ]
+    container:
+      image: ubuntu:latest
     timeout-minutes: 10
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: |
+        apt-get update -qqy && apt-get install -y sshpass
     - name: cleanup docker images from registries
       # SSH to datanode and delete all docker images created by the system tests by restarting the docker-registry
       # deployment and the datanode docker-registry
@@ -83,39 +85,37 @@ jobs:
           automation/system_test/dev_utilities.py \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/dev_utilities.py
 
-        sshpass \
-          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          ssh \
-          -o StrictHostKeyChecking=no \
-          -o ServerAliveInterval=180 \
-          -o ServerAliveCountMax=3 \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-            LC_ALL=en_US.utf8 LANG=en_US.utf8 /bin/python3 \
-              /home/iguazio/cleanup.py \
-              docker-images \
-              http://localhost:8009 \
-              igz0.docker_registry.0 \
-              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-base,ghcr.io/mlrun/log-collector"
-
-
   prepare-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 55
     name: Prepare System Tests Enterprise
-    runs-on: ubuntu-latest
-
+    runs-on: [ self-hosted, Linux ]
+    container:
+      image: python:3.9
     needs: [system-test-cleanup]
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: |
+        apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
     - name: Copy state branch file from remote
       run: |
-        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt system-tests-branches-list.txt
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          scp \
+          -o StrictHostKeyChecking=no \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt \
+          system-tests-branches-list.txt
 
     - name: Resolve Branch To Run System Tests
       id: current-branch
+      shell: bash
       # we store a file named /tmp/system-tests-branches-list.txt which contains a list of branches to run system tests
       # on the branches are separated with commas, so each run we pop the first branch in the list and append it to the
       # end of the list.
@@ -155,21 +155,21 @@ jobs:
     - name: Override remote file from local resolved branch list
       run: |
         # Override the remote file with the new list of branches
-        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no system-tests-branches-list.txt ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          scp \
+          -o StrictHostKeyChecking=no system-tests-branches-list.txt \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
+
       # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
       # before merging the changes to upstream.
     - name: Checkout base branch
       uses: actions/checkout@v3
 
-    - name: Set up python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.9
-        cache: pip
     - name: Install automation scripts dependencies
       run: |
-        pip install -r automation/requirements.txt
-        sudo apt-get install curl jq gnupg
+        python -m pip install -r automation/requirements.txt
+
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
@@ -194,12 +194,9 @@ jobs:
         
         # Get the tested mlrun version
         echo "unstable_version_prefix=$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          cat automation/version/unstable_version_prefix && \
-          cd .. && \
-          rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+          curl https://raw.githubusercontent.com/mlrun/mlrun/${{ steps.current-branch.outputs.name }}/automation/version/unstable_version_prefix \
+        )" >> $GITHUB_OUTPUT
+
     - name: Set computed versions params
       id: computed_params
       run: |
@@ -214,9 +211,6 @@ jobs:
         echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_repo=$( \
-          input_docker_repo=$INPUT_DOCKER_REPO && \
-          echo ${input_docker_repo:-mlrun})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registry=$( \
           input_docker_registry=$INPUT_DOCKER_REGISTRY && \
           echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
@@ -225,7 +219,6 @@ jobs:
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         echo "override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION" >> $GITHUB_OUTPUT
       env:
-        INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
@@ -236,25 +229,19 @@ jobs:
       timeout-minutes: 50
       run: |
         python automation/system_test/prepare.py run \
-          --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
           --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          --app-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
           --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           --provctl-download-s3-access-key "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
           --provctl-download-s3-key-id "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
-          --mysql-user "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
-          --mysql-password "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
-          --purge-db \
+          --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
+          --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
-          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-          --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-          --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
+          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}"
 
     - name: Prepare System Test env.yml and MLRun installation from current branch
       timeout-minutes: 5
@@ -263,21 +250,23 @@ jobs:
           --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
           --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          --mlrun-dbpath "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          --save-to-path "${{ github.workspace }}/env.yml"
+          --save-to-path "$GITHUB_WORKSPACE/env.yml"
 
     - name: Encrypt file
+      id: encrypt_file
       run: |
         gpg \
           --batch \
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
-          --output "${{ github.workspace }}/env.yml.gpg" \
-          --symmetric "${{ github.workspace }}/env.yml"
+          --output "$GITHUB_WORKSPACE/env.yml.gpg" \
+          --symmetric "$GITHUB_WORKSPACE/env.yml"
+        
+        echo "env_file_path=$(echo $GITHUB_WORKSPACE/env.yml.gpg)" >> $GITHUB_OUTPUT
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
@@ -285,7 +274,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: env
-        path: "${{ github.workspace }}/env.yml.gpg"
+        path: "${{ steps.encrypt_file.outputs.env_file_path }}"
         if-no-files-found: error
 
     outputs:
@@ -299,7 +288,9 @@ jobs:
     name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
-    runs-on: ubuntu-latest
+    runs-on: [ self-hosted, Linux ]
+    container:
+      image: python:3.9
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:
@@ -317,6 +308,26 @@ jobs:
         - logs
         - feature_store
     steps:
+    - name: Install Dependencies
+      run: |
+        # gnupg         for decrypting env.yml.gpg
+        # nodejs        for installing github action dependencies
+        # graphviz      for generating graphs (feature store tests)
+        # git-core      for cloning repos and etc, required by many suites
+        # gcc, make     for installing python packages
+        apt-get update -qqy && \
+          apt-get install -y \
+            gnupg \
+            nodejs \
+            graphviz \
+            git-core \
+            gcc \
+            make
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
     - uses: actions/checkout@v3
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version
@@ -327,29 +338,36 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: env
-        path: "${{ github.workspace }}/tests/system"
-
-    - name: Install GPG
-      run: |
-        sudo apt-get update -qqy && sudo apt-get install -y gnupg
+        path: /tmp
 
     - name: Decrypt file
       run: |
         gpg \
           --batch \
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
-          --output "${{ github.workspace }}/tests/system/env.yml" \
-          --decrypt "${{ github.workspace }}/tests/system/env.yml.gpg"
+          --output "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          --decrypt "/tmp/env.yml.gpg"
 
-        # ensure file created
-        test -f ${{ github.workspace }}/tests/system/env.yml
+        # ensure file is created
+        test -f "$GITHUB_WORKSPACE/tests/system/env.yml"
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
+    - name: Pre Tests Requirements
+      run: |
+        
+        # due to
+        # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
+        # ensure mlrun git is safe to use
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
+          make install-requirements install-complete-requirements update-version-file
+
     - name: Run System Tests
       run: |
+        MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
         MLRUN_SYSTEM_TESTS_BRANCH="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
-          make test-system-dockerized
+          make test-system

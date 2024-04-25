@@ -19,16 +19,19 @@ import datetime
 import enum
 import http
 import json
+import threading
 import typing
 import urllib.parse
 
 import aiohttp
 import fastapi
+import humanfriendly
 import igz_mgmt.schemas.manual_events
 import requests.adapters
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
@@ -72,6 +75,63 @@ class SessionPlanes:
         ]
 
 
+class JobCache:
+    """
+    Cache for delete project jobs.
+    This cache is used to avoid consecutive create/delete jobs for the same project,
+    while the jobs are still in progress.
+    """
+
+    def __init__(self, ttl: str):
+        self._delete_jobs = {}
+        self._delete_locks = {}
+
+        # this lock is used only for getting the project specific locks
+        self._lock = threading.Lock()
+
+        self._ttl = humanfriendly.parse_timespan(ttl)
+
+    def get_delete_lock(self, project: str):
+        with self._lock:
+            if project not in self._delete_locks:
+                self._delete_locks[project] = threading.Lock()
+            return self._delete_locks[project]
+
+    def get_delete_job_id(self, project: str) -> typing.Optional[str]:
+        return self._delete_jobs.get(project, {}).get("job_id")
+
+    def set_delete_job(self, project: str, job_id: str):
+        self._delete_jobs[project] = {
+            "job_id": job_id,
+            "timestamp": datetime.datetime.now(),
+        }
+
+        # schedule cache invalidation for delete job
+        self._schedule_cache_invalidation(project, job_id)
+
+    def remove_delete_job(self, project: str):
+        self._delete_jobs.pop(project, None)
+
+    def invalidate_cache(self, project: str, job_id: str):
+        # if current project job is the same as the scheduled job id, remove it from the cache
+        # otherwise, it means that a new job was created for the project, and we don't want to remove it
+        with self.get_delete_lock(project):
+            if self.get_delete_job_id(project) == job_id:
+                self.remove_delete_job(project)
+
+    def _schedule_cache_invalidation(
+        self,
+        project: str,
+        job_id: str,
+    ):
+        try:
+            event_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            event_loop = asyncio.new_event_loop()
+
+        event_loop.call_later(self._ttl, self.invalidate_cache, project, job_id)
+
+
 class Client(
     project_leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
@@ -93,6 +153,10 @@ class Client(
         self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
 
+        self._job_cache = JobCache(
+            ttl=mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl,
+        )
+
     def verify_request_session(
         self, request: fastapi.Request
     ) -> mlrun.common.schemas.AuthInfo:
@@ -112,17 +176,6 @@ class Client(
             response.headers, response.json()
         )
 
-    def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
-        response = self._send_request_to_api(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            session,
-        )
-        return self._generate_auth_info_from_session_verification_response(
-            response.headers, response.json()
-        )
-
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
             "GET",
@@ -133,9 +186,7 @@ class Client(
         response_json = response.json()
         return response_json["data"]["attributes"]["uid"]
 
-    def get_or_create_access_key(
-        self, session: str, planes: typing.List[str] = None
-    ) -> str:
+    def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
         if planes is None:
             planes = [
                 SessionPlanes.data,
@@ -191,59 +242,58 @@ class Client(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
-        self._logger.debug(
-            "Deleting project in Iguazio",
-            name=name,
-            deletion_strategy=deletion_strategy,
-        )
-        body = self._transform_mlrun_project_to_iguazio_project(
-            mlrun.common.schemas.Project(
-                metadata=mlrun.common.schemas.ProjectMetadata(name=name)
-            )
-        )
-        headers = {
-            "igz-project-deletion-strategy": deletion_strategy.to_iguazio_deletion_strategy(),
-        }
-        try:
-            response = self._send_request_to_api(
-                "DELETE",
-                "projects",
-                "Failed deleting project in Iguazio",
-                session,
-                headers=headers,
-                json=body,
-            )
-        except requests.HTTPError as exc:
-            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
-                raise
+        with self._job_cache.get_delete_lock(name):
+            # check if project is already being deleted
+            job_id = self._job_cache.get_delete_job_id(name)
+
+            # the existing job might have already been completed, but the cache was not yet invalidated
+            # in that case, we want to create a new deletion job
+            if job_id:
+                try:
+                    if self._is_job_terminated(session, job_id):
+                        self._job_cache.remove_delete_job(name)
+                        # set job_id to None so that a new job will be created
+                        job_id = None
+                except mlrun.errors.MLRunNotFoundError:
+                    # job not found in iguazio. consider deletion as successful
+                    self._job_cache.remove_delete_job(name)
+                    job_id = None
+
+            if not job_id:
+                job_id = self._delete_project_in_iguazio(
+                    session, name, deletion_strategy
+                )
+                if not job_id:
+                    # project not found in iguazio. consider deletion as successful
+                    return False
+
+                self._job_cache.set_delete_job(name, job_id)
+
+        if wait_for_completion:
             self._logger.debug(
-                "Project not found in Iguazio. Considering deletion as successful",
+                "Waiting for project deletion job in Iguazio",
                 name=name,
-                deletion_strategy=deletion_strategy,
+                job_id=job_id,
             )
+            self._wait_for_job_completion(
+                session, job_id, "Project deletion job failed"
+            )
+            self._logger.debug(
+                "Successfully deleted project in Iguazio",
+                name=name,
+                job_id=job_id,
+            )
+            self._job_cache.invalidate_cache(name, job_id)
             return False
-        else:
-            if wait_for_completion:
-                job_id = response.json()["data"]["id"]
-                self._logger.debug(
-                    "Waiting for project deletion job in Iguazio",
-                    name=name,
-                    job_id=job_id,
-                )
-                self._wait_for_job_completion(
-                    session, job_id, "Project deletion job failed"
-                )
-                return False
-            return True
+
+        return True
 
     def list_projects(
         self,
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
         page_size: typing.Optional[int] = None,
-    ) -> typing.Tuple[
-        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
-    ]:
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         project_names, latest_updated_at = self._list_project_names(
             session, updated_after, page_size
         )
@@ -348,7 +398,7 @@ class Client(
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
         page_size: typing.Optional[int] = None,
-    ) -> typing.Tuple[typing.List[str], typing.Optional[datetime.datetime]]:
+    ) -> tuple[list[str], typing.Optional[datetime.datetime]]:
         params = {}
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
@@ -380,8 +430,8 @@ class Client(
         return project_names, latest_updated_at
 
     def _list_projects_data(
-        self, session: str, project_names: typing.List[str]
-    ) -> typing.List[mlrun.common.schemas.Project]:
+        self, session: str, project_names: list[str]
+    ) -> list[mlrun.common.schemas.Project]:
         return [
             self._get_project_from_iguazio(session, project_name)
             for project_name in project_names
@@ -408,6 +458,7 @@ class Client(
         **kwargs,
     ) -> bool:
         _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
+
         if wait_for_completion:
             self._logger.debug(
                 "Waiting for project creation job in Iguazio",
@@ -425,12 +476,54 @@ class Client(
             return False
         return True
 
+    def _delete_project_in_iguazio(
+        self,
+        session: str,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+    ) -> typing.Optional[str]:
+        self._logger.debug(
+            "Deleting project in Iguazio",
+            name=name,
+            deletion_strategy=deletion_strategy,
+        )
+        body = self._transform_mlrun_project_to_iguazio_project(
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name)
+            )
+        )
+        headers = {
+            "igz-project-deletion-strategy": deletion_strategy.to_iguazio_deletion_strategy(),
+        }
+        try:
+            response = self._send_request_to_api(
+                "DELETE",
+                "projects",
+                "Failed deleting project in Iguazio",
+                session,
+                headers=headers,
+                json=body,
+            )
+            job_id = response.json()["data"]["id"]
+            return job_id
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._logger.debug(
+                "Project not found in Iguazio",
+                name=name,
+                deletion_strategy=deletion_strategy,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
+
     def _post_project_to_iguazio(
         self,
         session: str,
         body: dict,
         **kwargs,
-    ) -> typing.Tuple[mlrun.common.schemas.Project, str]:
+    ) -> tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
             "POST",
             "projects",
@@ -468,13 +561,24 @@ class Client(
         params = {"include": "owner"}
         if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
-        return self._send_request_to_api(
-            "GET",
-            f"projects/__name__/{name}",
-            "Failed getting project from Iguazio",
-            session,
-            params=params,
-        )
+        try:
+            return self._send_request_to_api(
+                "GET",
+                f"projects/__name__/{name}",
+                "Failed getting project from Iguazio",
+                session,
+                params=params,
+            )
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._logger.debug(
+                "Project not found in Iguazio",
+                name=name,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
 
     def _get_project_from_iguazio(
         self, session: str, name: str, include_owner_session: bool = False
@@ -484,14 +588,11 @@ class Client(
 
     def _wait_for_job_completion(self, session: str, job_id: str, error_message: str):
         def _verify_job_in_terminal_state():
-            response = self._send_request_to_api(
-                "GET", f"jobs/{job_id}", "Failed getting job from Iguazio", session
-            )
-            response_body = response.json()
-            _job_state = response_body["data"]["attributes"]["state"]
+            job_response_body = self._get_job_from_iguazio(session, job_id)
+            _job_state = job_response_body["data"]["attributes"]["state"]
             if _job_state not in JobStates.terminal_states():
                 raise Exception(f"Job in progress. State: {_job_state}")
-            return _job_state, response_body["data"]["attributes"]["result"]
+            return _job_state, job_response_body["data"]["attributes"]["result"]
 
         job_state, job_result = mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
@@ -512,15 +613,23 @@ class Client(
                 pass
             if not status_code:
                 raise mlrun.errors.MLRunRuntimeError(error_message)
-            raise mlrun.errors.raise_for_status_code(status_code, error_message)
+            raise mlrun.errors.err_for_status_code(status_code, error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
+
+    def _get_job_from_iguazio(self, session: str, job_id: str) -> dict:
+        response = self._send_request_to_api(
+            "GET", f"jobs/{job_id}", "Failed getting job from Iguazio", session
+        )
+        return response.json()
 
     def _send_request_to_api(
         self, method, path, error_message: str, session=None, **kwargs
     ):
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        response = self._session.request(method, url, verify=False, **kwargs)
+        response = self._session.request(
+            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
+        )
         if not response.ok:
             try:
                 response_body = response.json()
@@ -536,7 +645,6 @@ class Client(
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
-
         (
             username,
             session,
@@ -570,9 +678,8 @@ class Client(
 
     @staticmethod
     def _resolve_params_from_response_headers(
-        response_headers: typing.Mapping[str, typing.Any]
+        response_headers: typing.Mapping[str, typing.Any],
     ):
-
         username = response_headers.get("x-remote-user")
         session = response_headers.get("x-v3io-session-key")
         user_id = response_headers.get("x-user-id")
@@ -596,8 +703,8 @@ class Client(
 
     @staticmethod
     def _resolve_params_from_response_body(
-        response_body: typing.Mapping[typing.Any, typing.Any]
-    ) -> typing.Tuple[typing.Optional[str], typing.Optional[typing.List[str]]]:
+        response_body: typing.Mapping[typing.Any, typing.Any],
+    ) -> tuple[typing.Optional[str], typing.Optional[list[str]]]:
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}
         )
@@ -631,23 +738,30 @@ class Client(
             }
         }
         if project.metadata.created:
-            body["data"]["attributes"][
-                "created_at"
-            ] = project.metadata.created.isoformat()
+            body["data"]["attributes"]["created_at"] = (
+                project.metadata.created.isoformat()
+            )
         if project.metadata.labels is not None:
-            body["data"]["attributes"][
-                "labels"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.labels
+            body["data"]["attributes"]["labels"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.labels
+                )
             )
         if project.metadata.annotations is not None:
-            body["data"]["attributes"][
-                "annotations"
-            ] = Client._transform_mlrun_labels_to_iguazio_labels(
-                project.metadata.annotations
+            body["data"]["attributes"]["annotations"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.metadata.annotations
+                )
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
+
+        if project.spec.default_function_node_selector is not None:
+            body["data"]["attributes"]["default_function_node_selector"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.spec.default_function_node_selector
+                )
+            )
         return body
 
     @staticmethod
@@ -671,7 +785,7 @@ class Client(
     @staticmethod
     def _transform_mlrun_labels_to_iguazio_labels(
         mlrun_labels: dict,
-    ) -> typing.List[dict]:
+    ) -> list[dict]:
         iguazio_labels = []
         for label_key, label_value in mlrun_labels.items():
             iguazio_labels.append({"name": label_key, "value": label_value})
@@ -679,7 +793,7 @@ class Client(
 
     @staticmethod
     def _transform_iguazio_labels_to_mlrun_labels(
-        iguazio_labels: typing.List[dict],
+        iguazio_labels: list[dict],
     ) -> dict:
         return {label["name"]: label["value"] for label in iguazio_labels}
 
@@ -691,9 +805,9 @@ class Client(
             iguazio_project["attributes"].get("mlrun_project", "{}")
         )
         # name is mandatory in the mlrun schema, without adding it the schema initialization will fail
-        mlrun_project_without_common_fields.setdefault("metadata", {})[
-            "name"
-        ] = iguazio_project["attributes"]["name"]
+        mlrun_project_without_common_fields.setdefault("metadata", {})["name"] = (
+            iguazio_project["attributes"]["name"]
+        )
         mlrun_project = mlrun.common.schemas.Project(
             **mlrun_project_without_common_fields
         )
@@ -724,6 +838,13 @@ class Client(
             )
         if iguazio_project["attributes"].get("owner_username"):
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
+
+        if iguazio_project["attributes"].get("default_function_node_selector"):
+            mlrun_project.spec.default_function_node_selector = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["default_function_node_selector"]
+                )
+            )
         return mlrun_project
 
     def _prepare_request_kwargs(self, session, path, *, kwargs):
@@ -785,6 +906,26 @@ class Client(
         self._logger.warning("Request to iguazio failed", **log_kwargs)
         mlrun.errors.raise_for_status(response, error_message)
 
+    def _is_job_terminated(self, session: str, job_id: str) -> bool:
+        """
+        Check if the iguazio job is terminated
+
+        :param session: iguazio session
+        :param job_id: iguazio job id
+        :return: True if the job is terminated, False otherwise
+        """
+        try:
+            response = self._get_job_from_iguazio(session, job_id)
+            return (
+                response["data"]["attributes"]["state"] in JobStates.terminal_states()
+            )
+        except requests.HTTPError as exc:
+            if exc.response.status_code == http.HTTPStatus.NOT_FOUND.value:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Job {job_id} not found in Iguazio"
+                )
+            raise
+
 
 class AsyncClient(Client):
     def __init__(
@@ -833,25 +974,16 @@ class AsyncClient(Client):
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
+        headers = {
+            "authorization": request.headers.get("authorization"),
+            "cookie": request.headers.get("cookie"),
+            "x-request-id": request.state.request_id,
+        }
         async with self._send_request_to_api_async(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
             "Failed verifying iguazio session",
-            headers={
-                "authorization": request.headers.get("authorization"),
-                "cookie": request.headers.get("cookie"),
-            },
-        ) as response:
-            return self._generate_auth_info_from_session_verification_response(
-                response.headers, await response.json()
-            )
-
-    async def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
-        async with self._send_request_to_api_async(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            session,
+            headers=headers,
         ) as response:
             return self._generate_auth_info_from_session_verification_response(
                 response.headers, await response.json()
@@ -859,7 +991,7 @@ class AsyncClient(Client):
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api_async(
-        self, method, path, error_message: str, session=None, **kwargs
+        self, method, path: str, error_message: str, session=None, **kwargs
     ) -> aiohttp.ClientResponse:
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)

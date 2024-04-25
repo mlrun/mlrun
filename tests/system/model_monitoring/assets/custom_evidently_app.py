@@ -19,6 +19,7 @@ from uuid import UUID
 import pandas as pd
 from sklearn.datasets import load_iris
 
+import mlrun.common.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
@@ -26,7 +27,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
 from mlrun.model_monitoring.application import ModelMonitoringApplicationResult
 from mlrun.model_monitoring.evidently_application import (
     _HAS_EVIDENTLY,
-    EvidentlyModelMonitoringApplication,
+    EvidentlyModelMonitoringApplicationBase,
 )
 
 if _HAS_EVIDENTLY:
@@ -39,6 +40,7 @@ if _HAS_EVIDENTLY:
     from evidently.report import Report
     from evidently.test_preset import DataDriftTestPreset
     from evidently.test_suite import TestSuite
+    from evidently.ui.base import Project
     from evidently.ui.dashboards import (
         CounterAgg,
         DashboardConfig,
@@ -48,7 +50,8 @@ if _HAS_EVIDENTLY:
         PlotType,
         ReportFilter,
     )
-    from evidently.ui.workspace import Project, Workspace
+    from evidently.ui.type_aliases import STR_UUID
+    from evidently.ui.workspace import Workspace
 
     _PROJECT_NAME = "Iris Monitoring"
     _PROJECT_DESCRIPTION = "Test project using iris dataset"
@@ -124,48 +127,49 @@ if _HAS_EVIDENTLY:
         project.save()
         return project
 
-    def create_demo_project(workspace_path: str) -> tuple[Workspace, Project]:
-        workspace = Workspace.create(workspace_path)
-        project = _create_evidently_project(workspace)
-        return workspace, project
 
+class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
+    NAME = "evidently-app-test"
 
-class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
-    name = "evidently-app-test"
-
-    def _lazy_init(self, *args, **kwargs) -> None:
-        super()._lazy_init(*args, **kwargs)
+    def __init__(
+        self,
+        evidently_workspace_path: str,
+        evidently_project_id: "STR_UUID",
+        with_training_set: bool,
+    ) -> None:
+        super().__init__(evidently_workspace_path, evidently_project_id)
         self._init_evidently_project()
-        self._init_iris_data()
+        self._init_iris_data(with_training_set)
 
-    def _init_iris_data(self) -> None:
+    def _init_iris_data(self, with_training_set: bool) -> None:
         iris = load_iris()
-        self.columns = [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]
+        if with_training_set:
+            self.columns = [
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ]
+        else:
+            self.columns = [f"f{i}" for i in range(4)]
         self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
     def _init_evidently_project(self) -> None:
         if self.evidently_project is None:
             if isinstance(self.evidently_project_id, str):
                 self.evidently_project_id = UUID(self.evidently_project_id)
-            self.context.logger.info(
-                "Creating evidently project", id=self.evidently_project_id
-            )
             self.evidently_project = _create_evidently_project(
                 self.evidently_workspace, self.evidently_project_id
             )
 
-    def run_application(
+    def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         sample_df: pd.DataFrame,
-        schedule_time: pd.Timestamp,
+        start_infer_time: pd.Timestamp,
+        end_infer_time: pd.Timestamp,
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
@@ -174,28 +178,25 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
 
         sample_df = sample_df[self.columns]
 
-        data_drift_report = self.create_report(sample_df, schedule_time)
+        data_drift_report = self.create_report(sample_df, end_infer_time)
         self.evidently_workspace.add_report(
             self.evidently_project_id, data_drift_report
         )
-        data_drift_test_suite = self.create_test_suite(sample_df, schedule_time)
+        data_drift_test_suite = self.create_test_suite(sample_df, end_infer_time)
         self.evidently_workspace.add_test_suite(
             self.evidently_project_id, data_drift_test_suite
         )
 
-        self.log_evidently_object(data_drift_report, f"report_{str(schedule_time)}")
-        self.log_evidently_object(data_drift_test_suite, f"suite_{str(schedule_time)}")
-        self.log_project_dashboard(None, schedule_time + datetime.timedelta(minutes=1))
+        self.log_evidently_object(data_drift_report, f"report_{str(end_infer_time)}")
+        self.log_evidently_object(data_drift_test_suite, f"suite_{str(end_infer_time)}")
+        self.log_project_dashboard(None, end_infer_time + datetime.timedelta(minutes=1))
 
         self.context.logger.info("Logged evidently objects")
         return ModelMonitoringApplicationResult(
-            self.name,
-            endpoint_id,
-            schedule_time,
-            result_name="data_drift_test",
-            result_value=0.5,
-            result_kind=ResultKindApp.data_drift,
-            result_status=ResultStatusApp.potential_detection,
+            name="data_drift_test",
+            value=0.5,
+            kind=ResultKindApp.data_drift,
+            status=ResultStatusApp.potential_detection,
         )
 
     def create_report(

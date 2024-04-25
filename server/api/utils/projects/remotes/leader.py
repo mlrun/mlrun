@@ -53,9 +53,7 @@ class Member(abc.ABC):
         self,
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> typing.Tuple[
-        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
-    ]:
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         pass
 
     @abc.abstractmethod

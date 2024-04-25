@@ -24,7 +24,7 @@ import server.api.initial_data
 import server.api.utils.auth.verifier
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
-import server.api.utils.db.sqlite_migration
+from mlrun.utils import logger
 
 
 def test_offline_state(
@@ -81,12 +81,21 @@ def test_api_states(
     ), f"Expected message: {expected_message}, actual: {response.text}"
 
 
-def test_init_data_migration_required_recognition(monkeypatch) -> None:
-    sqlite_migration_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        server.api.utils.db.sqlite_migration,
-        "SQLiteMigrationUtil",
-        sqlite_migration_util_mock,
+@pytest.mark.parametrize("schema_migration", [True, False])
+@pytest.mark.parametrize("data_migration", [True, False])
+@pytest.mark.parametrize("from_scratch", [True, False])
+def test_init_data_migration_required_recognition(
+    db: sqlalchemy.orm.Session,
+    monkeypatch,
+    schema_migration,
+    data_migration,
+    from_scratch,
+) -> None:
+    logger.info(
+        "Testing init data migration required recognition",
+        schema_migration=schema_migration,
+        data_migration=data_migration,
+        from_scratch=from_scratch,
     )
     alembic_util_mock = unittest.mock.Mock()
     monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
@@ -102,12 +111,6 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         "_perform_schema_migrations",
         perform_schema_migrations_mock,
     )
-    perform_database_migration_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        server.api.initial_data,
-        "_perform_database_migration",
-        perform_database_migration_mock,
-    )
     perform_data_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
         server.api.initial_data,
@@ -115,97 +118,33 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         perform_data_migrations_mock,
     )
 
-    for case in [
-        # All 4 schema and data combinations with database and not from scratch
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": False,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-        # All 4 schema and data combinations with database and from scratch
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": False,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": True,
-        },
-        # No database, not from scratch, at least of schema and data 3 combinations
-        {
-            "database_migration": False,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": False,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": False,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-    ]:
-        sqlite_migration_util_mock.return_value.is_database_migration_needed.return_value = case.get(
-            "database_migration", False
-        )
-        alembic_util_mock.return_value.is_migration_from_scratch.return_value = (
-            case.get("from_scratch", False)
-        )
-        alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
-            case.get("schema_migration", False)
-        )
-        is_latest_data_version_mock.return_value = not case.get("data_migration", False)
+    # this specific case means mlrun is fresh installed and no migrations are needed
+    # thus it will just put some initial data and move to online state
 
-        mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
-        server.api.initial_data.init_data()
-        failure_message = f"Failed in case: {case}"
-        assert (
-            mlrun.mlconf.httpdb.state
-            == mlrun.common.schemas.APIStates.waiting_for_migrations
-        ), failure_message
-        # assert the api just changed state and no operation was done
-        assert db_backup_util_mock.call_count == 0, failure_message
-        assert perform_schema_migrations_mock.call_count == 0, failure_message
-        assert perform_database_migration_mock.call_count == 0, failure_message
-        assert perform_data_migrations_mock.call_count == 0, failure_message
+    alembic_util_mock.return_value.is_migration_from_scratch.return_value = from_scratch
+    alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
+        schema_migration
+    )
+    is_latest_data_version_mock.return_value = not data_migration
+
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
+    server.api.initial_data.init_data()
+
+    expected_state = (
+        mlrun.common.schemas.APIStates.online
+        if from_scratch
+        else mlrun.common.schemas.APIStates.waiting_for_migrations
+    )
+
+    # remain online if nothing is needed
+    if not (schema_migration or data_migration or from_scratch):
+        expected_state = mlrun.common.schemas.APIStates.online
+
+    assert expected_state == mlrun.mlconf.httpdb.state
+    # assert the api just changed state and no operation was done
+    assert db_backup_util_mock.call_count == 0
+
+    # we bound the execution to 1 if from_scratch because during startup the migration is run inplace
+    # and not waiting for trigger migration to occur
+    assert perform_schema_migrations_mock.call_count == (1 if from_scratch else 0)
+    assert perform_data_migrations_mock.call_count == (1 if from_scratch else 0)

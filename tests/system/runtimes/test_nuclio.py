@@ -113,7 +113,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp.status_code == 200
 
         response = self._run_db.api_call(
-            "GET", "funcs", params={"project": self.project_name}
+            "GET",
+            f"projects/{self.project_name}/functions",
         )
 
         assert response.ok
@@ -127,6 +128,24 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert "external_invocation_urls" in status
         assert "address" in status
         assert "container_image" in status
+
+    # ML-3804
+    def test_nuclio_function_handler_with_context(self):
+        code_path = str(self.assets_path / "nuclio_function_with_context.py")
+
+        serving_func_handler = self.project.set_function(
+            name="serving-handler-func",
+            func=code_path,
+            image="mlrun/mlrun",
+            kind="serving",
+        )
+        serving_func_handler.spec.parameters = {"Test": "test"}
+        graph = serving_func_handler.set_topology("flow")
+        graph.to(name="test", handler="test").respond()
+
+        serving_func_deploy = self.project.deploy_function("serving-handler-func")
+
+        serving_func_deploy.function.invoke("/")
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -144,7 +163,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         v3io_client = v3io.dataplane.Client(
             endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
         )
-        v3io_client.delete_stream(
+        v3io_client.stream.delete(
             self.stream_container,
             self.stream_path,
             raise_for_status=RaiseForStatus.never,
@@ -299,7 +318,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_producer = kafka.KafkaProducer(bootstrap_servers=self.brokers)
 
         # Test runs
-        yield kafka_consumer, kafka_producer
+        yield kafka_consumer, kafka_producer, kafka_admin_client
 
         # Teardown
         kafka_admin_client.delete_topics([self.topic, self.topic_out])
@@ -332,7 +351,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_kafka_source_with_avro(self, kafka_fixture):
-
         row_divide = 3
         stocks_df = pd.DataFrame(
             {
@@ -355,19 +373,20 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         stocks_set.graph.to("MyMap", full_event=True)
 
         target = ParquetTarget(flush_after_seconds=10)
-        fstore.ingest(
-            featureset=stocks_set,
+        stocks_set.ingest(
             source=stocks_df[0:row_divide],
             targets=[target],
             infer_options=fstore.InferOptions.default(),
         )
         stocks_set.save()
 
+        consumer_group = "my_group"
+
         kafka_source = KafkaSource(
             brokers=self.brokers,
             topics=self.topic_out,
             initial_offset="earliest",
-            group="my_group",
+            group=consumer_group,
         )
 
         func = mlrun.code_to_function(
@@ -378,18 +397,20 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             filename=str(self.assets_path / "map_avro.py"),
         )
 
+        func.spec.min_replicas = 1
+        func.spec.max_replicas = 1
+
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()
         )
-        stocks_set_endpoint, _ = fstore.deploy_ingestion_service_v2(
-            featureset=stocks_set,
+        stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,
             targets=[target],
             run_config=run_config,
         )
         print(stocks_set_endpoint)
 
-        kafka_consumer, kafka_producer = kafka_fixture
+        kafka_consumer, kafka_producer, kafka_admin = kafka_fixture
         self.produce_kafka_helper(kafka_producer, stocks_df[row_divide:])
 
         time.sleep(20)  # wait for ingestion-service parquet to be written
@@ -404,11 +425,19 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         # can happen two-ways (based on alphanumeric order)
         pd.testing.assert_frame_equal(actual_df, expected_df, check_like=True)
 
+        consumer_group_offsets = kafka_admin.list_consumer_group_offsets(consumer_group)
+        print(f"consumer_group_offsets={consumer_group_offsets}")
+        sum_of_offsets = 0
+        for topic_partition, offset_and_metadata in consumer_group_offsets.items():
+            if topic_partition.topic == self.topic_out:
+                sum_of_offsets += offset_and_metadata.offset
+        assert sum_of_offsets == 3
+
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_serving_with_kafka_queue(self, kafka_fixture):
-        kafka_consumer, _ = kafka_fixture
+        kafka_consumer, _, _ = kafka_fixture
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")
 
@@ -433,7 +462,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             ">>",
             "out",
             path=self.topic_out,
-            kafka_bootstrap_servers=self.brokers,
+            kafka_brokers=self.brokers,
             sharding_func=2,
         )
 
@@ -553,3 +582,56 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert run_result.state() == "completed", "wrong state"
         # accuracy = max(p1) * 2, stop where accuracy > 9
         assert run_result.output("accuracy") == 10, "unexpected results"
+
+
+@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
+    project_name = "nuclio-mlrun-gateways"
+    gw_name = "test-gateway"
+
+    def custom_setup(self):
+        self.f1 = self._deploy_function(suffix="1")
+        self.f2 = self._deploy_function(suffix="2")
+
+    def test_basic_api_gateway_flow(self):
+        api_gateway = self._get_basic_gateway()
+        api_gateway = self.project.store_api_gateway(api_gateway)
+        res = api_gateway.invoke(verify=False)
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_basic_auth("test", "test")
+        api_gateway = self.project.store_api_gateway(api_gateway)
+        res = api_gateway.invoke(auth=("test", "test"), verify=False)
+        assert res.status_code == 200
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
+        api_gateway = self.project.store_api_gateway(api_gateway)
+        res = api_gateway.invoke(verify=False)
+        assert res.status_code == 200
+
+    def _get_basic_gateway(self):
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            project=self.project_name, functions=self.f1, name=self.gw_name
+        )
+
+    def _cleanup_gateway(self):
+        self.project.delete_api_gateway(self.gw_name)
+
+    def _deploy_function(self, replicas=1, suffix=""):
+        filename = str(self.assets_path / "nuclio_function.py")
+
+        fn = mlrun.code_to_function(
+            filename=filename,
+            name=f"nuclio-mlrun-{suffix}",
+            kind="nuclio",
+            image="python:3.9",
+            handler="handler",
+        )
+        fn.spec.replicas = replicas
+        fn.with_http(workers=1)
+        fn.deploy()
+        return fn

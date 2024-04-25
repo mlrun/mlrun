@@ -3,30 +3,38 @@
 
 An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines. 
 
-Artifacts metadata is stored in the project’s database. The main types of artifacts are:
+There are several types of Artifacts. The type of the Artifact is reflected in the 
+`kind` attribute of each Artifact. These types are also 
+used for grouping the [artifacts in the UI](#viewing-artifacts). 
+The main kinds of artifacts are:
 
-- Files — files, directories, images, figures, and plotlines
-- Datasets — any data, such as tables and DataFrames
-- Models — all trained models
+- Files — Files, directories, images, figures, and plotlines
+- Datasets — Any data, such as tables and DataFrames
+- Models — All trained models
 - Feature Store Objects — Feature sets and feature vectors
+
+Artifacts metadata is stored in the MLRun database. 
+
 
 **In this section**
 - [Viewing artifacts](#viewing-artifacts)
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
-- [Customizing the allowed paths](#customizing-the-allowed-paths)
 
 **See also:**
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`
 - {ref}`logging_datasets`
+- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
+
 
 ## Viewing artifacts
 
 Artifacts that are stored in certain paths (see [Artifact path](#artifact-path)) can be viewed and managed in the UI. 
 In the **Project** page, select the type of artifact you want to view from the left-hand menu: 
-Feature Store (for feature-sets, feature-vectors and features), Datasets, Artifacts, or Models.
+Feature Store (for feature-sets, feature-vectors, and features), Datasets, Models, and Artifacts (holds everything not 
+in the other categories).
 
 Example dataset artifact screen:
 <br><br>
@@ -45,8 +53,8 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
 system-configured as "allowed" in the MLRun service are visible in the UI. These are:
 - MLRun < 1.2: The allowed paths include only v3io paths
-- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// `. `http://` paths are not visible
- due to security reasons.
+- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
+  `http://` paths are not visible due to security reasons.
 - MLRun 1.5 adds support for  dbfs (Databricks file system): `dbfs://`
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
@@ -56,15 +64,15 @@ The default `artifact_path` can be specified at the cluster level, client level,
 You can set the default `artifact_path` for your environment using the {py:func}`~mlrun.set_environment` function.
 
 You can override the default `artifact_path` configuration by setting the `artifact_path` parameter of 
-the {py:func}`~mlrun.set_environment` function. You can use variables in the artifacts path, 
+the {py:class}`~mlrun.projects.MlrunProject` object, setting the artifact path for objects belonging to that project. You can use variables in the artifacts path, 
 such as `{{project}}` for the name of the running project or `{{run.uid}}` for the current job/pipeline run UID. 
 (The default artifacts path uses `{{project}}`.) The following example configures the artifacts path to an 
 artifacts directory in the current active directory (`./artifacts`)
 
-    set_environment(artifact_path='./artifacts')
+   `project.artifact_path='./artifacts'`
 
 ```{admonition} For Iguazio MLOps Platform users
-In the platform, the default artifacts path is a <project name>/artifacts directory in the 
+In the platform, the default artifacts path is the <project name>/artifacts directory in the 
 predefined “projects” data container: `/v3io/projects/<project name>/artifacts`
 (for example, `/v3io/projects/myproject/artifacts` for a “myproject” project).
 ```

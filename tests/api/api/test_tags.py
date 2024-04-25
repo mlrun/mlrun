@@ -41,10 +41,10 @@ class TestArtifactTags:
         tag = "tag1"
         overwrite_tag = "tag2"
         artifact1_labels = {"artifact_name": "artifact1"}
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+        _, _, artifact1_name, _, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+        _, _, artifact2_name, _, artifact2_key, _, _ = self._store_artifact(
             client, tag=tag
         )
 
@@ -67,18 +67,18 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
-    def test_overwrite_artifact_tags_by_uid_identifier(
+    def test_overwrite_artifact_tags_by_tree_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
 
         tag = "tag1"
         overwrite_tag = "tag2"
-        _, _, artifact1_name, artifact1_uid, _, _, _ = self._store_artifact(
+        _, _, artifact1_name, artifact1_tree, _, _, _ = self._store_artifact(
             client,
             tag=tag,
         )
-        _, _, artifact2_name, artifact2_uid, _, _, _ = self._store_artifact(
+        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(
             client, tag=tag
         )
 
@@ -86,7 +86,7 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -101,18 +101,18 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
-    def test_overwrite_artifact_tags_by_multiple_uid_identifiers(
+    def test_overwrite_artifact_tags_by_multiple_tree_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
 
         tag = "tag1"
         overwrite_tag = "tag2"
-        _, _, artifact1_name, artifact1_uid, _, _, _ = self._store_artifact(
+        _, _, artifact1_name, artifact1_tree, _, _, _ = self._store_artifact(
             client,
             tag=tag,
         )
-        _, _, artifact2_name, artifact2_uid, _, _, _ = self._store_artifact(
+        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(
             client, tag=tag
         )
 
@@ -120,8 +120,8 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
-                mlrun.common.schemas.ArtifactIdentifier(uid=artifact2_uid),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact2_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -142,10 +142,10 @@ class TestArtifactTags:
         tag = "tag1"
         overwrite_tag = "tag2"
         artifact1_labels = {"artifact_name": "artifact1"}
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+        _, _, artifact1_name, _, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+        _, _, artifact2_name, _, artifact2_key, _, _ = self._store_artifact(
             client, tag=tag
         )
 
@@ -202,7 +202,7 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
-    def test_append_artifact_tags_by_uid_identifier_latest(
+    def test_append_artifact_tags_by_tree_identifier_latest(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         """
@@ -216,15 +216,23 @@ class TestArtifactTags:
         tag = "tag1"
         new_tag = "tag2"
         artifact1_labels = {"artifact_name": "artifact1"}
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
-            client, tag=tag, uid="latest", labels=artifact1_labels
+        (
+            _,
+            _,
+            artifact1_name,
+            artifact1_tree,
+            artifact1_key,
+            _,
+            _,
+        ) = self._store_artifact(
+            client, tag=tag, tree="latest", labels=artifact1_labels
         )
         response = self._append_artifact_tag(
             client=client,
             tag=new_tag,
             identifiers=[
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=artifact1_key, uid=artifact1_uid
+                    key=artifact1_key, producer_id=artifact1_tree
                 ),
             ],
         )
@@ -252,17 +260,34 @@ class TestArtifactTags:
         valid_tag_name = "valid_tag"
         invalid_tag_name = "tag$%^#"
         artifact1_labels = {"artifact_name": "artifact1"}
+        tree = "some-tree"
 
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+        (
+            _,
+            _,
+            artifact1_name,
+            artifact1_tree,
+            artifact1_key,
+            _,
+            _,
+        ) = self._store_artifact(
             client,
             tag=invalid_tag_name,
-            uid="latest",
+            tree=tree,
             labels=artifact1_labels,
             expected_status_code=http.HTTPStatus.BAD_REQUEST.value,
         )
 
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
-            client, tag=valid_tag_name, uid="latest", labels=artifact1_labels
+        (
+            _,
+            _,
+            artifact1_name,
+            artifact1_tree,
+            artifact1_key,
+            _,
+            _,
+        ) = self._store_artifact(
+            client, tag=valid_tag_name, tree=tree, labels=artifact1_labels
         )
 
         response = self._append_artifact_tag(
@@ -270,7 +295,7 @@ class TestArtifactTags:
             tag=invalid_tag_name,
             identifiers=[
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=artifact1_key, uid=artifact1_uid
+                    key=artifact1_key, producer_id=artifact1_tree
                 ),
             ],
         )
@@ -293,7 +318,7 @@ class TestArtifactTags:
         artifact_labels = {"artifact_name": "artifact"}
 
         _, _, artifact_name, artifact_uid, artifact_key, _, _ = self._store_artifact(
-            client, tag=valid_tag_name, uid="latest", labels=artifact_labels
+            client, tag=valid_tag_name, tree="latest", labels=artifact_labels
         )
         response = self._overwrite_artifact_tags(
             client=client,
@@ -327,12 +352,12 @@ class TestArtifactTags:
                 _,
                 _,
                 artifact_name,
-                artifact_uid,
+                artifact_tree,
                 artifact_key,
                 _,
                 _,
             ) = self._store_artifact(
-                client, tag=invalid_tag_name, uid="latest", labels=artifact_labels
+                client, tag=invalid_tag_name, tree="latest", labels=artifact_labels
             )
 
         response = self._delete_artifact_tag(
@@ -340,7 +365,7 @@ class TestArtifactTags:
             tag=invalid_tag_name,
             identifiers=[
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=artifact_key, uid=artifact_uid
+                    key=artifact_key, producer_id=artifact_tree
                 ),
             ],
         )
@@ -357,11 +382,11 @@ class TestArtifactTags:
 
         tag = "tag1"
         new_tag = "tag2"
-        _, _, artifact1_name, artifact1_uid, _, _, _ = self._store_artifact(
+        _, _, artifact1_name, artifact1_tree, _, _, _ = self._store_artifact(
             client,
             tag=tag,
         )
-        _, _, artifact2_name, artifact2_uid, _, _, _ = self._store_artifact(
+        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(
             client, tag=tag
         )
 
@@ -369,7 +394,7 @@ class TestArtifactTags:
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -486,18 +511,30 @@ class TestArtifactTags:
         self._create_project(client)
 
         tag = "tag1"
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
-            client, tag=tag
-        )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
-            client, tag=tag
-        )
+        (
+            _,
+            _,
+            artifact1_name,
+            artifact1_tree,
+            artifact1_key,
+            _,
+            _,
+        ) = self._store_artifact(client, tag=tag)
+        (
+            _,
+            _,
+            artifact2_name,
+            artifact2_tree,
+            artifact2_key,
+            _,
+            _,
+        ) = self._store_artifact(client, tag=tag)
 
         response = self._delete_artifact_tag(
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
@@ -565,9 +602,7 @@ class TestArtifactTags:
         self,
         client,
         tag: str,
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
         project: str = None,
     ):
         # using client.request instead of client.delete because the latter doesn't support body
@@ -582,9 +617,7 @@ class TestArtifactTags:
         self,
         client,
         tag: str,
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
         project: str = None,
     ):
         return client.put(
@@ -596,9 +629,7 @@ class TestArtifactTags:
         self,
         client,
         tag: str,
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
         project: str = None,
     ):
         return client.post(
@@ -608,9 +639,7 @@ class TestArtifactTags:
 
     @staticmethod
     def _generate_tag_identifiers_json(
-        identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
-        ],
+        identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
     ):
         return {
             "kind": "artifact",
@@ -674,7 +703,7 @@ class TestArtifactTags:
         client: fastapi.testclient.TestClient,
         name: str = None,
         project: str = None,
-        uid: str = None,
+        tree: str = None,
         key: str = None,
         tag: str = None,
         data: dict = None,
@@ -682,7 +711,7 @@ class TestArtifactTags:
         kind: str = "artifact",
         expected_status_code: int = http.HTTPStatus.OK.value,
     ):
-        uid = uid or str(uuid.uuid4())
+        tree = tree or str(uuid.uuid4())
         key = key or str(uuid.uuid4())
         name = name or str(uuid.uuid4())
 
@@ -698,9 +727,9 @@ class TestArtifactTags:
 
         response = client.post(
             STORE_API_ARTIFACTS_PATH.format(
-                project=project or self.project, uid=uid, key=key, tag=tag
+                project=project or self.project, uid=tree, key=key, tag=tag
             ),
             data=json.dumps(data),
         )
         assert response.status_code == expected_status_code
-        return response, project, name, uid, key, tag, data
+        return response, project, name, tree, key, tag, data

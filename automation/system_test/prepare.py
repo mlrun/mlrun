@@ -21,12 +21,10 @@ import pathlib
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import typing
 import urllib.parse
 
-import boto3
 import click
 import paramiko
 import yaml
@@ -73,52 +71,43 @@ class SystemTestPreparer:
     def __init__(
         self,
         mlrun_version: str = None,
-        mlrun_commit: str = None,
         override_image_registry: str = None,
-        override_image_repo: str = None,
-        override_mlrun_images: str = None,
+        mlrun_commit: str = None,
+        mlrun_ui_version: str = None,
         data_cluster_ip: str = None,
         data_cluster_ssh_username: str = None,
         data_cluster_ssh_password: str = None,
-        app_cluster_ssh_password: str = None,
         github_access_token: str = None,
         provctl_download_url: str = None,
         provctl_download_s3_access_key: str = None,
         provctl_download_s3_key_id: str = None,
-        mlrun_dbpath: str = None,
         username: str = None,
         access_key: str = None,
         iguazio_version: str = None,
         slack_webhook_url: str = None,
-        mysql_user: str = None,
-        mysql_password: str = None,
-        purge_db: bool = False,
         debug: bool = False,
         branch: str = None,
+        mlrun_dbpath: str = None,
     ):
         self._logger = logger
         self._debug = debug
         self._mlrun_version = mlrun_version
         self._mlrun_commit = mlrun_commit
+        self._mlrun_ui_version = mlrun_ui_version
         self._override_image_registry = (
             override_image_registry.strip().strip("/") + "/"
             if override_image_registry is not None
             else override_image_registry
         )
-        self._override_image_repo = override_image_repo
-        self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
         self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
-        self._app_cluster_ssh_password = app_cluster_ssh_password
         self._provctl_download_url = provctl_download_url
         self._provctl_download_s3_access_key = provctl_download_s3_access_key
         self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
-        self._mysql_user = mysql_user
-        self._mysql_password = mysql_password
-        self._purge_db = purge_db
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
+        self._mlrun_dbpath = mlrun_dbpath
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -171,12 +160,6 @@ class SystemTestPreparer:
         self._download_provctl()
 
         self._override_mlrun_api_env()
-
-        # purge of the database needs to be executed before patching mlrun so that the mlrun migrations
-        # that run as part of the patch would succeed even if we move from a newer version to an older one
-        # e.g from development branch which is (1.4.0) and has a newer alembic revision than 1.3.x which is (1.3.1)
-        if self._purge_db:
-            self._purge_mlrun_db()
 
         self._patch_mlrun()
 
@@ -403,13 +386,15 @@ class SystemTestPreparer:
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")
+        mlrun_api_url = self._get_ingress_host("mlrun-api")
         spark_service_name = self._get_service_name("app=spark,component=spark-master")
         self._env_config["MLRUN_IGUAZIO_API_URL"] = f"https://{api_url_host}"
         self._env_config["V3IO_FRAMESD"] = f"https://{framesd_host}"
-        self._env_config[
-            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"
-        ] = spark_service_name
+        self._env_config["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"] = (
+            spark_service_name
+        )
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
+        self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
 
     def _install_dev_utilities(self):
         list_uninstall = [
@@ -445,33 +430,27 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-        # download provctl from s3
-        with tempfile.NamedTemporaryFile() as local_provctl_path:
-            self._logger.log(
-                "debug",
-                "Downloading provctl",
-                bucket_name=bucket_name,
-                object_name=object_name,
-                local_path=local_provctl_path.name,
-            )
-            s3_client = boto3.client(
-                "s3",
-                aws_secret_access_key=self._provctl_download_s3_access_key,
-                aws_access_key_id=self._provctl_download_s3_key_id,
-            )
-            s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-            # upload provctl to data node
-            self._logger.log(
-                "debug",
-                "Uploading provctl to datanode",
-                remote_path=str(self.Constants.provctl_path),
-                local_path=local_provctl_path.name,
-            )
-            sftp_client = self._ssh_client.open_sftp()
-            sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
-            sftp_client.close()
+
         # make provctl executable
+        self._run_command(
+            "aws",
+            args=[
+                "s3",
+                "--profile",
+                "provazio-provctl",
+                "cp",
+                f"s3://{bucket_name}/{object_name}",
+                str(self.Constants.provctl_path),
+            ],
+        )
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
+        # log provctl version
+        self._run_command(
+            str(self.Constants.provctl_path),
+            args=[
+                "version",
+            ],
+        )
 
     def _run_and_wait_until_successful(
         self,
@@ -480,12 +459,34 @@ class SystemTestPreparer:
         max_retries: int = 60,
         interval: int = 10,
         suppress_error_strings: list = None,
+        ps_verification: str = None,
     ):
+        def exec_ps_verification():
+            if ps_verification:
+                try:
+                    self._run_command(
+                        f"pgrep {ps_verification}",
+                        verbose=False,
+                        suppress_error_strings=suppress_error_strings,
+                    )
+                except Exception as exc:
+                    self._logger.log(
+                        "warning",
+                        f"Command {command_name} failed ps verification, process does not exist",
+                        exc=exc,
+                    )
+                    return True
+            return False
+
         finished = False
         retries = 0
         start_time = datetime.datetime.now()
+        failed_ps_verification = False
         while not finished and retries < max_retries:
             try:
+                # do not raise if failed ps verification
+                # as we might fail it while program successfully finished
+                failed_ps_verification = exec_ps_verification()
                 self._run_command(
                     command,
                     verbose=False,
@@ -494,6 +495,22 @@ class SystemTestPreparer:
                 finished = True
 
             except Exception as exc:
+                if ps_verification and failed_ps_verification:
+                    # make it bail now!
+                    retries = max_retries
+                    continue
+
+                if "No such file or directory" in str(exc):
+                    self._logger.log(
+                        "error",
+                        f"Command {command_name} fatally failed due to missing file or directory",
+                        exc=exc,
+                    )
+
+                    # make it bail now!
+                    retries = max_retries
+                    continue
+
                 self._logger.log(
                     "debug",
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
@@ -506,9 +523,9 @@ class SystemTestPreparer:
         if retries >= max_retries and not finished:
             self._logger.log(
                 "info",
-                f"Command {command_name} timeout passed and not finished, failing...",
+                f"Command {command_name} retries exhausted, failing...",
             )
-            raise RuntimeError("Command timeout passed and not finished")
+            raise RuntimeError(f"Command {command_name} exhausted retries")
         total_seconds_took = (datetime.datetime.now() - start_time).total_seconds()
         self._logger.log(
             "info",
@@ -517,73 +534,41 @@ class SystemTestPreparer:
 
     def _patch_mlrun(self):
         time_string = time.strftime("%Y%m%d-%H%M%S")
-        self._logger.log(
-            "debug", "Creating mlrun patch archive", mlrun_version=self._mlrun_version
-        )
-        mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
-
-        override_image_arg = ""
-        if self._override_mlrun_images:
-            override_image_arg = f"--override-images {self._override_mlrun_images}"
-
-        provctl_create_patch_log = f"/tmp/provctl-create-patch-{time_string}.log"
-        self._run_command(
-            str(self.Constants.provctl_path),
-            args=[
-                "--verbose",
-                f"--logger-file-path={provctl_create_patch_log}",
-                "create-patch",
-                "appservice",
-                override_image_arg,
-                "--gzip-flag=-1",
-                "-v",
-                f"--target-iguazio-version={str(self._iguazio_version)}",
-                "mlrun",
-                self._mlrun_version,
-                mlrun_archive,
-            ],
-            detach=True,
-        )
-        self._run_and_wait_until_successful(
-            command=f"grep 'Patch archive prepared' {provctl_create_patch_log}",
-            command_name="provctl create patch",
-            max_retries=25,
-            interval=60,
-        )
-        # print provctl create patch log
-        self._run_command(f"cat {provctl_create_patch_log}")
 
         self._logger.log(
-            "info", "Patching MLRun version", mlrun_version=self._mlrun_version
+            "info",
+            "Patching MLRun version",
+            mlrun_version=self._mlrun_version,
+            mlrun_ui_version=self._mlrun_ui_version,
         )
+
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
             str(self.Constants.provctl_path),
             args=[
                 "--verbose",
                 f"--logger-file-path={provctl_patch_mlrun_log}",
-                "--app-cluster-password",
-                self._app_cluster_ssh_password,
-                "--data-cluster-password",
-                self._data_cluster_ssh_password,
                 "patch",
                 "appservice",
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
+                f"--override-mlrun-ui-version={self._mlrun_ui_version}"
+                if self._mlrun_ui_version
+                else "",
+                f"--override-default-image-registry={self._override_image_registry.rstrip('/')}/mlrun",
+                # purged db to allow downgrading between versions
+                "--purge-mlrun-db",
                 "mlrun",
-                mlrun_archive,
-                # enable audit events - will be ignored by provctl if mlrun version does not support it
-                # TODO: remove when setup is upgraded to iguazio version >= 3.5.4 since audit events
-                #  are enabled by default
-                "--feature-gates",
-                "mlrun.auditevents=enabled",
+                self._mlrun_version,
             ],
             detach=True,
         )
         self._run_and_wait_until_successful(
             command=f"grep 'Finished patching appservice' {provctl_patch_mlrun_log}",
             command_name="provctl patch mlrun",
+            # mind the space
+            ps_verification="provctl ",
             max_retries=25,
             interval=60,
         )
@@ -602,55 +587,6 @@ class SystemTestPreparer:
             self._iguazio_version = self._iguazio_version.strip().decode()
         self._logger.log(
             "info", "Resolved iguazio version", iguazio_version=self._iguazio_version
-        )
-
-    def _purge_mlrun_db(self):
-        """
-        Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
-        """
-        self._delete_mlrun_db()
-        self._scale_down_mlrun_deployments()
-
-    def _delete_mlrun_db(self):
-        self._logger.log("info", "Deleting mlrun db")
-
-        mlrun_db_pod_name_cmd = self._get_pod_name_command(
-            labels={
-                "app.kubernetes.io/component": "db",
-                "app.kubernetes.io/instance": "mlrun",
-            },
-        )
-        if not mlrun_db_pod_name_cmd:
-            self._logger.log("info", "No mlrun db pod found")
-            return
-
-        self._logger.log(
-            "info", "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
-        )
-
-        password = ""
-        if self._mysql_password:
-            password = f"-p {self._mysql_password} "
-
-        drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
-
-        args = [
-            "kubectl",
-            "exec",
-            "-n",
-            self.Constants.namespace,
-            "-it",
-            mlrun_db_pod_name_cmd,
-            "--",
-            drop_db_cmd,
-        ]
-        command = " ".join(args)
-        self._run_and_wait_until_successful(
-            command,
-            command_name="delete mlrun db",
-            max_retries=5,
-            interval=10,
-            suppress_error_strings=["database doesn\\'t exist"],
         )
 
     def _get_pod_name_command(self, labels):
@@ -675,22 +611,6 @@ class SystemTestPreparer:
         if b"No resources found" in stderr or not pod_name:
             return None
         return pod_name.strip()
-
-    def _scale_down_mlrun_deployments(self):
-        # scaling down to avoid automatically deployments restarts and failures
-        self._logger.log("info", "scaling down mlrun deployments")
-        self._run_kubectl_command(
-            args=[
-                "scale",
-                "deployment",
-                "-n",
-                self.Constants.namespace,
-                "mlrun-api-chief",
-                "mlrun-api-worker",
-                "mlrun-db",
-                "--replicas=0",
-            ]
-        )
 
     def _run_kubectl_command(self, args, verbose=True, suppress_error_strings=None):
         return self._run_command(
@@ -770,7 +690,6 @@ class SystemTestPreparer:
         return json.loads(out or "{}")
 
     def _ensure_ssh_session_active(self):
-        self._logger.log("info", "Ensuring ssh session is active")
         try:
             self._ssh_client.exec_command("ls > /dev/null")
         except Exception as exc:
@@ -791,7 +710,6 @@ class SystemTestPreparer:
                 self._logger.log("info", "Reconnected to remote")
                 return
             raise
-        self._logger.log("info", "SSH session is active")
 
 
 @click.group()
@@ -801,23 +719,12 @@ def main():
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.option("--mlrun-version")
+@click.option("--mlrun-ui-version")
 @click.option(
     "--override-image-registry",
     "-oireg",
     default=None,
     help="Override default mlrun docker image registry.",
-)
-@click.option(
-    "--override-image-repo",
-    "-oirep",
-    default=None,
-    help="Override default mlrun docker image repository name.",
-)
-@click.option(
-    "--override-mlrun-images",
-    "-omi",
-    default=None,
-    help="Override default images (comma delimited list).",
 )
 @click.option(
     "--mlrun-commit",
@@ -828,16 +735,12 @@ def main():
 @click.option("--data-cluster-ip", required=True)
 @click.option("--data-cluster-ssh-username", required=True)
 @click.option("--data-cluster-ssh-password", required=True)
-@click.option("--app-cluster-ssh-password", required=True)
 @click.option("--provctl-download-url", required=True)
 @click.option("--provctl-download-s3-access-key", required=True)
 @click.option("--provctl-download-s3-key-id", required=True)
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
 @click.option("--iguazio-version", default=None)
-@click.option("--mysql-user")
-@click.option("--mysql-password")
-@click.option("--purge-db", "-pdb", is_flag=True, help="Purge mlrun db")
 @click.option(
     "--debug",
     "-d",
@@ -846,44 +749,34 @@ def main():
 )
 def run(
     mlrun_version: str,
-    mlrun_commit: str,
+    mlrun_ui_version: str,
     override_image_registry: str,
-    override_image_repo: str,
-    override_mlrun_images: str,
+    mlrun_commit: str,
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
-    app_cluster_ssh_password: str,
     provctl_download_url: str,
     provctl_download_s3_access_key: str,
     provctl_download_s3_key_id: str,
     username: str,
     access_key: str,
     iguazio_version: str,
-    mysql_user: str,
-    mysql_password: str,
-    purge_db: bool,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_version=mlrun_version,
         mlrun_commit=mlrun_commit,
         override_image_registry=override_image_registry,
-        override_image_repo=override_image_repo,
-        override_mlrun_images=override_mlrun_images,
+        mlrun_ui_version=mlrun_ui_version,
         data_cluster_ip=data_cluster_ip,
         data_cluster_ssh_username=data_cluster_ssh_username,
         data_cluster_ssh_password=data_cluster_ssh_password,
-        app_cluster_ssh_password=app_cluster_ssh_password,
         provctl_download_url=provctl_download_url,
         provctl_download_s3_access_key=provctl_download_s3_access_key,
         provctl_download_s3_key_id=provctl_download_s3_key_id,
         username=username,
         access_key=access_key,
         iguazio_version=iguazio_version,
-        mysql_user=mysql_user,
-        mysql_password=mysql_password,
-        purge_db=purge_db,
         debug=debug,
     )
     try:
@@ -894,7 +787,6 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
 @click.option("--data-cluster-ip")
 @click.option("--data-cluster-ssh-username")
 @click.option("--data-cluster-ssh-password")
@@ -918,11 +810,14 @@ def run(
     "--save-to-path",
     help="Path to save the compiled env file to",
 )
+@click.option(
+    "--mlrun-dbpath",
+    help="MLRun DB URL",
+)
 def env(
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
-    mlrun_dbpath: str,
     username: str,
     access_key: str,
     slack_webhook_url: str,
@@ -930,18 +825,19 @@ def env(
     branch: str,
     github_access_token: str,
     save_to_path: str,
+    mlrun_dbpath: str,
 ):
     system_test_preparer = SystemTestPreparer(
         data_cluster_ip=data_cluster_ip,
         data_cluster_ssh_password=data_cluster_ssh_password,
         data_cluster_ssh_username=data_cluster_ssh_username,
-        mlrun_dbpath=mlrun_dbpath,
         username=username,
         access_key=access_key,
         debug=debug,
         slack_webhook_url=slack_webhook_url,
         branch=branch,
         github_access_token=github_access_token,
+        mlrun_dbpath=mlrun_dbpath,
     )
     try:
         system_test_preparer.connect_to_remote()

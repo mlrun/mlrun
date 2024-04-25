@@ -44,7 +44,6 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
         status_code: typing.Optional[int] = None,
         **kwargs,
     ):
-
         # because response object is probably with an error, it returns False, so we
         # should use 'is None' specifically
         if response is None:
@@ -74,7 +73,7 @@ class MLRunHTTPStatusError(MLRunHTTPError):
     error_status_code = None
 
     def __init__(self, *args, response: requests.Response = None, **kwargs):
-        super(MLRunHTTPStatusError, self).__init__(
+        super().__init__(
             *args, response=response, status_code=self.error_status_code, **kwargs
         )
 
@@ -107,15 +106,20 @@ def raise_for_status(
             raise MLRunHTTPError(error_message, response=response) from exc
 
 
-def raise_for_status_code(status_code: int, message: str = None):
+def err_for_status_code(status_code: int, message: str = None):
     """
-    Raise a specific MLRunSDK error depending on the given response status code.
-    If no specific error exists, raises an MLRunHTTPError
+    Return a specific MLRunSDK error depending on the given response status code.
+    If no specific error exists, returns an MLRunHTTPError.
+    Usage example:
+    >>> try:
+    >>>     ...
+    >>> except ExcWithStatusCode as exc:
+    >>>     raise err_for_status_code(exc.status_code, exc.message) from exc
     """
     try:
-        raise STATUS_ERRORS[status_code](message)
+        return STATUS_ERRORS[int(status_code)](message)
     except KeyError:
-        raise MLRunHTTPError(message)
+        return MLRunHTTPError(message)
 
 
 def err_to_str(err):
@@ -193,6 +197,18 @@ class MLRunMissingDependencyError(MLRunInternalServerError):
 
 class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
+
+
+class MLRunRetryExhaustedError(Exception):
+    pass
+
+
+class MLRunTaskCancelledError(Exception):
+    pass
+
+
+class MLRunValueError(ValueError):
+    pass
 
 
 class MLRunFatalFailureError(Exception):

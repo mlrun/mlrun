@@ -107,20 +107,3 @@ def test_custom_packagers(
         assert False
     except RunError:
         pass
-
-
-@pytest.mark.parametrize(
-    "host, is_logging_worker", [("test-worker-0", True), ("test-worker-1", False)]
-)
-def test_is_logging_worker(host: str, is_logging_worker: bool):
-    """
-    Test the `_is_logging_worker` method of the context handler.
-
-    :param host:              The pod's name where the worker's rank is expected to be.
-    :param is_logging_worker: The expected result.
-    """
-    context_handler = ContextHandler()
-    context_handler._context = MLClientCtx()
-    context_handler._context.set_label("kind", "mpijob")
-    context_handler._context.set_label("host", host)
-    assert context_handler._is_logging_worker() is is_logging_worker

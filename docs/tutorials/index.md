@@ -32,7 +32,8 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 06-add-mlops-to-code
 07-batch-infer
 ../feature-store/basic-demo
-MLRun demos repository <https://github.com/mlrun/demos>
+mlflow
+demos
 /cheat-sheet
 ```
 
@@ -42,7 +43,7 @@ MLRun demos repository <https://github.com/mlrun/demos>
 Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 
 
-`````{div} full-width
+`````{div}
 
 ````{grid} 3
 :gutter: 2
@@ -98,7 +99,14 @@ Use the feature store with data ingestion, model training, model serving, and au
 (e2e-demos)=
 ## End to end demos
 
-You can find the different end-to-end demos in the MLRun demos repository: [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
+See more examples in the end-to-end demos:
+- [How-To: Converting Existing ML Code to an MLRun Project](https://github.com/mlrun/demos/tree/master/howto) 
+- [Mask Detection Demo](https://github.com/mlrun/demos/tree/master/mask-detection)
+- [News Article Summarization and Keyword Extraction via NLP](https://github.com/mlrun/demos/tree/master/news-article-nlp)
+- [Fraud Prevention - Iguazio Feature Store](https://github.com/mlrun/demos/tree/master/fraud-prevention-feature-store)
+- [Stocks Prices Prediction Demo](https://github.com/mlrun/demos/tree/master/stocks-prediction)
+- [Sagemaker demo](https://github.com/mlrun/demo-sagemaker)
+- [Call center demo](https://github.com/mlrun/demo-call-center)
 
 ## Cheat sheet
 

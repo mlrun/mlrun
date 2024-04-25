@@ -15,7 +15,7 @@
 import os
 from abc import abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Dict, Generic, List, Union
+from typing import Any, Callable, Generic, Union
 
 import yaml
 
@@ -60,7 +60,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
 
     def __init__(
         self,
-        statistics_functions: List[
+        statistics_functions: list[
             Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]
         ],
         context: mlrun.MLClientCtx = None,
@@ -94,7 +94,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         :raise MLRunInvalidArgumentError: If the `update_frequency` is illegal or if `tensorboard_directory` and
                                           `context` were not given.
         """
-        super(TensorboardLogger, self).__init__(context=context)
+        super().__init__(context=context)
 
         # Validate the context and tensorboard directory combination:
         if tensorboard_directory is None and context is None:
@@ -133,12 +133,10 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         # [Statistic: str] -> [Weight: str] -> [epoch: int] -> [value: float]
         self._weights_statistics = {}  # type: Dict[str, Dict[str, List[float]]]
         for statistic_function in self._statistics_functions:
-            self._weights_statistics[
-                statistic_function.__name__
-            ] = {}  # type: Dict[str, List[float]]
+            self._weights_statistics[statistic_function.__name__] = {}  # type: Dict[str, List[float]]
 
     @property
-    def weights(self) -> Dict[str, DLTypes.WeightType]:
+    def weights(self) -> dict[str, DLTypes.WeightType]:
         """
         Get the logged weights dictionary. Each of the logged weight will be found by its name.
 
@@ -147,7 +145,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         return self._weights
 
     @property
-    def weight_statistics(self) -> Dict[str, Dict[str, List[float]]]:
+    def weight_statistics(self) -> dict[str, dict[str, list[float]]]:
         """
         Get the logged statistics for all the tracked weights. Each statistic has a dictionary of weights and their list
         of epochs values.
@@ -516,23 +514,15 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                 + list(self._dynamic_hyperparameters.keys()),
             ],
         ):
-            text += "\n  * **{}**: {}".format(
-                property_name.capitalize(),
-                self._markdown_print(value=property_value, tabs=2),
-            )
+            text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
 
         # Add the context state:
         if self._context is not None:
-            text += "\n####Context initial state: ({})".format(
-                self._generate_context_link(context=self._context)
-            )
+            text += f"\n####Context initial state: ({self._generate_context_link(context=self._context)})"
             for property_name, property_value in self._extract_properties_from_context(
                 context=self._context
             ).items():
-                text += "\n  * **{}**: {}".format(
-                    property_name.capitalize(),
-                    self._markdown_print(value=property_value, tabs=2),
-                )
+                text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
 
         return text
 
@@ -543,7 +533,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
 
         :return: The generated text.
         """
-        text = "####Epoch {} summary:".format(self._epochs)
+        text = f"####Epoch {self._epochs} summary:"
         if self._context is not None:
             for property_name, property_value in self._extract_properties_from_context(
                 context=self._context
@@ -563,10 +553,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                     )
         else:
             for property_name, property_value in self._extract_epoch_results().items():
-                text += "\n  * **{}**: {}".format(
-                    property_name.capitalize(),
-                    self._markdown_print(value=property_value, tabs=2),
-                )
+                text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
         return text
 
     def _generate_run_end_text(self) -> str:
@@ -577,30 +564,22 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         :return: The generated text.
         """
         # Write the run summary:
-        text = "\n####Run final summary - epoch {}:".format(self._epochs)
+        text = f"\n####Run final summary - epoch {self._epochs}:"
         for property_name, property_value in self._extract_epoch_results().items():
-            text += "\n  * **{}**: {}".format(
-                property_name.capitalize(),
-                self._markdown_print(value=property_value, tabs=2),
-            )
+            text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
 
         # Add the context final state:
         if self._context is not None:
-            text += "\n####Context final state: ({})".format(
-                self._generate_context_link(context=self._context)
-            )
+            text += f"\n####Context final state: ({self._generate_context_link(context=self._context)})"
             for property_name, property_value in self._extract_properties_from_context(
                 context=self._context
             ).items():
-                text += "\n  * **{}**: {}".format(
-                    property_name.capitalize(),
-                    self._markdown_print(value=property_value, tabs=2),
-                )
+                text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
         return text
 
     def _extract_epoch_results(
         self, epoch: int = -1
-    ) -> Dict[str, Dict[str, DLTypes.TrackableType]]:
+    ) -> dict[str, dict[str, DLTypes.TrackableType]]:
         """
         Extract the given epoch results from all the collected values and results.
 
@@ -645,7 +624,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         )
 
     @staticmethod
-    def _extract_properties_from_context(context: mlrun.MLClientCtx) -> Dict[str, Any]:
+    def _extract_properties_from_context(context: mlrun.MLClientCtx) -> dict[str, Any]:
         """
         Extract the properties of the run this context belongs to.
 

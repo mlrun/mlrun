@@ -26,16 +26,18 @@ import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.common.schemas
+import mlrun.common.schemas.alert as alert_constants
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
-import server.api.apiuvicorn as uvicorn
+import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.initial_data
+import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
@@ -43,9 +45,8 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
-from server.api.api.api import api_router
+from server.api.api.api import api_router, api_v2_router
 from server.api.db.session import close_session, create_session
-from server.api.middlewares import init_middlewares
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.periodic import (
     cancel_all_periodic_functions,
@@ -63,6 +64,7 @@ from server.api.utils.singletons.scheduler import get_scheduler, initialize_sche
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+V2_API_PREFIX = f"{API_PREFIX}/v2"
 
 # When pushing notifications, push notifications only for runs that entered a terminal state
 # since the last time we pushed notifications.
@@ -70,7 +72,7 @@ BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 # and their notifications haven't been sent yet.
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
-_last_notification_push_time: typing.Optional[datetime.datetime] = None
+_last_update_time: typing.Optional[datetime.datetime] = None
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -95,20 +97,29 @@ app = fastapi.FastAPI(
     version=config.version,
     debug=config.httpdb.debug,
     # adding /api prefix
-    openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
-    docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
-    redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
+    openapi_url=f"{API_PREFIX}/openapi.json",
+    docs_url=f"{API_PREFIX}/docs",
+    redoc_url=f"{API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
     lifespan=lifespan,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
+app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
 # so new users won't use the old un-versioned api.
 # /api points to /api/v1 since it is used externally, and we don't want to break it.
 # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
-init_middlewares(app)
+# middlewares, order matter
+app.add_middleware(
+    server.api.middlewares.EnsureBackendVersionMiddleware,
+    backend_version=config.version,
+)
+app.add_middleware(
+    server.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
+)
+app.add_middleware(server.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
 @app.exception_handler(Exception)
@@ -163,12 +174,21 @@ async def setup_api():
     initialize_logs_dir()
     initialize_db()
 
+    # chief do stuff
     if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        server.api.initial_data.init_data()
+
+    # worker
+    elif (
         config.httpdb.clusterization.worker.sync_with_chief.mode
         == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
         and config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.worker
     ):
+        # in the background, wait for chief to reach online state
         _start_chief_clusterization_spec_sync_loop()
 
     if config.httpdb.state == mlrun.common.schemas.APIStates.online:
@@ -202,6 +222,7 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+            _start_periodic_pagination_cache_monitoring()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
 
@@ -482,6 +503,19 @@ def _start_periodic_runs_monitoring():
         )
 
 
+def _start_periodic_pagination_cache_monitoring():
+    interval = int(config.httpdb.pagination.pagination_cache.interval)
+    if interval > 0:
+        logger.info("Starting periodic pagination cache monitoring", interval=interval)
+        run_function_periodically(
+            interval,
+            server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
+            False,
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+        )
+
+
 async def _start_periodic_stop_logs():
     if config.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.legacy:
         logger.info(
@@ -500,12 +534,36 @@ async def _start_periodic_stop_logs():
 
 async def _verify_log_collection_stopped_on_startup():
     """
-    Pulls runs from DB that are in terminal state and have logs requested, and call stop logs for them.
+    First, list runs that are currently being collected in the log collector.
+    Second, query the DB for those runs that are also in terminal state and have logs requested.
+    Lastly, call stop logs for the runs that met all of the above conditions.
     This is done so that the log collector won't keep trying to collect logs for runs that are already
     in terminal state.
     """
+    logger.debug("Listing runs currently being log collected")
+    log_collector_client = server.api.utils.clients.log_collector.LogCollectorClient()
+    run_uids_in_progress = []
+    failed_listing = False
+    try:
+        runs_in_progress_response_stream = log_collector_client.list_runs_in_progress()
+        # collate the run uids from the response stream to a list
+        async for run_uids in runs_in_progress_response_stream:
+            run_uids_in_progress.extend(run_uids)
+    except Exception as exc:
+        failed_listing = True
+        logger.warning(
+            "Failed listing runs currently being log collected",
+            exc=err_to_str(exc),
+            traceback=traceback.format_exc(),
+        )
+
+    if len(run_uids_in_progress) == 0 and not failed_listing:
+        logger.debug("No runs currently being log collected")
+        return
+
     logger.debug(
-        "Getting all runs which have reached terminal state and already have logs requested",
+        "Getting current log collected runs which have reached terminal state and already have logs requested",
+        run_uids_in_progress_count=len(run_uids_in_progress),
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
@@ -520,6 +578,7 @@ async def _verify_log_collection_stopped_on_startup():
                 # usually it happens when run pods get preempted
                 mlrun.runtimes.constants.RunStates.unknown,
             ],
+            specific_uids=run_uids_in_progress,
         )
 
         if len(runs) > 0:
@@ -533,6 +592,10 @@ async def _verify_log_collection_stopped_on_startup():
 
 
 def _start_chief_clusterization_spec_sync_loop():
+    # put it here first, because we need to set it before the periodic function starts
+    # so the worker will be aligned with the chief state
+    config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
+
     interval = int(config.httpdb.clusterization.worker.sync_with_chief.interval)
     if interval > 0:
         logger.info("Starting chief clusterization spec sync loop", interval=interval)
@@ -593,6 +656,7 @@ async def _align_worker_state_with_chief_state(
             "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
             state=config.httpdb.state,
         )
+
     config.httpdb.state = chief_state
     # if reached terminal state we cancel the periodic function
     # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
@@ -623,7 +687,14 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
             )
 
     try:
-        _push_terminal_run_notifications(db, db_session)
+        global _last_update_time
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
+            _generate_event_on_failed_runs(db, db_session, _last_update_time)
+        _push_terminal_run_notifications(db, db_session, _last_update_time)
+
+        _last_update_time = now
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",
@@ -650,7 +721,9 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_session):
+def _push_terminal_run_notifications(
+    db: server.api.db.base.DBInterface, db_session, last_update_time
+):
     """
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
@@ -660,15 +733,12 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     # since the last time we pushed notifications.
     # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
     # and their notifications haven't been sent yet.
-    global _last_notification_push_time
-
-    now = datetime.datetime.now(datetime.timezone.utc)
 
     runs = db.list_runs(
         db_session,
         project="*",
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
-        last_update_time_from=_last_notification_push_time,
+        last_update_time_from=last_update_time,
         with_notifications=True,
     )
 
@@ -689,10 +759,44 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
-    _last_notification_push_time = now
+
+def _generate_event_on_failed_runs(
+    db: server.api.db.base.DBInterface, db_session, last_update_time
+):
+    """
+    Send an event on the runs that ended with error state since the last call to the function
+    """
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        states=[mlrun.runtimes.constants.RunStates.error],
+        last_update_time_from=last_update_time,
+    )
+
+    for run in runs:
+        project = run["metadata"]["project"]
+        uid = run["metadata"]["uid"]
+        entity = {
+            "kind": alert_constants.EventEntityKind.JOB,
+            "project": project,
+            "id": uid,
+        }
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_constants.EventKind.FAILED, entity=entity
+        )
+        mlrun.get_run_db().generate_event(alert_constants.EventKind.FAILED, event_data)
+
+        server.api.crud.Events().process_event(
+            session=db_session,
+            event_data=event_data,
+            event_name=alert_constants.EventKind.FAILED,
+            project=project,
+            validate_event=True,
+        )
 
 
-async def _abort_stale_runs(stale_runs: typing.List[dict]):
+async def _abort_stale_runs(stale_runs: list[dict]):
     semaphore = asyncio.Semaphore(
         int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
     )
@@ -700,6 +804,10 @@ async def _abort_stale_runs(stale_runs: typing.List[dict]):
     async def abort_run(stale_run):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
+            # mark abort as internal, it doesn't have a background task
+            stale_run["new_background_task_id"] = (
+                server.api.constants.internal_abort_task_id
+            )
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Runs().abort_run,
@@ -777,23 +885,11 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
                 )
 
 
-def main():
-    if (
-        config.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        server.api.initial_data.init_data()
-    elif (
-        config.httpdb.clusterization.worker.sync_with_chief.mode
-        == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-        and config.httpdb.clusterization.role
-        == mlrun.common.schemas.ClusterizationRole.worker
-    ):
-        # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
-        config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
+if __name__ == "__main__":
+    # this is for running the api server as part of
+    # __main__.py on mlrun client and mlrun integration tests.
+    # mlrun container image will run the server using uvicorn directly.
+    # see /dockerfiles/mlrun-api/Dockerfile for more details.
+    import server.api.apiuvicorn as uvicorn
 
     uvicorn.run(logger, httpdb_config=config.httpdb)
-
-
-if __name__ == "__main__":
-    main()

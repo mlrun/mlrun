@@ -16,11 +16,11 @@ import typing
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import server.api.utils.auth.providers.base
+import server.api.utils.auth.providers.base as auth
 
 
 class Provider(
-    server.api.utils.auth.providers.base.Provider,
+    auth.Provider,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     async def query_permissions(
@@ -34,11 +34,11 @@ class Provider(
 
     async def filter_by_permissions(
         self,
-        resources: typing.List,
+        resources: list,
         opa_resource_extractor: typing.Callable,
         action: mlrun.common.schemas.AuthorizationAction,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> typing.List:
+    ) -> list:
         return resources
 
     def add_allowed_project_for_owner(

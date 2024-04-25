@@ -26,13 +26,15 @@ import (
 )
 
 type Store struct {
-	Logger logger.Logger
-	State  *statestore.State
+	Logger           logger.Logger
+	AdvancedLogLevel int
+	State            *statestore.State
 }
 
-func NewAbstractClient(logger logger.Logger) *Store {
+func NewAbstractClient(logger logger.Logger, advancedLogLevel int) *Store {
 	return &Store{
-		Logger: logger.GetChild("statestore"),
+		Logger:           logger.GetChild("statestore"),
+		AdvancedLogLevel: advancedLogLevel,
 		State: &statestore.State{
 			InProgress: &sync.Map{},
 		},

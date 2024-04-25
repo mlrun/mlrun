@@ -169,6 +169,22 @@ def test_context_inputs(rundb_mock, is_api):
         assert context.get_input(key).artifact_url == run_dict["spec"]["inputs"][key]
 
 
+@pytest.mark.parametrize(
+    "host, is_logging_worker", [("test-worker-0", True), ("test-worker-1", False)]
+)
+def test_is_logging_worker(host: str, is_logging_worker: bool):
+    """
+    Test the `is_logging_worker` method of the context.
+
+    :param host:              The pod's name where the worker's rank is expected to be.
+    :param is_logging_worker: The expected result.
+    """
+    context = mlrun.execution.MLClientCtx()
+    context.set_label("kind", "mpijob")
+    context.set_label("host", host)
+    assert context.is_logging_worker() is is_logging_worker
+
+
 def _generate_run_dict():
     return {
         "metadata": {

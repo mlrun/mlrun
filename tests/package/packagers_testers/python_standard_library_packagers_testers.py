@@ -16,7 +16,6 @@ import ast
 import os
 import pathlib
 import tempfile
-from typing import Tuple
 
 from mlrun import MLClientCtx
 from mlrun.package.packagers.python_standard_library_packagers import (
@@ -66,7 +65,7 @@ class NonePackagerTester(PackagerTester):
     A tester for the `NonePackager`.
     """
 
-    PACKAGER_IN_TEST = NonePackager
+    PACKAGER_IN_TEST = NonePackager()
 
     TESTS = [
         PackTest(
@@ -102,7 +101,7 @@ class IntPackagerTester(PackagerTester):
     A tester for the `IntPackager`.
     """
 
-    PACKAGER_IN_TEST = IntPackager
+    PACKAGER_IN_TEST = IntPackager()
 
     TESTS = [
         PackTest(
@@ -147,7 +146,7 @@ class FloatPackagerTester(PackagerTester):
     A tester for the `FloatPackager`.
     """
 
-    PACKAGER_IN_TEST = FloatPackager
+    PACKAGER_IN_TEST = FloatPackager()
 
     TESTS = [
         PackTest(
@@ -192,7 +191,7 @@ class BoolPackagerTester(PackagerTester):
     A tester for the `BoolPackager`.
     """
 
-    PACKAGER_IN_TEST = BoolPackager
+    PACKAGER_IN_TEST = BoolPackager()
 
     TESTS = [
         PackTest(
@@ -252,7 +251,7 @@ def unpack_str(obj: str):
 
 def unpack_str_path_file(obj: str):
     assert isinstance(obj, str)
-    with open(obj, "r") as file:
+    with open(obj) as file:
         file_content = file.read()
     assert file_content == _STR_FILE_SAMPLE
 
@@ -260,12 +259,12 @@ def unpack_str_path_file(obj: str):
 def unpack_str_path_directory(obj: str):
     assert isinstance(obj, str)
     for i in range(5):
-        with open(os.path.join(obj, f"file_{i}.txt"), "r") as file:
+        with open(os.path.join(obj, f"file_{i}.txt")) as file:
             file_content = file.read()
         assert file_content == _STR_DIRECTORY_FILES_SAMPLE.format(i)
 
 
-def prepare_str_path_file() -> Tuple[str, str]:
+def prepare_str_path_file() -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, "my_file.txt")
     with open(file_path, "w") as file:
@@ -278,7 +277,7 @@ class StrPackagerTester(PackagerTester):
     A tester for the `StrPackager`.
     """
 
-    PACKAGER_IN_TEST = StrPackager
+    PACKAGER_IN_TEST = StrPackager()
 
     TESTS = [
         PackTest(
@@ -345,7 +344,7 @@ def validate_dict_result(result: dict) -> bool:
     return result == _DICT_SAMPLE
 
 
-def prepare_dict_file(file_format: str) -> Tuple[str, str]:
+def prepare_dict_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -358,7 +357,7 @@ class DictPackagerTester(PackagerTester):
     A tester for the `DictPackager`.
     """
 
-    PACKAGER_IN_TEST = DictPackager
+    PACKAGER_IN_TEST = DictPackager()
 
     TESTS = [
         PackTest(
@@ -421,7 +420,7 @@ def validate_list_result(result: list) -> bool:
     return result == _LIST_SAMPLE
 
 
-def prepare_list_file(file_format: str) -> Tuple[str, str]:
+def prepare_list_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -434,7 +433,7 @@ class ListPackagerTester(PackagerTester):
     A tester for the `ListPackager`.
     """
 
-    PACKAGER_IN_TEST = ListPackager
+    PACKAGER_IN_TEST = ListPackager()
 
     TESTS = [
         PackTest(
@@ -498,7 +497,7 @@ def validate_tuple_result(result: list) -> bool:
     return tuple(result) == _TUPLE_SAMPLE
 
 
-def prepare_tuple_file(file_format: str) -> Tuple[str, str]:
+def prepare_tuple_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -511,7 +510,7 @@ class TuplePackagerTester(PackagerTester):
     A tester for the `TuplePackager`.
     """
 
-    PACKAGER_IN_TEST = TuplePackager
+    PACKAGER_IN_TEST = TuplePackager()
 
     TESTS = [
         PackTest(
@@ -575,7 +574,7 @@ def validate_set_result(result: list) -> bool:
     return set(result) == _SET_SAMPLE
 
 
-def prepare_set_file(file_format: str) -> Tuple[str, str]:
+def prepare_set_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -588,7 +587,7 @@ class SetPackagerTester(PackagerTester):
     A tester for the `SetPackager`.
     """
 
-    PACKAGER_IN_TEST = SetPackager
+    PACKAGER_IN_TEST = SetPackager()
 
     TESTS = [
         PackTest(
@@ -652,7 +651,7 @@ def validate_frozenset_result(result: list) -> bool:
     return frozenset(result) == _FROZENSET_SAMPLE
 
 
-def prepare_frozenset_file(file_format: str) -> Tuple[str, str]:
+def prepare_frozenset_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -665,7 +664,7 @@ class FrozensetPackagerTester(PackagerTester):
     A tester for the `FrozensetPackager`.
     """
 
-    PACKAGER_IN_TEST = FrozensetPackager
+    PACKAGER_IN_TEST = FrozensetPackager()
 
     TESTS = [
         PackTest(
@@ -729,7 +728,7 @@ def validate_bytearray_result(result: str) -> bool:
     return bytearray(ast.literal_eval(result)) == _BYTEARRAY_SAMPLE
 
 
-def prepare_bytearray_file(file_format: str) -> Tuple[str, str]:
+def prepare_bytearray_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -742,7 +741,7 @@ class BytearrayPackagerTester(PackagerTester):
     A tester for the `BytearrayPackager`.
     """
 
-    PACKAGER_IN_TEST = BytearrayPackager
+    PACKAGER_IN_TEST = BytearrayPackager()
 
     TESTS = [
         PackTest(
@@ -806,7 +805,7 @@ def validate_bytes_result(result: str) -> bool:
     return ast.literal_eval(result) == _BYTES_SAMPLE
 
 
-def prepare_bytes_file(file_format: str) -> Tuple[str, str]:
+def prepare_bytes_file(file_format: str) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
@@ -819,7 +818,7 @@ class BytesPackagerTester(PackagerTester):
     A tester for the `BytesPackager`.
     """
 
-    PACKAGER_IN_TEST = BytesPackager
+    PACKAGER_IN_TEST = BytesPackager()
 
     TESTS = [
         PackTest(
@@ -905,7 +904,7 @@ def unpack_path(obj: pathlib.Path):
 
 def unpack_path_file(obj: pathlib.Path):
     assert isinstance(obj, pathlib.Path)
-    with open(obj, "r") as file:
+    with open(obj) as file:
         file_content = file.read()
     assert file_content == _STR_FILE_SAMPLE
 
@@ -913,7 +912,7 @@ def unpack_path_file(obj: pathlib.Path):
 def unpack_path_directory(obj: pathlib.Path):
     assert isinstance(obj, pathlib.Path)
     for i in range(5):
-        with open(obj / f"file_{i}.txt", "r") as file:
+        with open(obj / f"file_{i}.txt") as file:
             file_content = file.read()
         assert file_content == _STR_DIRECTORY_FILES_SAMPLE.format(i)
 
@@ -923,7 +922,7 @@ class PathPackagerTester(PackagerTester):
     A tester for the `PathPackager`.
     """
 
-    PACKAGER_IN_TEST = PathPackager
+    PACKAGER_IN_TEST = PathPackager()
 
     TESTS = [
         PackTest(

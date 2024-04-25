@@ -18,7 +18,7 @@ import json
 import traceback
 import typing
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import fastapi.concurrency
 import humanfriendly
@@ -80,7 +80,7 @@ class Scheduler:
             ):
                 self._reload_schedules(db_session)
         except Exception as exc:
-            logger.warning("Failed reloading schedules", exc=exc)
+            logger.warning("Failed reloading schedules", exc=err_to_str(exc))
 
     async def stop(self):
         logger.info("Stopping scheduler")
@@ -111,9 +111,9 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds,
-        scheduled_object: Union[Dict, Callable],
+        scheduled_object: Union[dict, Callable],
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger],
-        labels: Dict = None,
+        labels: dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
@@ -186,9 +186,9 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
-        scheduled_object: Union[Dict, Callable] = None,
+        scheduled_object: Union[dict, Callable] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Dict = None,
+        labels: dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
@@ -311,9 +311,9 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds = None,
-        scheduled_object: Union[Dict, Callable] = None,
+        scheduled_object: Union[dict, Callable] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Dict = None,
+        labels: dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
@@ -439,7 +439,7 @@ class Scheduler:
         session: Session,
         project: str,
         identifier: mlrun.common.schemas.ScheduleIdentifier,
-        notifications: List[mlrun.model.Notification],
+        notifications: list[mlrun.model.Notification],
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
         """
@@ -614,8 +614,7 @@ class Scheduler:
 
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
-    ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
-
+    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
         schedule_access_key_secret_key = (
             server.api.crud.Secrets().generate_client_project_secret_key(
                 server.api.crud.SecretsClientType.schedules,
@@ -799,9 +798,7 @@ class Scheduler:
                 access_key = None
                 username = None
                 need_to_update_credentials = False
-                if (
-                    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
-                ):
+                if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
                     )
@@ -886,7 +883,6 @@ class Scheduler:
             if job:
                 schedule.next_run_time = job.next_run_time
             else:
-
                 # if the job does not exist, there is no next run time (the job has finished)
                 schedule.next_run_time = None
 
@@ -942,7 +938,7 @@ class Scheduler:
         schedule_name: str,
         schedule_concurrency_limit: int,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
+    ) -> tuple[Callable, Optional[Union[list, tuple]], Optional[dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
@@ -981,7 +977,7 @@ class Scheduler:
 
     @staticmethod
     def _enrich_schedule_notifications(
-        project: str, schedule_name: str, scheduled_object: Union[Dict, Callable]
+        project: str, schedule_name: str, scheduled_object: Union[dict, Callable]
     ):
         if not isinstance(scheduled_object, dict):
             return
@@ -1037,7 +1033,6 @@ class Scheduler:
         schedule_concurrency_limit,
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
-
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
         scheduled_object.pop("schedule", None)
@@ -1112,7 +1107,6 @@ class Scheduler:
                 not auth_info.access_key
                 and server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             ):
-
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",
                     project_name=project_name,

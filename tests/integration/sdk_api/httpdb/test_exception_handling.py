@@ -34,12 +34,12 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/"
-            rf"{mlrun.get_run_db().get_api_path_prefix()}\/artifact\/some-project\/some-uid\/some-key: details: "
-            "{'reason': 'bad JSON body'}",
+            rf"{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project\/artifacts\/some-uid\/some-key: "
+            "details: {'reason': 'bad JSON body'}",
         ):
             mlrun.get_run_db().api_call(
                 "POST",
-                "artifact/some-project/some-uid/some-key",
+                "projects/some-project/artifacts/some-uid/some-key",
                 body="not a valid json",
             )
 
@@ -55,7 +55,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
             r"\/projects(.*): Failed creating project some_p"
             r"roject details: MLRunInvalidArgumentError\(\"Field \'project\.metadata\.name\' is malformed"
-            rf"\. {invalid_project_name} does not match required pattern: (.*)\"\)",
+            rf"\. \'{invalid_project_name}\' does not match required pattern: (.*)\"\)",
         ):
             mlrun.get_run_db().create_project(project)
 
@@ -66,7 +66,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunHTTPError,
             match=r"422 Client Error: Unprocessable Entity for url: "
-            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name(.*): "
+            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix(version='v2')}\/projects\/some-project-name(.*): "
             r"Failed deleting project some-project-name details: \[{'loc':"
             r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"value is not a valid enumeration member; "
             r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"

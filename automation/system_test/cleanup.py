@@ -16,7 +16,6 @@
 import asyncio
 import subprocess
 import time
-import typing
 
 import aiohttp
 import click
@@ -78,9 +77,7 @@ def docker_images(registry_url: str, registry_container_name: str, images: str):
     _clean_images_from_local_docker_cache(tags)
 
 
-async def _collect_image_tags(
-    registry: str, images: typing.List[str]
-) -> typing.Dict[str, typing.List[str]]:
+async def _collect_image_tags(registry: str, images: list[str]) -> dict[str, list[str]]:
     """Collect all image tags from Docker Hub."""
     tags = {}
     async with aiohttp.ClientSession() as session:
@@ -130,9 +127,7 @@ def _remove_dangling_images_from_datanode_docker():
     dangling_docker_images.stdout.close()
 
 
-async def _delete_image_tags(
-    registry: str, tags: typing.Dict[str, typing.List[str]]
-) -> None:
+async def _delete_image_tags(registry: str, tags: dict[str, list[str]]) -> None:
     for image, image_tags in tags.items():
         click.echo(f"Deleting {image} tags")
         for tag in image_tags:
@@ -189,7 +184,7 @@ def _restart_docker_registry(registry_container_name: str) -> None:
 
 
 def _clean_images_from_local_docker_cache(
-    tags: typing.Dict[str, typing.List[str]]
+    tags: dict[str, list[str]],
 ) -> None:
     """Clean images from local Docker cache."""
     command = ["docker", "rmi", "-f"]

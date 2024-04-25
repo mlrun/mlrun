@@ -25,17 +25,15 @@ import pyarrow
 import pytz
 import requests
 import urllib3
+from deprecated import deprecated
 
+import mlrun.config
 import mlrun.errors
 from mlrun.errors import err_to_str
 from mlrun.utils import StorePrefix, is_ipython, logger
 
 from .store_resources import is_store_uri, parse_store_uri
 from .utils import filter_df_start_end_time, select_columns_from_df
-
-verify_ssl = False
-if not verify_ssl:
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class FileStats:
@@ -72,15 +70,23 @@ class DataStore:
         return True
 
     @staticmethod
+    def _sanitize_storage_options(options):
+        if not options:
+            return {}
+        options = {k: v for k, v in options.items() if v is not None and v != ""}
+        return options
+
+    @staticmethod
     def _sanitize_url(url):
         """
         Extract only the schema, netloc, and path from an input URL if they exist,
         excluding parameters, query, or fragments.
         """
+        if not url:
+            raise mlrun.errors.MLRunInvalidArgumentError("Cannot parse an empty URL")
         parsed_url = urllib.parse.urlparse(url)
-        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
         netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else "//"
-        return f"{scheme}{netloc}{parsed_url.path}"
+        return f"{parsed_url.scheme}:{netloc}{parsed_url.path}"
 
     @staticmethod
     def uri_to_kfp(endpoint, subpath):
@@ -90,7 +96,18 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
-    def get_filesystem(self, silent=True) -> Optional[fsspec.AbstractFileSystem]:
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'get_filesystem()' will be removed in 1.8.0, use "
+        "'filesystem' property instead",
+        category=FutureWarning,
+    )
+    def get_filesystem(self):
+        return self.filesystem
+
+    @property
+    def filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
         """return fsspec file system object, if supported"""
         return None
 
@@ -106,10 +123,10 @@ class DataStore:
 
     def get_storage_options(self):
         """get fsspec storage options"""
-        return None
+        return self._sanitize_storage_options(None)
 
     def open(self, filepath, mode):
-        file_system = self.get_filesystem(False)
+        file_system = self.filesystem
         return file_system.open(filepath, mode)
 
     def _join(self, key):
@@ -126,6 +143,10 @@ class DataStore:
     @property
     def url(self):
         return f"{self.kind}://{self.endpoint}"
+
+    @property
+    def spark_url(self):
+        return self.url
 
     def get(self, key, size=None, offset=0):
         pass
@@ -153,6 +174,9 @@ class DataStore:
 
     def upload(self, key, src_path):
         pass
+
+    def get_spark_options(self):
+        return {}
 
     @staticmethod
     def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
@@ -227,7 +251,7 @@ class DataStore:
         df_module = df_module or pd
         file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
-        file_system = self.get_filesystem()
+        file_system = self.filesystem
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
@@ -297,32 +321,17 @@ class DataStore:
             raise Exception(f"File type unhandled {url}")
 
         if file_system:
-            if (
-                self.supports_isdir()
-                and file_system.isdir(file_url)
-                or self._is_dd(df_module)
-            ):
-                storage_options = self.get_storage_options()
-                if url.startswith("ds://"):
-                    parsed_url = urllib.parse.urlparse(url)
-                    url = parsed_url.path
-                    if self.using_bucket:
-                        url = url[1:]
-                    # Pass the underlying file system
-                    kwargs["filesystem"] = file_system
-                elif storage_options:
-                    kwargs["storage_options"] = storage_options
-                df = reader(url, **kwargs)
-            else:
-
-                file = url
-                # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
-                if file_system.protocol != "file":
-                    # If not dir, use file_system.open() to avoid regression when pandas < 1.2 and does not
-                    # support the storage_options parameter.
-                    file = file_system.open(url)
-
-                df = reader(file, **kwargs)
+            storage_options = self.get_storage_options()
+            if url.startswith("ds://"):
+                parsed_url = urllib.parse.urlparse(url)
+                url = parsed_url.path
+                if self.using_bucket:
+                    url = url[1:]
+                # Pass the underlying file system
+                kwargs["filesystem"] = file_system
+            elif storage_options:
+                kwargs["storage_options"] = storage_options
+            df = reader(url, **kwargs)
         else:
             temp_file = tempfile.NamedTemporaryFile(delete=False)
             self.download(self._join(subpath), temp_file.name)
@@ -353,7 +362,7 @@ class DataStore:
         }
 
     def rm(self, path, recursive=False, maxdepth=None):
-        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     @staticmethod
     def _is_dd(df_module):
@@ -380,14 +389,15 @@ class DataItem:
 
 
         # reading run results using DataItem (run.artifact())
-        train_run = train_iris_func.run(inputs={'dataset': dataset},
-                                        params={'label_column': 'label'})
+        train_run = train_iris_func.run(
+            inputs={"dataset": dataset}, params={"label_column": "label"}
+        )
 
-        train_run.artifact('confusion-matrix').show()
-        test_set = train_run.artifact('test_set').as_df()
+        train_run.artifact("confusion-matrix").show()
+        test_set = train_run.artifact("test_set").as_df()
 
         # create and use DataItem from uri
-        data = mlrun.get_dataitem('http://xyz/data.json').get()
+        data = mlrun.get_dataitem("http://xyz/data.json").get()
     """
 
     def __init__(
@@ -621,44 +631,6 @@ def basic_auth_header(user, password):
     return {"Authorization": authstr}
 
 
-def http_get(url, headers=None, auth=None):
-    try:
-        response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
-
-    mlrun.errors.raise_for_status(response)
-
-    return response.content
-
-
-def http_head(url, headers=None, auth=None):
-    try:
-        response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
-
-    mlrun.errors.raise_for_status(response)
-
-    return response.headers
-
-
-def http_put(url, data, headers=None, auth=None):
-    try:
-        response = requests.put(
-            url, data=data, headers=headers, auth=auth, verify=verify_ssl
-        )
-    except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
-
-    mlrun.errors.raise_for_status(response)
-
-
-def http_upload(url, file_path, headers=None, auth=None):
-    with open(file_path, "rb") as data:
-        http_put(url, data, headers, auth)
-
-
 class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
@@ -669,7 +641,8 @@ class HttpStore(DataStore):
         self._enrich_https_token()
         self._validate_https_token()
 
-    def get_filesystem(self, silent=True):
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
             self._filesystem = fsspec.filesystem("http")
@@ -685,7 +658,7 @@ class HttpStore(DataStore):
         raise ValueError("unimplemented")
 
     def get(self, key, size=None, offset=0):
-        data = http_get(self.url + self._join(key), self._headers, self.auth)
+        data = self._http_get(self.url + self._join(key), self._headers, self.auth)
         if offset:
             data = data[offset:]
         if size:
@@ -704,6 +677,26 @@ class HttpStore(DataStore):
                 f"A AUTH TOKEN should not be provided while using {self._schema} "
                 f"schema as it is not secure and is not recommended."
             )
+
+    def _http_get(
+        self,
+        url,
+        headers=None,
+        auth=None,
+    ):
+        # import here to prevent import cycle
+        from mlrun.config import config as mlconf
+
+        verify_ssl = mlconf.httpdb.http.verify
+        try:
+            if not verify_ssl:
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
+        except OSError as exc:
+            raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
+
+        mlrun.errors.raise_for_status(response)
+        return response.content
 
 
 # This wrapper class is designed to extract the 'ds' schema and profile name from URL-formatted paths.

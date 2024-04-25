@@ -112,6 +112,7 @@ type Config struct {
 	Logger                  logger.Logger
 	StateFileUpdateInterval time.Duration
 	BaseDir                 string
+	AdvancedLogLevel        int
 }
 
 type StateStore interface {
@@ -123,7 +124,7 @@ type StateStore interface {
 	AddLogItem(ctx context.Context, runUID, selector, project string) error
 
 	// RemoveLogItem removes a log item from the state store
-	RemoveLogItem(runUID, project string) error
+	RemoveLogItem(ctx context.Context, runUID, project string) error
 
 	// RemoveProject removes all log items for a project from the state store
 	RemoveProject(project string) error

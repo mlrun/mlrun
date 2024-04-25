@@ -61,6 +61,25 @@ def test_compiled_function_config_nuclio_python():
     ), "wrong handler"
 
 
+def test_compiled_function_config_sidecar_image_enrichment():
+    mlrun.mlconf.httpdb.builder.docker_registry = "docker.io"
+    name = f"{examples_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    fn.with_sidecar("my-sidecar", ".mlrun/mlrun")
+    (
+        name,
+        project,
+        config,
+    ) = server.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    assert mlrun.utils.get_in(config, "spec.sidecars"), "No sidecars"
+    assert (
+        mlrun.utils.get_in(config, "spec.sidecars")[0]["image"]
+        == "docker.io/mlrun/mlrun:unstable"
+    ), "Image not enriched"
+
+
 @pytest.mark.parametrize(
     "handler, expected",
     [
@@ -84,9 +103,9 @@ def test_resolve_work_dir_and_handler(handler, expected):
     [
         ("1.3.0", "3.9.16", "python:3.9"),
         ("1.3.0", "3.7.16", "python:3.7"),
-        (None, None, "python:3.7"),
-        (None, "3.9.16", "python:3.7"),
-        ("1.3.0", None, "python:3.7"),
+        (None, None, mlrun.mlconf.default_nuclio_runtime),
+        (None, "3.9.16", mlrun.mlconf.default_nuclio_runtime),
+        ("1.3.0", None, mlrun.mlconf.default_nuclio_runtime),
         ("0.0.0-unstable", "3.9.16", "python:3.9"),
         ("0.0.0-unstable", "3.7.16", "python:3.7"),
         ("1.2.0", "3.9.16", "python:3.7"),

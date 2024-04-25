@@ -38,7 +38,7 @@ env:
   sas_token:
   client_id:
   client_secret:
-  client_id:
+  tenant_id:
   credential: 
 
   # Provide a mlrun function with kind="dask" (i.e. db://<PROJECT>/<FUNCTION>)

@@ -27,7 +27,7 @@ handler = "hello_word"
 
 def test_launch_remote_job(rundb_mock):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
-    mlrun.config.config.artifact_path = "v3io:///users/admin/mlrun"
+    mlrun.mlconf.artifact_path = "v3io:///users/admin/mlrun"
     runtime = mlrun.code_to_function(
         name="test",
         kind="job",
@@ -48,7 +48,7 @@ def test_launch_remote_job(rundb_mock):
 
 def test_launch_remote_job_no_watch(rundb_mock):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
-    mlrun.config.config.artifact_path = "v3io:///users/admin/mlrun"
+    mlrun.mlconf.artifact_path = "v3io:///users/admin/mlrun"
     runtime = mlrun.code_to_function(
         name="test",
         kind="job",
@@ -68,7 +68,7 @@ def test_validate_inputs():
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
         launcher._validate_runtime(runtime, run)
-    assert "Inputs should be of type Dict[str,str]" in str(exc.value)
+    assert "'Inputs' should be of type Dict[str, str]" in str(exc.value)
 
 
 def test_validate_runtime_success():
@@ -110,7 +110,7 @@ def test_prepare_image_for_deploy(
 
 def test_run_error_status(rundb_mock):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
-    mlrun.config.config.artifact_path = "v3io:///users/admin/mlrun"
+    mlrun.mlconf.artifact_path = "v3io:///users/admin/mlrun"
     runtime = mlrun.code_to_function(
         name="test",
         kind="job",

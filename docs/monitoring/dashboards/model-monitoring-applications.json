@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 11,
+  "id": 14,
   "links": [
     {
       "asDropdown": true,
@@ -46,7 +46,7 @@
       "type": "link",
       "url": "d/AohIXhAMk/model-monitoring-details"
     },
-      {
+    {
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
@@ -78,7 +78,67 @@
           "mappings": [],
           "unit": "none"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Detected"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stable"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Irrelevant"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Potential Detection"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 9,
@@ -120,7 +180,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter=application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -265,7 +325,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -362,19 +422,19 @@
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "index": 0,
-                        "text": "Data Drift"
-                      },
-                      "1": {
+                      "ResultKindApp.concept_drift": {
                         "index": 1,
                         "text": "Concept Drift"
                       },
-                      "2": {
+                      "ResultKindApp.data_drift": {
+                        "index": 0,
+                        "text": "Data Drift"
+                      },
+                      "ResultKindApp.model_performance": {
                         "index": 2,
                         "text": "Model Performance"
                       },
-                      "3": {
+                      "ResultKindApp.system_performance": {
                         "index": 3,
                         "text": "System Performance"
                       }
@@ -425,6 +485,20 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -456,7 +530,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -467,11 +541,14 @@
           "options": {
             "excludeByName": {
               "application_name": true,
+              "current_stats": true,
+              "end_infer_time": true,
               "endpoint_id": true,
               "result_kind": false,
               "result_name": false,
               "result_value": false,
-              "time": true
+              "start_infer_time": true,
+              "time": false
             },
             "indexByName": {
               "application_name": 0,
@@ -487,7 +564,7 @@
               "result_name": "Name",
               "result_status": "Status",
               "result_value": "Value",
-              "time": ""
+              "time": "End Infer Time"
             }
           }
         }
@@ -531,19 +608,19 @@
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "index": 0,
-                        "text": "Data Drift"
-                      },
-                      "1": {
+                      "ResultKindApp.concept_drift": {
                         "index": 1,
                         "text": "Concept Drift"
                       },
-                      "2": {
+                      "ResultKindApp.data_drift": {
+                        "index": 0,
+                        "text": "Data Drift"
+                      },
+                      "ResultKindApp.model_performance": {
                         "index": 2,
                         "text": "Model Performance"
                       },
-                      "3": {
+                      "ResultKindApp.system_performance": {
                         "index": 3,
                         "text": "System Performance"
                       }
@@ -614,6 +691,7 @@
           ],
           "show": false
         },
+        "frameIndex": 0,
         "showHeader": true
       },
       "pluginVersion": "9.2.15",
@@ -622,7 +700,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -633,9 +711,12 @@
           "options": {
             "excludeByName": {
               "application_name": true,
+              "current_stats": true,
+              "end_infer_time": true,
               "endpoint_id": true,
               "result_extra_data": true,
-              "schedule_time": false
+              "schedule_time": false,
+              "start_infer_time": true
             },
             "indexByName": {
               "application_name": 5,
@@ -742,7 +823,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter=  endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -900,7 +981,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter=  endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],

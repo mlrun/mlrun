@@ -15,9 +15,8 @@
 from .mysql import MySQLUtil
 
 
-class SQLCollationUtil(object):
-    class Collations(object):
-
+class SQLCollationUtil:
+    class Collations:
         # with sqlite we use the default collation
         sqlite = None
         mysql = "utf8_bin"

@@ -37,7 +37,7 @@ jobs:
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
-        python-version: [3.9]
+        python-version: ["3.9"]
     steps:
     - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
@@ -65,7 +65,7 @@ jobs:
         echo "
         Please add the following lines to the top of your code:
 
-        # Copyright 2023 Iguazio
+        # Copyright 2024 Iguazio
         #
         # Licensed under the Apache License, Version 2.0 (the "License");
         # you may not use this file except in compliance with the License.

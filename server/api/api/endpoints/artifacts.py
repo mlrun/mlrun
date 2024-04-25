@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from http import HTTPStatus
-from typing import List
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -25,20 +24,16 @@ import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
 from mlrun.common.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
-from mlrun.utils import is_legacy_artifact, logger
+from mlrun.utils import logger
 from server.api.api import deps
-from server.api.api.utils import log_and_raise
+from server.api.api.utils import (
+    artifact_project_and_resource_name_extractor,
+    log_and_raise,
+)
 
 router = APIRouter()
 
 
-# TODO: remove /artifact/{project}/{uid}/{key:path} in 1.6.0
-@router.post(
-    "/artifact/{project}/{uid}/{key:path}",
-    deprecated=True,
-    description="/artifact/{project}/{uid}/{key:path} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts/{uid}/{key:path} instead",
-)
 @router.post("/projects/{project}/artifacts/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -70,18 +65,22 @@ async def store_artifact(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
+    # the v1 artifacts `uid` parameter is essentially the `tree` parameter in v2
+    tree = uid
+
     logger.debug(
-        "Storing artifact", project=project, uid=uid, key=key, tag=tag, iter=iter
+        "Storing artifact", project=project, tree=tree, key=key, tag=tag, iter=iter
     )
     await run_in_threadpool(
         server.api.crud.Artifacts().store_artifact,
         db_session,
         key,
         data,
-        uid,
-        tag,
-        iter,
-        project,
+        tag=tag,
+        iter=iter,
+        project=project,
+        producer_id=tree,
+        auth_info=auth_info,
     )
     return {}
 
@@ -123,13 +122,6 @@ async def list_artifact_tags(
     }
 
 
-# TODO: remove /projects/{project}/artifact/{key:path} in 1.6.0
-@router.get(
-    "/projects/{project}/artifact/{key:path}",
-    deprecated=True,
-    description="/projects/{project}/artifact/{key:path} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts/{key:path} instead",
-)
 @router.get("/projects/{project}/artifacts/{key:path}")
 async def get_artifact(
     project: str,
@@ -140,15 +132,35 @@ async def get_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = await run_in_threadpool(
-        server.api.crud.Artifacts().get_artifact,
-        db_session,
-        key,
-        tag,
-        iter,
-        project,
-        format_,
-    )
+    try:
+        data = await run_in_threadpool(
+            server.api.crud.Artifacts().get_artifact,
+            db_session,
+            key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            format_=format_,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        logger.debug(
+            "Artifact not found, trying to get it with producer_id=tag to support older versions",
+            project=project,
+            key=key,
+            tag=tag,
+        )
+
+        # in earlier versions, producer_id and tag got confused with each other,
+        # so we try to get the artifact with the given tag as the producer_id before returning an empty response
+        data = await run_in_threadpool(
+            server.api.crud.Artifacts().get_artifact,
+            db_session,
+            key,
+            iter=iter,
+            project=project,
+            format_=format_,
+            producer_id=tag,
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -161,13 +173,6 @@ async def get_artifact(
     }
 
 
-# TODO: remove /artifact/{project}/{uid} in 1.6.0
-@router.delete(
-    "/artifact/{project}/{uid}",
-    deprecated=True,
-    description="/artifact/{project}/{uid} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts/{uid} instead",
-)
 @router.delete("/projects/{project}/artifacts/{uid}")
 async def delete_artifact(
     project: str,
@@ -190,13 +195,6 @@ async def delete_artifact(
     return {}
 
 
-# TODO: remove /artifacts in 1.6.0
-@router.get(
-    "/artifacts",
-    deprecated=True,
-    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts instead",
-)
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
     project: str = None,
@@ -204,7 +202,7 @@ async def list_artifacts(
     tag: str = None,
     kind: str = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
@@ -233,10 +231,28 @@ async def list_artifacts(
         format_=format_,
     )
 
+    if not artifacts and tag:
+        # in earlier versions, producer_id and tag got confused with each other,
+        # so we search for results with the given tag as the producer_id
+        artifacts = await run_in_threadpool(
+            server.api.crud.Artifacts().list_artifacts,
+            db_session,
+            project,
+            name,
+            "",
+            labels,
+            kind=kind,
+            category=category,
+            iter=iter,
+            best_iteration=best_iteration,
+            format_=format_,
+            producer_id=tag,
+        )
+
     artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
-        _artifact_project_and_resource_name_extractor,
+        artifact_project_and_resource_name_extractor,
         auth_info,
     )
     return {
@@ -244,37 +260,12 @@ async def list_artifacts(
     }
 
 
-# TODO: remove /artifacts in 1.6.0
-@router.delete(
-    "/artifacts",
-    deprecated=True,
-    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts instead",
-)
-async def delete_artifacts_legacy(
-    project: str = mlrun.mlconf.default_project,
-    name: str = "",
-    tag: str = "",
-    labels: List[str] = Query([], alias="label"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    return await _delete_artifacts(
-        project=project,
-        name=name,
-        tag=tag,
-        labels=labels,
-        auth_info=auth_info,
-        db_session=db_session,
-    )
-
-
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
     project: str = mlrun.mlconf.default_project,
     name: str = "",
     tag: str = "",
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -292,7 +283,7 @@ async def _delete_artifacts(
     project: str = None,
     name: str = None,
     tag: str = None,
-    labels: List[str] = None,
+    labels: list[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = None,
     db_session: Session = None,
 ):
@@ -307,7 +298,7 @@ async def _delete_artifacts(
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
-        _artifact_project_and_resource_name_extractor,
+        artifact_project_and_resource_name_extractor,
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
@@ -320,14 +311,3 @@ async def _delete_artifacts(
         labels,
     )
     return {}
-
-
-# Extract project and resource name from legacy artifact structure as well as from new format
-def _artifact_project_and_resource_name_extractor(artifact):
-    if is_legacy_artifact(artifact):
-        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]
-    else:
-        return (
-            artifact.get("metadata").get("project", mlrun.mlconf.default_project),
-            artifact.get("spec")["db_key"],
-        )

@@ -14,7 +14,7 @@
 #
 import importlib
 import sys
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 
 import torch
 import torch.multiprocessing as mp
@@ -109,13 +109,13 @@ class PyTorchMLRunInterface:
         loss_function: Module,
         optimizer: Optimizer,
         validation_set: DataLoader = None,
-        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
         training_iterations: int = None,
         validation_iterations: int = None,
-        callbacks: List[Callback] = None,
+        callbacks: list[Callback] = None,
         use_cuda: bool = True,
         use_horovod: bool = None,
     ):
@@ -221,12 +221,12 @@ class PyTorchMLRunInterface:
         self,
         dataset: DataLoader,
         loss_function: Module = None,
-        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
         iterations: int = None,
-        callbacks: List[Callback] = None,
+        callbacks: list[Callback] = None,
         use_cuda: bool = True,
         use_horovod: bool = None,
-    ) -> List[PyTorchTypes.MetricValueType]:
+    ) -> list[PyTorchTypes.MetricValueType]:
         """
         Initiate an evaluation process on this interface configuration.
 
@@ -303,9 +303,9 @@ class PyTorchMLRunInterface:
     def add_auto_logging_callbacks(
         self,
         add_mlrun_logger: bool = True,
-        mlrun_callback_kwargs: Dict[str, Any] = None,
+        mlrun_callback_kwargs: dict[str, Any] = None,
         add_tensorboard_logger: bool = True,
-        tensorboard_callback_kwargs: Dict[str, Any] = None,
+        tensorboard_callback_kwargs: dict[str, Any] = None,
     ):
         """
         Get automatic logging callbacks to both MLRun's context and Tensorboard. For further features of logging to both
@@ -347,7 +347,7 @@ class PyTorchMLRunInterface:
 
     def predict(
         self,
-        inputs: Union[Tensor, List[Tensor]],
+        inputs: Union[Tensor, list[Tensor]],
         use_cuda: bool = True,
         batch_size: int = -1,
     ) -> Tensor:
@@ -402,13 +402,13 @@ class PyTorchMLRunInterface:
         loss_function: Module = None,
         optimizer: Optimizer = None,
         validation_set: DataLoader = None,
-        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
         training_iterations: int = None,
         validation_iterations: int = None,
-        callbacks: List[Callback] = None,
+        callbacks: list[Callback] = None,
         use_cuda: bool = True,
         use_horovod: bool = None,
     ):
@@ -734,7 +734,7 @@ class PyTorchMLRunInterface:
 
     def _validate(
         self, is_evaluation: bool = False
-    ) -> Tuple[PyTorchTypes.MetricValueType, List[PyTorchTypes.MetricValueType]]:
+    ) -> tuple[PyTorchTypes.MetricValueType, list[PyTorchTypes.MetricValueType]]:
         """
         Initiate a single epoch validation.
 
@@ -817,7 +817,7 @@ class PyTorchMLRunInterface:
         )
         return loss_value, metric_values
 
-    def _print_results(self, loss_value: Tensor, metric_values: List[float]):
+    def _print_results(self, loss_value: Tensor, metric_values: list[float]):
         """
         Print the given result between each epoch.
 
@@ -832,7 +832,7 @@ class PyTorchMLRunInterface:
             + tabulate(table, headers=["Metrics", "Values"], tablefmt="pretty")
         )
 
-    def _metrics(self, y_pred: Tensor, y_true: Tensor) -> List[float]:
+    def _metrics(self, y_pred: Tensor, y_true: Tensor) -> list[float]:
         """
         Call all the metrics on the given batch's truth and prediction output.
 
@@ -860,7 +860,7 @@ class PyTorchMLRunInterface:
         average_tensor = self._hvd.allreduce(rank_value, name=name)
         return average_tensor.item()
 
-    def _get_learning_rate(self) -> Union[Tuple[str, List[Union[str, int]]], None]:
+    def _get_learning_rate(self) -> Union[tuple[str, list[Union[str, int]]], None]:
         """
         Try and get the learning rate value form the stored optimizer.
 
@@ -949,8 +949,8 @@ class PyTorchMLRunInterface:
 
     @staticmethod
     def _tensor_to_cuda(
-        tensor: Union[Tensor, Dict, List, Tuple]
-    ) -> Union[Tensor, Dict, List, Tuple]:
+        tensor: Union[Tensor, dict, list, tuple],
+    ) -> Union[Tensor, dict, list, tuple]:
         """
         Send to given tensor to cuda if it is a tensor. If the given object is a dictionary, the dictionary values will
         be sent to the function again recursively. If the given object is a list or a tuple, all the values in it will
@@ -997,7 +997,7 @@ class PyTorchMLRunInterface:
         dataset: DataLoader,
         iterations: int,
         description: str,
-        metrics: List[PyTorchTypes.MetricFunctionType],
+        metrics: list[PyTorchTypes.MetricFunctionType],
     ) -> tqdm:
         """
         Create a progress bar for training and validating / evaluating.
@@ -1028,8 +1028,8 @@ class PyTorchMLRunInterface:
     @staticmethod
     def _update_progress_bar(
         progress_bar: tqdm,
-        metrics: List[PyTorchTypes.MetricFunctionType],
-        values: List[PyTorchTypes.MetricValueType],
+        metrics: list[PyTorchTypes.MetricFunctionType],
+        values: list[PyTorchTypes.MetricValueType],
     ):
         """
         Update the progress bar metrics results.

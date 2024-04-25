@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 import unittest.mock
 
 import pytest
@@ -64,17 +63,13 @@ def test_add_data_version_non_empty_db():
     server.api.initial_data.latest_data_version = original_latest_data_version
 
 
-def test_perform_data_migrations_from_zero_version():
+def test_perform_data_migrations_from_first_version():
     db, db_session = _initialize_db_without_migrations()
 
-    # set version to 0
-    db.create_data_version(db_session, "0")
+    # set version to 1
+    db.create_data_version(db_session, "1")
 
     # keep a reference to the original functions, so we can restore them later
-    original_perform_version_1_data_migrations = (
-        server.api.initial_data._perform_version_1_data_migrations
-    )
-    server.api.initial_data._perform_version_1_data_migrations = unittest.mock.Mock()
     original_perform_version_2_data_migrations = (
         server.api.initial_data._perform_version_2_data_migrations
     )
@@ -83,6 +78,14 @@ def test_perform_data_migrations_from_zero_version():
         server.api.initial_data._perform_version_3_data_migrations
     )
     server.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
+    original_perform_version_4_data_migrations = (
+        server.api.initial_data._perform_version_4_data_migrations
+    )
+    server.api.initial_data._perform_version_4_data_migrations = unittest.mock.Mock()
+    original_perform_version_5_data_migrations = (
+        server.api.initial_data._perform_version_5_data_migrations
+    )
+    server.api.initial_data._perform_version_5_data_migrations = unittest.mock.Mock()
 
     # perform migrations
     server.api.initial_data._perform_data_migrations(db_session)
@@ -90,23 +93,27 @@ def test_perform_data_migrations_from_zero_version():
     # calling again should not trigger migrations again, since we're already at the latest version
     server.api.initial_data._perform_data_migrations(db_session)
 
-    server.api.initial_data._perform_version_1_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_2_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_3_data_migrations.assert_called_once()
+    server.api.initial_data._perform_version_4_data_migrations.assert_called_once()
+    server.api.initial_data._perform_version_5_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         server.api.initial_data.latest_data_version
     )
 
     # restore original functions
-    server.api.initial_data._perform_version_1_data_migrations = (
-        original_perform_version_1_data_migrations
-    )
     server.api.initial_data._perform_version_2_data_migrations = (
         original_perform_version_2_data_migrations
     )
     server.api.initial_data._perform_version_3_data_migrations = (
         original_perform_version_3_data_migrations
+    )
+    server.api.initial_data._perform_version_4_data_migrations = (
+        original_perform_version_4_data_migrations
+    )
+    server.api.initial_data._perform_version_5_data_migrations = (
+        original_perform_version_5_data_migrations
     )
 
 
@@ -186,7 +193,7 @@ def test_add_default_hub_source_if_needed():
 
 
 def _initialize_db_without_migrations() -> (
-    typing.Tuple[server.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+    tuple[server.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 
 import numpy as np
 import onnx
@@ -37,7 +37,7 @@ class ONNXModelServer(V2ModelServer):
         model: onnx.ModelProto = None,
         model_path: str = None,
         model_name: str = None,
-        execution_providers: List[Union[str, Tuple[str, Dict[str, Any]]]] = None,
+        execution_providers: list[Union[str, tuple[str, dict[str, Any]]]] = None,
         protocol: str = None,
         **class_args,
     ):
@@ -76,7 +76,7 @@ class ONNXModelServer(V2ModelServer):
         :param protocol:            -
         :param class_args:          -
         """
-        super(ONNXModelServer, self).__init__(
+        super().__init__(
             context=context,
             name=name,
             model_path=model_path,
@@ -98,8 +98,8 @@ class ONNXModelServer(V2ModelServer):
         # Prepare inference parameters:
         self._model_handler: ONNXModelHandler = None
         self._inference_session: onnxruntime.InferenceSession = None
-        self._input_layers: List[str] = None
-        self._output_layers: List[str] = None
+        self._input_layers: list[str] = None
+        self._output_layers: list[str] = None
 
     def load(self):
         """
@@ -134,7 +134,7 @@ class ONNXModelServer(V2ModelServer):
             output_layer.name for output_layer in self._inference_session.get_outputs()
         ]
 
-    def predict(self, request: Dict[str, Any]) -> np.ndarray:
+    def predict(self, request: dict[str, Any]) -> np.ndarray:
         """
         Infer the inputs through the model using ONNXRunTime and return its output. The inferred data will be
         read from the "inputs" key of the request.
@@ -155,7 +155,7 @@ class ONNXModelServer(V2ModelServer):
             },
         )
 
-    def explain(self, request: Dict[str, Any]) -> str:
+    def explain(self, request: dict[str, Any]) -> str:
         """
         Return a string explaining what model is being serve in this serving function and the function name.
 

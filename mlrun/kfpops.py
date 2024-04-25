@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import getpass
 import json
 import os
 import os.path
 from copy import deepcopy
-from typing import Dict, List, Union
+from typing import Union
 
 import inflection
 from kfp import dsl
@@ -42,8 +41,8 @@ from .utils import (
 
 # default KFP artifacts and output (ui metadata, metrics etc.)
 # directories to /tmp to allow running with security context
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
-KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+KFPMETA_DIR = "/tmp"
+KFP_ARTIFACTS_DIR = "/tmp"
 
 project_annotation = "mlrun/project"
 run_annotation = "mlrun/pipeline-step-type"
@@ -72,7 +71,7 @@ def write_kfpmeta(struct):
             {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
         ],
     }
-    with open(KFPMETA_DIR + "/mlpipeline-metrics.json", "w") as f:
+    with open(os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"), "w") as f:
         json.dump(metrics, f)
 
     struct = deepcopy(struct)
@@ -92,12 +91,19 @@ def write_kfpmeta(struct):
         elif key in results:
             val = results[key]
         try:
-            path = "/".join([KFP_ARTIFACTS_DIR, key])
-            logger.info("writing artifact output", path=path, val=val)
+            # NOTE: if key has "../x", it would fail on path traversal
+            path = os.path.join(KFP_ARTIFACTS_DIR, key)
+            if not mlrun.utils.helpers.is_safe_path(KFP_ARTIFACTS_DIR, path):
+                logger.warning(
+                    "Path traversal is not allowed ignoring", path=path, key=key
+                )
+                continue
+            path = os.path.abspath(path)
+            logger.info("Writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))
         except Exception as exc:
-            logger.warning("Failed writing to temp file. Ignoring", exc=repr(exc))
+            logger.warning("Failed writing to temp file. Ignoring", exc=err_to_str(exc))
             pass
 
     text = "# Run Report\n"
@@ -106,11 +112,8 @@ def write_kfpmeta(struct):
 
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
-    metadata = {
-        "outputs": output_artifacts
-        + [{"type": "markdown", "storage": "inline", "source": text}]
-    }
-    with open(KFPMETA_DIR + "/mlpipeline-ui-metadata.json", "w") as f:
+    metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
+    with open(os.path.join(KFPMETA_DIR, "mlpipeline-ui-metadata.json"), "w") as f:
         json.dump(metadata, f)
 
 
@@ -196,7 +199,7 @@ def mlrun_op(
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: List[Union[str, Dict[str, str]]] = None,
+    returns: list[Union[str, dict[str, str]]] = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -313,7 +316,6 @@ def mlrun_op(
     code_env = None
     function_name = ""
     if function:
-
         if not func_url:
             if function.kind in ["", "local"]:
                 image = image or function.spec.image
@@ -380,10 +382,7 @@ def mlrun_op(
     returns = returns or []
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
-        labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
-    if "owner" not in labels:
-        labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
+    mlrun.runtimes.utils.enrich_run_labels(labels)
 
     if name:
         cmd += ["--name", name]
@@ -406,9 +405,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[
-            output.replace(".", "_")
-        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        file_outputs[output.replace(".", "_")] = (
+            f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        )
     if project:
         cmd += ["--project", project]
     if handler:
@@ -455,8 +454,10 @@ def mlrun_op(
         command=cmd + [command],
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
+            "mlpipeline-ui-metadata": os.path.join(
+                KFPMETA_DIR, "mlpipeline-ui-metadata.json"
+            ),
+            "mlpipeline-metrics": os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"),
         },
     )
     cop = add_default_function_resources(cop)
@@ -485,19 +486,15 @@ def deploy_op(
     function,
     func_url=None,
     source="",
-    dashboard="",
     project="",
     models: list = None,
     env: dict = None,
     tag="",
     verbose=False,
 ):
-
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
-    if dashboard:
-        cmd += ["-d", dashboard]
     if tag:
         cmd += ["--tag", tag]
     if verbose:
@@ -855,7 +852,6 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         if getattr(function.spec, "node_selector"):
             container_op.node_selector = function.spec.node_selector

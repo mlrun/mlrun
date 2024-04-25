@@ -14,7 +14,7 @@
 
 import importlib
 import inspect
-from typing import List, Union
+from typing import Union
 
 import mlrun.errors
 from mlrun.config import config as mlconf
@@ -28,7 +28,7 @@ _TRACKERS = ["mlflow"]
 
 # A list for the available trackers during runtime. It will be setup at the beginning of the run by the function
 # `_collect_available_trackers`:
-_AVAILABLE_TRACKERS: List[Tracker] = None
+_AVAILABLE_TRACKERS: list[Tracker] = None
 
 
 class TrackerManager(metaclass=Singleton):
@@ -41,11 +41,10 @@ class TrackerManager(metaclass=Singleton):
         """
         Initialize a new empty tracker manager.
         """
-        self._trackers: List[Tracker] = []
+        self._trackers: list[Tracker] = []
 
         # Check general config for tracking usage, if false we return an empty manager
         if mlconf.external_platform_tracking.enabled:
-
             # Check if the available trackers were collected:
             if _AVAILABLE_TRACKERS is None:
                 self._collect_available_trackers()
@@ -85,6 +84,9 @@ class TrackerManager(metaclass=Singleton):
 
         :return: The context updated with the trackers products.
         """
+        if not self._trackers:
+            return context
+
         # Check if the context received is a dict to initialize it as an `MLClientCtx` object:
         is_context_dict = isinstance(context, dict)
         if is_context_dict:

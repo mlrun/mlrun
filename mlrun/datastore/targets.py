@@ -20,7 +20,7 @@ import time
 import warnings
 from collections import Counter
 from copy import copy
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -29,20 +29,22 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
-from mlrun.utils import now_date
+from mlrun.utils import logger, now_date
+from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
     parse_kafka_url,
     select_columns_from_df,
-    store_path_to_spark,
 )
 
 
@@ -57,6 +59,7 @@ class TargetTypes:
     dataframe = "dataframe"
     custom = "custom"
     sql = "sql"
+    snowflake = "snowflake"
 
     @staticmethod
     def all():
@@ -71,11 +74,22 @@ class TargetTypes:
             TargetTypes.dataframe,
             TargetTypes.custom,
             TargetTypes.sql,
+            TargetTypes.snowflake,
         ]
 
 
 def generate_target_run_id():
     return f"{round(time.time() * 1000)}_{random.randint(0, 999)}"
+
+
+def write_spark_dataframe_with_options(spark_options, df, mode, write_format=None):
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        df.sql_ctx.sparkSession, spark_options
+    )
+    if write_format:
+        df.write.format(write_format).mode(mode).save(**non_hadoop_spark_options)
+    else:
+        df.write.mode(mode).save(**non_hadoop_spark_options)
 
 
 def default_target_names():
@@ -95,7 +109,7 @@ def get_default_targets(offline_only=False):
 def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
     run_id = generate_target_run_id()
     for target in targets:
-        if overwrite or not (target.name in targets_in_status.keys()):
+        if overwrite or target.name not in targets_in_status.keys():
             target.run_id = run_id
         else:
             target.run_id = targets_in_status[target.name].run_id
@@ -191,7 +205,7 @@ def validate_target_list(targets):
 
     if not targets:
         return
-    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
         [
             target.kind
@@ -207,9 +221,8 @@ def validate_target_list(targets):
     ]
     if target_types_requiring_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Only one default name per target type is allowed (please specify name for {0} target)".format(
-                target_types_requiring_name
-            )
+            "Only one default name per target type is allowed (please "
+            f"specify name for {target_types_requiring_name} target)"
         )
 
     target_names_count = Counter(
@@ -224,9 +237,8 @@ def validate_target_list(targets):
 
     if targets_with_same_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Each target must have a unique name (more than one target with those names found {0})".format(
-                targets_with_same_name
-            )
+            "Each target must have a unique name (more than one target with "
+            f"those names found {targets_with_same_name})"
         )
 
     no_path_target_types_count = Counter(
@@ -244,9 +256,8 @@ def validate_target_list(targets):
     ]
     if target_types_requiring_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Only one default path per target type is allowed (please specify path for {0} target)".format(
-                target_types_requiring_path
-            )
+            "Only one default path per target type is allowed (please specify "
+            f"path for {target_types_requiring_path} target)"
         )
 
     target_paths_count = Counter(
@@ -261,9 +272,8 @@ def validate_target_list(targets):
 
     if targets_with_same_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Each target must have a unique path (more than one target with those names found {0})".format(
-                targets_with_same_path
-            )
+            "Each target must have a unique path (more than one target "
+            f"with those names found {targets_with_same_path})"
         )
 
 
@@ -294,6 +304,8 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
+        if target.after_step:
+            target.attributes["infer_columns_from_data"] = True
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
@@ -380,17 +392,17 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: Dict[str, str] = None,
-        schema: Dict[str, Any] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
         credentials_prefix=None,
     ):
         super().__init__(
@@ -442,14 +454,11 @@ class BaseStoreTarget(DataTargetBase):
             if self.credentials_prefix
             else None
         )
-        store, resolved_store_path = mlrun.store_manager.get_or_create_store(
+        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        if self.get_target_path().startswith("ds://"):
-            return store, store.url + resolved_store_path
-        else:
-            return store, self.get_target_path()
+        return store, resolved_store_path, url
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -495,10 +504,13 @@ class BaseStoreTarget(DataTargetBase):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
-            df.write.mode("overwrite").save(**options)
+            write_format = options.pop("format", None)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             storage_options = store.get_storage_options()
             df = df.repartition(partition_size="100MB")
             try:
@@ -519,10 +531,15 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
-            store, target_path = self._get_store_and_path()
+            store, path_in_store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
-            file_system = store.get_filesystem(False)
-            if file_system.protocol == "file":
+            file_system = store.filesystem
+            if (
+                file_system.protocol == "file"
+                # fsspec 2023.10.0 changed protocol from "file" to ("file", "local")
+                or isinstance(file_system.protocol, (tuple, list))
+                and "file" in file_system.protocol
+            ):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
@@ -615,6 +632,7 @@ class BaseStoreTarget(DataTargetBase):
 
         driver._resource = resource
         driver.run_id = spec.run_id
+        driver.after_step = spec.after_step
         return driver
 
     def get_table_object(self):
@@ -685,7 +703,7 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         store.rm(target_path, recursive=True)
 
     def as_df(
@@ -720,7 +738,7 @@ class BaseStoreTarget(DataTargetBase):
 
 
 class ParquetTarget(BaseStoreTarget):
-    """parquet target storage driver, used to materialize feature set/vector data into parquet files
+    """Parquet target storage driver, used to materialize feature set/vector data into parquet files.
 
     :param name:       optional, target name. By default will be called ParquetTarget
     :param path:       optional, Output path. Can be either a file or directory.
@@ -755,16 +773,16 @@ class ParquetTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = None,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = 10000,
         flush_after_seconds: Optional[int] = 900,
-        storage_options: Dict[str, str] = None,
+        storage_options: dict[str, str] = None,
     ):
         self.path = path
         if partitioned is None:
@@ -800,7 +818,8 @@ class ParquetTarget(BaseStoreTarget):
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
         # In order to save the DataFrame in parquet format, all of the column names must be strings:
         df.columns = [str(column) for column in df.columns.tolist()]
-        df.to_parquet(
+        to_parquet(
+            df,
             target_path,
             partition_cols=partition_cols,
             storage_options=storage_options,
@@ -864,16 +883,7 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        if self.attributes:
-            self.attributes[
-                "update_last_written"
-            ] = featureset_status.update_last_written_for_target
-        else:
-            self.attributes = {
-                "update_last_written": featureset_status.update_last_written_for_target
-            }
-
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
 
         storage_options = store.get_storage_options()
         if storage_options and self.storage_options:
@@ -881,7 +891,7 @@ class ParquetTarget(BaseStoreTarget):
         else:
             storage_options = storage_options or self.storage_options
 
-        graph.add_step(
+        step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
@@ -894,8 +904,19 @@ class ParquetTarget(BaseStoreTarget):
             storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
+            update_last_written=featureset_status.update_last_written_for_target,
             **self.attributes,
         )
+
+        original_to_dict = step.to_dict
+
+        def delete_update_last_written(*arg, **kargs):
+            result = original_to_dict(*arg, **kargs)
+            result["class_args"].pop("update_last_written", None)
+            return result
+
+        # update_last_written is not serializable (ML-5108)
+        step.to_dict = delete_update_last_written
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []
@@ -914,15 +935,20 @@ class ParquetTarget(BaseStoreTarget):
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break
-        result = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "parquet",
-        }
+
+        store, path, url = self._get_store_and_path()
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "parquet",
+            }
+        )
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
-            result["partitionBy"] = partition_cols
-        return result
+            spark_options["partitionBy"] = partition_cols
+        return spark_options
 
     def get_dask_options(self):
         return {"format": "parquet"}
@@ -1029,7 +1055,7 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        store, target_path = self._get_store_and_path()
+        store, path_in_store, target_path = self._get_store_and_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
@@ -1044,11 +1070,16 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        return {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "csv",
-            "header": "true",
-        }
+        store, path, url = self._get_store_and_path()
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "csv",
+                "header": "true",
+            }
+        )
+        return spark_options
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1090,6 +1121,97 @@ class CSVTarget(BaseStoreTarget):
         if self.path:
             return self.path.endswith(".csv")
         return True
+
+
+class SnowflakeTarget(BaseStoreTarget):
+    """
+    :param attributes: A dictionary of attributes for Snowflake connection; will be overridden by database parameters
+                       if they exist.
+    :param url: Snowflake hostname, in the format: <account_name>.<region>.snowflakecomputing.com
+    :param user: Snowflake user for login
+    :param db_schema: Database schema
+    :param database: Database name
+    :param warehouse: Snowflake warehouse name
+    :param table_name: Snowflake table name
+    """
+
+    support_spark = True
+    support_append = True
+    is_offline = True
+    kind = TargetTypes.snowflake
+
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: dict[str, str] = None,
+        after_step=None,
+        columns=None,
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[list[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: dict[str, str] = None,
+        schema: dict[str, Any] = None,
+        credentials_prefix=None,
+        url: str = None,
+        user: str = None,
+        db_schema: str = None,
+        database: str = None,
+        warehouse: str = None,
+        table_name: str = None,
+    ):
+        attrs = {
+            "url": url,
+            "user": user,
+            "database": database,
+            "schema": db_schema,
+            "warehouse": warehouse,
+            "table": table_name,
+        }
+        extended_attrs = {
+            key: value for key, value in attrs.items() if value is not None
+        }
+        attributes = {} if not attributes else attributes
+        attributes.update(extended_attrs)
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_step,
+            list(schema.keys()) if schema else columns,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
+            schema=schema,
+            credentials_prefix=credentials_prefix,
+        )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["dbtable"] = self.attributes.get("table")
+        return spark_options
+
+    def purge(self):
+        pass
+
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
 
 
 class NoSqlBaseTarget(BaseStoreTarget):
@@ -1163,7 +1285,10 @@ class NoSqlBaseTarget(BaseStoreTarget):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
-            df.write.mode("overwrite").save(**options)
+            write_format = options.pop("format", None)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
@@ -1173,7 +1298,11 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
-            _, path_with_container = parse_path(self.get_target_path())
+            store, path_in_store, target_path = self._get_store_and_path()
+            storage_options = store.get_storage_options()
+            access_key = storage_options.get("v3io_access_key", access_key)
+
+            _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1191,17 +1320,31 @@ class NoSqlTarget(NoSqlBaseTarget):
     def get_table_object(self):
         from storey import Table, V3ioDriver
 
-        # TODO use options/cred
-        endpoint, uri = parse_path(self.get_target_path())
+        store, path_in_store, target_path = self._get_store_and_path()
+        endpoint, uri = parse_path(target_path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        store, path_in_store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        store_access_key = storage_options.get("v3io_access_key")
+        env_access_key = self._secrets.get(
+            "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+        )
+        if store_access_key and env_access_key and store_access_key != env_access_key:
+            logger.warning(
+                "The Spark v3io connector does not support access_key parameterization."
+                "Spark will disregard the store-provided key."
+            )
         spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
+            "path": store.spark_url + path_in_store,
             "format": "io.iguaz.v3io.spark.sql.kv",
         }
         if isinstance(key_column, list) and len(key_column) >= 1:
@@ -1253,7 +1396,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        if endpoint.startswith("ds"):
+        if endpoint.startswith("ds://"):
             datastore_profile = datastore_profile_read(endpoint)
             if not datastore_profile:
                 raise ValueError(f"Failed to load datastore profile '{endpoint}'")
@@ -1294,10 +1437,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
-
+        store, path_in_store, path = self._get_store_and_path()
         return {
             "key.column": "_spark_object_name",
-            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "table": "{" + path_in_store,
             "format": "org.apache.spark.sql.redis",
             "host": parsed_endpoint.hostname,
             "port": parsed_endpoint.port,
@@ -1345,7 +1488,12 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_path(self.get_target_path())
+        store, path_in_store, path = self._get_store_and_path()
+        if not path:
+            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
+        endpoint, uri = parse_path(path)
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1356,7 +1504,9 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
+            storage=V3ioDriver(
+                webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
+            ),
             stream_path=uri,
             **self.attributes,
         )
@@ -1378,11 +1528,27 @@ class KafkaTarget(BaseStoreTarget):
         *args,
         bootstrap_servers=None,
         producer_options=None,
+        brokers=None,
         **kwargs,
     ):
         attrs = {}
-        if bootstrap_servers is not None:
-            attrs["bootstrap_servers"] = bootstrap_servers
+
+        # TODO: Remove this in 1.9.0
+        if bootstrap_servers:
+            if brokers:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "KafkaTarget cannot be created with both the 'brokers' parameter and the deprecated "
+                    "'bootstrap_servers' parameter. Please use 'brokers' only."
+                )
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                FutureWarning,
+            )
+            brokers = bootstrap_servers
+
+        if brokers:
+            attrs["brokers"] = brokers
         if producer_options is not None:
             attrs["producer_options"] = producer_options
 
@@ -1404,12 +1570,21 @@ class KafkaTarget(BaseStoreTarget):
         if self.path and self.path.startswith("ds://"):
             datastore_profile = datastore_profile_read(self.path)
             attributes = datastore_profile.attributes()
-            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            brokers = attributes.pop(
+                "brokers", attributes.pop("bootstrap_servers", None)
+            )
             topic = datastore_profile.topic
         else:
             attributes = copy(self.attributes)
-            bootstrap_servers = attributes.pop("bootstrap_servers", None)
-            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+            brokers = attributes.pop(
+                "brokers", attributes.pop("bootstrap_servers", None)
+            )
+            topic, brokers = parse_kafka_url(self.get_target_path(), brokers)
+
+        if not topic:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "KafkaTarget requires a path (topic)"
+            )
 
         graph.add_step(
             name=self.name or "KafkaTarget",
@@ -1418,7 +1593,7 @@ class KafkaTarget(BaseStoreTarget):
             class_name="storey.KafkaTarget",
             columns=column_list,
             topic=topic,
-            bootstrap_servers=bootstrap_servers,
+            brokers=brokers,
             **attributes,
         )
 
@@ -1485,7 +1660,11 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_path(self.get_target_path())
+        store, path_in_store, target_path = self._get_store_and_path()
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key", access_key)
+
+        _, path_with_container = parse_path(target_path)
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
@@ -1602,25 +1781,24 @@ class SQLTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[List[str]] = None,
+        partition_cols: Optional[list[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: Dict[str, str] = None,
+        storage_options: dict[str, str] = None,
         db_url: str = None,
         table_name: str = None,
-        schema: Dict[str, Any] = None,
+        schema: dict[str, Any] = None,
         primary_key_column: str = "",
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
-        time_fields: List[str] = None,
         varchar_len: int = 50,
-        parse_dates: List[str] = None,
+        parse_dates: list[str] = None,
     ):
         """
         Write to SqlDB as output target for a flow.
@@ -1656,20 +1834,11 @@ class SQLTarget(BaseStoreTarget):
         :param create_table:                pass True if you want to create new table named by
                                             table_name with schema on current database.
         :param create_according_to_data:    (not valid)
-        :param time_fields :    all the field to be parsed as timestamp.
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         :param parse_dates :    all the field to be parsed as timestamp.
         """
 
         create_according_to_data = False  # TODO: open for user
-        if time_fields:
-            warnings.warn(
-                "'time_fields' is deprecated, use 'parse_dates' instead. "
-                "This will be removed in 1.6.0",
-                # TODO: Remove this in 1.6.0
-                FutureWarning,
-            )
-            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None or table_name is None:
             attr = {}
@@ -1775,7 +1944,7 @@ class SQLTarget(BaseStoreTarget):
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
-        parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
+        parse_dates: Optional[list[str]] = self.attributes.get("parse_dates")
         with engine.connect() as conn:
             query, parse_dates = _generate_sql_query_with_time_filter(
                 table_name=table_name,
@@ -1875,12 +2044,16 @@ class SQLTarget(BaseStoreTarget):
                 # creat new table with the given name
                 columns = []
                 for col, col_type in self.schema.items():
-                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
-                    if col_type is None:
-                        raise TypeError(f"{col_type} unsupported type")
+                    col_type_sql = TYPE_TO_SQL_TYPE.get(col_type)
+                    if col_type_sql is None:
+                        raise TypeError(
+                            f"'{col_type}' unsupported type for column '{col}'"
+                        )
                     columns.append(
                         sqlalchemy.Column(
-                            col, col_type, primary_key=(col in primary_key_for_check)
+                            col,
+                            col_type_sql,
+                            primary_key=(col in primary_key_for_check),
                         )
                     )
 
@@ -1911,6 +2084,7 @@ kind_to_driver = {
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
     TargetTypes.sql: SQLTarget,
+    TargetTypes.snowflake: SnowflakeTarget,
 }
 
 
@@ -1944,6 +2118,8 @@ def _get_target_path(driver, resource, run_id_mode=False):
 
 
 def generate_path_with_chunk(target, chunk_id, path):
+    if path is None:
+        return ""
     prefix, suffix = os.path.splitext(path)
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"

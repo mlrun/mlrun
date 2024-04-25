@@ -128,7 +128,10 @@ class Secrets(
                 mlrun.utils.vault.store_vault_project_secrets(project, secrets_to_store)
         elif secrets.provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if self.secrets_provider:
-                (secret_name, action,) = self.secrets_provider.store_project_secrets(
+                (
+                    secret_name,
+                    action,
+                ) = self.secrets_provider.store_project_secrets(
                     project, secrets_to_store
                 )
                 secret_keys = [secret_name for secret_name in secrets_to_store.keys()]
@@ -155,7 +158,10 @@ class Secrets(
     def read_auth_secret(
         self, secret_name, raise_on_not_found=False
     ) -> mlrun.common.schemas.AuthSecretData:
-        (username, access_key,) = self.secrets_provider.read_auth_secret(
+        (
+            username,
+            access_key,
+        ) = self.secrets_provider.read_auth_secret(
             secret_name, raise_on_not_found=raise_on_not_found
         )
         return mlrun.common.schemas.AuthSecretData(
@@ -204,7 +210,7 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        secrets: typing.Optional[typing.List[str]] = None,
+        secrets: typing.Optional[list[str]] = None,
         allow_internal_secrets: bool = False,
     ):
         if not allow_internal_secrets:
@@ -305,7 +311,7 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        secrets: typing.Optional[typing.List[str]] = None,
+        secrets: typing.Optional[list[str]] = None,
         token: typing.Optional[str] = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
@@ -418,7 +424,7 @@ class Secrets(
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
         key_map_secret_key: typing.Optional[str] = None,
-    ) -> typing.Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         if key_map_secret_key:
             if provider != mlrun.common.schemas.SecretProviderName.kubernetes:
                 raise mlrun.errors.MLRunInvalidArgumentError(

@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
+import pathlib
 import tempfile
-from typing import Any, Tuple, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -40,9 +42,9 @@ RETURNS_LOG_HINTS = [
 ]
 
 
-def log_artifacts_and_results() -> Tuple[
-    np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline
-]:
+def log_artifacts_and_results() -> (
+    tuple[np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline]
+):
     encoder_to_imputer = Pipeline(
         steps=[
             (
@@ -93,7 +95,7 @@ def _assert_parsing(
 
     assert isinstance(my_file, mlrun.DataItem)
     my_file = my_file.local()
-    with open(my_file, "r") as file:
+    with open(my_file) as file:
         file_content = file.read()
     assert file_content == "123"
 
@@ -273,9 +275,8 @@ class BaseClassPackager(DefaultPackager):
     PACKABLE_OBJECT_TYPE = BaseClass
     PACK_SUBCLASSES = True
 
-    @classmethod
     def unpack_object(
-        cls,
+        self,
         data_item: DataItem,
         pickle_module_name: str = "cloudpickle",
         object_module_name: str = None,
@@ -372,6 +373,56 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
         artifact_path=artifact_path.name,
         local=True,
     )
+
+    # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+_JSON_SAMPLE = {"a": 1, "b": 2}
+
+
+def parse_local_file(my_dict: dict):
+    assert isinstance(my_dict, dict)
+    assert my_dict == _JSON_SAMPLE
+
+
+def test_parse_local_file(rundb_mock):
+    """
+    Run the `parse_local_file` function with MLRun to verify the json file given for it to parse as dictionary will not
+    be deleted as it is a local path.
+
+    :param rundb_mock: A runDB mock fixture.
+    """
+    # Get the project:
+    project = mlrun.get_or_create_project("default")
+
+    # Create a json file of a dictionary:
+    artifact_path = tempfile.TemporaryDirectory()
+    json_path = pathlib.Path(artifact_path.name) / "my_dict.json"
+    with open(json_path, "w") as file:
+        json.dump(_JSON_SAMPLE, file)
+    assert json_path.exists()
+
+    # Create the function:
+    mlrun_function = project.set_function(
+        func=__file__, name="test_func", kind="job", image="mlrun/mlrun"
+    )
+
+    # Run the packing function:
+    mlrun_function.run(
+        handler="parse_local_file",
+        inputs={"my_dict": str(json_path)},
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Make sure the file was not deleted post run:
+    assert json_path.exists()
+
+    # Make sure the file was not changed
+    with open(json_path) as file:
+        my_dict = json.load(file)
+    assert my_dict == _JSON_SAMPLE
 
     # Clean the test outputs:
     artifact_path.cleanup()

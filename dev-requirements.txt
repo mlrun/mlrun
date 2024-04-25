@@ -1,31 +1,33 @@
 # uploading to PyPI
 twine~=3.1
+build~=1.0
 
 # formatting & linting
-black[jupyter]~=22.0
-isort~=5.7
-flake8~=5.0
-import-linter~=1.8
+ruff==0.3.0
+import-linter~=2.0
 
 # testing
 pytest~=7.4
-pytest-asyncio~=0.15.0
+pytest-asyncio~=0.18.0
 pytest-alembic~=0.9.1
 pytest-httpserver~=1.0
+pytest-timeout~=2.0
 aioresponses~=0.7
 requests-mock~=1.8
-httpx~=0.23.0
+httpx~=0.24.0
 deepdiff~=6.5
 hypothesis[numpy]~=6.87
+pytest-rerunfailures~=13.0
 
 # system tests
 matplotlib~=3.5
 graphviz~=0.20.0
-nuclio-sdk>=0.3.0
+nuclio-sdk>=0.5
 avro~=1.11
 sqlalchemy-utils~=0.39.0
+snowflake-connector-python~=3.7
 
 # frameworks tests
-scikit-learn~=1.0
+scikit-learn~=1.4
 lightgbm~=3.0; platform_machine != 'arm64'
 xgboost~=1.1

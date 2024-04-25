@@ -21,7 +21,6 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.utils.clients.log_collector
-from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -57,7 +56,7 @@ class Member(abc.ABC):
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         pass
 
     @abc.abstractmethod
@@ -69,7 +68,7 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         pass
 
     @abc.abstractmethod
@@ -82,7 +81,7 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.common.schemas.Project, bool]:
+    ) -> tuple[mlrun.common.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -94,6 +93,7 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
+        background_task_name: str = None,
     ) -> bool:
         pass
 
@@ -103,6 +103,8 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -112,11 +114,11 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
@@ -134,11 +136,11 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         pass
 
@@ -158,56 +160,9 @@ class Member(abc.ABC):
             mlrun.mlconf.log_collector.mode
             != mlrun.common.schemas.LogsCollectorMode.legacy
         ):
-            await self._stop_logs_for_project(project_name)
-            await self._delete_project_logs(project_name)
+            await server.api.crud.Logs().stop_logs_for_project(project_name)
+            await server.api.crud.Logs().delete_project_logs(project_name)
 
-    @staticmethod
-    async def _stop_logs_for_project(
-        project_name: str,
-    ) -> None:
-
-        logger.debug("Stopping logs for project", project=project_name)
-
-        try:
-            log_collector_client = (
-                server.api.utils.clients.log_collector.LogCollectorClient()
-            )
-            await log_collector_client.stop_logs(
-                project=project_name,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed stopping logs for project's runs. Ignoring",
-                exc=mlrun.errors.err_to_str(exc),
-                project=project_name,
-            )
-
-        logger.debug(
-            "Successfully stopped logs for project's runs", project=project_name
-        )
-
-    @staticmethod
-    async def _delete_project_logs(
-        project_name: str,
-    ) -> None:
-
-        logger.debug("Deleting logs for project", project=project_name)
-
-        try:
-            log_collector_client = (
-                server.api.utils.clients.log_collector.LogCollectorClient()
-            )
-            await log_collector_client.delete_logs(
-                project=project_name,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed deleting project logs via the log collector. Falling back to deleting logs explicitly",
-                exc=mlrun.errors.err_to_str(exc),
-                project=project_name,
-            )
-
-            # fallback to deleting logs explicitly if the project logs deletion failed
-            server.api.crud.Logs().delete_logs(project_name)
-
-        logger.debug("Successfully deleted project logs", project=project_name)
+    def _validate_project(self, project: mlrun.common.schemas.Project):
+        mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
+        mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)

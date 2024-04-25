@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import typing
 
 import kubernetes.client
@@ -68,6 +67,48 @@ class Spark3JobSpec(KubeResourceSpec):
         "executor_java_options",
         "driver_cores",
         "executor_cores",
+    ]
+    _default_fields_to_strip = KubeResourceSpec._default_fields_to_strip + [
+        "driver_node_selector",
+        "executor_node_selector",
+        "driver_tolerations",
+        "executor_tolerations",
+        "driver_affinity",
+        "executor_affinity",
+        "driver_volume_mounts",
+        "executor_volume_mounts",
+        "driver_cores",
+        "executor_cores",
+    ]
+
+    __k8s_fields_to_serialize = [
+        "driver_volume_mounts",
+        "executor_volume_mounts",
+        "driver_node_selector",
+        "executor_node_selector",
+        "executor_affinity",
+        "executor_tolerations",
+        "driver_affinity",
+        "driver_tolerations",
+    ]
+    _k8s_fields_to_serialize = (
+        KubeResourceSpec._k8s_fields_to_serialize + __k8s_fields_to_serialize
+    )
+    _fields_to_serialize = (
+        KubeResourceSpec._fields_to_serialize + __k8s_fields_to_serialize
+    )
+    _fields_to_skip_validation = KubeResourceSpec._fields_to_skip_validation + [
+        # TODO: affinity, tolerations and node_selector are skipped due to preemption mode transitions.
+        #  Preemption mode 'none' depends on the previous mode while the default mode may enrich these values.
+        #  When we allow 'None' values for these attributes we get their true values and they will undo the default
+        #  enrichment when creating the runtime from dict.
+        #  The enrichment should move to the server side and then this can be removed.
+        "driver_node_selector",
+        "executor_node_selector",
+        "executor_affinity",
+        "executor_tolerations",
+        "driver_affinity",
+        "driver_tolerations",
     ]
 
     def __init__(
@@ -128,7 +169,6 @@ class Spark3JobSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -160,22 +200,6 @@ class Spark3JobSpec(KubeResourceSpec):
             state_thresholds=state_thresholds,
         )
 
-        self._driver_resources = self.enrich_resources_with_default_pod_resources(
-            "driver_resources", driver_resources
-        )
-        self._executor_resources = self.enrich_resources_with_default_pod_resources(
-            "executor_resources", executor_resources
-        )
-        self.spark_conf = spark_conf or {}
-        self.hadoop_conf = hadoop_conf or {}
-        self.job_type = job_type
-        self.python_version = python_version
-        self.spark_version = spark_version
-        self.restart_policy = restart_policy or {}
-        self.deps = deps or {}
-        self.main_class = main_class
-        self.use_default_image = use_default_image
-
         self.driver_resources = driver_resources or {}
         self.executor_resources = executor_resources or {}
         self.spark_conf = spark_conf or {}
@@ -206,26 +230,8 @@ class Spark3JobSpec(KubeResourceSpec):
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
 
-    def to_dict(self, fields=None, exclude=None):
-        exclude = exclude or []
-        _exclude = [
-            "affinity",
-            "tolerations",
-            "security_context",
-            "executor_affinity",
-            "executor_tolerations",
-            "driver_affinity",
-            "driver_tolerations",
-        ]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-        api = kubernetes.client.ApiClient()
-        for field in _exclude:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
-
     @property
-    def executor_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:
+    def executor_tolerations(self) -> list[kubernetes.client.V1Toleration]:
         return self._executor_tolerations
 
     @executor_tolerations.setter
@@ -237,7 +243,7 @@ class Spark3JobSpec(KubeResourceSpec):
         )
 
     @property
-    def driver_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:
+    def driver_tolerations(self) -> list[kubernetes.client.V1Toleration]:
         return self._driver_tolerations
 
     @driver_tolerations.setter
@@ -362,9 +368,9 @@ class Spark3JobSpec(KubeResourceSpec):
                         )
                         is None
                     ):
-                        resources[resource_requirement][
-                            resource_type
-                        ] = default_resources[resource_requirement][resource_type]
+                        resources[resource_requirement][resource_type] = (
+                            default_resources[resource_requirement][resource_type]
+                        )
         else:
             resources = default_resources
 
@@ -478,11 +484,9 @@ class Spark3Runtime(KubejobRuntime):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[
-            typing.List[kubernetes.client.V1Toleration]
-        ] = None,
+        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         if node_name:
             raise NotImplementedError(
@@ -494,8 +498,8 @@ class Spark3Runtime(KubejobRuntime):
             )
         if tolerations:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                "Tolerations can be set in spark runtime but not in with_node_selection"
-                "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations"
+                "Tolerations can be set in spark runtime but not in with_node_selection. "
+                "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations."
             )
         if node_name:
             raise NotImplementedError(
@@ -512,11 +516,9 @@ class Spark3Runtime(KubejobRuntime):
     def with_driver_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[
-            typing.List[kubernetes.client.V1Toleration]
-        ] = None,
+        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         """
         Enables control of which k8s node the spark executor will run on.
@@ -545,11 +547,9 @@ class Spark3Runtime(KubejobRuntime):
     def with_executor_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[
-            typing.List[kubernetes.client.V1Toleration]
-        ] = None,
+        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         """
         Enables control of which k8s node the spark executor will run on.

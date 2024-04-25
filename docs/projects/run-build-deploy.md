@@ -20,14 +20,11 @@ When used inside a pipeline, each method is automatically mapped to the relevant
 * {py:meth}`~mlrun.projects.build_function` &mdash; deploy an ML function, build a container with its dependencies for use in runs
 * {py:meth}`~mlrun.projects.deploy_function` &mdash; deploy real-time/online (nuclio or serving based) functions
 
-You can use those methods as `project` methods, or as global (`mlrun.`) methods. For example:
+Use these methods as `project` methods. For example:
 
 ```python
 # run the "train" function in myproject
 run = myproject.run_function("train", inputs={"data": data_url})  
-
-# run the "train" function in the current/active project (or in a pipeline)
-run = mlrun.run_function("train", inputs={"data": data_url})
 ```
     
 The first parameter in all three methods is either the function name (in the project), or a function object, used if you want to 
@@ -70,6 +67,11 @@ See {ref}`hyper-params` for details and examples.
 
 Read further details on [**running tasks and getting their results**](../concepts/submitting-tasks-jobs-to-functions.html).
 
+```{admonition} Run/simulate functions locally: 
+Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
+parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+```
+
 Usage examples:
 
 ```python
@@ -84,10 +86,30 @@ run2 = project.run_function("train", inputs={"dataset": run1.outputs["data"]})
 run2.artifact('confusion-matrix').show()
 ```
 
-```{admonition} Run/simulate functions locally: 
-Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
-parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+Example with `new_task`:
+
+```python
+import mlrun
+project = mlrun.get_or_create_project('example-project')
+---
+
+from mlrun import RunTemplate, new_task, mlconf
+from os import path
+artifact_path = path.join(mlconf.artifact_path, '{{run.uid}}')
+def handler(context, param, model_names):
+    context.logger.info("Running handler")
+    context.set_label('category', 'tests')
+    for model_name, file_name in model_names:
+        context.log_artifact(model_name, body=param.encode(), local_path=file_name)
+----
+func = project.set_function("my-func", kind="job", image="mlrun/mlrun")
+func.save()
+---
+task = new_task(name='mytask', handler=handler, artifact_path=artifact_path, project='project-name')
+run_object = project.run_function("my-func", local=True, base_task=task)
 ```
+
+See {py:meth}`mlrun.model.new_task` for a description of the `new_task` parameters.
 
 <a id="build"></a>
 ## build_function
@@ -178,6 +200,7 @@ For example:
  # function will now run using the v2 version of the image 
  run2 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
 ```
+Read more about {ref}`images-usage`.
 
 <a id="build_config"></a>
 ## Image build configuration
@@ -237,10 +260,30 @@ This project can then be imported and the default image can be built:
 The {py:meth}`~mlrun.projects.MlrunProject.build_image` function builds an image using the existing build configuration. 
 This method can also be used to set the build configuration and build the image based on it - in a single step. 
 
-When using `set_as_default=False` any build config provided is still kept in the project object but the generated 
-image name is not set as the default image for this project. 
+If you set a source for the project (for example, git source) and set `pull_at_runtime = False`, then 
+the generated image contains the project source in it. For example, this code builds `.some-project-image` 
+image with the source in it.
+```python
+project = mlrun.get_or_create_project(
+    name="project-name", context="./"
+)
 
-For example:
+project.set_source(
+    "git://some/repo",
+    pull_at_runtime=False
+)
+
+project.build_image(image=".some-project-image")
+```
+And now you can run a function based on the project code without having to specify an image:
+```python
+func = project.set_function(handler="package.function", name="func", kind="job")
+func.save()
+project.run_function("func", params={...})
+```
+
+When using `set_as_default=False` any build config provided is still kept in the project object but the generated 
+image name is not set as the default image for this project. For example:
 
 ```python
 image_name = ".temporary-image"

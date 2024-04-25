@@ -80,7 +80,6 @@ class TestDask(TestMLRunSystem):
     def test_run_pipeline(self):
         @kfp.dsl.pipeline(name="dask_pipeline")
         def dask_pipe(x=1, y=10):
-
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
             self.dask_function.as_step(
                 new_task(handler="main", name="dask_pipeline", params={"x": x, "y": y}),

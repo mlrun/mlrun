@@ -13,13 +13,11 @@
 # limitations under the License.
 #
 
-import pathlib
+import tempfile
+import uuid
 
 import pytest
 
-import mlrun.artifacts
-import mlrun.common.schemas
-import mlrun.errors
 from tests.system.base import TestMLRunSystem
 
 
@@ -28,34 +26,18 @@ class TestAPIArtifacts(TestMLRunSystem):
     project_name = "db-system-test-project"
 
     @pytest.mark.enterprise
-    def test_fail_overflowing_artifact(self):
-        """
-        Test that we fail when trying to (inline) log an artifact that is too big
-        This is done to ensure that we don't corrupt the DB while truncating the data
-        """
-        filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
-        function = mlrun.code_to_function(
-            name="test-func",
-            project=self.project_name,
-            filename=filename,
-            handler="log_artifact_test_function",
-            kind="job",
-            image="mlrun/mlrun",
+    def test_import_artifact(self):
+        temp_dir = tempfile.mkdtemp()
+        key = f"artifact_key_{uuid.uuid4()}"
+        body = "my test artifact"
+        artifact = self.project.log_artifact(
+            key, body=body, local_path=f"{temp_dir}/test_artifact.txt"
         )
-        task = mlrun.new_task()
-
-        # run artifact field is MEDIUMBLOB which is limited to 16MB by mysql
-        # overflow and expect it to fail execution and not allow db to truncate the data
-        # to avoid data corruption
-        with pytest.raises(mlrun.runtimes.utils.RunError):
-            function.run(
-                task, params={"body_size": 16 * 1024 * 1024 + 1, "inline": True}
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".yaml", delete=True
+        ) as temp_file:
+            artifact.export(temp_file.name)
+            artifact = self.project.import_artifact(
+                temp_file.name, new_key=f"imported_artifact_key_{uuid.uuid4()}"
             )
-
-        runs = mlrun.get_run_db().list_runs()
-        assert len(runs) == 1, "run should not be created"
-        run = runs[0]
-        assert run["status"]["state"] == "error", "run should fail"
-        assert (
-            "Failed committing changes to DB" in run["status"]["error"]
-        ), "run should fail with a reason"
+        assert artifact.to_dataitem().get().decode() == body

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Dict, List, Union
+from typing import Union
 
 import xgboost as xgb
 
@@ -35,27 +35,27 @@ def apply_mlrun(
     model_name: str = "model",
     tag: str = "",
     model_path: str = None,
-    modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-    custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
-    artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
+    artifacts: Union[list[MLPlan], list[str], dict[str, dict]] = None,
     metrics: Union[
-        List[Metric],
-        List[XGBoostTypes.MetricEntryType],
-        Dict[str, XGBoostTypes.MetricEntryType],
+        list[Metric],
+        list[XGBoostTypes.MetricEntryType],
+        dict[str, XGBoostTypes.MetricEntryType],
     ] = None,
     x_test: XGBoostTypes.DatasetType = None,
     y_test: XGBoostTypes.DatasetType = None,
     sample_set: Union[XGBoostTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Union[List[str], List[int]] = None,
+    y_columns: Union[list[str], list[int]] = None,
     feature_vector: str = None,
-    feature_weights: List[float] = None,
-    labels: Dict[str, Union[str, int, float]] = None,
-    parameters: Dict[str, Union[str, int, float]] = None,
-    extra_data: Dict[str, XGBoostTypes.ExtraDataType] = None,
+    feature_weights: list[float] = None,
+    labels: dict[str, Union[str, int, float]] = None,
+    parameters: dict[str, Union[str, int, float]] = None,
+    extra_data: dict[str, XGBoostTypes.ExtraDataType] = None,
     auto_log: bool = True,
-    **kwargs
+    **kwargs,
 ) -> XGBoostModelHandler:
     """
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
@@ -90,7 +90,7 @@ def apply_mlrun(
 
                                          {
                                              "/.../custom_model.py": "MyModel",
-                                             "/.../custom_objects.py": ["object1", "object2"]
+                                             "/.../custom_objects.py": ["object1", "object2"],
                                          }
 
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning

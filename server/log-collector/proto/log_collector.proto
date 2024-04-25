@@ -21,9 +21,10 @@ option go_package = "proto/build/log_collector";
 service LogCollector {
   rpc StartLog(StartLogRequest) returns (BaseResponse) {}
   rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
-  rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
+  rpc GetLogSize(GetLogSizeRequest) returns (GetLogSizeResponse) {}
   rpc StopLogs(StopLogsRequest) returns (BaseResponse) {}
   rpc DeleteLogs(StopLogsRequest) returns (BaseResponse) {}
+  rpc ListRunsInProgress(ListRunsRequest) returns (stream ListRunsResponse) {}
 }
 
 message BaseResponse {
@@ -54,14 +55,14 @@ message GetLogsResponse {
   string errorMessage = 4;
 }
 
-message HasLogsRequest {
+message GetLogSizeRequest {
   string runUID = 1;
   string projectName = 2;
 }
 
-message HasLogsResponse {
+message GetLogSizeResponse {
   bool success = 1;
-  bool hasLogs = 2;
+  int64 logSize = 2;
   int32 errorCode = 3;
   string errorMessage = 4;
 }
@@ -69,6 +70,14 @@ message HasLogsResponse {
 message StopLogsRequest {
   string project = 1;
   repeated string runUIDs = 2;
+}
+
+message ListRunsRequest {
+  string project = 1;
+}
+
+message ListRunsResponse {
+  repeated string runUIDs = 1;
 }
 
 // StringArray is a wrapper around a repeated string field, used in map values.

@@ -37,6 +37,7 @@ LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
+  tini \
   gcc \
   git-core \
   procps \
@@ -61,11 +62,30 @@ RUN python -m pip install \
 
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
-ENV MLRUN_httpdb__dirpath=/mlrun/db
-ENV MLRUN_httpdb__port=8080
+ENV MLRUN_HTTPDB__DIRPATH=/mlrun/db
+ENV MLRUN_HTTPDB__PORT=8080
+ENV MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE=11
+ENV MLRUN_IS_API_SERVER=true
+ENV MLRUN_IGNORE_ENV_FILE=true
+
+# env vars for uvicorn (https://www.uvicorn.org/settings)
+ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
+ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
+
 COPY . .
 
 RUN python -m pip install .[complete-api]
+
 VOLUME /mlrun/db
 
-CMD ["python",  "-m",  "server.api",  "db"]
+# use tini as entrypoint to allow signal handling
+# and avoid zombie processes
+ENTRYPOINT ["tini", "--"]
+
+CMD [ \
+    "uvicorn", \
+    "server.api.main:app", \
+    "--proxy-headers", \
+    "--host", "0.0.0.0", \
+    "--log-config", "server/api/uvicorn_log_config.yaml" \
+]

@@ -65,9 +65,17 @@ def test_build_runtime_enrich_base_image(monkeypatch):
             mlrun.common.schemas.AuthInfo(),
             fn,
         )
+
         dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
+
+        # verify that the target image is populated properly
+        target_image = server.api.utils.builder.make_kaniko_pod.call_args[0][2]
+        assert (
+            target_image
+            == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
+        )
 
 
 def test_build_runtime_use_image_when_no_build():
@@ -472,6 +480,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
@@ -535,6 +544,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         server.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
+            force_build=True,
         )
         pod_spec = _create_pod_mock_pod_spec()
         for init_container in pod_spec.init_containers:
@@ -575,7 +585,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         if volume.secret
     ]
     aws_mount = {
-        "mount_path": "/tmp",
+        "mount_path": "/tmp/aws",
         "mount_propagation": None,
         "name": "aws-secret",
         "read_only": None,
@@ -588,7 +598,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
 
     aws_creds_location_env = {
         "name": "AWS_SHARED_CREDENTIALS_FILE",
-        "value": "/tmp/credentials",
+        "value": "/tmp/aws/credentials",
         "value_from": None,
     }
     assert aws_creds_location_env in [
@@ -707,6 +717,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
@@ -731,6 +742,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
@@ -780,19 +792,26 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
 
 
 @pytest.mark.parametrize(
-    "source,expectation",
+    "source, expectation, expected_v3io_remote",
     [
-        ("v3io://path/some-source.tar.gz", does_not_raise()),
-        ("/path/some-source.tar.gz", does_not_raise()),
-        ("/path/some-source.zip", does_not_raise()),
+        ("v3io:///path/some-source.tar.gz", does_not_raise(), "/path"),
+        ("v3io:///path//./some-source.tar.gz", does_not_raise(), "/path"),
+        (
+            "v3io:///path/to//blank/.././some-source.tar.gz",
+            does_not_raise(),
+            "/path/to",
+        ),
+        ("/path/some-source.tar.gz", does_not_raise(), None),
+        ("/path/some-source.zip", does_not_raise(), None),
         (
             "./relative/some-source",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            None,
         ),
-        ("./", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("./", pytest.raises(mlrun.errors.MLRunInvalidArgumentError), None),
     ],
 )
-def test_builder_source(monkeypatch, source, expectation):
+def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
         "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
@@ -845,6 +864,14 @@ def test_builder_source(monkeypatch, source, expectation):
                 dockerfile_lines[expected_line_index].strip()
             )
 
+        # assert v3io remote is normalized
+        if expected_v3io_remote:
+            k8s_helper_mock = server.api.utils.singletons.k8s.get_k8s_helper()
+            mount_v3io_args = k8s_helper_mock.create_pod.call_args[0][
+                0
+            ].mount_v3io.call_args
+            assert mount_v3io_args[-1]["remote"] == expected_v3io_remote
+
 
 @pytest.mark.parametrize(
     "requirements, commands, with_mlrun, mlrun_version_specifier, client_version, expected_commands, "
@@ -858,7 +885,7 @@ def test_builder_source(monkeypatch, source, expectation):
             None,
             None,
             [
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             ],
             ["mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"],
             "/empty/requirements.txt",
@@ -871,7 +898,7 @@ def test_builder_source(monkeypatch, source, expectation):
             None,
             [
                 "some command",
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}",
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}",
             ],
             ["mlrun~=1.4"],
             "/empty/requirements.txt",
@@ -883,7 +910,7 @@ def test_builder_source(monkeypatch, source, expectation):
             "",
             "1.4.0",
             [
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             ],
             ["mlrun[complete]==1.4.0"],
             "/empty/requirements.txt",
@@ -895,7 +922,7 @@ def test_builder_source(monkeypatch, source, expectation):
             "",
             "1.4.0",
             [
-                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             ],
             ["mlrun[complete]==1.4.0", "pandas"],
             "/empty/requirements.txt",
@@ -925,50 +952,196 @@ def test_resolve_build_requirements(
     assert requirements_path == expected_requirements_path
 
 
-def _get_target_image_from_create_pod_mock():
-    return _create_pod_mock_pod_spec().containers[0].args[5]
+@pytest.mark.parametrize(
+    "mlrun_version_specifier, base_image, client_version, expected_mlrun_version",
+    [
+        (
+            None,
+            "mlrun/mlrun",
+            "1.4.0",
+            "==1.4.0",
+        ),
+        (
+            None,
+            "registry:80/quay.io/mlrun/mlrun:1.6.0-rc7",
+            "1.6.0-rc7",
+            "==1.6.0-rc7",
+        ),
+        (
+            None,
+            "",
+            "1.6.0-rc7",
+            "==1.6.0-rc7",
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.5.2",
+            "1.4.0",
+            "==1.5.2",
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.5.2-rc10",
+            None,
+            "==1.5.2-rc10",
+        ),
+        (
+            None,
+            "mlrun/ml-base:1.5.1",
+            "1.4.0",
+            "==1.5.1",
+        ),
+        (
+            None,
+            "somewhere/mlrun/ml-base:1.5.1",
+            "1.4.0",
+            "==1.5.1",
+        ),
+        (
+            None,
+            "not-an-mlrun/image:1.5.1",
+            "1.4.0",
+            "==1.4.0",
+        ),
+        (
+            "mlrun[complete]==1.6.0",
+            "not-an-mlrun/image:1.5.1",
+            "1.4.0",
+            "",
+        ),
+        (
+            None,
+            "mlrun/mlrun:unstable",
+            "1.4.0",
+            None,
+        ),
+        (
+            None,
+            "mlrun/mlrun",
+            "0.0.0+unstable",
+            None,
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.4.0-rc5-feature",
+            "1.4.0",
+            None,
+        ),
+        (
+            "mlrun~=1.5.0",
+            "mlrun/mlrun:1.6.0",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun:not-semver",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            None,
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            "unstable",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun:unstable",
+            "unstable",
+            "",
+        ),
+    ],
+)
+def test_mlrun_base_image_with_requirements(
+    monkeypatch,
+    mlrun_version_specifier,
+    base_image,
+    client_version,
+    expected_mlrun_version,
+):
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+    _patch_k8s_helper(monkeypatch)
+
+    with unittest.mock.patch(
+        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            kind="job",
+            requirements=["some-package"],
+        )
+        function.spec.build.base_image = base_image
+
+        server.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+            client_version=client_version,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
+
+        requirements = server.api.utils.builder.make_kaniko_pod.call_args[1][
+            "requirements"
+        ]
+        if expected_mlrun_version is None:
+            assert requirements == [
+                "some-package",
+            ]
+        elif mlrun_version_specifier:
+            assert requirements == [
+                mlrun_version_specifier,
+                "some-package",
+            ]
+        else:
+            assert requirements == [
+                f"mlrun[complete]{expected_mlrun_version}",
+                "some-package",
+            ]
 
 
-def _create_pod_mock_pod_spec():
-    return (
-        server.api.utils.singletons.k8s.get_k8s_helper()
-        .create_pod.call_args[0][0]
-        .pod.spec
-    )
+def test_mlrun_base_image_no_requirements():
+    with unittest.mock.patch(
+        "server.api.utils.builder.build_image", new=unittest.mock.MagicMock()
+    ):
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            kind="job",
+            source="some-source.zip",
+        )
+        function.spec.build.base_image = "mlrun/mlrun:1.6.0"
 
+        server.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+        )
 
-def _patch_k8s_helper(monkeypatch):
-    get_k8s_helper_mock = unittest.mock.Mock()
-    get_k8s_helper_mock.create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
-    )
-    get_k8s_helper_mock.get_project_secret_name = unittest.mock.Mock(
-        side_effect=lambda name: "name"
-    )
-    get_k8s_helper_mock.get_project_secret_keys = unittest.mock.Mock(
-        side_effect=lambda project, filter_internal: ["KEY"]
-    )
-    get_k8s_helper_mock.get_project_secret_data = unittest.mock.Mock(
-        side_effect=lambda project, keys: {"KEY": "val"}
-    )
-    monkeypatch.setattr(
-        server.api.utils.singletons.k8s,
-        "get_k8s_helper",
-        lambda *args, **kwargs: get_k8s_helper_mock,
-    )
-
-
-def _mock_default_service_account(monkeypatch, service_account):
-    resolve_project_default_service_account_mock = unittest.mock.MagicMock()
-    resolve_project_default_service_account_mock.return_value = (
-        [],
-        service_account,
-    )
-    monkeypatch.setattr(
-        server.api.api.utils,
-        "resolve_project_default_service_account",
-        resolve_project_default_service_account_mock,
-    )
+        requirements = server.api.utils.builder.build_image.call_args[1]["requirements"]
+        with_mlrun = server.api.utils.builder.build_image.call_args[1]["with_mlrun"]
+        assert requirements == []
+        assert with_mlrun is False
 
 
 @pytest.mark.parametrize(
@@ -1410,4 +1583,50 @@ def test_resolve_function_image_secret(
         == server.api.utils.builder._resolve_function_image_secret(
             resolved_image_target, secret_name
         )
+    )
+
+
+def _get_target_image_from_create_pod_mock():
+    return _create_pod_mock_pod_spec().containers[0].args[5]
+
+
+def _create_pod_mock_pod_spec():
+    return (
+        server.api.utils.singletons.k8s.get_k8s_helper()
+        .create_pod.call_args[0][0]
+        .pod.spec
+    )
+
+
+def _patch_k8s_helper(monkeypatch):
+    get_k8s_helper_mock = unittest.mock.Mock()
+    get_k8s_helper_mock.create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    get_k8s_helper_mock.get_project_secret_name = unittest.mock.Mock(
+        side_effect=lambda name: "name"
+    )
+    get_k8s_helper_mock.get_project_secret_keys = unittest.mock.Mock(
+        side_effect=lambda project, filter_internal: ["KEY"]
+    )
+    get_k8s_helper_mock.get_project_secret_data = unittest.mock.Mock(
+        side_effect=lambda project, keys: {"KEY": "val"}
+    )
+    monkeypatch.setattr(
+        server.api.utils.singletons.k8s,
+        "get_k8s_helper",
+        lambda *args, **kwargs: get_k8s_helper_mock,
+    )
+
+
+def _mock_default_service_account(monkeypatch, service_account):
+    resolve_project_default_service_account_mock = unittest.mock.MagicMock()
+    resolve_project_default_service_account_mock.return_value = (
+        [],
+        service_account,
+    )
+    monkeypatch.setattr(
+        server.api.api.utils,
+        "resolve_project_default_service_account",
+        resolve_project_default_service_account_mock,
     )

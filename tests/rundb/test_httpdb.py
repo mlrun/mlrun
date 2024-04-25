@@ -63,11 +63,11 @@ def create_workdir(root_dir="/tmp"):
 def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
-    env["MLRUN_httpdb__port"] = str(port)
-    env[
-        "MLRUN_httpdb__dsn"
-    ] = f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
-    env["MLRUN_httpdb__logs_path"] = workdir
+    env["MLRUN_HTTPDB__PORT"] = str(port)
+    env["MLRUN_HTTPDB__DSN"] = (
+        f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
+    )
+    env["MLRUN_HTTPDB__LOGS_PATH"] = workdir
     env.update(env_config or {})
     cmd = [
         executable,
@@ -111,7 +111,7 @@ def docker_fixture():
             f"{workdir}:/tmp",
         ]
 
-        env_config.setdefault("MLRUN_httpdb__logs_path", "/tmp")
+        env_config.setdefault("MLRUN_HTTPDB__LOGS_PATH", "/tmp")
         for key, value in env_config.items():
             cmd.extend(["--env", f"{key}={value}"])
         cmd.append(docker_tag)

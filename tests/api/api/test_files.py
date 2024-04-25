@@ -28,12 +28,12 @@ from tests.common_fixtures import (  # noqa: F401
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")
-def test_files_forbidden(db: Session, client: TestClient) -> None:
+def test_files_forbidden(db: Session, client: TestClient, k8s_secrets_mock) -> None:
     validate_files_status_code(client, HTTPStatus.FORBIDDEN.value)
 
 
 @pytest.mark.usefixtures("patch_file_not_found")
-def test_files_not_found(db: Session, client: TestClient) -> None:
+def test_files_not_found(db: Session, client: TestClient, k8s_secrets_mock) -> None:
     validate_files_status_code(client, HTTPStatus.NOT_FOUND.value)
 
 
@@ -78,20 +78,22 @@ def test_files(db: Session, client: TestClient, files_mock, k8s_secrets_mock) ->
 
     resp = client.get(f"files?path={path}")
     assert resp
-    files_mock.assert_called_once_with(url=path, secrets=env_secrets)
+    files_mock.assert_called_once_with(url=path, secrets=env_secrets, project="")
     files_mock.reset_mock()
 
     resp = client.get(f"projects/{project}/files?path={path}")
     assert resp
-    files_mock.assert_called_once_with(url=path, secrets=full_secrets)
+    files_mock.assert_called_once_with(url=path, secrets=full_secrets, project="proj1")
     files_mock.reset_mock()
 
     resp = client.get(f"projects/wrong-project/files?path={path}")
     assert resp
-    files_mock.assert_called_once_with(url=path, secrets=env_secrets)
+    files_mock.assert_called_once_with(
+        url=path, secrets=env_secrets, project="wrong-project"
+    )
     files_mock.reset_mock()
 
     resp = client.get(f"projects/{project}/files?path={path}&use-secrets=false")
     assert resp
-    files_mock.assert_called_once_with(url=path, secrets=env_secrets)
+    files_mock.assert_called_once_with(url=path, secrets=env_secrets, project="proj1")
     files_mock.reset_mock()

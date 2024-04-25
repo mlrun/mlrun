@@ -1,7 +1,31 @@
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-extend_skip_glob = ["*venv*", "server/api/proto"]
+[tool.ruff]
+extend-include = ["*.ipynb"]
+target-version = "py39"
+
+[tool.ruff.lint]
+extend-select = [
+    "F",   # pyflakes
+    "W",   # pycodestyle
+    "E",   # pycodestyle
+    "I",   # isort
+    "UP",  # pyupgrade
+    "CPY", # flake8-copyright
+]
+exclude = ["*.ipynb"]
+explicit-preview-rules = true
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 120
+
+[tool.ruff.lint.extend-per-file-ignores]
+"__init__.py" = ["F401"]
+"docs/**.py" = ["CPY001"]
+
+[tool.ruff.lint.flake8-copyright]
+author = "Iguazio"
+
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
@@ -9,6 +33,9 @@ python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",
 ]
+timeout = 1800  # 30 minutes per test
+log_cli = true
+log_level = "DEBUG"
 
 [tool.importlinter]
 root_packages = [
@@ -24,6 +51,7 @@ source_modules = [
     "mlrun.common",
 ]
 forbidden_modules = [
+    "mlrun.api",
     "mlrun.artifacts",
     "mlrun.data_types",
     "mlrun.datastore",
@@ -31,13 +59,13 @@ forbidden_modules = [
     "mlrun.feature_store",
     "mlrun.frameworks",
     "mlrun.launcher",
-    "mlrun.mlutils",
     "mlrun.model_monitoring",
     "mlrun.package",
     "mlrun.platforms",
     "mlrun.projects",
     "mlrun.runtimes",
     "mlrun.serving",
+    "mlrun.track",
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
@@ -55,9 +83,44 @@ ignore_imports = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "MLRun modules shouldn't import MLRun API"
+name = "MLRun server may import mlrun but not the way around"
 type = "layers"
 layers = [
     "server",
     "mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun should not import mlrun.api"
+type = "forbidden"
+source_modules = [
+    "server.api",
+    "mlrun.common",
+    "mlrun.artifacts",
+    "mlrun.data_types",
+    "mlrun.datastore",
+    "mlrun.db",
+    "mlrun.feature_store",
+    "mlrun.frameworks",
+    "mlrun.launcher",
+    "mlrun.model_monitoring",
+    "mlrun.package",
+    "mlrun.platforms",
+    "mlrun.projects",
+    "mlrun.runtimes",
+    "mlrun.serving",
+    "mlrun.track",
+    "mlrun.execution",
+    "mlrun.features",
+    "mlrun.k8s_utils",
+    "mlrun.kfpops",
+    "mlrun.lists",
+    "mlrun.model",
+    "mlrun.render",
+    "mlrun.run",
+    "mlrun.secrets",
+]
+allow_indirect_imports=false
+forbidden_modules = [
+    "mlrun.api",
 ]

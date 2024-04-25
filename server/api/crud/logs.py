@@ -49,14 +49,84 @@ class Logs(
         with log_file.open(mode) as fp:
             fp.write(body)
 
-    def delete_logs(
+    async def stop_logs_for_project(
         self,
+        project_name: str,
+    ) -> None:
+        logger.debug("Stopping logs for project", project=project_name)
+        await self._stop_logs(project_name)
+
+    async def stop_logs_for_run(
+        self,
+        project_name: str,
+        run_uid: str,
+    ) -> None:
+        logger.debug("Stopping logs for run", project=project_name, run_uid=run_uid)
+        await self._stop_logs(project_name, [run_uid])
+
+    async def delete_project_logs(self, project: str):
+        logger.debug("Deleting logs for project", project=project)
+        await self._delete_logs(project)
+
+    async def delete_run_logs(self, project: str, run_uid: str):
+        logger.debug("Deleting logs for run", project=project, run_uid=run_uid)
+        await self._delete_logs(project, [run_uid])
+
+    @staticmethod
+    def delete_project_logs_legacy(
         project: str,
     ):
         project = project or mlrun.mlconf.default_project
         logs_path = server.api.api.utils.project_logs_path(project)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
+
+    @staticmethod
+    def delete_run_logs_legacy(
+        project: str,
+        run_uid: str,
+    ):
+        project = project or mlrun.mlconf.default_project
+        logs_path = server.api.api.utils.log_path(project, run_uid)
+        if logs_path.exists():
+            shutil.rmtree(str(logs_path))
+
+    async def get_log_size(
+        self,
+        project: str,
+        run_uid: str,
+    ):
+        logger.debug("Getting log size for run", project=project, run_uid=run_uid)
+        if (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
+        ):
+            return await self._get_log_size_from_log_collector(project, run_uid)
+
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
+        ):
+            try:
+                return await self._get_log_size_from_log_collector(project, run_uid)
+            except Exception as exc:
+                if mlrun.mlconf.log_collector.verbose:
+                    logger.warning(
+                        "Failed to get logs from logs collector, falling back to legacy method",
+                        exc=mlrun.errors.err_to_str(exc),
+                    )
+                return self._get_log_size_legacy(project, run_uid)
+
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
+            return self._get_log_size_legacy(project, run_uid)
+
+        else:
+            raise ValueError(
+                f"Invalid log collector mode {mlrun.mlconf.log_collector.mode}"
+            )
 
     async def get_logs(
         self,
@@ -66,7 +136,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-    ) -> typing.Tuple[str, typing.AsyncIterable[bytes]]:
+    ) -> tuple[str, typing.AsyncIterable[bytes]]:
         """
         Get logs
         :param db_session: db session
@@ -99,7 +169,7 @@ class Logs(
                 if mlrun.mlconf.log_collector.verbose:
                     logger.warning(
                         "Failed to get logs from logs collector, falling back to legacy method",
-                        exc=exc,
+                        exc=mlrun.errors.err_to_str(exc),
                     )
                 log_stream = self._get_logs_legacy_method_generator_wrapper(
                     db_session,
@@ -188,7 +258,6 @@ class Logs(
                 )
                 if pods:
                     if len(pods) > 1:
-
                         # This shouldn't happen, but if it does, we log it here. No need to fail.
                         logger.debug(
                             "Got more than one pod in logger pods result",
@@ -240,11 +309,30 @@ class Logs(
             )
         return run
 
-    def get_log_mtime(self, project: str, uid: str) -> int:
+    @staticmethod
+    async def _get_log_size_from_log_collector(project: str, run_uid: str) -> int:
+        log_collector_client = (
+            server.api.utils.clients.log_collector.LogCollectorClient()
+        )
+        log_file_size = await log_collector_client.get_log_size(
+            project=project,
+            run_uid=run_uid,
+        )
+        if log_file_size < 0:
+            # If the log file size is negative, it means the log file doesn't exist
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{run_uid} not found",
+            )
+        return log_file_size
+
+    @staticmethod
+    def _get_log_size_legacy(project: str, uid: str) -> int:
         log_file = server.api.api.utils.log_path(project, uid)
         if not log_file.exists():
-            raise FileNotFoundError(f"Log file does not exist: {log_file}")
-        return log_file.stat().st_mtime
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{uid} not found",
+            )
+        return log_file.stat().st_size
 
     @staticmethod
     def log_file_exists_for_run_uid(project: str, uid: str) -> (bool, pathlib.Path):
@@ -265,10 +353,74 @@ class Logs(
 
         return False, None
 
-    def _list_project_logs_uids(self, project: str) -> typing.List[str]:
+    def _list_project_logs_uids(self, project: str) -> list[str]:
         logs_path = server.api.api.utils.project_logs_path(project)
         return [
             file
             for file in os.listdir(str(logs_path))
             if os.path.isfile(os.path.join(str(logs_path), file))
         ]
+
+    @staticmethod
+    async def _stop_logs(
+        project_name: str,
+        run_uids: list[str] = None,
+    ) -> None:
+        resource = "project" if not run_uids else "run"
+        try:
+            log_collector_client = (
+                server.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.stop_logs(
+                project=project_name,
+                run_uids=run_uids,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed stopping logs for {resource}, Ignoring",
+                exc=mlrun.errors.err_to_str(exc),
+                project=project_name,
+                run_uids=run_uids,
+            )
+        else:
+            logger.debug(
+                f"Successfully stopped logs for {resource}",
+                project=project_name,
+                run_uids=run_uids,
+            )
+
+    async def _delete_logs(self, project: str, run_uids: list[str] = None):
+        resource = "project" if not run_uids else "run"
+        try:
+            log_collector_client = (
+                server.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.delete_logs(
+                project=project,
+                run_uids=run_uids,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed deleting {resource} logs via the log collector. Falling back to deleting logs explicitly",
+                exc=mlrun.errors.err_to_str(exc),
+                project=project,
+                runs=run_uids,
+            )
+
+            # fallback to deleting logs explicitly if the log collector failed
+            if run_uids:
+                for run_uid in run_uids:
+                    await run_in_threadpool(
+                        self.delete_run_logs_legacy,
+                        project,
+                        run_uid,
+                    )
+            else:
+                await run_in_threadpool(
+                    self.delete_project_logs_legacy,
+                    project,
+                )
+
+        logger.debug(
+            f"Successfully deleted {resource} logs", project=project, runs=run_uids
+        )

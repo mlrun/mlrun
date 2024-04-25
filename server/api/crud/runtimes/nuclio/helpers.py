@@ -34,10 +34,8 @@ def resolve_function_http_trigger(function_spec):
 def resolve_nuclio_runtime_python_image(
     mlrun_client_version: str = None, python_version: str = None
 ):
-    # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 therefore need
-    # to use the previoud default runtime which is python 3.7
     if not python_version or not mlrun_client_version:
-        return "python:3.7"
+        return mlrun.mlconf.default_nuclio_runtime
 
     # If the mlrun version is 0.0.0-<unstable>, it is a dev version,
     # so we can't check if it is higher than 1.3.0, but if the python version was passed,
@@ -92,7 +90,6 @@ def enrich_function_with_ingress(config, mode, service_type):
     # we would enrich it with an ingress
     http_trigger = resolve_function_http_trigger(config["spec"])
     if not http_trigger:
-
         # if there are no http triggers and default http trigger creation disabled,
         # function is not invokable
         if config["spec"].get("disableDefaultHTTPTrigger", False):
@@ -123,7 +120,6 @@ def enrich_function_with_ingress(config, mode, service_type):
         mode
         == mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes.on_cluster_ip
     ):
-
         # service type is not cluster ip, bail out
         if service_type and service_type.lower() != "clusterip":
             return
@@ -214,7 +210,7 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
 
 def compile_nuclio_archive_config(
     nuclio_spec,
-    function: mlrun.runtimes.function.RemoteRuntime,
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     builder_env,
     project=None,
     auth_info=None,
@@ -284,7 +280,6 @@ def compile_nuclio_archive_config(
 
     # git
     if code_entry_type == "git":
-
         # change git:// to https:// as nuclio expects it to be
         if source.startswith("git://"):
             source = source.replace("git://", "https://")

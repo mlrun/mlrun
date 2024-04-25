@@ -19,18 +19,19 @@ from sqlalchemy.orm import class_mapper
 
 
 class BaseModel:
-    def to_dict(self, exclude=None):
+    def to_dict(self, exclude=None, strip: bool = False):
         """
         NOTE - this function (currently) does not handle serializing relationships
         """
         exclude = exclude or []
         mapper = class_mapper(self.__class__)
         columns = [column.key for column in mapper.columns if column.key not in exclude]
-        get_key_value = (
-            lambda c: (c, getattr(self, c).isoformat())
-            if isinstance(getattr(self, c), datetime)
-            else (c, getattr(self, c))
-        )
+
+        def get_key_value(c):
+            if isinstance(getattr(self, c), datetime):
+                return c, getattr(self, c).isoformat()
+            return c, getattr(self, c)
+
         return dict(map(get_key_value, columns))
 
 
@@ -43,10 +44,10 @@ class HasStruct(BaseModel):
     def struct(self, value):
         self.body = pickle.dumps(value)
 
-    def to_dict(self, exclude=None):
+    def to_dict(self, exclude=None, strip: bool = False):
         """
         NOTE - this function (currently) does not handle serializing relationships
         """
         exclude = exclude or []
         exclude.append("body")
-        return super().to_dict(exclude)
+        return super().to_dict(exclude, strip=strip)

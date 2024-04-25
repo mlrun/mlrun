@@ -21,6 +21,7 @@ import pandas
 
 import mlrun
 import mlrun.artifacts
+import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests import conftest
 
@@ -28,15 +29,20 @@ results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 
 
 class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
+    extra_env = {"MLRUN_HTTPDB__REAL_PATH": "/"}
+
+    def setup_method(self, method, extra_env=None):
+        super().setup_method(method, extra_env=self.extra_env)
+
     def test_artifacts(self):
         db = mlrun.get_run_db()
-        prj, uid, key, body = "p9", "u19", "k802", "tomato"
+        prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, "./")
-        artifact = mlrun.artifacts.Artifact(key, body, target_path="a.txt")
+        artifact = mlrun.artifacts.Artifact(key, body, target_path="/a.txt")
 
-        db.store_artifact(key, artifact, uid, project=prj)
-        db.store_artifact(key, artifact, uid, project=prj, iter=42)
-        artifacts = db.list_artifacts(project=prj, tag="*")
+        db.store_artifact(key, artifact, tree=tree, project=prj)
+        db.store_artifact(key, artifact, tree=tree, project=prj, iter=42)
+        artifacts = db.list_artifacts(project=prj, tag="*", tree=tree)
         assert len(artifacts) == 2, "bad number of artifacts"
         assert artifacts.to_objects()[0].key == key, "not a valid artifact object"
         assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
@@ -53,21 +59,23 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(artifacts) == 0, "bad number of artifacts after del"
 
     def test_list_artifacts_filter_by_kind(self):
-        prj, uid, key, body = "p9", "u19", "k802", "tomato"
+        prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, context="./")
         model_artifact = mlrun.artifacts.model.ModelArtifact(
-            key, body, target_path="a.txt"
+            key, body, target_path="/a.txt"
         )
 
         data = {"col1": [1, 2], "col2": [3, 4]}
         data_frame = pandas.DataFrame(data=data)
         dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
-            key, df=data_frame, format="parquet", target_path="b.pq"
+            key, df=data_frame, format="parquet", target_path="/b.pq"
         )
 
         db = mlrun.get_run_db()
-        db.store_artifact(key, model_artifact, f"model_{uid}", project=prj)
-        db.store_artifact(key, dataset_artifact, f"ds_{uid}", project=prj, iter=42)
+        db.store_artifact(key, model_artifact, tree=f"model_{tree}", project=prj)
+        db.store_artifact(
+            key, dataset_artifact, tree=f"ds_{tree}", project=prj, iter=42
+        )
 
         artifacts = db.list_artifacts(project=prj)
         assert len(artifacts) == 2, "bad number of artifacts"
@@ -98,14 +106,17 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 # export the artifact to a file
                 model.export(f"{results_dir}/a.{suffix}")
 
+                new_key = f"mod-{suffix}"
+
                 # import and log the artifact to the new project
                 artifact = target_project.import_artifact(
                     f"{results_dir}/a.{suffix}",
-                    f"mod-{suffix}",
+                    new_key=new_key,
                     artifact_path=results_dir,
                 )
                 assert artifact.kind == "model"
-                assert artifact.metadata.key == f"mod-{suffix}"
+                assert artifact.metadata.key == new_key
+                assert artifact.spec.db_key == new_key
                 assert artifact.metadata.project == "log-mod2"
                 temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
                     artifact.uri

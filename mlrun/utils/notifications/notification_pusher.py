@@ -32,11 +32,10 @@ from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_proce
 from .notification import NotificationBase, NotificationTypes
 
 
-class _NotificationPusherBase(object):
+class _NotificationPusherBase:
     def _push(
         self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
     ):
-
         if mlrun.utils.helpers.is_running_in_jupyter_notebook():
             # Running in Jupyter notebook.
             # In this case, we need to create a new thread, run a separate event loop in
@@ -88,7 +87,6 @@ class _NotificationPusherBase(object):
 
 
 class NotificationPusher(_NotificationPusherBase):
-
     messages = {
         "completed": "{resource} completed",
         "error": "{resource} failed",
@@ -97,15 +95,11 @@ class NotificationPusher(_NotificationPusherBase):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications: typing.List[
-            typing.Tuple[
-                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
-            ]
+        self._sync_notifications: list[
+            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
-        self._async_notifications: typing.List[
-            typing.Tuple[
-                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
-            ]
+        self._async_notifications: list[
+            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
 
         for run in self._runs:
@@ -252,6 +246,11 @@ class NotificationPusher(_NotificationPusherBase):
                     project=run.metadata.project,
                     labels=f"workflow={workflow_id}",
                 )
+                logger.debug(
+                    "Found workflow runs, extending notification runs",
+                    workflow_id=workflow_id,
+                    workflow_runs_amount=len(workflow_runs),
+                )
                 runs.extend(workflow_runs)
 
         message = (
@@ -304,9 +303,9 @@ class NotificationPusher(_NotificationPusherBase):
                 traceback=traceback.format_exc(),
             )
             update_notification_status_kwargs["reason"] = f"Exception error: {str(exc)}"
-            update_notification_status_kwargs[
-                "status"
-            ] = mlrun.common.schemas.NotificationStatus.ERROR
+            update_notification_status_kwargs["status"] = (
+                mlrun.common.schemas.NotificationStatus.ERROR
+            )
             raise exc
         finally:
             self._update_notification_status(
@@ -353,9 +352,9 @@ class NotificationPusher(_NotificationPusherBase):
                 traceback=traceback.format_exc(),
             )
             update_notification_status_kwargs["reason"] = f"Exception error: {str(exc)}"
-            update_notification_status_kwargs[
-                "status"
-            ] = mlrun.common.schemas.NotificationStatus.ERROR
+            update_notification_status_kwargs["status"] = (
+                mlrun.common.schemas.NotificationStatus.ERROR
+            )
             raise exc
         finally:
             await mlrun.utils.helpers.run_in_threadpool(
@@ -384,7 +383,6 @@ class NotificationPusher(_NotificationPusherBase):
             # but also for human readability reasons.
             notification.reason = notification.reason[:255]
         else:
-
             # empty out the reason if the notification is in a non-error state
             # in case a retry would kick in (when such mechanism would be implemented)
             notification.reason = None
@@ -399,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
 
 
 class CustomNotificationPusher(_NotificationPusherBase):
-    def __init__(self, notification_types: typing.List[str] = None):
+    def __init__(self, notification_types: list[str] = None):
         notifications = {
             notification_type: NotificationTypes(notification_type).get_notification()()
             for notification_type in notification_types
@@ -444,7 +442,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
     def add_notification(
         self,
         notification_type: str,
-        params: typing.Dict[str, str] = None,
+        params: dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(params)
@@ -469,9 +467,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         else:
             logger.warning(f"No notification of type {notification_type} in project")
 
-    def edit_notification(
-        self, notification_type: str, params: typing.Dict[str, str] = None
-    ):
+    def edit_notification(self, notification_type: str, params: dict[str, str] = None):
         self.remove_notification(notification_type)
         self.add_notification(notification_type, params)
 
@@ -549,7 +545,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
                 runs_list.append(run.to_dict())
                 run._notified = True
 
-        text = "pipeline run finished"
+        text = "Pipeline run finished"
         if had_errors:
             text += f" with {had_errors} errors"
         if state:

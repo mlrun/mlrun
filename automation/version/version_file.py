@@ -20,7 +20,6 @@ import os.path
 import pathlib
 import re
 import subprocess
-import sys
 import typing
 
 import packaging.version
@@ -127,7 +126,6 @@ def get_current_version(
             continue
 
         for tag in tags:
-
             # work with semvar-like tags only
             if not re.match(r"^v[0-9]+\.[0-9]+\.[0-9]+.*$", tag):
                 continue
@@ -206,7 +204,6 @@ def resolve_next_version(
         # make current version align with base version
         suffix = ""
         if mode == "rc":
-
             # index 0 because we increment rc later on
             suffix += "-rc0"
         current_version = packaging.version.Version(base_version.base_version + suffix)
@@ -220,7 +217,6 @@ def resolve_next_version(
         current_version.micro,
     )
     if mode == "rc":
-
         # if current version is not RC, update its patch version
         if rc is None:
             patch = patch + 1
@@ -260,7 +256,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     git_commit = "unknown"
     try:
         git_commit = _run_command("git", args=["rev-parse", "HEAD"]).strip()
-        logger.debug("Found git commit: {}".format(git_commit))
+        logger.debug(f"Found git commit: {git_commit}")
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
@@ -271,7 +267,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         git_branch = _run_command(
             "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
         ).strip()
-        logger.debug("Found git branch: {}".format(git_branch))
+        logger.debug(f"Found git branch: {git_branch}")
     except Exception as exc:
         logger.warning("Failed to get git branch", exc_info=exc)
 
@@ -307,7 +303,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         "git_commit": git_commit,
     }
 
-    logger.info("Writing version info to file: {}".format(str(version_info)))
+    logger.info(f"Writing version info to file: {str(version_info)}")
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 
@@ -361,20 +357,14 @@ def _run_command(command, args=None):
     if args:
         command += " " + " ".join(args)
 
-    if sys.version_info[0] >= 3:
-        process = subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            capture_output=True,
-            encoding="utf-8",
-        )
-        output = process.stdout
-    else:
-        output = subprocess.check_output(
-            command,
-            shell=True,
-        )
+    process = subprocess.run(
+        command,
+        shell=True,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+    )
+    output = process.stdout
 
     return output
 

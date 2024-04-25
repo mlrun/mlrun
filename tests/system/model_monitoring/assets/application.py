@@ -15,12 +15,13 @@
 import pandas as pd
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
 from mlrun.model_monitoring.application import (
-    ModelMonitoringApplication,
+    ModelMonitoringApplicationBase,
     ModelMonitoringApplicationResult,
 )
 
@@ -29,29 +30,46 @@ EXPECTED_EVENTS_COUNT = (
 )
 
 
-class DemoMonitoringApp(ModelMonitoringApplication):
-    name = "monitoring-test"
+class DemoMonitoringApp(ModelMonitoringApplicationBase):
+    NAME = "monitoring-test"
+    check_num_events = True
 
-    def run_application(
+    # noinspection PyMethodOverriding
+    def __init_subclass__(cls, check_num_events: bool) -> None:
+        super().__init_subclass__()
+        cls.check_num_events = check_num_events
+
+    def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
+        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         sample_df: pd.DataFrame,
-        schedule_time: pd.Timestamp,
+        start_infer_time: pd.Timestamp,
+        end_infer_time: pd.Timestamp,
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
-    ) -> ModelMonitoringApplicationResult:
+    ) -> list[ModelMonitoringApplicationResult]:
         self.context.logger.info("Running demo app")
-        assert len(sample_df) == EXPECTED_EVENTS_COUNT
+        if self.check_num_events:
+            assert len(sample_df) == EXPECTED_EVENTS_COUNT
         self.context.logger.info("Asserted sample_df length")
-        return ModelMonitoringApplicationResult(
-            self.name,
-            endpoint_id,
-            schedule_time,
-            result_name="data_drift_test",
-            result_value=2.15,
-            result_kind=ResultKindApp.data_drift,
-            result_status=ResultStatusApp.detected,
-        )
+        return [
+            ModelMonitoringApplicationResult(
+                name="data_drift_test",
+                value=2.15,
+                kind=ResultKindApp.data_drift,
+                status=ResultStatusApp.detected,
+            ),
+            ModelMonitoringApplicationResult(
+                name="model_perf",
+                value=80,
+                kind=ResultKindApp.model_performance,
+                status=ResultStatusApp.no_detection,
+            ),
+        ]
+
+
+class NoCheckDemoMonitoringApp(DemoMonitoringApp, check_num_events=False):
+    pass

@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 import os
-import typing
 
 from mlrun.config import config
 from mlrun.runtimes.kubejob import KubejobRuntime
@@ -111,7 +110,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @staticmethod
     def _get_run_completion_updates(run: dict) -> dict:
-
         # TODO: add a 'workers' section in run objects state, each worker will update its state while
         #  the run state will be resolved by the server.
         # update the run object state if empty so that it won't default to 'created' state
@@ -197,17 +195,17 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if steps_per_sample is not None:
             horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
         if bayes_opt_max_samples is not None:
-            horovod_autotune_settings[
-                "autotune-bayes-opt-max-samples"
-            ] = bayes_opt_max_samples
+            horovod_autotune_settings["autotune-bayes-opt-max-samples"] = (
+                bayes_opt_max_samples
+            )
         if gaussian_process_noise is not None:
-            horovod_autotune_settings[
-                "autotune-gaussian-process-noise"
-            ] = gaussian_process_noise
+            horovod_autotune_settings["autotune-gaussian-process-noise"] = (
+                gaussian_process_noise
+            )
 
         self.set_envs(horovod_autotune_settings)
 
-    def set_mpi_args(self, args: typing.List[str]) -> None:
+    def set_mpi_args(self, args: list[str]) -> None:
         """Sets the runtime's mpi arguments to args.
 
         Parameters
@@ -225,14 +223,14 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         ```
         # Define the wanted MPI arguments
         mpi_args = []
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_DEBUG=INFO')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_SOCKET_NTHREADS=2')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_NSOCKS_PERTHREAD=8')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_MIN_NCHANNELS=4')
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_DEBUG=INFO")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_SOCKET_NTHREADS=2")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_NSOCKS_PERTHREAD=8")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_MIN_NCHANNELS=4")
 
         # Set the MPI arguments in the function
         fn.set_mpi_args(mpi_args)

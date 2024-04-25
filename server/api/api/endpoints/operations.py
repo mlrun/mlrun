@@ -55,13 +55,20 @@ async def trigger_migrations(
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
     global current_migration_background_task_name
 
-    background_task = await run_in_threadpool(
+    task_callback, background_task, task_name = await run_in_threadpool(
         _get_or_create_migration_background_task,
         current_migration_background_task_name,
-        background_tasks,
     )
-    if not background_task:
+    if not task_callback and not background_task:
+        # Not waiting for migrations, returning OK
         return fastapi.Response(status_code=http.HTTPStatus.OK.value)
+
+    if not background_task:
+        # No task in progress, creating a new one
+        background_tasks.add_task(task_callback)
+        background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            task_name
+        )
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
     current_migration_background_task_name = background_task.metadata.name
@@ -69,8 +76,12 @@ async def trigger_migrations(
 
 
 def _get_or_create_migration_background_task(
-    task_name: str, background_tasks
-) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    task_name: str,
+) -> tuple[
+    typing.Optional[typing.Callable],
+    typing.Optional[mlrun.common.schemas.BackgroundTask],
+    str,
+]:
     if (
         mlrun.mlconf.httpdb.state
         == mlrun.common.schemas.APIStates.migrations_in_progress
@@ -78,7 +89,7 @@ def _get_or_create_migration_background_task(
         background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             task_name
         )
-        return background_task
+        return None, background_task, task_name
     elif mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.migrations_failed:
         raise mlrun.errors.MLRunPreconditionFailedError(
             "Migrations were already triggered and failed. Restart the API to retry"
@@ -87,13 +98,18 @@ def _get_or_create_migration_background_task(
         mlrun.mlconf.httpdb.state
         != mlrun.common.schemas.APIStates.waiting_for_migrations
     ):
-        return None
+        return None, None, ""
 
     logger.info("Starting the migration process")
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_tasks,
+    (
+        task,
+        task_name,
+    ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        server.api.utils.background_tasks.BackgroundTaskKinds.db_migrations,
+        None,
         _perform_migration,
     )
+    return task, None, task_name
 
 
 async def _perform_migration():

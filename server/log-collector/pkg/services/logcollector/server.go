@@ -37,6 +37,7 @@ import (
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
+	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -46,10 +47,11 @@ import (
 
 type Server struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace     string
-	baseDir       string
-	kubeClientSet kubernetes.Interface
-	isChief       bool
+	namespace        string
+	baseDir          string
+	kubeClientSet    kubernetes.Interface
+	isChief          bool
+	advancedLogLevel int
 
 	// the state manifest determines which runs' logs should be collected, and is persisted to a file
 	stateManifest statestore.StateStore
@@ -70,6 +72,8 @@ type Server struct {
 	// interval durations
 	readLogWaitTime    time.Duration
 	monitoringInterval time.Duration
+
+	listRunsChunkSize int
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -84,8 +88,10 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPoolSize,
 	getLogsBufferPoolSize,
 	logCollectionBufferSizeBytes,
-	getLogsBufferSizeBytes int,
-	logTimeUpdateBytesInterval int) (*Server, error) {
+	getLogsBufferSizeBytes,
+	logTimeUpdateBytesInterval,
+	advancedLogLevel,
+	listRunsChunkSize int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -111,6 +117,7 @@ func NewLogCollectorServer(logger logger.Logger,
 			Logger:                  logger,
 			StateFileUpdateInterval: stateFileUpdateIntervalDuration,
 			BaseDir:                 baseDir,
+			AdvancedLogLevel:        advancedLogLevel,
 		},
 	)
 	if err != nil {
@@ -142,6 +149,10 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, logCollectionBufferSizeBytes)
 	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, getLogsBufferSizeBytes)
 
+	if listRunsChunkSize <= 0 {
+		listRunsChunkSize = common.DefaultListRunsChunkSize
+	}
+
 	return &Server{
 		AbstractMlrunGRPCServer:      abstractServer,
 		namespace:                    namespace,
@@ -159,6 +170,8 @@ func NewLogCollectorServer(logger logger.Logger,
 		isChief:                      isChief,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
+		advancedLogLevel:             advancedLogLevel,
+		listRunsChunkSize:            listRunsChunkSize,
 	}, nil
 }
 
@@ -338,6 +351,10 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return nil
 	}
 
+	if request.Offset < 0 {
+		return errors.New("Offset cannot be negative")
+	}
+
 	// get log file path
 	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
 	if err != nil {
@@ -422,15 +439,16 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	return nil
 }
 
-// HasLogs returns true if the log file exists for a given run id
-func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogsRequest) (*protologcollector.HasLogsResponse, error) {
+// GetLogSize returns the size of the log file for a given run id
+func (s *Server) GetLogSize(ctx context.Context, request *protologcollector.GetLogSizeRequest) (*protologcollector.GetLogSizeResponse, error) {
 	s.Logger.DebugWithCtx(ctx,
-		"Received has log request",
+		"Received get log size request",
 		"runUID", request.RunUID,
 		"project", request.ProjectName)
 
 	// get log file path
-	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
+	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
+	if err != nil {
 		if strings.Contains(errors.RootCause(err).Error(), "not found") {
 
 			// if the log file is not found, return false but no error
@@ -438,30 +456,47 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 				"Log file not found",
 				"runUID", request.RunUID,
 				"projectName", request.ProjectName)
-			return &protologcollector.HasLogsResponse{
+			return &protologcollector.GetLogSizeResponse{
 				Success: true,
-				HasLogs: false,
+				LogSize: -1,
 			}, nil
 		}
 
 		// if there was an error, return it
 		s.Logger.ErrorWithCtx(ctx,
-			"Failed to check if has log file",
+			"Failed to check if log file exists",
 			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 			"runUID", request.RunUID,
 			"projectName", request.ProjectName)
 
 		// do not return the 'err' itself, so that mlrun api would catch the response
 		// and will resolve the response on its own.
-		return &protologcollector.HasLogsResponse{
+		return &protologcollector.GetLogSizeResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
 		}, nil
 	}
-	return &protologcollector.HasLogsResponse{
+
+	// open log file and calc its size
+	currentLogFileSize, err := common.GetFileSize(filePath)
+	if err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get log file size",
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName)
+		err = errors.Wrapf(err, "Failed to get log file size for run id %s", request.RunUID)
+		return &protologcollector.GetLogSizeResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
+		}, nil
+	}
+
+	return &protologcollector.GetLogSizeResponse{
 		Success: true,
-		HasLogs: true,
+		LogSize: currentLogFileSize,
 	}, nil
 }
 
@@ -522,7 +557,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 	for _, runUID := range request.RunUIDs {
 
 		// remove item from state manifest
-		if err := s.stateManifest.RemoveLogItem(runUID, request.Project); err != nil {
+		if err := s.stateManifest.RemoveLogItem(ctx, runUID, request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove item from state manifest for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
@@ -532,7 +567,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		}
 
 		// remove item from current state
-		if err := s.currentState.RemoveLogItem(runUID, request.Project); err != nil {
+		if err := s.currentState.RemoveLogItem(ctx, runUID, request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
@@ -547,13 +582,6 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 
 // DeleteLogs deletes the log file for a given run id or project
 func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
-	if !s.isChief {
-		s.Logger.DebugWithCtx(ctx,
-			"Server is not the chief, ignoring delete logs request",
-			"project", request.Project,
-			"numRunIDs", len(request.RunUIDs))
-		return s.successfulBaseResponse(), nil
-	}
 
 	// validate project name
 	if request.Project == "" {
@@ -615,6 +643,82 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 	return s.successfulBaseResponse(), nil
 }
 
+// ListRunsInProgress returns a list of runs that are currently being collected
+func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, responseStream protologcollector.LogCollector_ListRunsInProgressServer) error {
+	ctx := responseStream.Context()
+
+	s.Logger.DebugWithCtx(ctx,
+		"Received list runs in progress request",
+		"project", request.Project)
+
+	// get all runs in progress from the state manifest
+	logItemsInProgress, err := s.stateManifest.GetItemsInProgress()
+	if err != nil {
+		message := "Failed to list runs in progress from state manifest"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+	}
+
+	runsInProgress, err := s.getRunUIDsInProgress(ctx, logItemsInProgress, request.Project)
+	if err != nil {
+		message := "Failed to list runs in progress"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+
+	}
+
+	// get all runs in progress from the current state, and add merge them with the runs from the state manifest
+	// this can only happen if some voodoo occurred after the server restarted
+	logItemsInProgressCurrentState, err := s.currentState.GetItemsInProgress()
+	if err != nil {
+		message := "Failed to get ms in progress from current state"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+	}
+
+	runsInProgressCurrentState, err := s.getRunUIDsInProgress(ctx, logItemsInProgressCurrentState, request.Project)
+	if err != nil {
+		message := "Failed to list runs in progress from current state"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return errors.Wrap(err, message)
+
+	}
+
+	// merge the two maps
+	for _, runUID := range runsInProgressCurrentState {
+		if !lo.Contains[string](runsInProgress, runUID) {
+			runsInProgress = append(runsInProgress, runUID)
+		}
+	}
+
+	// send empty response if no runs are in progress
+	if len(runsInProgress) == 0 {
+		s.Logger.DebugWithCtx(ctx, "No runs in progress to list")
+		if err := responseStream.Send(&protologcollector.ListRunsResponse{
+			RunUIDs: []string{},
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send empty response to stream")
+		}
+		return nil
+	}
+
+	// send each run in progress to the stream in chunks of 10 due to gRPC message size limit
+	for i := 0; i < len(runsInProgress); i += s.listRunsChunkSize {
+		endIndex := i + s.listRunsChunkSize
+		if endIndex > len(runsInProgress) {
+			endIndex = len(runsInProgress)
+		}
+
+		if err := responseStream.Send(&protologcollector.ListRunsResponse{
+			RunUIDs: runsInProgress[i:endIndex],
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send runs in progress to stream")
+		}
+	}
+
+	return nil
+}
+
 // startLogStreaming streams logs from a pod and writes them into a file
 func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
@@ -638,7 +742,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		}
 
 		// remove this goroutine from in-current state
-		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
+		if err := s.currentState.RemoveLogItem(ctx, runUID, projectName); err != nil {
 			s.Logger.WarnWithCtx(ctx,
 				"Failed to remove item from in memory state",
 				"runUID", runUID,
@@ -752,18 +856,14 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Removing item from state file",
-		"runUID", runUID,
-		"podName", podName)
-
 	// remove run from state file
-	if err := s.stateManifest.RemoveLogItem(runUID, projectName); err != nil {
+	if err := s.stateManifest.RemoveLogItem(ctx, runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 
 	s.Logger.DebugWithCtx(ctx,
 		"Finished log streaming",
+		"projectName", projectName,
 		"runUID", runUID,
 		"podName", podName)
 }
@@ -1191,4 +1291,25 @@ func (s *Server) deleteProjectLogs(project string) error {
 		return errors.Wrapf(err, "Exhausted deleting project %s directory logs", project)
 	}
 	return nil
+}
+
+func (s *Server) getRunUIDsInProgress(ctx context.Context, inProgressMap *sync.Map, project string) ([]string, error) {
+	var runUIDs []string
+
+	inProgressMap.Range(func(projectKey, runUIDsToLogItemsValue interface{}) bool {
+		// if a project was provided, only return runUIDs for that project
+		if project != "" && project != projectKey {
+			return true
+		}
+
+		runUIDsToLogItems := runUIDsToLogItemsValue.(*sync.Map)
+		runUIDsToLogItems.Range(func(key, value interface{}) bool {
+			runUID := key.(string)
+			runUIDs = append(runUIDs, runUID)
+			return true
+		})
+		return true
+	})
+
+	return runUIDs, nil
 }

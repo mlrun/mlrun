@@ -171,7 +171,6 @@ def test_schedule_concurrency_limit_column(alembic_runner, alembic_session):
 
 @pytest.mark.alembic
 def test_notification_params_to_secret_params(alembic_runner, alembic_session):
-
     alembic_runner.migrate_up_to(
         Constants.notifications_params_to_secret_params_revision
     )

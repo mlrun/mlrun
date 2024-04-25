@@ -58,7 +58,10 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     pipeline = "pipeline"
     hub_source = "hub-source"
     workflow = "workflow"
+    alert = "alert"
+    event = "event"
     datastore_profile = "datastore-profile"
+    api_gateway = "api-gateway"
 
     def to_resource_string(
         self,
@@ -70,10 +73,9 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.project: "/projects/{project_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
-            # fmt: off
-            AuthorizationResourceTypes.project_background_task:
-                "/projects/{project_name}/background-tasks/{resource_name}",
-            # fmt: on
+            AuthorizationResourceTypes.project_background_task: (
+                "/projects/{project_name}/background-tasks/{resource_name}"
+            ),
             AuthorizationResourceTypes.background_task: "/background-tasks/{resource_name}",
             AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_name}",
             AuthorizationResourceTypes.feature_vector: "/projects/{project_name}/feature-vectors/{resource_name}",
@@ -83,6 +85,8 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.schedule: "/projects/{project_name}/schedules/{resource_name}",
             AuthorizationResourceTypes.secret: "/projects/{project_name}/secrets/{resource_name}",
             AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
+            AuthorizationResourceTypes.event: "/projects/{project_name}/events/{resource_name}",
+            AuthorizationResourceTypes.alert: "/projects/{project_name}/alerts/{resource_name}",
             # runtime resource doesn't have an identifier, we don't need any auth granularity behind project level
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
@@ -94,6 +98,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.hub_source: "/marketplace/sources",
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
+            AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 
@@ -114,17 +119,17 @@ class AuthInfo(pydantic.BaseModel):
     data_session: typing.Optional[str] = None
     access_key: typing.Optional[str] = None
     user_id: typing.Optional[str] = None
-    user_group_ids: typing.List[str] = []
+    user_group_ids: list[str] = []
     user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
-    planes: typing.List[str] = []
+    planes: list[str] = []
 
     def to_nuclio_auth_info(self):
         if self.session != "":
             return NuclioAuthInfo(password=self.session, mode=NuclioAuthKinds.iguazio)
         return None
 
-    def get_member_ids(self) -> typing.List[str]:
+    def get_member_ids(self) -> list[str]:
         member_ids = []
         if self.user_id:
             member_ids.append(self.user_id)

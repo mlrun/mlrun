@@ -11,16 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import base64  # noqa: F401
-import os
+
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
-import v3io
-import v3io.dataplane
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -37,7 +33,6 @@ from sqlalchemy.orm import Session
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.runtimes.nuclio.function
@@ -46,31 +41,25 @@ import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
+import server.api.utils.functions
+import server.api.utils.pagination
 import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
 from mlrun.common.helpers import parse_versioned_object_uri
-from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
-from mlrun.errors import MLRunRuntimeError, err_to_str
-from mlrun.model_monitoring.tracking_policy import TrackingPolicy
+from mlrun.errors import err_to_str
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime
-from mlrun.runtimes.utils import get_item_name
+from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
-from server.api.crud.secrets import Secrets, SecretsClientType
-from server.api.utils.builder import build_runtime
+from server.api.api.endpoints.nuclio import (
+    _handle_nuclio_deploy_status,
+)
 from server.api.utils.singletons.scheduler import get_scheduler
 
 router = APIRouter()
 
 
-@router.post(
-    "/func/{project}/{name}",
-    deprecated=True,
-    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/functions/{name} instead",
-)
 @router.post("/projects/{project}/functions/{name}")
 async def store_function(
     request: Request,
@@ -118,12 +107,6 @@ async def store_function(
     }
 
 
-@router.get(
-    "/func/{project}/{name}",
-    deprecated=True,
-    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/functions/{name} instead",
-)
 @router.get("/projects/{project}/functions/{name}")
 async def get_function(
     project: str,
@@ -157,6 +140,7 @@ async def get_function(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
 async def delete_function(
+    request: Request,
     project: str,
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -194,7 +178,9 @@ async def delete_function(
                 project=project,
             )
             chief_client = server.api.utils.clients.chief.Client()
-            await chief_client.delete_schedule(project=project, name=name)
+            await chief_client.delete_schedule(
+                project=project, name=name, request=request
+            )
         else:
             await run_in_threadpool(
                 get_scheduler().delete_schedule, db_session, project, name
@@ -205,19 +191,16 @@ async def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get(
-    "/funcs",
-    deprecated=True,
-    description="/funcs is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/functions instead",
-)
 @router.get("/projects/{project}/functions")
 async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -228,26 +211,40 @@ async def list_functions(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    functions = await run_in_threadpool(
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def _filter_functions_by_permissions(_functions):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            _functions,
+            lambda function: (
+                function.get("metadata", {}).get(
+                    "project", mlrun.mlconf.default_project
+                ),
+                function["metadata"]["name"],
+            ),
+            auth_info,
+        )
+
+    functions, page_info = await paginator.paginate_permission_filtered_request(
+        db_session,
         server.api.crud.Functions().list_functions,
-        db_session=db_session,
+        _filter_functions_by_permissions,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
         project=project,
         name=name,
         tag=tag,
         labels=labels,
         hash_key=hash_key,
     )
-    functions = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        functions,
-        lambda function: (
-            function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            function["metadata"]["name"],
-        ),
-        auth_info,
-    )
+
     return {
         "funcs": functions,
+        "pagination": page_info,
     }
 
 
@@ -317,7 +314,7 @@ async def build_function(
     force_build = data.get("force_build", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(
-        _build_function,
+        server.api.utils.functions.build_function,
         db_session,
         auth_info,
         function,
@@ -329,8 +326,15 @@ async def build_function(
         client_python_version,
         force_build,
     )
+
+    # clone_target_dir is deprecated but needs to remain for backward compatibility
+    func_dict = fn.to_dict()
+    func_dict["spec"]["clone_target_dir"] = get_in(
+        func_dict, "spec.build.source_code_target_dir"
+    )
+
     return {
-        "data": fn.to_dict(),
+        "data": func_dict,
         "ready": ready,
     }
 
@@ -375,8 +379,9 @@ async def start_function(
         db_session,
         function.metadata.project,
         background_tasks,
-        _start_function,
+        _start_function_wrapper,
         background_timeout,
+        None,
         # args for _start_function
         function,
         auth_info,
@@ -438,7 +443,7 @@ async def build_status(
         )
 
     # nuclio deploy status
-    if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
+    if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
         return await run_in_threadpool(
             _handle_nuclio_deploy_status,
             db_session,
@@ -621,267 +626,12 @@ def _handle_job_deploy_status(
     )
 
 
-def _handle_nuclio_deploy_status(
-    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
-):
-    (
-        state,
-        _,
-        nuclio_name,
-        last_log_timestamp,
-        text,
-        status,
-    ) = server.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
-        name,
-        project,
-        tag,
-        # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
-        last_log_timestamp=last_log_timestamp or 1.0,
-        verbose=verbose,
-        auth_info=auth_info,
-    )
-    if state in ["ready", "scaledToZero"]:
-        logger.info("Nuclio function deployed successfully", name=name)
-    if state in ["error", "unhealthy"]:
-        logger.error(f"Nuclio deploy error, {text}", name=name)
-
-    internal_invocation_urls = status.get("internalInvocationUrls", [])
-    external_invocation_urls = status.get("externalInvocationUrls", [])
-
-    # on earlier versions of mlrun, address used to represent the nodePort external invocation url
-    # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
-    # and hence, for BC it would be filled with the external invocation url first item
-    # or completely empty.
-    address = external_invocation_urls[0] if external_invocation_urls else ""
-
-    # the built and pushed image name used to run the nuclio function container
-    container_image = status.get("containerImage", "")
-
-    # we don't want to store the function on all requests to get the deploy status, therefore we verify
-    # that changes were actually made and if that's the case then we store the function
-    if _is_nuclio_deploy_status_changed(
-        previous_status=fn.get("status", {}),
-        new_status=status,
-        new_state=state,
-        new_nuclio_name=nuclio_name,
-    ):
-        update_in(fn, "status.nuclio_name", nuclio_name)
-        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
-        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
-        update_in(fn, "status.state", state)
-        update_in(fn, "status.address", address)
-        update_in(fn, "status.container_image", container_image)
-
-        versioned = False
-        if state == "ready":
-            # Versioned means the version will be saved in the DB forever, we don't want to spam
-            # the DB with intermediate or unusable versions, only successfully deployed versions
-            versioned = True
-        server.api.crud.Functions().store_function(
-            db_session,
-            fn,
-            name,
-            project,
-            tag,
-            versioned=versioned,
-        )
-
-    return Response(
-        content=text,
-        media_type="text/plain",
-        headers={
-            "x-mlrun-function-status": state,
-            "x-mlrun-last-timestamp": str(last_log_timestamp),
-            "x-mlrun-address": address,
-            "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
-            "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
-            "x-mlrun-container-image": container_image,
-            "x-mlrun-name": nuclio_name,
-        },
-    )
-
-
-def _build_function(
-    db_session,
-    auth_info: mlrun.common.schemas.AuthInfo,
-    function,
-    with_mlrun=True,
-    skip_deployed=False,
-    mlrun_version_specifier=None,
-    builder_env=None,
-    client_version=None,
-    client_python_version=None,
-    force_build=False,
-):
-    fn = None
-    ready = None
-    try:
-        fn = new_function(runtime=function)
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        server.api.api.utils.log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
-        )
-    try:
-        # connect to run db
-        run_db = server.api.api.utils.get_run_db_instance(db_session)
-        fn.set_db_connection(run_db)
-
-        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
-
-        # Enrich runtime with project defaults
-        launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        # When runtime is nuclio, building means we deploy the function and not just build its image
-        # so we need full enrichment
-        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
-
-        fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.nuclio_runtimes():
-            server.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn,
-                auth_info,
-            )
-            monitoring_application = (
-                fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-                == mm_constants.ModelMonitoringAppLabel.VAL
-            )
-            serving_to_monitor = (
-                fn.kind == RuntimeKinds.serving and fn.spec.track_models
-            )
-            if serving_to_monitor or monitoring_application:
-                try:
-                    if not mlrun.mlconf.is_ce_mode():
-                        model_monitoring_access_key = process_model_monitoring_secret(
-                            db_session,
-                            fn.metadata.project,
-                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-                        )
-                    else:
-                        model_monitoring_access_key = None
-                    if serving_to_monitor:
-                        # Handle model monitoring
-                        logger.info("Tracking enabled, initializing model monitoring")
-
-                        if fn.spec.tracking_policy:
-                            # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
-                            fn.spec.tracking_policy = TrackingPolicy.from_dict(
-                                fn.spec.tracking_policy
-                            )
-                        else:
-                            # Initialize tracking policy with default values
-                            fn.spec.tracking_policy = TrackingPolicy()
-
-                        if not mlrun.mlconf.is_ce_mode():
-                            # create v3io stream for model_monitoring_stream
-                            _create_model_monitoring_stream(
-                                project=fn.metadata.project,
-                                function=fn,
-                                monitoring_application=monitoring_application,
-                                stream_path=server.api.crud.model_monitoring.get_stream_path(
-                                    project=fn.metadata.project,
-                                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
-                                ),
-                            )
-                            if fn.spec.tracking_policy.application_batch:
-                                # create v3io stream for  model_monitoring_writer | model monitoring application
-                                _create_model_monitoring_stream(
-                                    project=fn.metadata.project,
-                                    function=fn,
-                                    monitoring_application=monitoring_application,
-                                    stream_path=server.api.crud.model_monitoring.get_stream_path(
-                                        project=fn.metadata.project,
-                                        application_name=mm_constants.MonitoringFunctionNames.WRITER,
-                                    ),
-                                    access_key=model_monitoring_access_key,
-                                )
-
-                        # deploy model monitoring stream, model monitoring batch job,
-                        # model monitoring batch application job and model monitoring writer
-                        server.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(
-                            project=fn.metadata.project,
-                            db_session=db_session,
-                            auth_info=auth_info,
-                            tracking_policy=fn.spec.tracking_policy,
-                            model_monitoring_access_key=model_monitoring_access_key,
-                        )
-
-                    if monitoring_application:
-                        if not mlrun.mlconf.is_ce_mode():
-                            # create v3io stream for model monitoring application
-                            _create_model_monitoring_stream(
-                                project=fn.metadata.project,
-                                function=fn,
-                                monitoring_application=monitoring_application,
-                                stream_path=server.api.crud.model_monitoring.get_stream_path(
-                                    project=fn.metadata.project,
-                                    application_name=fn.metadata.name,
-                                ),
-                                access_key=model_monitoring_access_key,
-                            )
-                        # apply stream trigger to monitoring application
-                        fn = server.api.crud.model_monitoring.deployment.MonitoringDeployment()._apply_stream_trigger(
-                            project=fn.metadata.project,
-                            function=fn,
-                            model_monitoring_access_key=model_monitoring_access_key,
-                            function_name=fn.metadata.name,
-                            auth_info=auth_info,
-                        )
-                except Exception as exc:
-                    logger.warning(
-                        f"Failed deploying model monitoring infrastructure for the "
-                        f"{'project' if serving_to_monitor else f'{fn.metadata.name} application'}",
-                        project=fn.metadata.project,
-                        exc=exc,
-                        traceback=traceback.format_exc(),
-                    )
-
-            server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
-                fn,
-                auth_info=auth_info,
-                client_version=client_version,
-                client_python_version=client_python_version,
-                builder_env=builder_env,
-            )
-            # deploy only start the process, the get status API is used to check readiness
-            ready = False
-        else:
-            log_file = server.api.api.utils.log_path(
-                fn.metadata.project,
-                f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
-            )
-            if log_file.exists() and not (skip_deployed and fn.is_deployed()):
-                # delete old build log file if exist and build is not skipped
-                os.remove(str(log_file))
-
-            ready = build_runtime(
-                auth_info,
-                fn,
-                with_mlrun,
-                mlrun_version_specifier,
-                skip_deployed,
-                builder_env=builder_env,
-                client_version=client_version,
-                client_python_version=client_python_version,
-                force_build=force_build,
-            )
-        fn.save(versioned=True)
-        logger.info("Resolved function", fn=fn.to_yaml())
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        server.api.api.utils.log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
-        )
-    return fn, ready
-
-
 def _parse_start_function_body(db_session, data):
     url = data.get("functionUrl")
     if not url:
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: functionUrl not specified",
+            reason="Runtime error: functionUrl not specified",
         )
 
     project, name, tag, hash_key = parse_versioned_object_uri(url)
@@ -891,10 +641,25 @@ def _parse_start_function_body(db_session, data):
     if not runtime:
         server.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: function {url} not found",
+            reason=f"Runtime error: function {url} not found",
         )
 
     return new_function(runtime=runtime)
+
+
+async def _start_function_wrapper(
+    function,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
+):
+    await run_in_threadpool(
+        _start_function,
+        function,
+        auth_info,
+        client_version,
+        client_python_version,
+    )
 
 
 def _start_function(
@@ -966,151 +731,3 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )
-
-
-def _create_model_monitoring_stream(
-    project: str,
-    function,
-    monitoring_application: bool,
-    stream_path: str,
-    access_key: str = None,
-):
-    if stream_path.startswith("v3io://"):
-        _init_serving_function_stream_args(fn=function)
-
-        _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
-
-        # TODO: How should we configure sharding here?
-        logger.info(
-            "Creating model endpoint stream for project",
-            project=project,
-            stream_path=stream_path,
-            container=container,
-            endpoint=config.v3io_api,
-        )
-
-        v3io_client = v3io.dataplane.Client(
-            endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
-        )
-        stream_args = (
-            config.model_endpoint_monitoring.application_stream_args
-            if monitoring_application
-            else config.model_endpoint_monitoring.serving_stream_args
-        )
-        response = v3io_client.create_stream(
-            container=container,
-            path=stream_path,
-            shard_count=stream_args.shard_count,
-            retention_period_hours=stream_args.retention_period_hours,
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key,
-        )
-
-        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
-            response.raise_for_status([409, 204])
-
-
-def _init_serving_function_stream_args(fn: ServingRuntime):
-    logger.debug("Initializing serving function stream args")
-    if "stream_args" in fn.spec.parameters:
-        logger.debug("Adding access key to pipelines stream args")
-        if "access_key" not in fn.spec.parameters["stream_args"]:
-            logger.debug("pipelines access key added to stream args")
-            fn.spec.parameters["stream_args"]["access_key"] = os.environ.get(
-                "V3IO_ACCESS_KEY"
-            )
-    else:
-        logger.debug("pipelines access key added to stream args")
-        fn.spec.parameters["stream_args"] = {
-            "access_key": os.environ.get("V3IO_ACCESS_KEY")
-        }
-
-    fn.save(versioned=True)
-
-
-def _get_function_env_var(fn: ServingRuntime, var_name: str):
-    for env_var in fn.spec.env:
-        if get_item_name(env_var) == var_name:
-            return env_var
-    return None
-
-
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
-    # The expected result of this method is an access-key placed in an internal project-secret.
-    # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
-    # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
-    # (which is the recommended option for users) is to retrieve a new access-key from the project owner and use it.
-    logger.info(
-        "Getting project secret", project_name=project_name, namespace=config.namespace
-    )
-    provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    secret_value = Secrets().get_project_secret(
-        project_name,
-        provider,
-        secret_key,
-        allow_secrets_from_k8s=True,
-    )
-    user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_client_project_secret_key(
-        SecretsClientType.model_monitoring, secret_key
-    )
-
-    if not user_provided_key:
-        secret_value = Secrets().get_project_secret(
-            project_name,
-            provider,
-            internal_key_name,
-            allow_secrets_from_k8s=True,
-            allow_internal_secrets=True,
-        )
-        if not secret_value:
-            project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
-                db_session, project_name
-            )
-
-            secret_value = project_owner.access_key
-            if not secret_value:
-                raise MLRunRuntimeError(
-                    f"No model monitoring access key. Failed to generate one for owner of project {project_name}",
-                )
-
-            logger.info(
-                "Filling model monitoring access-key from project owner",
-                project_name=project_name,
-                project_owner=project_owner.username,
-            )
-
-    secrets = mlrun.common.schemas.SecretsData(
-        provider=provider, secrets={internal_key_name: secret_value}
-    )
-    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
-    if user_provided_key:
-        logger.info(
-            "Deleting user-provided access-key - replaced with an internal secret"
-        )
-        Secrets().delete_project_secret(project_name, provider, secret_key)
-
-    return secret_value
-
-
-def _is_nuclio_deploy_status_changed(
-    previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
-) -> bool:
-    # get relevant fields from the new status
-    new_container_image = new_status.get("containerImage", "")
-    new_internal_invocation_urls = new_status.get("internalInvocationUrls", [])
-    new_external_invocation_urls = new_status.get("externalInvocationUrls", [])
-    address = new_external_invocation_urls[0] if new_external_invocation_urls else ""
-
-    # Determine if any of the relevant fields have changed
-    has_changed = (
-        previous_status.get("nuclio_name", "") != new_nuclio_name
-        or previous_status.get("state") != new_state
-        or previous_status.get("container_image", "") != new_container_image
-        or previous_status.get("internal_invocation_urls", [])
-        != new_internal_invocation_urls
-        or previous_status.get("external_invocation_urls", [])
-        != new_external_invocation_urls
-        or previous_status.get("address", "") != address
-    )
-    return has_changed

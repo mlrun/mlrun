@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import typing
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import semver
 from kubernetes.client.rest import ApiException
@@ -62,7 +62,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
         self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
-    ) -> List[dict]:
+    ) -> list[dict]:
         return []
 
     @staticmethod
@@ -82,7 +82,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
         function = run.get("spec", {}).get("function", None)
         if function:
-
             # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
             # we only want the function name
             project_and_function = function.split("@")[0]
@@ -134,7 +133,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
-        runtime_resources_list: List[mlrun.common.schemas.RuntimeResources],
+        runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -175,7 +174,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
-        service_resources: List[mlrun.common.schemas.RuntimeResource],
+        service_resources: list[mlrun.common.schemas.RuntimeResource],
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -194,7 +193,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         db: DBInterface,
         db_session: Session,
         namespace: str,
-        deleted_resources: List[Dict],
+        deleted_resources: list[dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
@@ -265,6 +264,7 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
             # 5 minutes, to resiliently handle delicate/slow k8s clusters
             "kubernetes.scheduler-service-wait-timeout": 60 * 5,
             "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.retry.count": 10,
         }
     )
 

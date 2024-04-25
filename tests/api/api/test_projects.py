@@ -17,7 +17,6 @@ import datetime
 import http
 import json.decoder
 import os
-import typing
 import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
@@ -38,6 +37,7 @@ import server.api.api.utils
 import server.api.crud
 import server.api.main
 import server.api.utils.auth.verifier
+import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
@@ -45,7 +45,7 @@ import server.api.utils.singletons.scheduler
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
 from server.api.db.sqldb.models import (
-    Artifact,
+    ArtifactV2,
     Entity,
     Feature,
     FeatureSet,
@@ -58,18 +58,18 @@ from server.api.db.sqldb.models import (
 )
 
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
+FUNCTIONS_API = "projects/{project}/functions/{name}"
+LIST_FUNCTION_API = "projects/{project}/functions"
 
 
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
-        mlrun.config.config.httpdb.projects.leader = "nop"
+        mlrun.mlconf.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
-        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
-            db
-        )
+        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
-        mlrun.config.config.httpdb.projects.leader = "mlrun"
+        mlrun.mlconf.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
@@ -82,8 +82,14 @@ def test_redirection_from_worker_to_chief_delete_project(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}"
+    project_name = "test-project"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    )
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    endpoint = f"projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
         headers = {"x-mlrun-deletion-strategy": strategy.value}
         for test_case in [
@@ -106,7 +112,7 @@ def test_redirection_from_worker_to_chief_delete_project(
                 "expected_status": http.HTTPStatus.PRECONDITION_FAILED.value,
                 "expected_body": {
                     "detail": {
-                        "reason": f"Project {project} can not be deleted since related resources found: x"
+                        "reason": f"Project {project_name} can not be deleted since related resources found: x"
                     }
                 },
             },
@@ -115,7 +121,7 @@ def test_redirection_from_worker_to_chief_delete_project(
             expected_response = test_case.get("expected_body")
 
             httpserver.expect_ordered_request(
-                endpoint, method="DELETE"
+                f"{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}", method="DELETE"
             ).respond_with_json(expected_response, status=expected_status)
             url = httpserver.url_for("")
             mlrun.mlconf.httpdb.clusterization.chief.url = url
@@ -161,12 +167,30 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.mark.parametrize(
+    "api_version,successful_delete_response_code",
+    [("v1", HTTPStatus.NO_CONTENT.value), ("v2", HTTPStatus.ACCEPTED.value)],
+)
 def test_delete_project_with_resources(
     db: Session,
-    client: TestClient,
-    project_member_mode: str,
+    unversioned_client: TestClient,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    project_member_mode: str,
+    api_version: str,
+    successful_delete_response_code: int,
 ):
+    def _send_delete_request_and_assert_response_code(
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+        expected_response_code: int,
+    ):
+        response = unversioned_client.delete(
+            f"{api_version}/projects/{project_to_remove}",
+            headers={
+                mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy.value
+            },
+        )
+        assert response.status_code == expected_response_code
+
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
@@ -187,31 +211,22 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - check - should fail because there are resources
-    response = client.delete(
-        f"projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.check,
+        HTTPStatus.PRECONDITION_FAILED.value,
     )
-    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
     # deletion strategy - restricted - should fail because there are resources
-    response = client.delete(
-        f"projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        HTTPStatus.PRECONDITION_FAILED.value,
     )
-    assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
     # deletion strategy - cascading - should succeed and remove all related resources
-    response = client.delete(
-        f"projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.cascading,
+        successful_delete_response_code,
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
@@ -244,22 +259,16 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - check - should succeed cause no project
-    response = client.delete(
-        f"projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.check,
+        HTTPStatus.NO_CONTENT.value,
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # deletion strategy - restricted - should succeed cause no project
-    response = client.delete(
-        f"projects/{project_to_remove}",
-        headers={
-            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
-        },
+    _send_delete_request_and_assert_response_code(
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        HTTPStatus.NO_CONTENT.value,
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
 
 
 def test_list_and_get_project_summaries(
@@ -532,7 +541,8 @@ def test_delete_project_deletion_strategy_check(
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
     response = client.post(
-        f"func/{project.metadata.name}/{function_name}", json=function
+        FUNCTIONS_API.format(project=project.metadata.name, name=function_name),
+        json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
 
@@ -552,14 +562,13 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
     project_name = "project-name"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_name)
 
-    response = client.get("funcs", params={"project": project_name})
+    response = client.get(LIST_FUNCTION_API.format(project=project_name))
     assert response.status_code == HTTPStatus.OK.value
     distinct_function_names = {
         function["metadata"]["name"] for function in response.json()["funcs"]
@@ -567,11 +576,11 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same function name
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get("artifacts", params={"project": project_name, "tag": "*"})
+    response = client.get(f"projects/{project_name}/artifacts", params={"tag": "*"})
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
-        (artifact["db_key"], artifact["iter"])
+        (artifact["spec"]["db_key"], artifact["metadata"]["iter"])
         for artifact in response.json()["artifacts"]
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
@@ -599,7 +608,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
     server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
-    server.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
@@ -613,9 +621,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
 
     assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
         distinct_function_names
-    )
-    assert server.api.utils.singletons.db.get_db().del_artifact.call_count == len(
-        distinct_artifact_keys
     )
     assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
@@ -672,9 +677,7 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.config.config.log_collector.mode = (
-        mlrun.common.schemas.LogsCollectorMode.sidecar
-    )
+    mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
     project_name = "project-name"
 
@@ -764,6 +767,12 @@ def test_projects_crud(
             description="banana", source="source", goals="some goals"
         ),
     )
+
+    # create - fail invalid label
+    invalid_project_create_request = project_1.dict()
+    invalid_project_create_request["metadata"]["labels"] = {".a": "invalid-label"}
+    response = client.post("projects", json=invalid_project_create_request)
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
     # create
     response = client.post("projects", json=project_1.dict())
@@ -880,7 +889,9 @@ def test_projects_crud(
     # add function to project 1
     function_name = "function-name"
     function = {"metadata": {"name": function_name}}
-    response = client.post(f"func/{name1}/{function_name}", json=function)
+    response = client.post(
+        FUNCTIONS_API.format(project=name1, name=function_name), json=function
+    )
     assert response.status_code == HTTPStatus.OK.value
 
     # delete - restricted strategy, will fail because function exists
@@ -902,11 +913,179 @@ def test_projects_crud(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     # ensure function is gone
-    response = client.get(f"func/{name1}/{function_name}")
+    response = client.get(FUNCTIONS_API.format(project=name1, name=function_name))
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     # list
     _list_project_names_and_assert(client, [name2])
+
+
+def test_project_with_parameters(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # validate that leading/trailing whitespaces in the keys and values are removed
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.params = {"aa": "1", "aa ": "1", "aa   ": "1", " bb ": "   2"}
+    expected_params = {"aa": "1", "bb": "2"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project request
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # validate that the parameters are as expected
+    assert response_body["spec"]["params"] == expected_params
+
+
+@pytest.mark.parametrize(
+    "delete_api_version",
+    [
+        "v1",
+        "v2",
+    ],
+)
+def test_delete_project_not_found_in_leader(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    delete_api_version: str,
+) -> None:
+    archived_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="archived-project"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+        status=mlrun.common.schemas.ProjectStatus(
+            state=mlrun.common.schemas.ProjectState.archived
+        ),
+    )
+
+    online_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="online-project"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    response = unversioned_client.post("v1/projects", json=archived_project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(archived_project, response)
+
+    response = unversioned_client.post("v1/projects", json=online_project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(online_project, response)
+
+    with unittest.mock.patch.object(
+        mock_project_follower_iguazio_client,
+        "delete_project",
+        side_effect=mlrun.errors.MLRunNotFoundError("Project not found"),
+    ):
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{archived_project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.ACCEPTED.value
+
+        response = unversioned_client.get(
+            f"v1/projects/{archived_project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{online_project.metadata.name}",
+        )
+        if response.status_code == HTTPStatus.ACCEPTED.value:
+            assert delete_api_version == "v2"
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                background_task.metadata.name
+            )
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+            assert (
+                "Failed to delete project online-project. Project not found in leader, but it is not in archived state."
+                in background_task.status.error
+            )
+
+        else:
+            assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
+
+        response = unversioned_client.get(
+            f"v1/projects/{online_project.metadata.name}",
+        )
+        assert response.status_code == HTTPStatus.OK.value
+
+
+# Test should not run more than a few seconds because we test that if the background task fails,
+# the wrapper task fails fast
+@pytest.mark.timeout(10)
+@pytest.mark.parametrize(
+    "delete_api_version",
+    [
+        "v1",
+        "v2",
+    ],
+)
+def test_delete_project_fail_fast(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    delete_api_version: str,
+) -> None:
+    # Set the igz version for the project leader mock
+    # We only test igz version < 3.5.5 flow because from 3.5.5 iguazio waits for the inner background task to
+    # finish so the wrapper task does not wait for the inner task
+    mlrun.mlconf.igz_version = "3.5.4"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    response = unversioned_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    with unittest.mock.patch(
+        "server.api.crud.projects.Projects.delete_project_resources",
+        side_effect=Exception("some error"),
+    ):
+        response = unversioned_client.delete(
+            f"{delete_api_version}/projects/{project.metadata.name}",
+            headers={
+                mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading,
+            },
+        )
+        if delete_api_version == "v1":
+            assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR.value
+            assert (
+                "Failed to delete project project-name: some error"
+                in response.json()["detail"]
+            )
+        else:
+            assert response.status_code == HTTPStatus.ACCEPTED.value
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+                background_task.metadata.name
+            )
+            assert (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            )
+            assert (
+                "Failed to delete project project-name: some error"
+                in background_task.status.error
+            )
 
 
 def _create_resources_of_all_kinds(
@@ -954,29 +1133,34 @@ def _create_resources_of_all_kinds(
                 )
 
     # Create several artifacts with several tags
-    artifact = {
-        "bla": "blabla",
-        "labels": labels,
+    artifact_template = {
+        "metadata": {"labels": labels},
+        "spec": {},
+        "kind": "artifact",
         "status": {"bla": "blabla"},
     }
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
-    artifact_uids = ["some_uid", "some_uid2", "some_uid3"]
+    artifact_trees = ["some_tree", "some_tree2", "some_tree3"]
     artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
     for artifact_key in artifact_keys:
-        for artifact_uid in artifact_uids:
+        for artifact_tree in artifact_trees:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
-                    artifact["iter"] = artifact_iter
-                    artifact["tag"] = artifact_tag
-                    artifact["uid"] = artifact_uid
+                    artifact = copy.deepcopy(artifact_template)
+                    artifact["metadata"]["iter"] = artifact_iter
+                    artifact["metadata"]["tag"] = artifact_tag
+                    artifact["metadata"]["tree"] = artifact_tree
+
+                    # pass a copy of the artifact to the store function, otherwise the store function will change the
+                    # original artifact
                     db.store_artifact(
                         db_session,
                         artifact_key,
                         artifact,
-                        artifact_uid,
-                        artifact_iter,
-                        artifact_tag,
-                        project,
+                        iter=artifact_iter,
+                        tag=artifact_tag,
+                        project=project,
+                        producer_id=artifact_tree,
                     )
 
     # Create several runs
@@ -1002,6 +1186,34 @@ def _create_resources_of_all_kinds(
             params={"some-param": "some-value"},
         )
         db.store_run_notifications(db_session, [notification], run_uid, project)
+
+    # Create alert notifications
+    notification = mlrun.model.Notification(
+        kind="slack",
+        when=["completed", "error"],
+        name="test-alert-notification",
+        message="test-message",
+        condition="",
+        severity="info",
+        params={"some-param": "some-value"},
+    )
+
+    alert = mlrun.common.schemas.AlertConfig(
+        project=project,
+        name="test_alert",
+        summary="oops",
+        severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        entity={
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
+            "project": project,
+            "id": "*",
+        },
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
+        notifications=[notification.to_dict()],
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+    )
+    alert = db.store_alert(db_session, alert)
+    db.store_alert_notifications(db_session, [notification], alert.id, project)
 
     # Create several logs
     log = b"some random log"
@@ -1106,7 +1318,7 @@ def _assert_resources_in_project(
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
-) -> typing.Tuple[typing.Dict, typing.Dict]:
+) -> tuple[dict, dict]:
     object_type_records_count_map = {
         "Logs": _assert_logs_in_project(project, assert_no_resources),
         "Schedules": _assert_schedules_in_project(project, assert_no_resources),
@@ -1167,7 +1379,7 @@ def _assert_db_resources_in_project(
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
-) -> typing.Dict:
+) -> dict:
     table_name_records_count_map = {}
     for cls in _classes:
         # User support is not really implemented or in use
@@ -1184,18 +1396,29 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
+            or cls.__name__ == "Artifact"
             or cls.__name__ == "Log"
             or (
                 cls.__tablename__ == "projects_labels"
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
+            or cls.__tablename__ == "alert_states"
         ):
             continue
         number_of_cls_records = 0
         # Label doesn't have project attribute
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
+            if (
+                # Artifact table is deprecated, we are using ArtifactV2 instead
+                cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
+            ) or (
+                # PaginationCache is not a project-level table
+                cls.__name__ == "PaginationCache"
+            ):
+                continue
+
             number_of_cls_records = (
                 db_session.query(cls).filter_by(project=project).count()
             )
@@ -1214,11 +1437,11 @@ def _assert_db_resources_in_project(
                     .filter(Run.project == project)
                     .count()
                 )
-            if cls.__tablename__ == "artifacts_labels":
+            if cls.__tablename__ == "artifacts_v2_labels":
                 number_of_cls_records = (
-                    db_session.query(Artifact)
+                    db_session.query(ArtifactV2)
                     .join(cls)
-                    .filter(Artifact.project == project)
+                    .filter(ArtifactV2.project == project)
                     .count()
                 )
             if cls.__tablename__ == "feature_sets_labels":
@@ -1265,6 +1488,9 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
+            if cls.__tablename__ == "artifacts_labels":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
+                continue
         elif cls.__name__ == "Project":
             number_of_cls_records = (
                 db_session.query(Project).filter(Project.name == project).count()
@@ -1286,7 +1512,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
+    client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
     params["format"] = mlrun.common.schemas.ProjectsFormat.name_only
@@ -1362,7 +1588,7 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
                 "spec": {"src_path": "/some/local/path"},
             }
             response = client.post(
-                f"artifact/{project_name}/{uid}/{key}", json=artifact
+                f"projects/{project_name}/artifacts/{uid}/{key}", json=artifact
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
@@ -1395,7 +1621,7 @@ def _create_functions(client: TestClient, project_name, functions_count):
                 "spec": {"some_field": str(uuid4())},
             }
             response = client.post(
-                f"func/{project_name}/{function_name}",
+                FUNCTIONS_API.format(project=project_name, name=function_name),
                 json=function,
                 params={"versioned": True},
             )

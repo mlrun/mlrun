@@ -25,7 +25,10 @@ import mlrun
 
 from ..config import config
 from ..datastore import get_stream_pusher
-from ..datastore.utils import parse_kafka_url
+from ..datastore.utils import (
+    get_kafka_brokers_from_dict,
+    parse_kafka_url,
+)
 from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
@@ -469,7 +472,6 @@ class TaskStep(BaseStep):
             class_name = class_name.__name__
         elif not class_object:
             if class_name == "$remote":
-
                 from mlrun.serving.remote import RemoteStep
 
                 class_object = RemoteStep
@@ -556,6 +558,34 @@ class ErrorStep(TaskStep):
     kind = "error_step"
     _dict_fields = _task_step_fields + ["before", "base_step"]
     _default_class = ""
+
+    def __init__(
+        self,
+        class_name: Union[str, type] = None,
+        class_args: dict = None,
+        handler: str = None,
+        name: str = None,
+        after: list = None,
+        full_event: bool = None,
+        function: str = None,
+        responder: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+    ):
+        super().__init__(
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            after=after,
+            full_event=full_event,
+            function=function,
+            responder=responder,
+            input_path=input_path,
+            result_path=result_path,
+        )
+        self.before = None
+        self.base_step = None
 
 
 class RouterStep(TaskStep):
@@ -921,6 +951,7 @@ class FlowStep(BaseStep):
 
         if self.engine != "sync":
             self._build_async_flow()
+            self._run_async_flow()
 
     def check_and_process_graph(self, allow_empty=False):
         """validate correct graph layout and initialize the .next links"""
@@ -1075,7 +1106,10 @@ class FlowStep(BaseStep):
                         if next_state.async_object and error_step.async_object:
                             error_step.async_object.to(next_state.async_object)
 
-        self._controller = source.run()
+        self._async_flow = source
+
+    def _run_async_flow(self):
+        self._controller = self._async_flow.run()
 
     def get_queue_links(self):
         """return dict of function and queue its listening on, for building stream triggers"""
@@ -1126,23 +1160,14 @@ class FlowStep(BaseStep):
         return event
 
     def run(self, event, *args, **kwargs):
-
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            if config.datastore.async_source_mode == "enabled":
-                resp_awaitable = self._controller.emit(
-                    event, await_result=self._wait_for_result
-                )
-                if self._wait_for_result:
-                    return resp_awaitable
-                return self._await_and_return_id(resp_awaitable, event)
-            else:
-                resp = self._controller.emit(
-                    event, return_awaitable_result=self._wait_for_result
-                )
-                if self._wait_for_result and resp:
-                    return resp.await_result()
+            resp = self._controller.emit(
+                event, return_awaitable_result=self._wait_for_result
+            )
+            if self._wait_for_result and resp:
+                return resp.await_result()
             event = copy(event)
             event.body = {"id": event.id}
             return event
@@ -1180,6 +1205,7 @@ class FlowStep(BaseStep):
 
     def wait_for_completion(self):
         """wait for completion of run in async flows"""
+
         if self._controller:
             if hasattr(self._controller, "terminate"):
                 self._controller.terminate()
@@ -1471,13 +1497,11 @@ def _init_async_objects(context, steps):
                     endpoint = None
                     options = {}
                     options.update(step.options)
-                    kafka_bootstrap_servers = options.pop(
-                        "kafka_bootstrap_servers", None
-                    )
-                    if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
-                        topic, bootstrap_servers = parse_kafka_url(
-                            stream_path, kafka_bootstrap_servers
-                        )
+
+                    kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
+
+                    if stream_path.startswith("kafka://") or kafka_brokers:
+                        topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
                         kafka_producer_options = options.pop(
                             "kafka_producer_options", None
@@ -1485,7 +1509,7 @@ def _init_async_objects(context, steps):
 
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
-                            bootstrap_servers=bootstrap_servers,
+                            brokers=brokers,
                             producer_options=kafka_producer_options,
                             context=context,
                             **options,
@@ -1512,6 +1536,7 @@ def _init_async_objects(context, steps):
                     result_path=step.result_path,
                     name=step.name,
                     context=context,
+                    pass_context=step._inject_context,
                 )
             if (
                 respond_supported
@@ -1524,9 +1549,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-
     explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
 
+    # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(
         context=context,
         explicit_ack=explicit_ack,

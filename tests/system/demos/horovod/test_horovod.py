@@ -26,7 +26,6 @@ from tests.system.demos.base import TestDemo
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestHorovodTFv2(TestDemo):
-
     project_name = "horovod-project"
 
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
@@ -41,7 +40,7 @@ class TestHorovodTFv2(TestDemo):
         trainer_src_path = str(self.assets_path / "horovod_training.py")
         trainer_dest_path = pathlib.Path("/assets/horovod_training.py")
         stores = mlrun.datastore.store_manager.set()
-        datastore, subpath = stores.get_or_create_store(
+        datastore, subpath, _ = stores.get_or_create_store(
             self._get_v3io_user_store_path(trainer_dest_path)
         )
         datastore.upload(subpath, trainer_src_path)

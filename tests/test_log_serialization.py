@@ -26,7 +26,6 @@ def my_func(context):
     print(f"Run: {context.name} (uid={context.uid})")
 
     context.log_result("float", 1.5)
-    context.log_result("np-float", np.float(1.5))
     context.log_result("np-float32", np.float32(1.5))
     context.log_result("date", datetime.datetime(2018, 1, 1))
     context.log_result("np-date", np.datetime64("2018-01-01"))

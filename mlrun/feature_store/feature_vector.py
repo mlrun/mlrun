@@ -15,8 +15,9 @@ import collections
 import logging
 import typing
 from copy import copy
+from datetime import datetime
 from enum import Enum
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -36,6 +37,7 @@ from ..features import Entity, Feature
 from ..model import (
     DataSource,
     DataTarget,
+    DataTargetBase,
     ModelObj,
     ObjectDict,
     ObjectList,
@@ -44,6 +46,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
+from .common import RunConfig
 
 
 class FeatureVectorSpec(ModelObj):
@@ -66,18 +69,16 @@ class FeatureVectorSpec(ModelObj):
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
         self._function: FunctionReference = None
-        self._relations: typing.Dict[str, ObjectDict] = None
+        self._relations: dict[str, ObjectDict] = None
         self._join_graph: JoinGraph = None
 
         self.description = description
-        self.features: List[str] = features or []
+        self.features: list[str] = features or []
         self.entity_source = entity_source
         self.entity_fields = entity_fields or []
         self.graph = graph
         self.join_graph = join_graph
-        self.relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = (
-            relations or {}
-        )
+        self.relations: dict[str, dict[str, Union[Entity, str]]] = relations or {}
         self.timestamp_field = timestamp_field
         self.label_feature = label_feature
         self.with_indexes = with_indexes
@@ -94,12 +95,12 @@ class FeatureVectorSpec(ModelObj):
         self._entity_source = self._verify_dict(source, "entity_source", DataSource)
 
     @property
-    def entity_fields(self) -> List[Feature]:
+    def entity_fields(self) -> list[Feature]:
         """the schema/metadata for the entity source fields"""
         return self._entity_fields
 
     @entity_fields.setter
-    def entity_fields(self, entity_fields: List[Feature]):
+    def entity_fields(self, entity_fields: list[Feature]):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
@@ -122,14 +123,12 @@ class FeatureVectorSpec(ModelObj):
         self._function = self._verify_dict(function, "function", FunctionReference)
 
     @property
-    def relations(self) -> typing.Dict[str, ObjectDict]:
+    def relations(self) -> dict[str, ObjectDict]:
         """feature set relations dict"""
         return self._relations
 
     @relations.setter
-    def relations(
-        self, relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]]
-    ):
+    def relations(self, relations: dict[str, dict[str, Union[Entity, str]]]):
         temp_relations = {}
         for fs_name, relation in relations.items():
             for col, ent in relation.items():
@@ -176,29 +175,29 @@ class FeatureVectorStatus(ModelObj):
         self.stats = stats or {}
         self.index_keys = index_keys
         self.preview = preview or []
-        self.features: List[Feature] = features or []
+        self.features: list[Feature] = features or []
         self.run_uri = run_uri
         self.timestamp_key = timestamp_key
 
     @property
-    def targets(self) -> List[DataTarget]:
+    def targets(self) -> list[DataTarget]:
         """list of material storage targets + their status/path"""
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTarget]):
+    def targets(self, targets: list[DataTarget]):
         self._targets = ObjectList.from_list(DataTarget, targets)
 
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
     @property
-    def features(self) -> List[Feature]:
+    def features(self) -> list[Feature]:
         """list of features (result of joining features from the source feature sets)"""
         return self._features
 
     @features.setter
-    def features(self, features: List[Feature]):
+    def features(self, features: list[Feature]):
         self._features = ObjectList.from_list(Feature, features)
 
 
@@ -318,9 +317,11 @@ class JoinGraph(ModelObj):
     def _start(self, other_operand: typing.Union[str, FeatureSet]):
         return self._join_operands(other_operand, JoinGraph.first_join_type)
 
-    def _init_all_join_keys(self, feature_set_objects, vector):
+    def _init_all_join_keys(
+        self, feature_set_objects, vector, entity_rows_keys: list[str] = None
+    ):
         for step in self.steps:
-            step.init_join_keys(feature_set_objects, vector)
+            step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
 
     @property
     def all_feature_sets_names(self):
@@ -373,7 +374,7 @@ class _JoinStep(ModelObj):
         name: str = None,
         left_step_name: str = None,
         right_step_name: str = None,
-        left_feature_set_names: Union[str, List[str]] = None,
+        left_feature_set_names: Union[str, list[str]] = None,
         right_feature_set_name: str = None,
         join_type: str = "inner",
         asof_join: bool = False,
@@ -383,7 +384,8 @@ class _JoinStep(ModelObj):
         self.right_step_name = right_step_name
         self.left_feature_set_names = (
             left_feature_set_names
-            if isinstance(left_feature_set_names, list)
+            if left_feature_set_names is None
+            or isinstance(left_feature_set_names, list)
             else [left_feature_set_names]
         )
         self.right_feature_set_name = right_feature_set_name
@@ -397,17 +399,23 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
+        entity_rows_keys: list[str] = None,
     ):
-        self.left_keys = []
-        self.right_keys = []
+        if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
+            entity_rows_keys
+        ):
+            self.left_keys, self.right_keys = [
+                list(
+                    feature_set_objects[
+                        self.right_feature_set_name
+                    ].spec.entities.keys()
+                )
+            ] * 2
 
         if (
             self.join_type == JoinGraph.first_join_type
             or not self.left_feature_set_names
         ):
-            self.left_keys = self.right_keys = list(
-                feature_set_objects[self.right_feature_set_name].spec.entities.keys()
-            )
             self.join_type = (
                 "inner"
                 if self.join_type == JoinGraph.first_join_type
@@ -416,13 +424,20 @@ class _JoinStep(ModelObj):
             return
 
         for left_fset in self.left_feature_set_names:
-            left_keys, right_keys = self._check_relation(
-                vector.get_feature_set_relations(feature_set_objects[left_fset]),
-                list(feature_set_objects[left_fset].spec.entities),
+            current_left_keys = feature_set_objects[left_fset].extract_relation_keys(
                 feature_set_objects[self.right_feature_set_name],
+                vector.get_feature_set_relations(feature_set_objects[left_fset]),
             )
-            self.left_keys.extend(left_keys)
-            self.right_keys.extend(right_keys)
+            current_right_keys = list(
+                feature_set_objects[self.right_feature_set_name].spec.entities.keys()
+            )
+            for i in range(len(current_left_keys)):
+                if (
+                    current_left_keys[i] not in self.left_keys
+                    and current_right_keys[i] not in self.right_keys
+                ):
+                    self.left_keys.append(current_left_keys[i])
+                    self.right_keys.append(current_right_keys[i])
 
         if not self.left_keys:
             raise mlrun.errors.MLRunRuntimeError(
@@ -430,37 +445,24 @@ class _JoinStep(ModelObj):
                 f"{self.left_feature_set_names} to {self.right_feature_set_name}"
             )
 
-    @staticmethod
-    def _check_relation(
-        relation: typing.Dict[str, Union[str, Entity]],
-        entities: List[Entity],
-        right_fset_fields,
-    ):
-        right_feature_set_entity_list = right_fset_fields.spec.entities
 
-        if all(ent in entities for ent in right_feature_set_entity_list) and len(
-            right_feature_set_entity_list
-        ) == len(entities):
-            # entities wise
-            return list(right_feature_set_entity_list.keys()), list(
-                right_feature_set_entity_list.keys()
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError("storey not installed, use pip install storey") from exc
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
             )
-        curr_col_relation_list = list(
-            map(
-                lambda ent: (
-                    list(relation.keys())[list(relation.values()).index(ent)]
-                    if ent in list(relation.values())
-                    else False
-                ),
-                right_feature_set_entity_list,
-            )
-        )
-
-        if all(curr_col_relation_list):
-            # relation wise
-            return curr_col_relation_list, list(right_feature_set_entity_list.keys())
-
-        return [], []
 
 
 class FeatureVector(ModelObj):
@@ -477,21 +479,22 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
         join_graph: JoinGraph = None,
-        relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = None,
+        relations: dict[str, dict[str, Union[Entity, str]]] = None,
     ):
         """Feature vector, specify selected features, their metadata and material views
 
         example::
 
             import mlrun.feature_store as fstore
+
             features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
             vector = fstore.FeatureVector("my-vec", features)
 
             # get the vector as a dataframe
-            df = fstore.get_offline_features(vector).to_dataframe()
+            df = vector.get_offline_features().to_dataframe()
 
             # return an online/real-time feature service
-            svc = fstore.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            svc = vector.get_online_feature_service(impute_policy={"*": "$mean"})
             resp = svc.get([{"stock": "GOOG"}])
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
@@ -721,6 +724,180 @@ class FeatureVector(ModelObj):
             feature_set_relations = self.spec.relations[name]
         return feature_set_relations
 
+    def get_offline_features(
+        self,
+        entity_rows=None,
+        entity_timestamp_column: str = None,
+        target: DataTargetBase = None,
+        run_config: RunConfig = None,
+        drop_columns: list[str] = None,
+        start_time: Union[str, datetime] = None,
+        end_time: Union[str, datetime] = None,
+        with_indexes: bool = False,
+        update_stats: bool = False,
+        engine: str = None,
+        engine_args: dict = None,
+        query: str = None,
+        order_by: Union[str, list[str]] = None,
+        spark_service: str = None,
+        timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    ):
+        """retrieve offline feature vector results
+
+        specify a feature vector object/uri and retrieve the desired features, their metadata
+        and statistics. returns :py:class:`~mlrun.feature_store.OfflineVectorResponse`,
+        results can be returned as a dataframe or written to a target
+
+        The start_time and end_time attributes allow filtering the data to a given time range, they accept
+        string values or pandas `Timestamp` objects, string values can also be relative, for example:
+        "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
+        for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
+        (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
+        Another option to filter the data is by the `query` argument - can be seen in the example.
+        example::
+
+            features = [
+                "stock-quotes.bid",
+                "stock-quotes.asks_sum_5h",
+                "stock-quotes.ask as mycol",
+                "stocks.*",
+            ]
+            vector = FeatureVector(features=features)
+            vector.get_offline_features(entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG']
+              and bid>100")
+            print(resp.to_dataframe())
+            print(vector.get_stats_table())
+            resp.to_parquet("./out.parquet")
+
+        :param entity_rows:             dataframe with entity rows to join with
+        :param target:                  where to write the results to
+        :param drop_columns:            list of columns to drop from the final result
+        :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
+                                        only if param entity_rows was specified.
+        :param run_config:              function and/or run configuration
+                                        see :py:class:`~mlrun.feature_store.RunConfig`
+        :param start_time:              datetime, low limit of time needed to be filtered. Optional.
+        :param end_time:                datetime, high limit of time needed to be filtered. Optional.
+        :param with_indexes:            Return vector with/without the entities and the timestamp_key of the feature
+                                        sets and with/without entity_timestamp_column and timestamp_for_filtering
+                                        columns. This property can be specified also in the feature vector spec
+                                        (feature_vector.spec.with_indexes)
+                                        (default False)
+        :param update_stats:            update features statistics from the requested feature sets on the vector.
+                                        (default False).
+        :param engine:                  processing engine kind ("local", "dask", or "spark")
+        :param engine_args:             kwargs for the processing engine
+        :param query:                   The query string used to filter rows on the output
+        :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
+        :param order_by:                Name or list of names to order by. The name or the names in the list can be the
+                                        feature name or the alias of the feature you pass in the feature list.
+        :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
+                                        dictionary ({<feature set name>: <timestamp column name>, ...})
+                                        that indicates the timestamp column name for each feature set. Optional.
+                                        By default, the filter executes on the timestamp_key of each feature set.
+                                        Note: the time filtering is performed on each feature set before the
+                                        merge process using start_time and end_time params.
+
+        """
+
+        return mlrun.feature_store.api._get_offline_features(
+            self,
+            entity_rows,
+            entity_timestamp_column,
+            target,
+            run_config,
+            drop_columns,
+            start_time,
+            end_time,
+            with_indexes,
+            update_stats,
+            engine,
+            engine_args,
+            query,
+            order_by,
+            spark_service,
+            timestamp_for_filtering,
+        )
+
+    def get_online_feature_service(
+        self,
+        run_config: RunConfig = None,
+        fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+        impute_policy: dict = None,
+        update_stats: bool = False,
+        entity_keys: list[str] = None,
+    ):
+        """initialize and return online feature vector service api,
+        returns :py:class:`~mlrun.feature_store.OnlineVectorService`
+
+        :**usage**:
+            There are two ways to use the function:
+
+            1. As context manager
+
+                Example::
+
+                    with vector_uri.get_online_feature_service() as svc:
+                        resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                        print(resp)
+                        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                        print(resp)
+
+                Example with imputing::
+
+                    with vector_uri.get_online_feature_service(entity_keys=['id'],
+                                                    impute_policy={"*": "$mean", "amount": 0)) as svc:
+                        resp = svc.get([{"id": "C123487"}])
+
+            2. as simple function, note that in that option you need to close the session.
+
+                Example::
+
+                    svc = vector_uri.get_online_feature_service(entity_keys=["ticker"])
+                    try:
+                        resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                        print(resp)
+                        resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                        print(resp)
+
+                    finally:
+                        svc.close()
+
+                Example with imputing::
+
+                    svc = vector_uri.get_online_feature_service(entity_keys=['id'],
+                                                    impute_policy={"*": "$mean", "amount": 0))
+                    try:
+                        resp = svc.get([{"id": "C123487"}])
+                    except Exception as e:
+                        handling exception...
+                    finally:
+                        svc.close()
+
+        :param run_config:          function and/or run configuration for remote jobs/services
+        :param impute_policy:       a dict with `impute_policy` per feature, the dict key is the feature name and the
+                                    dict value indicate which value will be used in case the feature is NaN/empty, the
+                                    replaced value can be fixed number for constants or $mean, $max, $min, $std, $count
+                                    for statistical values.
+                                    "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+        :param fixed_window_type:   determines how to query the fixed window values which were previously inserted by
+                                    ingest
+        :param update_stats:        update features statistics from the requested feature sets on the vector.
+                                    Default: False.
+        :param entity_keys:         Entity list of the first feature_set in the vector.
+                                    The indexes that are used to query the online service.
+        :return:                    Initialize the `OnlineVectorService`.
+                                    Will be used in subclasses where `support_online=True`.
+        """
+        return mlrun.feature_store.api._get_online_feature_service(
+            self,
+            run_config,
+            fixed_window_type,
+            impute_policy,
+            update_stats,
+            entity_keys,
+        )
+
 
 class OnlineVectorService:
     """get_online_feature_service response object"""
@@ -731,7 +908,7 @@ class OnlineVectorService:
         graph,
         index_columns,
         impute_policy: dict = None,
-        requested_columns: List[str] = None,
+        requested_columns: list[str] = None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}
@@ -787,7 +964,7 @@ class OnlineVectorService:
         """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[Union[dict, list]], as_list=False):
+    def get(self, entity_rows: list[Union[dict, list]], as_list=False):
         """get feature vector given the provided entity inputs
 
         take a list of input vectors/rows and return a list of enriched feature vectors
@@ -862,7 +1039,7 @@ class OnlineVectorService:
                     for name in data.keys():
                         v = data[name]
                         if v is None or (
-                            type(v) == float and (np.isinf(v) or np.isnan(v))
+                            isinstance(v, float) and (np.isinf(v) or np.isnan(v))
                         ):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:
@@ -911,22 +1088,3 @@ class OfflineVectorResponse:
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
         return self._merger.to_csv(target_path, **kw)
-
-
-class FixedWindowType(Enum):
-    CurrentOpenWindow = 1
-    LastClosedWindow = 2
-
-    def to_qbk_fixed_window_type(self):
-        try:
-            from storey import FixedWindowType as QueryByKeyFixedWindowType
-        except ImportError as exc:
-            raise ImportError("storey not installed, use pip install storey") from exc
-        if self == FixedWindowType.LastClosedWindow:
-            return QueryByKeyFixedWindowType.LastClosedWindow
-        elif self == FixedWindowType.CurrentOpenWindow:
-            return QueryByKeyFixedWindowType.CurrentOpenWindow
-        else:
-            raise NotImplementedError(
-                f"Provided fixed window type is not supported. fixed_window_type={self}"
-            )

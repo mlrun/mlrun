@@ -21,9 +21,6 @@ from mlrun.utils import get_in, update_in
 # more info https://github.com/benoitc/gunicorn/issues/2799, this comment can be removed once old keys are removed
 event_id_key = "MLRUN-EVENT-ID"
 event_path_key = "MLRUN-EVENT-PATH"
-# TODO: remove these keys in 1.6.0
-legacy_event_id_key = "MLRUN_EVENT_ID"
-legacy_event_path_key = "MLRUN_EVENT_PATH"
 
 
 def _extract_input_data(input_path, body):
@@ -49,7 +46,7 @@ def _update_result_body(result_path, event_body, result):
 class StepToDict:
     """auto serialization of graph steps to a python dictionary"""
 
-    def to_dict(self, fields=None, exclude=None):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """convert the step object to a python dictionary"""
         fields = fields or getattr(self, "_dict_fields", None)
         if not fields:
@@ -98,8 +95,7 @@ class StepToDict:
 
 
 class RouterToDict(StepToDict):
-
     _STEP_KIND = "router"
 
-    def to_dict(self, fields=None, exclude=None):
-        return super().to_dict(exclude=["routes"])
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+        return super().to_dict(exclude=["routes"], strip=strip)

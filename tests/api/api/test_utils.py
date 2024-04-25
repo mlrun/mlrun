@@ -87,6 +87,48 @@ def test_submit_run_sync(db: Session, client: TestClient):
     ), "schedule was not updated"
 
 
+def test_submit_run_sync_schedule_with_function_overrides(
+    db: Session, client: TestClient
+):
+    auth_info = mlrun.common.schemas.AuthInfo()
+    tests.api.api.utils.create_project(client, PROJECT)
+    project, function_name, function_tag, original_function = _mock_original_function(
+        client
+    )
+    original_function_uri = f"{project}/{function_name}:{function_tag}"
+    resources = {
+        "limits": {
+            "cpu": "3m",
+            "memory": "3Mi",
+            "nvidia.com/gpu": "3",
+        },
+        "requests": {"cpu": "3", "memory": "3Mi"},
+    }
+    submit_job_body = {
+        "schedule": "0 * * * *",
+        "task": {
+            "spec": {
+                "function": f"{project}/{function_name}:{function_tag}",
+            },
+            "metadata": {"name": "sometask", "project": project},
+        },
+        "function": {
+            "metadata": {"credentials": {"access_key": "some-access-key-override"}},
+            "spec": {
+                "resources": resources,
+            },
+        },
+    }
+    _, _, _, response_data = server.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "created"
+
+    # validate the function uri was changed in the task configuration, meaning a new function was created
+    # and set as the task's function
+    assert submit_job_body["task"]["spec"]["function"] != original_function_uri
+
+
 def test_generate_function_and_task_from_submit_run_body_body_override_values(
     db: Session, client: TestClient
 ):
@@ -797,18 +839,18 @@ def test_mask_v3io_volume_credentials(
         v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
             v3io_volume["flexVolume"]
         )
-        no_access_key_v3io_volume[
-            "flexVolume"
-        ] = k8s_api_client.sanitize_for_serialization(
-            no_access_key_v3io_volume["flexVolume"]
+        no_access_key_v3io_volume["flexVolume"] = (
+            k8s_api_client.sanitize_for_serialization(
+                no_access_key_v3io_volume["flexVolume"]
+            )
         )
         no_name_v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
             no_name_v3io_volume["flexVolume"]
         )
-        no_matching_mount_v3io_volume[
-            "flexVolume"
-        ] = k8s_api_client.sanitize_for_serialization(
-            no_matching_mount_v3io_volume["flexVolume"]
+        no_matching_mount_v3io_volume["flexVolume"] = (
+            k8s_api_client.sanitize_for_serialization(
+                no_matching_mount_v3io_volume["flexVolume"]
+            )
         )
         v3io_volume_mount = k8s_api_client.sanitize_for_serialization(v3io_volume_mount)
         conflicting_v3io_volume_mount = k8s_api_client.sanitize_for_serialization(
@@ -1371,7 +1413,7 @@ def _mock_original_function(
         original_function,
     ) = _generate_original_function(access_key=access_key, kind=kind)
     resp = client.post(
-        f"func/{project}/{function_name}",
+        f"projects/{project}/functions/{function_name}",
         json=original_function,
         params={"tag": function_tag},
     )

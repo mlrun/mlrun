@@ -66,7 +66,7 @@ class RuntimeResources(
     def filter_and_format_grouped_by_project_runtime_resources_output(
         self,
         grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
-        allowed_projects: typing.List[str],
+        allowed_projects: list[str],
         group_by: typing.Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -114,7 +114,7 @@ class RuntimeResources(
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
         force: bool = False,
-        grace_period: int = mlrun.config.config.runtime_resources_deletion_grace_period,
+        grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
     ):
         kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
         if kind is not None:

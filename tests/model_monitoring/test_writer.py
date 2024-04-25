@@ -13,11 +13,9 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Type
 from unittest.mock import Mock
 
 import pytest
-from _pytest.fixtures import FixtureRequest
 
 from mlrun.model_monitoring.writer import (
     ModelMonitoringWriter,
@@ -33,11 +31,12 @@ from mlrun.utils.notifications.notification_pusher import CustomNotificationPush
 
 
 @pytest.fixture(params=[0])
-def event(request: FixtureRequest) -> _AppResultEvent:
+def event(request: pytest.FixtureRequest) -> _AppResultEvent:
     return _AppResultEvent(
         {
             WriterEvent.ENDPOINT_ID: "some-ep-id",
-            WriterEvent.SCHEDULE_TIME: "2023-09-19 14:26:06.501084",
+            WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
+            WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
             WriterEvent.APPLICATION_NAME: "dummy-app",
             WriterEvent.RESULT_NAME: "data-drift-0",
             WriterEvent.RESULT_KIND: 0,
@@ -60,7 +59,7 @@ def notification_pusher() -> CustomNotificationPusher:
         ({WriterEvent.ENDPOINT_ID: "ep2211"}, _WriterEventValueError),
     ],
 )
-def test_reconstruct_event_error(event: _RawEvent, exception: Type[Exception]) -> None:
+def test_reconstruct_event_error(event: _RawEvent, exception: type[Exception]) -> None:
     with pytest.raises(exception):
         ModelMonitoringWriter._reconstruct_event(event)
 

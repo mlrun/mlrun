@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import typing
 
 import kubernetes.client
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils.regex
 
 from .config import config as mlconfig
 
@@ -37,7 +37,7 @@ def is_running_inside_kubernetes_cluster():
 
 def generate_preemptible_node_selector_requirements(
     node_selector_operator: str,
-) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
+) -> list[kubernetes.client.V1NodeSelectorRequirement]:
     """
     Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
     node selector operator represents a key's relationship to a set of values.
@@ -60,9 +60,9 @@ def generate_preemptible_node_selector_requirements(
     return match_expressions
 
 
-def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
-    kubernetes.client.V1NodeSelectorTerm
-]:
+def generate_preemptible_nodes_anti_affinity_terms() -> (
+    list[kubernetes.client.V1NodeSelectorTerm]
+):
     """
     Generate node selector term containing anti-affinity expressions based on the
     pre-configured node selector of the preemptible nodes.
@@ -82,9 +82,9 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     ]
 
 
-def generate_preemptible_nodes_affinity_terms() -> typing.List[
-    kubernetes.client.V1NodeSelectorTerm
-]:
+def generate_preemptible_nodes_affinity_terms() -> (
+    list[kubernetes.client.V1NodeSelectorTerm]
+):
     """
     Use for purpose of scheduling on node having at least one of the node selectors.
     When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
@@ -104,7 +104,7 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
     return node_selector_terms
 
 
-def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+def generate_preemptible_tolerations() -> list[kubernetes.client.V1Toleration]:
     tolerations = mlconfig.get_preemptible_tolerations()
 
     toleration_objects = []
@@ -131,3 +131,58 @@ def sanitize_label_value(value: str) -> str:
     :return:      string fully compliant with k8s label value expectations
     """
     return re.sub(r"([^a-zA-Z0-9_.-]|^[^a-zA-Z0-9]|[^a-zA-Z0-9]$)", "-", value[:63])
+
+
+def verify_label_key(key: str):
+    """
+    Verify that the label key is valid for Kubernetes.
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    """
+    if not key:
+        raise mlrun.errors.MLRunInvalidArgumentError("label key cannot be empty")
+
+    mlrun.utils.helpers.verify_field_regex(
+        f"project.metadata.labels.'{key}'",
+        key,
+        mlrun.utils.regex.k8s_character_limit,
+    )
+
+    if key.startswith("k8s.io/") or key.startswith("kubernetes.io/"):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
+        )
+
+    parts = key.split("/")
+    if len(parts) == 1:
+        name = parts[0]
+    elif len(parts) == 2:
+        prefix, name = parts
+        if len(prefix) == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Label key prefix cannot be empty"
+            )
+
+        # prefix must adhere dns_1123_subdomain
+        mlrun.utils.helpers.verify_field_regex(
+            f"Project.metadata.labels.'{key}'",
+            prefix,
+            mlrun.utils.regex.dns_1123_subdomain,
+        )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Label key can only contain one '/'"
+        )
+
+    mlrun.utils.helpers.verify_field_regex(
+        f"project.metadata.labels.'{key}'",
+        name,
+        mlrun.utils.regex.qualified_name,
+    )
+
+
+def verify_label_value(value, label_key):
+    mlrun.utils.helpers.verify_field_regex(
+        f"project.metadata.labels.'{label_key}'",
+        value,
+        mlrun.utils.regex.label_value,
+    )

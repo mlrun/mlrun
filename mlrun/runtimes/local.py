@@ -104,13 +104,13 @@ class ParallelRunner:
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
-                logger.error("max errors reached, stopping iterations!")
+                logger.error("Max errors reached, stopping iterations!")
                 return True
             run_results = resp["status"].get("results", {})
             stop = generator.eval_stop_condition(run_results)
             if stop:
                 logger.info(
-                    f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                    f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                 )
             return stop
 
@@ -140,7 +140,7 @@ class ParallelRunner:
 
         client.close()
         if function_name and generator.options.teardown_dask:
-            logger.info("tearing down the dask cluster..")
+            logger.info("Tearing down the dask cluster..")
             mlrun.get_run_db().delete_runtime_resources(
                 kind="dask", object_id=function_name, force=True
             )
@@ -218,7 +218,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if workdir:
             self.spec.workdir = workdir
         if target_dir:
-            self.spec.clone_target_dir = target_dir
+            self.spec.build.source_code_target_dir = target_dir
 
     def is_deployed(self):
         return True
@@ -240,7 +240,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
-                self.spec.clone_target_dir,
+                self.spec.build.source_code_target_dir,
                 secrets=execution._secrets_manager,
             )
             if workdir and not workdir.startswith("/"):
@@ -278,7 +278,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
         handler = runobj.spec.handler
         handler_str = handler or "main"
-        logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
+        logger.debug(f"Starting local run: {self.spec.command} # {handler_str}")
         pythonpath = self.spec.pythonpath
 
         if handler:
@@ -315,15 +315,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
                 # by the caller and will set the state to error ( in `update_run_state` )
                 context.set_state(error=err_to_str(exc), commit=True)
-                logger.error(f"run error, {traceback.format_exc()}")
+                logger.error(f"Run error, {traceback.format_exc()}")
                 raise RunError(
-                    "failed on pre-loading / post-running of the function"
+                    "Failed on pre-loading / post-running of the function"
                 ) from exc
 
         else:
             command = self.spec.command
             command = command.format(**runobj.spec.parameters)
-            logger.info(f"handler was not provided running main ({command})")
+            logger.info(f"Handler was not provided running main ({command})")
             arg_list = command.split()
             if self.spec.mode == "pass":
                 cmd = arg_list
@@ -360,9 +360,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 if resp:
                     run_obj_dict = json.loads(resp)
                 else:
-                    logger.error("empty context tmp file")
+                    logger.debug("Empty context tmp file")
             else:
-                logger.info("no context file found")
+                logger.info("No context file found")
 
             # If trackers where used, this is where we log all data collected to MLRun
             run_obj_dict = trackers_manager.post_run(run_obj_dict)
@@ -380,7 +380,7 @@ def load_module(file_name, handler, context):
             mod_name = mod_name[: -len(path.suffix)]
         spec = imputil.spec_from_file_location(mod_name, file_name)
         if spec is None:
-            raise RunError(f"cannot import from {file_name!r}")
+            raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
         spec.loader.exec_module(module)
 
@@ -396,7 +396,7 @@ def run_exec(cmd, args, env=None, cwd=None):
         cmd += args
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
-    print("running:", cmd)
+    print("Running:", cmd)
     process = Popen(
         cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
     )
@@ -436,7 +436,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out, err
 
 
-class _DupStdout(object):
+class _DupStdout:
     def __init__(self):
         self.terminal = sys.stdout
         self.buf = StringIO()
@@ -451,58 +451,69 @@ class _DupStdout(object):
 
 def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None):
     old_level = logger.level
-    if runobj.spec.verbose:
-        logger.set_logger_level("DEBUG")
+    try:
+        if runobj.spec.verbose:
+            logger.set_logger_level("DEBUG")
 
-    # Prepare the inputs type hints (user may pass type hints as part of the input keys):
-    runobj.spec.extract_type_hints_from_inputs()
-    # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
-    kwargs = get_func_arg(handler, runobj, context)
+        # Prepare the inputs type hints (user may pass type hints as part of the input keys):
+        runobj.spec.extract_type_hints_from_inputs()
+        # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
+        kwargs = get_func_arg(handler, runobj, context)
 
-    stdout = _DupStdout()
-    err = ""
-    val = None
-    old_dir = os.getcwd()
-    with redirect_stdout(stdout):
-        context.set_logger_stream(stdout)
-        try:
-            if cwd:
-                os.chdir(cwd)
-            # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
-            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user. Outputs
-            # are logged only if log hints are provided by the user):
-            if mlrun.mlconf.packagers.enabled:
-                val = mlrun.handler(
-                    inputs=(
-                        runobj.spec.inputs_type_hints
-                        if runobj.spec.inputs_type_hints
-                        else True  # True will use type hints if provided in user's code.
-                    ),
-                    outputs=(
-                        runobj.spec.returns
-                        if runobj.spec.returns
-                        else None  # None will turn off outputs logging.
-                    ),
-                )(handler)(**kwargs)
-            else:
-                val = handler(**kwargs)
-            context.set_state("completed", commit=False)
-        except Exception as exc:
-            err = err_to_str(exc)
-            logger.error(f"execution error, {traceback.format_exc()}")
-            context.set_state(error=err, commit=False)
-            logger.set_logger_level(old_level)
+        stdout = _DupStdout()
+        err = ""
+        val = None
+        old_dir = os.getcwd()
+        commit = True
+        with redirect_stdout(stdout):
+            context.set_logger_stream(stdout)
+            try:
+                if cwd:
+                    os.chdir(cwd)
+                # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using
+                # log hints (Expected behavior: inputs are being parsed when they have type hints in code or given
+                # by user. Outputs are logged only if log hints are provided by the user):
+                if mlrun.mlconf.packagers.enabled:
+                    val = mlrun.handler(
+                        inputs=(
+                            runobj.spec.inputs_type_hints
+                            if runobj.spec.inputs_type_hints
+                            else True  # True will use type hints if provided in user's code.
+                        ),
+                        outputs=(
+                            runobj.spec.returns
+                            if runobj.spec.returns
+                            else None  # None will turn off outputs logging.
+                        ),
+                    )(handler)(**kwargs)
+                else:
+                    val = handler(**kwargs)
+                context.set_state("completed", commit=False)
+            except mlrun.errors.MLRunTaskCancelledError as exc:
+                logger.warning("Run was aborted", err=err_to_str(exc))
+                # Run was aborted, the state run state is updated by the abort job, no need to commit again
+                context.set_state(
+                    mlrun.runtimes.constants.RunStates.aborted, commit=False
+                )
+                commit = False
+            except Exception as exc:
+                err = err_to_str(exc)
+                logger.error(f"Execution error, {traceback.format_exc()}")
+                context.set_state(error=err, commit=False)
 
-    stdout.flush()
-    if cwd:
-        os.chdir(old_dir)
-    context.set_logger_stream(sys.stdout)
-    if val:
-        context.log_result("return", val)
+        stdout.flush()
+        if cwd:
+            os.chdir(old_dir)
+        context.set_logger_stream(sys.stdout)
+        if val:
+            context.log_result("return", val)
 
-    # completion will be ignored if error is set
-    context.commit(completed=True)
-    logger.set_logger_level(old_level)
+        if commit:
+            # completion will be ignored if error is set
+            context.commit(completed=True)
+
+    finally:
+        logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err
 
 
@@ -516,9 +527,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         input_obj = context.get_input(input_key, inputs[input_key])
         # If there is no type hint annotation but there is a default value and its type is string, point the data
         # item to local downloaded file path (`local()` returns the downloaded temp path string):
-        if (
-            args[input_key].annotation is inspect.Parameter.empty
-            and type(args[input_key].default) is str
+        if args[input_key].annotation is inspect.Parameter.empty and isinstance(
+            args[input_key].default, str
         ):
             return input_obj.local()
         else:

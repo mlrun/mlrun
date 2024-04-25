@@ -19,7 +19,6 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestDB(TestMLRunSystem):
-
     project_name = "db-system-test-project"
 
     def test_db_commands(self):

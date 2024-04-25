@@ -21,7 +21,6 @@ from .helpers import logger
 
 class AzureVaultStore:
     def __init__(self, vault_name):
-
         try:
             from azure.identity import EnvironmentCredential
             from azure.keyvault.secrets import SecretClient
@@ -64,7 +63,7 @@ class AzureVaultStore:
             mlconf.secret_stores.azure_vault.secret_path + "/" + file_name
         )
         if os.path.isfile(full_path):
-            with open(full_path, "r") as secret_file:
+            with open(full_path) as secret_file:
                 contents = secret_file.read()
             return contents
         return None

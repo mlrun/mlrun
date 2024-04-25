@@ -36,3 +36,18 @@ func (m *GetLogsResponseStreamNop) Send(response *log_collector.GetLogsResponse)
 func (m *GetLogsResponseStreamNop) Context() context.Context {
 	return context.Background()
 }
+
+// ListRunsResponseStreamNop is a nop implementation of the protologcollector.LogCollector_ListRunsServer interface
+type ListRunsResponseStreamNop struct {
+	grpc.ServerStream
+	RunUIDs []string
+}
+
+func (m *ListRunsResponseStreamNop) Send(response *log_collector.ListRunsResponse) error {
+	m.RunUIDs = append(m.RunUIDs, response.RunUIDs...)
+	return nil
+}
+
+func (m *ListRunsResponseStreamNop) Context() context.Context {
+	return context.Background()
+}

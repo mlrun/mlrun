@@ -21,7 +21,7 @@ import alembic.config
 from mlrun.utils import logger
 
 
-class AlembicUtil(object):
+class AlembicUtil:
     def __init__(
         self, alembic_config_path: pathlib.Path, data_version_is_latest: bool = True
     ):
@@ -48,7 +48,6 @@ class AlembicUtil(object):
         return current_revision == self._initial_revision
 
     def _get_current_revision(self) -> typing.Optional[str]:
-
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
         catch_stdout_config.print_stdout = self._save_output
@@ -59,13 +58,12 @@ class AlembicUtil(object):
             return self._alembic_output.strip().replace(" (head)", "")
         except Exception as exc:
             if "Can't locate revision identified by" in exc.args[0]:
-
                 # DB has a revision that isn't known to us, extracting it from the exception.
                 return exc.args[0].split("'")[2]
 
             return None
 
-    def _get_revision_history_list(self) -> typing.List[str]:
+    def _get_revision_history_list(self) -> list[str]:
         """
         Returns a list of the revision history sorted from latest to oldest.
         """
@@ -79,7 +77,7 @@ class AlembicUtil(object):
         return self._parse_revision_history(self._alembic_output)
 
     @staticmethod
-    def _parse_revision_history(output: str) -> typing.List[str]:
+    def _parse_revision_history(output: str) -> list[str]:
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
     def _save_output(self, text: str, *_):

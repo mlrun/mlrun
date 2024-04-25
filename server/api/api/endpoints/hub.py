@@ -15,7 +15,7 @@
 
 import mimetypes
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -44,10 +44,12 @@ async def create_source(
         server.api.api.deps.authenticate_request
     ),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.create,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
     )
 
     await run_in_threadpool(
@@ -64,7 +66,7 @@ async def create_source(
 
 @router.get(
     path="",
-    response_model=List[mlrun.common.schemas.hub.IndexedHubSource],
+    response_model=list[mlrun.common.schemas.hub.IndexedHubSource],
 )
 async def list_sources(
     item_name: Optional[str] = Query(None, alias="item-name"),
@@ -75,10 +77,12 @@ async def list_sources(
         server.api.api.deps.authenticate_request
     ),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return await run_in_threadpool(
@@ -101,10 +105,12 @@ async def delete_source(
         server.api.api.deps.authenticate_request
     ),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
 
     await run_in_threadpool(
@@ -129,10 +135,12 @@ async def get_source(
     hub_source = await run_in_threadpool(
         server.api.utils.singletons.db.get_db().get_hub_source, db_session, source_name
     )
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return hub_source
@@ -150,10 +158,12 @@ async def store_source(
         server.api.api.deps.authenticate_request
     ),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
 
     await run_in_threadpool(
@@ -187,10 +197,12 @@ async def get_catalog(
     ordered_source = await run_in_threadpool(
         server.api.utils.singletons.db.get_db().get_hub_source, db_session, source_name
     )
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return await run_in_threadpool(
@@ -220,10 +232,12 @@ async def get_item(
     ordered_source = await run_in_threadpool(
         server.api.utils.singletons.db.get_db().get_hub_source, db_session, source_name
     )
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return await run_in_threadpool(
@@ -255,10 +269,12 @@ async def get_object(
         ordered_source.source,
         url,
     )
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     if url.endswith("/"):
@@ -299,10 +315,12 @@ async def get_asset(
         server.api.utils.singletons.db.get_db().get_hub_source, db_session, source_name
     )
 
-    await server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     # Getting the relevant item which hold the asset information
     item = await run_in_threadpool(

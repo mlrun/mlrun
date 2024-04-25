@@ -17,7 +17,7 @@ import os
 import pathlib
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Any, List, Tuple, Union
+from typing import Any, Union
 
 import pandas as pd
 
@@ -70,7 +70,7 @@ class _Formatter(ABC):
         pass
 
     @staticmethod
-    def _flatten_dataframe(dataframe: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
+    def _flatten_dataframe(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         """
         Flatten the dataframe: moving all indexes to be columns at the start (from column 0) and lowering the columns
         levels to 1, renaming them from tuples. All columns and index info is stored so it can be unflatten later on.
@@ -682,8 +682,7 @@ class PandasDataFramePackager(DefaultPackager):
     PACKABLE_OBJECT_TYPE = pd.DataFrame
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.DATASET
 
-    @classmethod
-    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
+    def get_default_unpacking_artifact_type(self, data_item: DataItem) -> str:
         """
         Get the default artifact type used for unpacking. Returns dataset if the data item represents a
         `DatasetArtifact` and otherwise, file.
@@ -697,8 +696,7 @@ class PandasDataFramePackager(DefaultPackager):
             return ArtifactType.DATASET
         return ArtifactType.FILE
 
-    @classmethod
-    def pack_result(cls, obj: pd.DataFrame, key: str) -> dict:
+    def pack_result(self, obj: pd.DataFrame, key: str) -> dict:
         """
         Pack a dataframe as a result.
 
@@ -728,15 +726,14 @@ class PandasDataFramePackager(DefaultPackager):
 
         return super().pack_result(obj=dataframe_dictionary, key=key)
 
-    @classmethod
     def pack_file(
-        cls,
+        self,
         obj: pd.DataFrame,
         key: str,
         file_format: str = None,
         flatten: bool = True,
         **to_kwargs,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a dataframe as a file by the given format.
 
@@ -762,7 +759,7 @@ class PandasDataFramePackager(DefaultPackager):
         # Save to file:
         formatter = PandasSupportedFormat.get_format_handler(fmt=file_format)
         temp_directory = pathlib.Path(tempfile.mkdtemp())
-        cls.add_future_clearing_path(path=temp_directory)
+        self.add_future_clearing_path(path=temp_directory)
         file_path = temp_directory / f"{key}.{file_format}"
         read_kwargs = formatter.to(
             obj=obj, file_path=str(file_path), flatten=flatten, **to_kwargs
@@ -773,8 +770,7 @@ class PandasDataFramePackager(DefaultPackager):
 
         return artifact, {"file_format": file_format, "read_kwargs": read_kwargs}
 
-    @classmethod
-    def pack_dataset(cls, obj: pd.DataFrame, key: str, file_format: str = "parquet"):
+    def pack_dataset(self, obj: pd.DataFrame, key: str, file_format: str = "parquet"):
         """
         Pack a pandas dataframe as a dataset.
 
@@ -786,9 +782,8 @@ class PandasDataFramePackager(DefaultPackager):
         """
         return DatasetArtifact(key=key, df=obj, format=file_format), {}
 
-    @classmethod
     def unpack_file(
-        cls,
+        self,
         data_item: DataItem,
         file_format: str = None,
         read_kwargs: dict = None,
@@ -804,8 +799,7 @@ class PandasDataFramePackager(DefaultPackager):
         :return: The unpacked series.
         """
         # Get the file:
-        file_path = data_item.local()
-        cls.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:
@@ -822,8 +816,7 @@ class PandasDataFramePackager(DefaultPackager):
             read_kwargs = {}
         return formatter.read(file_path=file_path, **read_kwargs)
 
-    @classmethod
-    def unpack_dataset(cls, data_item: DataItem):
+    def unpack_dataset(self, data_item: DataItem):
         """
         Unpack a padnas dataframe from a dataset artifact.
 
@@ -845,9 +838,9 @@ class PandasDataFramePackager(DefaultPackager):
         """
         if isinstance(obj, dict):
             for key, value in obj.items():
-                obj[
-                    PandasDataFramePackager._prepare_result(obj=key)
-                ] = PandasDataFramePackager._prepare_result(obj=value)
+                obj[PandasDataFramePackager._prepare_result(obj=key)] = (
+                    PandasDataFramePackager._prepare_result(obj=value)
+                )
         elif isinstance(obj, list):
             for i, value in enumerate(obj):
                 obj[i] = PandasDataFramePackager._prepare_result(obj=value)
@@ -864,8 +857,7 @@ class PandasSeriesPackager(PandasDataFramePackager):
     PACKABLE_OBJECT_TYPE = pd.Series
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.FILE
 
-    @classmethod
-    def get_supported_artifact_types(cls) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `PandasDataFramePackager` but
         without the 'dataset' artifact type support.
@@ -876,8 +868,7 @@ class PandasSeriesPackager(PandasDataFramePackager):
         supported_artifacts.remove("dataset")
         return supported_artifacts
 
-    @classmethod
-    def pack_result(cls, obj: pd.Series, key: str) -> dict:
+    def pack_result(self, obj: pd.Series, key: str) -> dict:
         """
         Pack a series as a result.
 
@@ -888,15 +879,14 @@ class PandasSeriesPackager(PandasDataFramePackager):
         """
         return super().pack_result(obj=pd.DataFrame(obj), key=key)
 
-    @classmethod
     def pack_file(
-        cls,
+        self,
         obj: pd.Series,
         key: str,
         file_format: str = None,
         flatten: bool = True,
         **to_kwargs,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a series as a file by the given format.
 
@@ -926,9 +916,8 @@ class PandasSeriesPackager(PandasDataFramePackager):
         # Return the artifact with the updated instructions:
         return artifact, {**instructions, "column_name": column_name}
 
-    @classmethod
     def unpack_file(
-        cls,
+        self,
         data_item: DataItem,
         file_format: str = None,
         read_kwargs: dict = None,

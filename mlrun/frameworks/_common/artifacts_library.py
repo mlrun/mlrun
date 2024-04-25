@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC, abstractmethod
-from typing import Dict, List, Type, Union
+from typing import Union
 
 import mlrun
 
@@ -39,12 +39,12 @@ class ArtifactsLibrary(ABC):
     @classmethod
     def get_plans(
         cls,
-        artifacts: Union[List[Plan], Dict[str, dict], List[str]] = None,
+        artifacts: Union[list[Plan], dict[str, dict], list[str]] = None,
         context: mlrun.MLClientCtx = None,
         include_default: bool = True,
         # custom_plans: dict = None, :param custom_plans: Custom user plans objects to initialize from.
         **default_kwargs,
-    ) -> List[Plan]:
+    ) -> list[Plan]:
         """
         Get plans for a run. The plans will be taken from the provided artifacts / configuration via code, from provided
         configuration via MLRun context and if the 'include_default' is True, from the framework artifact library's
@@ -97,7 +97,7 @@ class ArtifactsLibrary(ABC):
 
     @classmethod
     @abstractmethod
-    def default(cls, **kwargs) -> List[Plan]:
+    def default(cls, **kwargs) -> list[Plan]:
         """
         Get the default artifacts plans list of this framework's library.
 
@@ -106,7 +106,7 @@ class ArtifactsLibrary(ABC):
         pass
 
     @classmethod
-    def _get_library_plans(cls) -> Dict[str, Type[Plan]]:
+    def _get_library_plans(cls) -> dict[str, type[Plan]]:
         """
         Get all the supported plans in this library.
 
@@ -120,8 +120,8 @@ class ArtifactsLibrary(ABC):
 
     @staticmethod
     def _from_dict(
-        requested_plans: Dict[str, dict], available_plans: Dict[str, Type[Plan]]
-    ) -> List[Plan]:
+        requested_plans: dict[str, dict], available_plans: dict[str, type[Plan]]
+    ) -> list[Plan]:
         """
         Initialize a list of plans from a given configuration dictionary. The configuration is expected to be a
         dictionary of plans and their initialization parameters in the following format:
@@ -162,8 +162,8 @@ class ArtifactsLibrary(ABC):
 
     @staticmethod
     def _from_list(
-        requested_plans: List[str], available_plans: Dict[str, Type[Plan]]
-    ) -> List[Plan]:
+        requested_plans: list[str], available_plans: dict[str, type[Plan]]
+    ) -> list[Plan]:
         """
         Initialize a list of plans from a given configuration list. The configuration is expected to be a list of plans
         names to be initialized with their default configuration.

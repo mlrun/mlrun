@@ -18,7 +18,13 @@ from unittest import mock
 import pytest
 from aiohttp import ClientResponse
 
-from mlrun.errors import MLRunHTTPError, err_to_str, raise_for_status
+import mlrun.errors
+from mlrun.errors import (
+    MLRunHTTPError,
+    err_for_status_code,
+    err_to_str,
+    raise_for_status,
+)
 
 
 def test_error_none():
@@ -69,7 +75,6 @@ def test_error_circular_chain():
 
 
 def test_raise_for_aiohttp_client_response_status():
-
     # import locally to avoid confusion with mlrun requirements sorting
     from yarl import URL
 
@@ -94,3 +99,32 @@ def test_raise_for_aiohttp_client_response_status():
     assert isinstance(
         exc.value.response, ClientResponse
     ), "should have aiohttp client response in exception"
+
+
+class TestErrToStatusCode(Exception):
+    def __init__(self, status_code, message):
+        self.status_code = status_code
+        self.message = message
+
+
+@pytest.mark.parametrize(
+    "status_code, exc, message",
+    [
+        (404, mlrun.errors.MLRunNotFoundError, "message not found"),
+        ("404", mlrun.errors.MLRunNotFoundError, "message not found"),
+        (500, mlrun.errors.MLRunInternalServerError, "message internal server error"),
+        (0, mlrun.errors.MLRunHTTPError, "message http error"),
+    ],
+)
+def test_err_to_status_code(status_code, exc, message):
+    with pytest.raises(exc) as _exc:
+        try:
+            raise TestErrToStatusCode(status_code, message)
+        except TestErrToStatusCode as test_exc:
+            raise err_for_status_code(
+                test_exc.status_code, test_exc.message
+            ) from test_exc
+
+    if exc != mlrun.errors.MLRunHTTPError:
+        assert _exc.value.error_status_code == int(status_code)
+    assert message in str(_exc.value)

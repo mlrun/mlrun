@@ -13,29 +13,31 @@
 # limitations under the License.
 #
 import datetime
-import os
+import json
+import subprocess
 from sys import executable
 
 import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
+from mlrun.runtimes.function_reference import FunctionReference
 
 
-def exec_run(args):
-    cmd = [executable, "-m", "mlrun", "run"] + args
-    process = os.popen(" ".join(cmd))
-    out = process.read()
-    ret_code = process.close()
-    return out, ret_code
+def exec_cli(args, action="run"):
+    cmd = [executable, "-m", "mlrun", action] + args
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = process.communicate()
+    ret_code = process.returncode
+    return out.decode(), err.decode(), ret_code
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
-
     project_name = "kubejob-system-test"
 
     def test_deploy_function(self):
@@ -84,7 +86,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             filename=code_path,
             requirements=[
                 # ML-3518
-                "pandas>=1.5.0, <1.6.0",
+                "pandas>=1.5.0, <3",
             ],
         )
         assert function.spec.image == ""
@@ -275,7 +277,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "val-with-artifact",
         ]
 
-    @pytest.mark.enterprise
     @pytest.mark.parametrize("local", [True, False])
     def test_log_artifact_with_run_function(self, local):
         train_path = str(self.assets_path / "log_artifact.py")
@@ -375,7 +376,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "handler",
         ]
         start_time = datetime.datetime.now()
-        exec_run(args)
+        exec_cli(args)
         end_time = datetime.datetime.now()
 
         assert (
@@ -406,8 +407,57 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--handler",
             "handler",
         ]
-        _, ret_code = exec_run(args)
-        assert ret_code is None
+        _, _, ret_code = exec_cli(args)
+        assert ret_code == 0
+
+    def test_cli_build_function_without_kind(self):
+        # kind='job' should be used by default, the user is not required to specify it
+        function = str(self.assets_path / "function_without_kind.yaml")
+        args = [
+            "--name",
+            "test",
+            function,
+        ]
+        out, _, _ = exec_cli(args, action="build")
+        assert "Function built, state=ready" in out
+
+    def test_cli_build_runtime_without_kind(self):
+        # kind='job' should be used by default, the user is not required to specify it
+        # send runtime spec without kind
+        runtime = {"metadata": {"name": "test-func"}}
+        args = [
+            "--name",
+            "test",
+            "--runtime",
+            json.dumps(runtime),
+        ]
+        out, _, _ = exec_cli(args, action="build")
+        assert "Function built, state=ready" in out
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_df_as_params(self, local):
+        df = pd.read_parquet(str(self.assets_path / "test_data.parquet"))
+        code = """
+def print_df(df):
+    print(df)
+"""
+        function_ref = FunctionReference(
+            kind="job",
+            code=code,
+            image="mlrun/mlrun",
+            name="test_df_as_param",
+        )
+
+        function = function_ref.to_function()
+        if local:
+            function.run(handler="print_df", params={"df": df}, local=True)
+        else:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as error:
+                function.run(handler="print_df", params={"df": df}, local=False)
+            assert (
+                "Parameter 'df' has an unsupported value of type 'pandas.DataFrame'"
+                in str(error.value)
+            )
 
     def test_function_handler_set_labels_and_annotations(self):
         code_path = str(self.assets_path / "handler.py")
@@ -481,3 +531,31 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = project.run_function(name)
         results = run.status.results["results"]
         assert results == expected_results
+
+    def test_abort_run(self):
+        sleep_func = mlrun.code_to_function(
+            "sleep-function",
+            filename=str(self.assets_path / "sleep.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        run = sleep_func.run(
+            params={"time_to_sleep": 30},
+            watch=False,
+        )
+        db = mlrun.get_run_db()
+        background_task = db.abort_run(run.metadata.uid)
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+
+        run = db.read_run(run.metadata.uid)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+
+        # list background tasks
+        background_tasks = db.list_project_background_tasks()
+        assert background_task.metadata.name in [
+            task.metadata.name for task in background_tasks
+        ]

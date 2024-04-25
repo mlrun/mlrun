@@ -17,28 +17,41 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import pandas as pd
+import semver
 import v3io
 import v3io.dataplane
 from nuclio import KafkaTrigger
 from nuclio.config import split_path
 
 import mlrun
+from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.secrets import SecretsStore
 
-from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
 from .datastore_profile import datastore_profile_read
+from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
     select_columns_from_df,
-    store_path_to_spark,
 )
+
+
+def load_spark_dataframe_with_options(session, spark_options, format=None):
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        session, spark_options
+    )
+    if format:
+        df = session.read.format(format).load(**non_hadoop_spark_options)
+    else:
+        df = session.read.load(**non_hadoop_spark_options)
+    return df
 
 
 def get_source_from_dict(source):
@@ -101,11 +114,18 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = session.read.load(**self.get_spark_options())
+            spark_options = self.get_spark_options()
+            spark_format = spark_options.pop("format", None)
+            df = load_spark_dataframe_with_options(
+                session, spark_options, format=spark_format
+            )
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"Conversion of a source of type '{type(self).__name__}' "
+            "to a Spark dataframe is not possible, as this operation is not supported"
+        )
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
         if not (columns or time_field):
@@ -154,10 +174,10 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         schedule: str = None,
-        parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        parse_dates: Union[None, int, str, list[int], list[str]] = None,
         **kwargs,
     ):
         super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
@@ -177,9 +197,10 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
 
         return storey.CSVSource(
-            paths=data_item.url,  # unlike self.path, it already has store:// replaced
+            paths=url,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
@@ -188,17 +209,22 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        return {
-            "path": store_path_to_spark(self.path),
-            "format": "csv",
-            "header": "true",
-            "inferSchema": "true",
-        }
+        store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "csv",
+                "header": "true",
+                "inferSchema": "true",
+            }
+        )
+        return spark_options
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
 
-        df = session.read.load(**self.get_spark_options())
+        df = load_spark_dataframe_with_options(session, self.get_spark_options())
 
         parse_dates = self._parse_dates or []
         if time_field and time_field not in parse_dates:
@@ -265,7 +291,7 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -323,9 +349,10 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
+        store, path, url = mlrun.store_manager.get_or_create_store(self.path)
 
         return storey.ParquetSource(
-            paths=data_item.url,  # unlike self.path, it already has store:// replaced
+            paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
@@ -335,10 +362,15 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        return {
-            "path": store_path_to_spark(self.path),
-            "format": "parquet",
-        }
+        store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
+        spark_options = store.get_spark_options()
+        spark_options.update(
+            {
+                "path": store.spark_url + path,
+                "format": "parquet",
+            }
+        )
+        return spark_options
 
     def to_dataframe(
         self,
@@ -374,12 +406,17 @@ class BigQuerySource(BaseSourceDriver):
 
          # use sql query
          query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
-         source = BigQuerySource("bq1", query=query_string,
-                                 gcp_project="my_project",
-                                 materialization_dataset="dataviews")
+         source = BigQuerySource(
+             "bq1",
+             query=query_string,
+             gcp_project="my_project",
+             materialization_dataset="dataviews",
+         )
 
          # read a table
-         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+         source = BigQuerySource(
+             "bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project"
+         )
 
 
     :parameter name: source name
@@ -566,7 +603,7 @@ class BigQuerySource(BaseSourceDriver):
         elif table:
             options["path"] = table
 
-        df = session.read.format("bigquery").load(**options)
+        df = load_spark_dataframe_with_options(session, options, "bigquery")
         if named_view:
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)
@@ -646,32 +683,10 @@ class SnowflakeSource(BaseSourceDriver):
             **kwargs,
         )
 
-    def _get_password(self):
-        key = "SNOWFLAKE_PASSWORD"
-        snowflake_password = os.getenv(key) or os.getenv(
-            SecretsStore.k8s_env_variable_name_for_secret(key)
-        )
-
-        if not snowflake_password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "No password provided. Set password using the SNOWFLAKE_PASSWORD "
-                "project secret or environment variable."
-            )
-
-        return snowflake_password
-
     def get_spark_options(self):
-        return {
-            "format": "net.snowflake.spark.snowflake",
-            "query": self.attributes.get("query"),
-            "sfURL": self.attributes.get("url"),
-            "sfUser": self.attributes.get("user"),
-            "sfPassword": self._get_password(),
-            "sfDatabase": self.attributes.get("database"),
-            "sfSchema": self.attributes.get("schema"),
-            "sfWarehouse": self.attributes.get("warehouse"),
-            "application": "iguazio_platform",
-        }
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["query"] = self.attributes.get("query")
+        return spark_options
 
 
 class CustomSource(BaseSourceDriver):
@@ -702,7 +717,6 @@ class DataFrameSource:
     Reads data frame as input source for a flow.
 
     :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
-    :parameter time_field: DEPRECATED.
     :parameter context: MLRun context. Defaults to None
     """
 
@@ -752,7 +766,7 @@ class OnlineSource(BaseSourceDriver):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         workers: int = None,
@@ -764,18 +778,14 @@ class OnlineSource(BaseSourceDriver):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
-        source_class = (
-            storey.AsyncEmitSource
-            if config.datastore.async_source_mode == "enabled"
-            else storey.SyncEmitSource
-        )
         source_args = self.attributes.get("source_args", {})
         explicit_ack = (
             is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
         )
-        src_class = source_class(
+        # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
+        src_class = storey.SyncEmitSource(
             context=context,
-            key_field=self.key_field,
+            key_field=self.key_field or key_field,
             full_event=True,
             explicit_ack=explicit_ack,
             **source_args,
@@ -800,8 +810,6 @@ class HttpSource(OnlineSource):
 
 
 class StreamSource(OnlineSource):
-    """Sets stream source for the flow. If stream doesn't exist it will create it"""
-
     kind = "v3ioStream"
 
     def __init__(
@@ -815,7 +823,7 @@ class StreamSource(OnlineSource):
         **kwargs,
     ):
         """
-        Sets stream source for the flow. If stream doesn't exist it will create it
+        Sets the stream source for the flow. If the stream doesn't exist it will create it.
 
         :param name: stream name. Default "stream"
         :param group: consumer group. Default "serving"
@@ -834,12 +842,19 @@ class StreamSource(OnlineSource):
         super().__init__(name, attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):
-        endpoint, stream_path = parse_path(self.path)
-        v3io_client = v3io.dataplane.Client(endpoint=endpoint)
+        store, _, url = mlrun.store_manager.get_or_create_store(self.path)
+        if store.kind != "v3io":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Only profiles that reference the v3io datastore can be used with StreamSource"
+            )
+        storage_options = store.get_storage_options()
+        access_key = storage_options.get("v3io_access_key")
+        endpoint, stream_path = parse_path(url)
+        v3io_client = v3io.dataplane.Client(endpoint=endpoint, access_key=access_key)
         container, stream_path = split_path(stream_path)
-        res = v3io_client.create_stream(
+        res = v3io_client.stream.create(
             container=container,
-            path=stream_path,
+            stream_path=stream_path,
             shard_count=self.attributes["shards"],
             retention_period_hours=self.attributes["retention_in_hours"],
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -852,10 +867,10 @@ class StreamSource(OnlineSource):
             engine = function.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
-            kwargs["workerAllocationMode"] = "static"
+            kwargs["worker_allocation_mode"] = "static"
 
         function.add_v3io_stream_trigger(
-            self.path,
+            url,
             self.name,
             self.attributes["group"],
             self.attributes["seek_to"],
@@ -867,8 +882,6 @@ class StreamSource(OnlineSource):
 
 
 class KafkaSource(OnlineSource):
-    """Sets kafka source for the flow"""
-
     kind = "kafka"
 
     def __init__(
@@ -941,8 +954,12 @@ class KafkaSource(OnlineSource):
         if mlrun.mlconf.is_explicit_ack() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                "workerAllocationMode", "static"
+                "worker_allocation_mode", "static"
             )
+
+        trigger_kwargs = {}
+        if "max_workers" in extra_attributes:
+            trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
@@ -952,12 +969,30 @@ class KafkaSource(OnlineSource):
             initial_offset=extra_attributes.pop("initial_offset"),
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
+            **trigger_kwargs,
         )
-        func = function.add_trigger("kafka", trigger)
-        replicas = 1 if not partitions else len(partitions)
-        func.spec.min_replicas = replicas
-        func.spec.max_replicas = replicas
-        return func
+        function = function.add_trigger("kafka", trigger)
+
+        # ML-5499
+        bug_fix_version = "1.12.10"
+        if config.nuclio_version and semver.VersionInfo.parse(
+            config.nuclio_version
+        ) < semver.VersionInfo.parse(bug_fix_version):
+            warnings.warn(
+                f"Detected nuclio version {config.nuclio_version}, which is older "
+                f"than {bug_fix_version}. Forcing number of replicas of 1 in function '{function.metadata.name}'. "
+                f"To resolve this, please upgrade Nuclio."
+            )
+            function.spec.min_replicas = 1
+            function.spec.max_replicas = 1
+
+        return function
+
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+        raise NotImplementedError(
+            "Conversion of a source of type 'KafkaSource' "
+            "to a Spark dataframe is not possible, as this operation is not supported by Spark"
+        )
 
 
 class SQLSource(BaseSourceDriver):
@@ -977,8 +1012,7 @@ class SQLSource(BaseSourceDriver):
         db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
-        time_fields: List[str] = None,
-        parse_dates: List[str] = None,
+        parse_dates: list[str] = None,
         **kwargs,
     ):
         """
@@ -1002,17 +1036,8 @@ class SQLSource(BaseSourceDriver):
         :param table_name:      the name of the collection to access,
                                 from the current database
         :param spark_options:   additional spark read options
-        :param time_fields :    all the field to be parsed as timestamp.
         :param parse_dates :    all the field to be parsed as timestamp.
         """
-        if time_fields:
-            warnings.warn(
-                "'time_fields' is deprecated, use 'parse_dates' instead. "
-                "This will be removed in 1.6.0",
-                # TODO: Remove this in 1.6.0
-                FutureWarning,
-            )
-            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1020,7 +1045,7 @@ class SQLSource(BaseSourceDriver):
             )
         if time_field:
             if parse_dates:
-                time_fields.append(time_field)
+                parse_dates.append(time_field)
             else:
                 parse_dates = [time_field]
         attrs = {

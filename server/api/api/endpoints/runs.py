@@ -13,8 +13,8 @@
 # limitations under the License.
 #
 import datetime
+import uuid
 from http import HTTPStatus
-from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -24,19 +24,20 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
+import server.api.utils.pagination
 import server.api.utils.singletons.project_member
-from mlrun.utils.helpers import datetime_from_iso
+from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.utils import log_and_raise
 
 router = APIRouter()
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.post(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.post("/projects/{project}/runs/{uid}")
@@ -78,11 +79,11 @@ async def store_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.patch(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.patch("/projects/{project}/runs/{uid}")
@@ -118,11 +119,11 @@ async def update_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.get(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.get("/projects/{project}/runs/{uid}")
@@ -148,11 +149,11 @@ async def get_run(
     }
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.delete(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.delete("/projects/{project}/runs/{uid}")
@@ -170,8 +171,7 @@ async def delete_run(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    await run_in_threadpool(
-        server.api.crud.Runs().delete_run,
+    await server.api.crud.Runs().delete_run(
         db_session,
         uid,
         iter,
@@ -180,19 +180,19 @@ async def delete_run(
     return {}
 
 
-# TODO: remove /runs in 1.7.0
+# TODO: remove /runs in 1.8.0
 @router.get(
     "/runs",
     deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.get("/projects/{project}/runs")
 async def list_runs(
     project: str = None,
     name: str = None,
-    uid: List[str] = Query([]),
-    labels: List[str] = Query([], alias="label"),
+    uid: list[str] = Query([]),
+    labels: list[str] = Query([], alias="label"),
     state: str = None,
     last: int = 0,
     sort: bool = True,
@@ -213,6 +213,9 @@ async def list_runs(
     ),
     max_partitions: int = Query(0, alias="max-partitions", ge=0),
     with_notifications: bool = Query(False, alias="with-notifications"),
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -223,80 +226,70 @@ async def list_runs(
             auth_info,
         )
 
-    if (
-        not name
-        and not uid
-        and not labels
-        and not state
-        and not last
-        and not start_time_from
-        and not start_time_to
-        and not last_update_time_from
-        and not last_update_time_to
-        and not partition_by
-        and not partition_sort_by
-        and not iter
-    ):
-        # default to last week on no filter
-        start_time_from = (
-            datetime.datetime.now() - datetime.timedelta(days=7)
-        ).isoformat()
-        partition_by = mlrun.common.schemas.RunPartitionByField.name
-        partition_sort_by = mlrun.common.schemas.SortField.updated
+    paginator = server.api.utils.pagination.Paginator()
 
-    runs = await run_in_threadpool(
-        server.api.crud.Runs().list_runs,
+    async def _filter_runs(_runs):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            _runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
+
+    runs, page_info = await paginator.paginate_permission_filtered_request(
         db_session,
-        name,
-        uid,
-        project,
-        labels,
-        [state] if state is not None else None,
-        sort,
-        last,
-        iter,
-        datetime_from_iso(start_time_from),
-        datetime_from_iso(start_time_to),
-        datetime_from_iso(last_update_time_from),
-        datetime_from_iso(last_update_time_to),
-        partition_by,
-        rows_per_partition,
-        partition_sort_by,
-        partition_order,
-        max_partitions,
+        server.api.crud.Runs().list_runs,
+        _filter_runs,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        name=name,
+        uid=uid,
+        project=project,
+        labels=labels,
+        state=state,
+        sort=sort,
+        last=last,
+        iter=iter,
+        start_time_from=start_time_from,
+        start_time_to=start_time_to,
+        last_update_time_from=last_update_time_from,
+        last_update_time_to=last_update_time_to,
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
+        max_partitions=max_partitions,
         with_notifications=with_notifications,
     )
-    filtered_runs = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.run,
-        runs,
-        lambda run: (
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            run.get("metadata", {}).get("uid"),
-        ),
-        auth_info,
-    )
     return {
-        "runs": filtered_runs,
+        "runs": runs,
+        "pagination": page_info,
     }
 
 
-# TODO: remove /runs in 1.7.0
+# TODO: remove /runs in 1.8.0
 @router.delete(
     "/runs",
     deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.delete("/projects/{project}/runs")
 async def delete_runs(
     project: str = None,
     name: str = None,
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     state: str = None,
     days_ago: int = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    runs = []
     if not project or project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
@@ -320,13 +313,11 @@ async def delete_runs(
             name,
             project=project,
             labels=labels,
-            states=[state] if state is not None else None,
+            state=state,
             start_time_from=start_time_from,
+            return_as_run_structs=False,
         )
-        projects = set(
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project)
-            for run in runs
-        )
+        projects = set(run.project or mlrun.mlconf.default_project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO Delete only runs from projects that user has permissions to
@@ -338,14 +329,15 @@ async def delete_runs(
                 auth_info,
             )
 
-    await run_in_threadpool(
-        server.api.crud.Runs().delete_runs,
+    # TODO: make a background task?
+    await server.api.crud.Runs().delete_runs(
         db_session,
         name,
         project,
         labels,
         state,
         days_ago,
+        runs,
     )
     return {}
 
@@ -402,7 +394,6 @@ async def abort_run(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-
     # check permission per object type
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
@@ -418,6 +409,76 @@ async def abort_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
+    run = await run_in_threadpool(
+        server.api.crud.Runs().get_run, db_session, uid, iter, project
+    )
+
+    current_run_state = run.get("status", {}).get("state")
+    if current_run_state in [
+        mlrun.runtimes.constants.RunStates.aborting,
+        mlrun.runtimes.constants.RunStates.aborted,
+    ]:
+        background_task_id = run.get("status", {}).get("abort_task_id")
+        if background_task_id:
+            # get the background task and check if it's still running
+            try:
+                background_task = await run_in_threadpool(
+                    server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+                    db_session,
+                    background_task_id,
+                    project,
+                )
+
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.running
+                ):
+                    logger.debug(
+                        "Abort background task is still running, returning it",
+                        background_task_id=background_task_id,
+                        project=project,
+                        uid=uid,
+                    )
+                    return background_task
+
+                # if the background task completed, give some grace time before triggering another one
+                elif (
+                    background_task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                ):
+                    grace_timedelta = datetime.timedelta(
+                        seconds=int(
+                            mlrun.mlconf.background_tasks.default_timeouts.operations.abort_grace_period
+                        )
+                    )
+                    if (
+                        datetime.datetime.utcnow() - background_task.metadata.updated
+                        < grace_timedelta
+                    ):
+                        logger.debug(
+                            "Abort background task completed, but grace time didn't pass yet, returning it",
+                            background_task_id=background_task_id,
+                            project=project,
+                            uid=uid,
+                        )
+                        return background_task
+                    else:
+                        logger.debug(
+                            "Abort background task completed, but grace time passed, creating a new one",
+                            background_task_id=background_task_id,
+                            project=project,
+                            uid=uid,
+                        )
+
+            except mlrun.errors.MLRunNotFoundError:
+                logger.warning(
+                    "Abort background task not found, creating a new one",
+                    background_task_id=background_task_id,
+                    project=project,
+                    uid=uid,
+                )
+
+    new_background_task_id = str(uuid.uuid4())
     background_task = await run_in_threadpool(
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
@@ -425,12 +486,15 @@ async def abort_run(
         background_tasks,
         server.api.crud.Runs().abort_run,
         mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
+        new_background_task_id,
         # args for abort_run
         db_session,
         project,
         uid,
         iter,
         run_updates=data,
+        run=run,
+        new_background_task_id=new_background_task_id,
     )
 
     return background_task

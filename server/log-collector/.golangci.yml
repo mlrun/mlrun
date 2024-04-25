@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 linters:
   disable-all: true
   enable:
@@ -30,6 +31,7 @@ linters:
     - typecheck
     - unused
     - gocritic
+    - gci
 
 run:
 
@@ -54,6 +56,16 @@ linters-settings:
   gocritic:
     disabled-checks:
       - commentFormatting # we dont want to enforce space before the comment text
+
+  gci:
+    sections:
+      - standard
+      - prefix(github.com/mlrun/mlrun)
+      - default
+      - blank
+      - dot
+
+    custom-order: true
 
 issues:
 

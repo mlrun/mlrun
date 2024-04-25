@@ -45,11 +45,11 @@ def get_workflow_engine(engine_kind, local=False):
     if pipeline_context.is_run_local(local):
         if engine_kind == "kfp":
             logger.warning(
-                "running kubeflow pipeline locally, note some ops may not run locally!"
+                "Running kubeflow pipeline locally, note some ops may not run locally!"
             )
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
+                "Cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
                 "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
@@ -69,16 +69,16 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        engine=None,
-        code=None,
-        path=None,
-        args=None,
-        name=None,
-        handler=None,
-        args_schema: dict = None,
+        engine: typing.Optional[str] = None,
+        code: typing.Optional[str] = None,
+        path: typing.Optional[str] = None,
+        args: typing.Optional[dict] = None,
+        name: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        args_schema: typing.Optional[dict] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        cleanup_ttl: int = None,
-        image: str = None,
+        cleanup_ttl: typing.Optional[int] = None,
+        image: typing.Optional[str] = None,
     ):
         self.engine = engine
         self.code = code
@@ -113,7 +113,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 # we need to make sure we don't add it twice
                 and not workflow_path.startswith(context)
             ):
-                workflow_path = os.path.join(context, workflow_path)
+                workflow_path = os.path.join(context, workflow_path.lstrip("./"))
         return workflow_path
 
     def merge_args(self, extra_args):
@@ -133,7 +133,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
                     required.remove(k)
         if required:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"workflow argument(s) {','.join(required)} are required and were not specified"
+                f"Workflow argument(s) {','.join(required)} are required and were not specified"
             )
 
     def clear_tmp(self):
@@ -246,7 +246,7 @@ class _PipelineContext:
             return True
         if raise_exception:
             raise ValueError(
-                "pipeline context is not initialized, must be used inside a pipeline"
+                "Pipeline context is not initialized, must be used inside a pipeline"
             )
         return False
 
@@ -312,9 +312,9 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
 def _create_enriched_mlrun_workflow(
     self,
     pipeline_func: typing.Callable,
-    pipeline_name: typing.Optional[typing.Text] = None,
-    pipeline_description: typing.Optional[typing.Text] = None,
-    params_list: typing.Optional[typing.List[dsl.PipelineParam]] = None,
+    pipeline_name: typing.Optional[str] = None,
+    pipeline_description: typing.Optional[str] = None,
+    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
     pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
@@ -401,6 +401,9 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.spec.build.source_code_target_dir = (
+                project.spec.build.source_code_target_dir
+            )
             f.spec.workdir = project.spec.workdir or project.spec.subpath
             f.prepare_image_for_deploy()
 
@@ -408,6 +411,11 @@ def enrich_function_object(
         f.with_requirements(project.spec.default_requirements)
     if decorator:
         decorator(f)
+
+    if project.spec.default_function_node_selector:
+        f.enrich_runtime_spec(
+            project.spec.default_function_node_selector,
+        )
 
     if try_auto_mount:
         if (
@@ -425,7 +433,7 @@ class _PipelineRunStatus:
     def __init__(
         self,
         run_id: str,
-        engine: typing.Type["_PipelineRunner"],
+        engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: str = "",
@@ -481,7 +489,7 @@ class _PipelineRunner(abc.ABC):
     @abc.abstractmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         raise NotImplementedError(
-            f"save operation not supported in {cls.engine} pipeline engine"
+            f"Save operation not supported in {cls.engine} pipeline engine"
         )
 
     @classmethod
@@ -496,7 +504,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -574,7 +582,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -605,6 +613,7 @@ class _KFPRunner(_PipelineRunner):
             namespace=namespace,
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
+            timeout=int(mlrun.mlconf.workflows.timeouts.kfp),
         )
 
         # The user provided workflow code might have made changes to function specs that require cleanup
@@ -670,7 +679,7 @@ class _KFPRunner(_PipelineRunner):
         raise_error = None
         try:
             if timeout:
-                logger.info("waiting for pipeline run completion")
+                logger.info("Waiting for pipeline run completion")
                 state = run.wait_for_completion(
                     timeout=timeout, expected_statuses=expected_statuses
                 )
@@ -681,6 +690,7 @@ class _KFPRunner(_PipelineRunner):
         mldb = mlrun.db.get_run_db(secrets=project._secrets)
         runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
 
+        # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
         had_errors = 0
         for r in runs:
             if r["status"].get("state", "") == "error":
@@ -716,7 +726,7 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -746,7 +756,7 @@ class _LocalRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.succeeded
         except Exception as exc:
             err = exc
-            logger.exception("workflow run failed")
+            logger.exception("Workflow run failed")
             project.notifiers.push(
                 f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
@@ -805,7 +815,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str = None,
         namespace: str = None,
         source: str = None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -861,10 +871,21 @@ class _RemoteRunner(_PipelineRunner):
                 )
                 return
 
+            get_workflow_id_timeout = max(
+                int(mlrun.mlconf.workflows.timeouts.remote),
+                int(getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine)),
+            )
+
+            logger.debug(
+                "Workflow submitted, waiting for pipeline run to start",
+                workflow_name=workflow_response.name,
+                get_workflow_id_timeout=get_workflow_id_timeout,
+            )
+
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
-                getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine),
+                get_workflow_id_timeout,
                 logger,
                 False,
                 run_db.get_workflow_id,
@@ -878,7 +899,7 @@ class _RemoteRunner(_PipelineRunner):
 
         except Exception as exc:
             err = exc
-            logger.exception("workflow run failed")
+            logger.exception("Workflow run failed")
             project.notifiers.push(
                 f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
@@ -909,7 +930,7 @@ class _RemoteRunner(_PipelineRunner):
     ):
         # ignore notifiers, as they are handled by the remote pipeline notifications,
         # so overriding with CustomNotificationPusher with empty list of notifiers
-        return _KFPRunner.get_run_status(
+        state, had_errors, text = _KFPRunner.get_run_status(
             project,
             run,
             timeout,
@@ -917,11 +938,15 @@ class _RemoteRunner(_PipelineRunner):
             notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
         )
 
+        # indicate the pipeline status since we don't push the notifications in the remote runner
+        logger.info(text)
+        return state, had_errors, text
+
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
-        raise ImportError(f"cannot import workflow {pipeline}")
+        raise ImportError(f"Cannot import workflow {pipeline}")
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -971,7 +996,7 @@ def load_and_run(
     save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
-    workflow_arguments: typing.Dict[str, typing.Any] = None,
+    workflow_arguments: dict[str, typing.Any] = None,
     artifact_path: str = None,
     workflow_handler: typing.Union[str, typing.Callable] = None,
     namespace: str = None,
@@ -983,6 +1008,7 @@ def load_and_run(
     cleanup_ttl: int = None,
     load_only: bool = False,
     wait_for_completion: bool = False,
+    project_context: str = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1013,10 +1039,11 @@ def load_and_run(
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
     :param wait_for_completion: wait for workflow completion before returning
+    :param project_context:     project context path (used for loading the project)
     """
     try:
         project = mlrun.load_project(
-            context=f"./{project_name}",
+            context=project_context or f"./{project_name}",
             url=url,
             name=project_name,
             init_git=init_git,
@@ -1044,11 +1071,11 @@ def load_and_run(
                 )
 
             except Exception as exc:
-                logger.error("Failed to send slack notification", exc=exc)
+                logger.error("Failed to send slack notification", exc=err_to_str(exc))
 
         raise error
 
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    context.logger.info(f"Loaded project {project.name} successfully")
 
     if load_only:
         return
@@ -1076,7 +1103,16 @@ def load_and_run(
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
-        pipeline_state = run.wait_for_completion()
+        try:
+            run.wait_for_completion()
+        except Exception as exc:
+            logger.error(
+                "Failed waiting for workflow completion",
+                workflow=workflow_log_message,
+                exc=err_to_str(exc),
+            )
+
+        pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
         if pipeline_state != mlrun.run.RunStatuses.succeeded:
             raise RuntimeError(

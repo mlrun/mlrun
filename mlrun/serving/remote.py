@@ -21,6 +21,7 @@ import storey
 from storey.flow import _ConcurrentJobExecution
 
 import mlrun
+import mlrun.config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
@@ -36,8 +37,6 @@ default_backoff_factor = 1
 
 
 class RemoteStep(storey.SendToHttp):
-    """class for calling remote endpoints"""
-
     def __init__(
         self,
         url: str,
@@ -185,7 +184,7 @@ class RemoteStep(storey.SendToHttp):
             resp = self._session.request(
                 method,
                 url,
-                verify=False,
+                verify=mlrun.mlconf.httpdb.http.verify,
                 headers=headers,
                 data=body,
                 timeout=self.timeout,
@@ -240,8 +239,6 @@ class RemoteStep(storey.SendToHttp):
 
 
 class BatchHttpRequests(_ConcurrentJobExecution):
-    """class for calling remote endpoints in parallel"""
-
     def __init__(
         self,
         url: str = None,

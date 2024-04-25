@@ -41,7 +41,6 @@ class TestRedisDataStore(TestMLRunSystem):
         return True
 
     def test_redis_put_get_object(self, redis_endpoint):
-
         redis_path = redis_endpoint + "/redis_object"
         data_item = mlrun.datastore.store_manager.object(redis_path)
 
@@ -91,7 +90,7 @@ class TestRedisDataStore(TestMLRunSystem):
         data_item.upload("temp_upload")
         data_item.download("temp_download")
 
-        with open("temp_download", "r") as f:
+        with open("temp_download") as f:
             actual = f.read()
 
         data_item.delete()
@@ -101,7 +100,6 @@ class TestRedisDataStore(TestMLRunSystem):
         assert expected == actual
 
     def test_redis_listdir(self):
-
         redis_path = "redis://"
         dir_path = redis_path
         expected = []

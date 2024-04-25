@@ -12,31 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mmap
-import os
 import time
-from copy import deepcopy
 from datetime import datetime
 
 import fsspec
-import v3io.dataplane
+import v3io
+from v3io.dataplane.response import HttpResponseError
 
 import mlrun
-from mlrun.datastore.helpers import ONE_GB, ONE_MB
 
 from ..platforms.iguazio import parse_path, split_path
 from .base import (
     DataStore,
     FileStats,
     basic_auth_header,
-    get_range,
-    http_get,
-    http_head,
-    http_put,
-    http_upload,
 )
 
 V3IO_LOCAL_ROOT = "v3io"
+V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 100
 
 
 class V3ioStore(DataStore):
@@ -46,23 +39,34 @@ class V3ioStore(DataStore):
 
         self.headers = None
         self.secure = self.kind == "v3ios"
+
+        token = self._get_secret_or_env("V3IO_ACCESS_KEY")
+        username = self._get_secret_or_env("V3IO_USERNAME")
+        password = self._get_secret_or_env("V3IO_PASSWORD")
         if self.endpoint.startswith("https://"):
             self.endpoint = self.endpoint[len("https://") :]
             self.secure = True
         elif self.endpoint.startswith("http://"):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
-
-        token = self._get_secret_or_env("V3IO_ACCESS_KEY")
-        username = self._get_secret_or_env("V3IO_USERNAME")
-        password = self._get_secret_or_env("V3IO_PASSWORD")
-
+        self.client = v3io.dataplane.Client(access_key=token, endpoint=self.url)
+        self.object = self.client.object
         self.auth = None
         self.token = token
         if token:
             self.headers = {"X-v3io-session-key": token}
         elif username and password:
             self.headers = basic_auth_header(username, password)
+
+    @staticmethod
+    def _do_object_request(function: callable, *args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except HttpResponseError as http_response_error:
+            raise mlrun.errors.err_for_status_code(
+                status_code=http_response_error.status_code,
+                message=mlrun.errors.err_to_str(http_response_error),
+            )
 
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
@@ -73,91 +77,98 @@ class V3ioStore(DataStore):
         schema = "https" if self.secure else "http"
         return f"{schema}://{self.endpoint}"
 
-    def get_filesystem(self, silent=True):
+    @property
+    def spark_url(self):
+        return "v3io:/"
+
+    @property
+    def filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
-        try:
-            import v3iofs  # noqa
-        except ImportError as exc:
-            if not silent:
-                raise ImportError(
-                    "v3iofs or storey not installed, run pip install storey"
-                ) from exc
-            return None
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
+        res = dict(
             v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
             v3io_api=mlrun.mlconf.v3io_api,
         )
+        return self._sanitize_storage_options(res)
 
-    def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
+    def _upload(
+        self,
+        key: str,
+        src_path: str,
+        max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE,
+    ):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
-        file_size = os.path.getsize(src_path)  # in bytes
-        if file_size <= ONE_MB:
-            http_upload(self.url + self._join(key), src_path, self.headers, None)
-            return
-        append_header = deepcopy(self.headers)
-        append_header["Range"] = "-1"
+        container, path = split_path(self._join(key))
         with open(src_path, "rb") as file_obj:
-            file_offset = 0
-            while file_offset < file_size:
-                chunk_size = min(file_size - file_offset, max_chunk_size)
-                with mmap.mmap(
-                    file_obj.fileno(),
-                    length=chunk_size,
-                    access=mmap.ACCESS_READ,
-                    offset=file_offset,
-                ) as mmap_obj:
-                    http_put(
-                        self.url + self._join(key),
-                        mmap_obj,
-                        append_header if file_offset else self.headers,
-                        None,
-                    )
-                    file_offset += chunk_size
+            append = False
+            while True:
+                data = memoryview(file_obj.read(max_chunk_size))
+                if not data:
+                    break
+                self._do_object_request(
+                    self.object.put,
+                    container=container,
+                    path=path,
+                    body=data,
+                    append=append,
+                )
+                append = True
 
     def upload(self, key, src_path):
         return self._upload(key, src_path)
 
     def get(self, key, size=None, offset=0):
-        headers = self.headers
-        if size or offset:
-            headers = deepcopy(headers)
-            headers["Range"] = get_range(size, offset)
-        return http_get(self.url + self._join(key), headers)
+        container, path = split_path(self._join(key))
+        return self._do_object_request(
+            function=self.object.get,
+            container=container,
+            path=path,
+            offset=offset,
+            num_bytes=size,
+        ).body
 
-    def _put(self, key, data, max_chunk_size: int = ONE_GB):
+    def _put(
+        self,
+        key,
+        data,
+        append=False,
+        max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE,
+    ):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
+        container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
-        if buffer_size <= ONE_MB:
-            http_put(self.url + self._join(key), data, self.headers, None)
-            return
-        append_header = deepcopy(self.headers)
-        append_header["Range"] = "-1"
         buffer_offset = 0
         try:
             data = memoryview(data)
         except TypeError:
             pass
+
         while buffer_offset < buffer_size:
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
-            http_put(
-                self.url + self._join(key),
-                data[buffer_offset : buffer_offset + chunk_size],
-                append_header if buffer_offset else self.headers,
-                None,
+            append = True if buffer_offset or append else False
+            self._do_object_request(
+                self.object.put,
+                container=container,
+                path=path,
+                body=data[buffer_offset : buffer_offset + chunk_size],
+                append=append,
             )
             buffer_offset += chunk_size
 
     def put(self, key, data, append=False):
-        return self._put(key, data)
+        return self._put(key, data, append)
 
     def stat(self, key):
-        head = http_head(self.url + self._join(key), self.headers)
+        container, path = split_path(self._join(key))
+        response = self._do_object_request(
+            function=self.object.head, container=container, path=path
+        )
+        head = dict(response.headers)
         size = int(head.get("Content-Length", "0"))
         datestr = head.get("Last-Modified", "0")
         modified = time.mktime(
@@ -166,7 +177,6 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(endpoint=self.url, access_key=self.token)
         container, subpath = split_path(self._join(key))
         if not subpath.endswith("/"):
             subpath += "/"
@@ -175,7 +185,7 @@ class V3ioStore(DataStore):
         subpath_length = len(subpath) - 1
 
         try:
-            response = v3io_client.get_container_contents(
+            response = self.client.container.list(
                 container=container,
                 path=subpath,
                 get_all_attributes=False,
@@ -199,7 +209,7 @@ class V3ioStore(DataStore):
         """Recursive rm file/folder
         Workaround for v3io-fs not supporting recursive directory removal"""
 
-        file_system = self.get_filesystem()
+        file_system = self.filesystem
         if isinstance(path, str):
             path = [path]
         maxdepth = maxdepth if not maxdepth else maxdepth - 1

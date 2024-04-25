@@ -248,8 +248,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     }
                 ]
             },
@@ -264,8 +264,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     },
                     {
                         "fields": [
@@ -289,8 +289,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     },
                     {
                         "fields": [
@@ -494,7 +494,6 @@ def test_notification_params_masking_on_run(monkeypatch):
 
 
 def test_notification_params_unmasking_on_run(monkeypatch):
-
     secret_value = {"sensitive": "sensitive-value"}
     run = {
         "metadata": {"uid": "test-run-uid", "project": "test-project"},
@@ -672,7 +671,6 @@ def test_notification_validation_on_run(monkeypatch, notification_kwargs, expect
 
 
 def test_notification_sent_on_handler_run(monkeypatch):
-
     run_many_mock = unittest.mock.Mock(return_value=[])
     push_mock = unittest.mock.Mock()
 
@@ -697,7 +695,6 @@ def test_notification_sent_on_handler_run(monkeypatch):
 
 
 def test_notification_sent_on_dask_run(monkeypatch):
-
     run_mock = unittest.mock.Mock(return_value=None)
     push_mock = unittest.mock.Mock()
 

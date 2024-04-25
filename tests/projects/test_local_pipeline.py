@@ -71,7 +71,8 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             assert artifact.metadata.key in expected_body_map
             assert expected_body_map[artifact.metadata.key] == artifact._get_file_body()
 
-            some_artifact = project.get_artifact(artifact.metadata.key)
+            db_key = artifact.db_key or artifact.metadata.key
+            some_artifact = project.get_artifact(db_key)
             assert some_artifact.metadata.key == artifact.metadata.key
             assert (
                 some_artifact._get_file_body()

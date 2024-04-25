@@ -15,9 +15,8 @@ import copy
 import importlib.util
 import pathlib
 import sys
-import typing
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 from deprecated import deprecated
@@ -26,7 +25,6 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.datastore_profile import datastore_profile_embed_url_scheme
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
@@ -36,6 +34,7 @@ from ..datastore.targets import (
     kind_to_driver,
     validate_target_list,
     validate_target_paths_for_engine,
+    write_spark_dataframe_with_options,
 )
 from ..model import DataSource, DataTargetBase
 from ..runtimes import BaseRuntime, RuntimeKinds
@@ -91,13 +90,19 @@ def _features_to_vector_and_check_permissions(features, update_stats):
     return vector
 
 
+@deprecated(
+    version="1.6.0",
+    reason="get_offline_features() will be removed in 1.8.0, please instead use "
+    "get_feature_vector('store://feature_vector_name').get_offline_features()",
+    category=FutureWarning,
+)
 def get_offline_features(
     feature_vector: Union[str, FeatureVector],
     entity_rows=None,
     entity_timestamp_column: str = None,
     target: DataTargetBase = None,
     run_config: RunConfig = None,
-    drop_columns: List[str] = None,
+    drop_columns: list[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
@@ -105,10 +110,10 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
-    order_by: Union[str, List[str]] = None,
+    order_by: Union[str, list[str]] = None,
     spark_service: str = None,
-    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
-) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
+    timestamp_for_filtering: Union[str, dict[str, str]] = None,
+):
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata
@@ -131,7 +136,10 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+            vector,
+            entity_rows=trades,
+            entity_timestamp_column="time",
+            query="ticker in ['GOOG'] and bid>100",
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -169,6 +177,44 @@ def get_offline_features(
                                     merge process using start_time and end_time params.
 
     """
+    return _get_offline_features(
+        feature_vector,
+        entity_rows,
+        entity_timestamp_column,
+        target,
+        run_config,
+        drop_columns,
+        start_time,
+        end_time,
+        with_indexes,
+        update_stats,
+        engine,
+        engine_args,
+        query,
+        order_by,
+        spark_service,
+        timestamp_for_filtering,
+    )
+
+
+def _get_offline_features(
+    feature_vector: Union[str, FeatureVector],
+    entity_rows=None,
+    entity_timestamp_column: str = None,
+    target: DataTargetBase = None,
+    run_config: RunConfig = None,
+    drop_columns: list[str] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
+    with_indexes: bool = False,
+    update_stats: bool = False,
+    engine: str = None,
+    engine_args: dict = None,
+    query: str = None,
+    order_by: Union[str, list[str]] = None,
+    spark_service: str = None,
+    timestamp_for_filtering: Union[str, dict[str, str]] = None,
+) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "entity_timestamp_column param "
@@ -224,14 +270,20 @@ def get_offline_features(
     )
 
 
+@deprecated(
+    version="1.6.0",
+    reason="get_online_feature_service() will be removed in 1.8.0, please instead use "
+    "get_feature_vector('store://feature_vector_name').get_online_feature_service()",
+    category=FutureWarning,
+)
 def get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: dict = None,
     update_stats: bool = False,
-    entity_keys: List[str] = None,
-) -> OnlineVectorService:
+    entity_keys: list[str] = None,
+):
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
@@ -258,7 +310,7 @@ def get_online_feature_service(
 
             Example::
 
-                svc = get_online_feature_service(vector_uri, entity_keys=['ticker'])
+                svc = get_online_feature_service(vector_uri, entity_keys=["ticker"])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)
@@ -295,6 +347,24 @@ def get_online_feature_service(
     :return:                    Initialize the `OnlineVectorService`.
                                 Will be used in subclasses where `support_online=True`.
     """
+    return _get_online_feature_service(
+        feature_vector,
+        run_config,
+        fixed_window_type,
+        impute_policy,
+        update_stats,
+        entity_keys,
+    )
+
+
+def _get_online_feature_service(
+    feature_vector: Union[str, FeatureVector],
+    run_config: RunConfig = None,
+    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+    impute_policy: dict = None,
+    update_stats: bool = False,
+    entity_keys: list[str] = None,
+) -> OnlineVectorService:
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
     feature_vector = _features_to_vector_and_check_permissions(
@@ -345,7 +415,7 @@ def _rename_source_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
+def _get_namespace(run_config: RunConfig) -> dict[str, Any]:
     # if running locally, we need to import the file dynamically to get its namespace
     if run_config and run_config.local and run_config.function:
         filename = run_config.function.spec.filename
@@ -363,7 +433,7 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -389,7 +459,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun')
+        config = RunConfig(image="mlrun/mlrun")
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets
@@ -418,6 +488,40 @@ def ingest(
                           False for scheduled ingest - does not delete the target)
     :return:              if return_df is True, a dataframe will be returned based on the graph
     """
+    if mlrun_context is None:
+        deprecated(
+            version="1.6.0",
+            reason="Calling 'ingest' with mlrun_context=None is deprecated and will be removed in 1.8.0,\
+            use 'FeatureSet.ingest()' instead",
+            category=FutureWarning,
+        )
+
+    return _ingest(
+        featureset,
+        source,
+        targets,
+        namespace,
+        return_df,
+        infer_options,
+        run_config,
+        mlrun_context,
+        spark_context,
+        overwrite,
+    )
+
+
+def _ingest(
+    featureset: Union[FeatureSet, str] = None,
+    source=None,
+    targets: list[DataTargetBase] = None,
+    namespace=None,
+    return_df: bool = True,
+    infer_options: InferOptions = InferOptions.default(),
+    run_config: RunConfig = None,
+    mlrun_context=None,
+    spark_context=None,
+    overwrite=None,
+) -> Optional[pd.DataFrame]:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -542,21 +646,6 @@ def ingest(
     targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
-    if (
-        isinstance(source, DataSource)
-        and source.path
-        and source.path.startswith("ds://")
-    ):
-        source.path = datastore_profile_embed_url_scheme(source.path)
-
-    for target in targets_to_ingest:
-        if (
-            isinstance(target, DataTargetBase)
-            and target.path
-            and target.path.startswith("ds://")
-        ):
-            target.path = datastore_profile_embed_url_scheme(target.path)
-
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
@@ -626,7 +715,7 @@ def ingest(
         infer_options, InferOptions.schema()
     )
     if schema_options:
-        preview(
+        _preview(
             featureset,
             source,
             options=schema_options,
@@ -669,6 +758,11 @@ def ingest(
         return df
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'preview' will be removed in 1.8.0, use 'FeatureSet.preview()' instead",
+    category=FutureWarning,
+)
 def preview(
     featureset: FeatureSet,
     source,
@@ -700,6 +794,26 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    return _preview(
+        featureset,
+        source,
+        entity_columns,
+        namespace,
+        options,
+        verbose,
+        sample_size,
+    )
+
+
+def _preview(
+    featureset: FeatureSet,
+    source,
+    entity_columns: list = None,
+    namespace=None,
+    options: InferOptions = None,
+    verbose: bool = False,
+    sample_size: int = None,
+) -> pd.DataFrame:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -764,7 +878,7 @@ def preview(
 def _run_ingestion_job(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     infer_options: InferOptions = InferOptions.default(),
     run_config: RunConfig = None,
@@ -780,14 +894,20 @@ def _run_ingestion_job(
     return run_ingestion_job(name, featureset, run_config, source.schedule)
 
 
+@deprecated(
+    version="1.6.0",
+    reason="'deploy_ingestion_service_v2' will be removed in 1.8.0, "
+    "use 'FeatureSet.deploy_ingestion_service()' instead",
+    category=FutureWarning,
+)
 def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
-) -> typing.Tuple[str, BaseRuntime]:
+) -> tuple[str, BaseRuntime]:
     """Start real-time ingestion service using nuclio function
 
     Deploy a real-time function implementing feature ingestion pipeline
@@ -801,7 +921,7 @@ def deploy_ingestion_service_v2(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fstore.deploy_ingestion_service(my_set, source, run_config=config)
+        deploy_ingestion_service_v2(my_set, source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -813,6 +933,24 @@ def deploy_ingestion_service_v2(
     :return: URL to access the deployed ingestion service, and the function that was deployed (which will
              differ from the function passed in via the run_config parameter).
     """
+    return _deploy_ingestion_service_v2(
+        featureset,
+        source,
+        targets,
+        name,
+        run_config,
+        verbose,
+    )
+
+
+def _deploy_ingestion_service_v2(
+    featureset: Union[FeatureSet, str],
+    source: DataSource = None,
+    targets: list[DataTargetBase] = None,
+    name: str = None,
+    run_config: RunConfig = None,
+    verbose=False,
+) -> tuple[str, BaseRuntime]:
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
@@ -875,7 +1013,7 @@ def deploy_ingestion_service_v2(
 def deploy_ingestion_service(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
@@ -893,7 +1031,7 @@ def deploy_ingestion_service(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fstore.deploy_ingestion_service(my_set, source, run_config=config)
+        my_set.deploy_ingestion_service(source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -904,8 +1042,7 @@ def deploy_ingestion_service(
 
     :return: URL to access the deployed ingestion service
     """
-    endpoint, _ = deploy_ingestion_service_v2(
-        featureset=featureset,
+    endpoint, _ = featureset.deploy_ingestion_service(
         source=source,
         targets=targets,
         name=name,
@@ -919,7 +1056,7 @@ def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: BaseSourceDriver = None,
-    targets: List[BaseStoreTarget] = None,
+    targets: list[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
@@ -959,7 +1096,9 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
 
         if isinstance(df, Response) and df.status_code != 0:
-            mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
+            raise mlrun.errors.err_for_status_code(
+                df.status_code, df.body.split(": ")[1]
+            )
 
         df.persist()
 
@@ -980,22 +1119,24 @@ def _ingest_with_spark(
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
             )
-            logger.info(
-                f"writing to target {target.name}, spark options {spark_options}"
-            )
 
             df_to_write = df
             df_to_write = target.prepare_spark_df(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
+            write_format = spark_options.pop("format", None)
             if overwrite:
-                df_to_write.write.mode("overwrite").save(**spark_options)
+                write_spark_dataframe_with_options(
+                    spark_options, df_to_write, "overwrite", write_format=write_format
+                )
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
                 if df_to_write.count() > 0:
-                    df_to_write.write.mode("append").save(**spark_options)
+                    write_spark_dataframe_with_options(
+                        spark_options, df_to_write, "append", write_format=write_format
+                    )
             target.update_resource_status("ready")
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -1069,7 +1210,7 @@ def _infer_from_static_df(
 def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
     overwrite=None,

@@ -15,55 +15,38 @@
 import tarfile
 import tempfile
 import typing
+import warnings
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
+import semver
 
 import mlrun.datastore
 
 
-def store_path_to_spark(path):
-    schemas = ["redis://", "rediss://", "ds://"]
-    if any(path.startswith(schema) for schema in schemas):
-        url = urlparse(path)
-        if url.path:
-            path = url.path
-    elif path.startswith("v3io:///"):
-        path = "v3io:" + path[len("v3io:/") :]
-    elif path.startswith("s3://"):
-        if path.startswith("s3:///"):
-            # 's3:///' not supported since mlrun 0.9.0 should use s3:// instead
-            from mlrun.errors import MLRunInvalidArgumentError
-
-            valid_path = "s3:" + path[len("s3:/") :]
-            raise MLRunInvalidArgumentError(
-                f"'s3:///' is not supported, try using 's3://' instead.\nE.g: '{valid_path}'"
-            )
-        else:
-            path = "s3a:" + path[len("s3:") :]
-    return path
-
-
 def parse_kafka_url(
-    url: str, bootstrap_servers: typing.List = None
-) -> typing.Tuple[str, typing.List]:
+    url: str, brokers: typing.Union[list, str] = None
+) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
-    :param bootstrap_servers: List of bootstrap servers for the kafka brokers.
+    :param brokers: List of kafka brokers.
 
     :return: A tuple of:
          [0] = Kafka topic value
          [1] = List of bootstrap servers
     """
-    bootstrap_servers = bootstrap_servers or []
+    brokers = brokers or []
+
+    if isinstance(brokers, str):
+        brokers = brokers.split(",")
 
     # Parse the provided URL into six components according to the general structure of a URL
     url = urlparse(url)
 
     # Add the network location to the bootstrap servers list
     if url.netloc:
-        bootstrap_servers = [url.netloc] + bootstrap_servers
+        brokers = [url.netloc] + brokers
 
     # Get the topic value from the parsed url
     query_dict = parse_qs(url.query)
@@ -72,7 +55,7 @@ def parse_kafka_url(
     else:
         topic = url.path
         topic = topic.lstrip("/")
-    return topic, bootstrap_servers
+    return topic, brokers
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -81,7 +64,7 @@ def upload_tarball(source_dir, target, secrets=None):
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
             tar.add(source_dir, arcname="")
         stores = mlrun.datastore.store_manager.set(secrets)
-        datastore, subpath = stores.get_or_create_store(target)
+        datastore, subpath, url = stores.get_or_create_store(target)
         datastore.upload(subpath, temp_fh.name)
 
 
@@ -91,7 +74,7 @@ def filter_df_start_end_time(
     start_time: pd.Timestamp = None,
     end_time: pd.Timestamp = None,
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
-    if not time_column or (not start_time and not end_time):
+    if not time_column:
         return df
     if isinstance(df, pd.DataFrame):
         return _execute_time_filter(df, time_column, start_time, end_time)
@@ -112,7 +95,16 @@ def filter_df_generator(
 def _execute_time_filter(
     df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
 ):
-    df[time_column] = pd.to_datetime(df[time_column])
+    if semver.parse(pd.__version__)["major"] >= 2:
+        # pandas 2 is too strict by default (ML-5629)
+        kwargs = {
+            "format": "mixed",
+            "yearfirst": True,
+        }
+    else:
+        # pandas 1 may fail on format "mixed" (ML-5661)
+        kwargs = {}
+    df[time_column] = pd.to_datetime(df[time_column], **kwargs)
     if start_time:
         df = df[df[time_column] > start_time]
     if end_time:
@@ -122,7 +114,7 @@ def _execute_time_filter(
 
 def select_columns_from_df(
     df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    columns: typing.List[str],
+    columns: list[str],
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not columns:
         return df
@@ -134,7 +126,7 @@ def select_columns_from_df(
 
 def select_columns_generator(
     dfs: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    columns: typing.List[str],
+    columns: list[str],
 ) -> typing.Iterator[pd.DataFrame]:
     for df in dfs:
         yield df[columns]
@@ -144,7 +136,7 @@ def _generate_sql_query_with_time_filter(
     table_name: str,
     engine: "sqlalchemy.engine.Engine",  # noqa: F821,
     time_column: str,
-    parse_dates: typing.List[str],
+    parse_dates: list[str],
     start_time: pd.Timestamp,
     end_time: pd.Timestamp,
 ):
@@ -173,3 +165,18 @@ def _generate_sql_query_with_time_filter(
             query = query.filter(getattr(table.c, time_column) <= end_time)
 
     return query, parse_dates
+
+
+def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str]:
+    get_or_pop = options.pop if pop else options.get
+    kafka_brokers = get_or_pop("kafka_brokers", None)
+    if kafka_brokers:
+        return kafka_brokers
+    kafka_bootstrap_servers = get_or_pop("kafka_bootstrap_servers", None)
+    if kafka_bootstrap_servers:
+        warnings.warn(
+            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
+            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
+            FutureWarning,
+        )
+    return kafka_bootstrap_servers

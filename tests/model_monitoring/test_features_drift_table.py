@@ -11,30 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import json
-import os
-import tempfile
-from typing import Tuple
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 import mlrun
-from mlrun.artifacts import Artifact
+import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
+import mlrun.utils
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.data_types.infer import DFDataInfer, default_num_bins
-from mlrun.model_monitoring.batch import VirtualDrift, calculate_inputs_statistics
-from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
+from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 
 
 def generate_data(
     n_samples: int,
     n_features: int,
-    loc_range: Tuple[int, int] = (0.1, 1.1),
-    scale_range: Tuple[int, int] = (1, 2),
-    inputs_diff_range: Tuple[int, int] = (0, 1),
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    loc_range: tuple[float, float] = (0.1, 1.1),
+    scale_range: tuple[int, int] = (1, 2),
+    inputs_diff_range: tuple[int, int] = (0, 1),
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Generate data:
     data = {}
     for i in range(n_features):
@@ -64,65 +62,53 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
     # Calculate statistics:
-    sample_data_statistics = DFDataInfer.get_stats(
-        df=sample_data,
-        options=mlrun.data_types.infer.InferOptions.Histogram,
+    sample_data_statistics = FeatureStats(
+        DFDataInfer.get_stats(
+            df=sample_data,
+            options=mlrun.data_types.infer.InferOptions.Histogram,
+        )
     )
-    inputs_statistics = calculate_inputs_statistics(
-        sample_set_statistics=sample_data_statistics,
-        inputs=inputs,
-    )
-
-    # Calculate drift:
-    virtual_drift = VirtualDrift(inf_capping=10)
-    metrics = virtual_drift.compute_drift_from_histograms(
-        feature_stats=sample_data_statistics,
-        current_stats=inputs_statistics,
-    )
-    drift_results = virtual_drift.check_for_drift_per_feature(
-        metrics_results_dictionary=metrics
+    pad_features_hist(sample_data_statistics)
+    inputs_statistics = FeatureStats(
+        calculate_inputs_statistics(
+            sample_set_statistics=sample_data_statistics,
+            inputs=inputs,
+        )
     )
 
-    # Plot:
-    html_plot = FeaturesDriftTablePlot().produce(
-        features=list(sample_data.columns),
+    # Initialize the app
+    application = histogram_data_drift.HistogramDataDriftApplication()
+    application.context = context
+
+    # Calculate drift
+    metrics_per_feature = application._compute_metrics_per_feature(
+        sample_df_stats=application.dict_to_histogram(sample_data_statistics),
+        feature_stats=application.dict_to_histogram(inputs_statistics),
+    )
+    application._log_drift_artifacts(
         sample_set_statistics=sample_data_statistics,
         inputs_statistics=inputs_statistics,
-        metrics=metrics,
-        drift_results=drift_results,
-    )
-
-    # Log:
-    context.log_artifact(
-        Artifact(body=html_plot, format="html", key="drift_table_plot")
+        metrics_per_feature=metrics_per_feature,
+        log_json_artifact=False,
     )
 
 
-def test_plot_produce(rundb_mock):
-    # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory()
-
+def test_plot_produce(tmp_path: Path) -> None:
     # Run the plot production and logging:
-    train_run = mlrun.new_function().run(
-        artifact_path=output_path.name,
+    app_plot_run = mlrun.new_function().run(
+        artifact_path=str(tmp_path),
         handler=plot_produce,
     )
 
-    # Print the outputs for manual validation:
-    print(json.dumps(train_run.outputs, indent=4))
-
     # Validate the artifact was logged:
-    assert len(train_run.status.artifacts) == 1
+    assert len(app_plot_run.status.artifacts) == 1
 
     # Check the plot was saved properly (only the drift table plot should appear):
-    artifact_directory_content = os.listdir(
-        os.path.dirname(train_run.status.artifacts[0]["spec"]["target_path"])
+    artifact_directory_content = list(
+        Path(app_plot_run.status.artifacts[0]["spec"]["target_path"]).parent.glob("*")
     )
     assert len(artifact_directory_content) == 1
-    assert artifact_directory_content[0] == "drift_table_plot.html"
-
-    # Clean up the temporary directory:
-    output_path.cleanup()
+    assert artifact_directory_content[0].name == "drift_table_plot.html"
 
 
 class TestCalculateInputsStatistics:

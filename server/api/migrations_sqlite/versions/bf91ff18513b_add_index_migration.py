@@ -19,6 +19,7 @@ Revises: 27ed4ecb734c
 Create Date: 2023-11-05 12:43:39.286669
 
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

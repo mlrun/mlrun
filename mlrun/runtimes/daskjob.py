@@ -16,6 +16,7 @@ import inspect
 import socket
 import time
 from os import environ
+from typing import Callable, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -93,7 +94,6 @@ class DaskSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -143,6 +143,8 @@ class DaskSpec(KubeResourceSpec):
         self._worker_resources = self.enrich_resources_with_default_pod_resources(
             "worker_resources", worker_resources
         )
+
+        self.state_thresholds = None  # not supported in dask
 
     @property
     def scheduler_resources(self) -> dict:
@@ -230,7 +232,7 @@ class DaskCluster(KubejobRuntime):
             if db_func and "status" in db_func:
                 self.status = db_func["status"]
                 if self.kfp:
-                    logger.info(f"dask status: {db_func['status']}")
+                    logger.info(f"Dask status: {db_func['status']}")
                 return "scheduler_address" in db_func["status"]
 
         return False
@@ -311,7 +313,7 @@ class DaskCluster(KubejobRuntime):
             if self.spec.service_type == "NodePort":
                 dash = f"{config.remote_host}:{self.status.node_ports.get('dashboard')}"
             else:
-                logger.info("to get a dashboard link, use NodePort service_type")
+                logger.info("To get a dashboard link, use NodePort service_type")
 
         return addr, dash
 
@@ -325,12 +327,12 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
-            logger.info(f"trying dask client at: {addr}")
+            logger.info(f"Trying dask client at: {addr}")
             try:
                 client = Client(addr)
             except OSError as exc:
                 logger.warning(
-                    f"remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
+                    f"Remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
                 )
 
                 status = self.get_status()
@@ -340,7 +342,7 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
 
             logger.info(
-                f"using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
+                f"Using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
             )
             if dash:
                 ipython_display(
@@ -457,8 +459,74 @@ class DaskCluster(KubejobRuntime):
         """
         self.spec._verify_and_set_requests("worker_resources", mem, cpu, patch=patch)
 
-    def _run(self, runobj: RunObject, execution):
+    def set_state_thresholds(
+        self,
+        state_thresholds: dict[str, str],
+        patch: bool = True,
+    ):
+        raise NotImplementedError(
+            "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead.",
+        )
 
+    def run(
+        self,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[dict[str, list]] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
+        **launcher_kwargs,
+    ) -> RunObject:
+        if state_thresholds:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead."
+            )
+        return super().run(
+            runspec=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            out_path=out_path,
+            workdir=workdir,
+            artifact_path=artifact_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local=local,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
+            state_thresholds=state_thresholds,
+            **launcher_kwargs,
+        )
+
+    def _run(self, runobj: RunObject, execution):
         handler = runobj.spec.handler
         self._force_handler(handler)
 

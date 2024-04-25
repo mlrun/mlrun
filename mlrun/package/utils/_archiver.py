@@ -18,6 +18,8 @@ import zipfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import mlrun.utils
+
 from ._supported_format import SupportedFormat
 
 
@@ -100,8 +102,11 @@ class _ZipArchiver(_Archiver):
         archive_path = Path(archive_path)
         output_path = Path(output_path)
 
-        # Create the directory path:
+        # Create the directory path, add timestamp to avoid collisions:
         directory_path = output_path / archive_path.stem
+        directory_path = directory_path.with_name(
+            f"{directory_path.name}-{mlrun.utils.now_date().isoformat()}"
+        )
         os.makedirs(directory_path)
 
         # Extract:
@@ -174,7 +179,9 @@ class _TarArchiver(_Archiver):
 
         # Extract:
         with tarfile.open(archive_path, f"r:{cls._MODE_STRING}") as tar_file:
-            tar_file.extractall(directory_path)
+            # use 'data' to ensure no security risks are imposed by the archive files
+            # see: https://docs.python.org/3/library/tarfile.html#tarfile.TarFile.extractall
+            tar_file.extractall(directory_path, filter="data")
 
         return str(directory_path)
 

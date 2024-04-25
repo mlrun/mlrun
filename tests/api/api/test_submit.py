@@ -14,7 +14,6 @@
 #
 import http
 import json
-import typing
 import unittest.mock
 from http import HTTPStatus
 
@@ -334,6 +333,36 @@ def test_submit_job_service_accounts(
     mlconf.function.spec.service_account.default = None
 
 
+def test_submit_job_no_image_ensure_default_image(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock: K8sSecretsMock
+):
+    # When a function is submitted with pull_at_runtime and no image, make sure submit is successful, and the
+    # function runs with the default image. See ML-4994.
+    project_name = "proj-test"
+    git_repo = "git://github.com/some_user/some_repo.git"
+    tests.api.api.utils.create_project(
+        client, project_name, source=git_repo, load_source_on_run=True
+    )
+
+    proj_obj = mlrun.new_project(project_name, context="./", save=False)
+    proj_obj.set_source(source=git_repo, pull_at_runtime=True)
+    function = proj_obj.set_function(
+        func="code.py",
+        name="test-function",
+        handler="dummy",
+        with_repo=True,
+        kind="job",
+    )
+
+    submit_job_body = _create_submit_job_body(function, project_name)
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp
+
+    _assert_pod_image(
+        pod_create_mock, mlrun.mlconf.function_defaults.image_by_kind.to_dict()["job"]
+    )
+
+
 class _MockDataItem:
     def as_df(self):
         return pd.DataFrame({"key1": [0], "key2": [1]})
@@ -447,7 +476,7 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/submit_job"
+    endpoint = "/submit_job"
     project = "test-project"
 
     function_name = "test-function"
@@ -485,9 +514,9 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         expected_response = test_case.get("expected_body")
         body = test_case.get("body")
 
-        httpserver.expect_ordered_request(endpoint, method="POST").respond_with_json(
-            expected_response, status=expected_status
-        )
+        httpserver.expect_ordered_request(
+            f"{ORIGINAL_VERSIONED_API_PREFIX}{endpoint}", method="POST"
+        ).respond_with_json(expected_response, status=expected_status)
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
         json_body = mlrun.utils.dict_to_json(body)
@@ -510,8 +539,8 @@ def test_submit_job_failure_params_exceed_int64(
     client: TestClient,
     pod_create_mock,
     task_name: str,
-    parameters: typing.Dict[str, int],
-    hyperparameters: typing.Dict[str, typing.List[int]],
+    parameters: dict[str, int],
+    hyperparameters: dict[str, list[int]],
 ) -> None:
     project_name = "params-exceed-int64"
     project_artifact_path = f"/{project_name}"
@@ -600,3 +629,11 @@ def _assert_pod_service_account(pod_create_mock, expected_service_account):
     args, _ = pod_create_mock.call_args
     pod_spec = args[0].spec
     assert pod_spec.service_account == expected_service_account
+
+
+def _assert_pod_image(pod_create_mock, expected_image):
+    pod_create_mock.assert_called_once()
+    args, _ = pod_create_mock.call_args
+    pod_spec = args[0].spec
+    (image_name, image_tag) = pod_spec.containers[0].image.split(":")
+    assert image_name == expected_image

@@ -33,7 +33,6 @@ def init_functions(functions: dict, project=None, secrets=None):
 
 @dsl.pipeline(name="Demo training pipeline", description="Shows how to use mlrun.")
 def kfpipeline():
-
     # encode the data
     clean = funcs["clean-data"].as_step(
         name="clean-data",

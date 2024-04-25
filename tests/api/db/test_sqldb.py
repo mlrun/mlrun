@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
+
+import copy
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from unittest import mock
@@ -25,7 +27,7 @@ import mlrun.common.schemas
 import server.api.db.sqldb.models
 from mlrun.lists import ArtifactList
 from server.api.db.sqldb.db import SQLDB
-from server.api.db.sqldb.models import Artifact
+from server.api.db.sqldb.models import ArtifactV2
 from tests.conftest import new_run
 
 
@@ -43,60 +45,74 @@ def patch(obj, **kw):
 
 
 def test_list_artifact_tags(db: SQLDB, db_session: Session):
-    db.store_artifact(db_session, "k1", {}, "1", tag="t1", project="p1")
-    db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p1")
-    db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p2")
-    db.store_artifact(db_session, "k2", {"kind": "model"}, "3", tag="t3", project="p1")
+    db.store_artifact(db_session, "k1", {}, producer_id="1", tag="t1", project="p1")
+    db.store_artifact(db_session, "k1", {}, producer_id="2", tag="t2", project="p1")
+    db.store_artifact(db_session, "k1", {}, producer_id="2", tag="t2", project="p2")
     db.store_artifact(
-        db_session, "k3", {"kind": "dataset"}, "4", tag="t4", project="p2"
+        db_session, "k2", {"kind": "model"}, producer_id="3", tag="t3", project="p1"
+    )
+    db.store_artifact(
+        db_session, "k3", {"kind": "dataset"}, producer_id="4", tag="t4", project="p2"
     )
 
     tags = db.list_artifact_tags(db_session, "p1")
-    assert [
+    expected_tags = [
         ("p1", "k1", "t1"),
         ("p1", "k1", "latest"),
         ("p1", "k1", "t2"),
         ("p1", "k2", "t3"),
         ("p1", "k2", "latest"),
-    ] == tags
+    ]
+    assert deepdiff.DeepDiff(tags, expected_tags, ignore_order=True) == {}
 
     # filter by category
     model_tags = db.list_artifact_tags(
         db_session, "p1", mlrun.common.schemas.ArtifactCategories.model
     )
-    assert [("p1", "k2", "t3"), ("p1", "k2", "latest")] == model_tags
+    expected_tags = [("p1", "k2", "t3"), ("p1", "k2", "latest")]
+    assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
     model_tags = db.list_artifact_tags(
         db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset
     )
-    assert [("p2", "k3", "t4"), ("p2", "k3", "latest")] == model_tags
+    expected_tags = [("p2", "k3", "t4"), ("p2", "k3", "latest")]
+    assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
 
 def test_list_artifact_date(db: SQLDB, db_session: Session):
     t1 = datetime(2020, 2, 16)
     t2 = t1 - timedelta(days=7)
     t3 = t2 - timedelta(days=7)
-    prj = "p7"
+    project = "p7"
 
-    db.store_artifact(db_session, "k1", {"updated": t1}, "u1", project=prj)
-    db.store_artifact(db_session, "k2", {"updated": t2}, "u2", project=prj)
-    db.store_artifact(db_session, "k3", {"updated": t3}, "u3", project=prj)
+    artifacts_to_create = []
+    for key, updated, producer_id in [
+        ("k1", t1, "p1"),
+        ("k2", t2, "p2"),
+        ("k3", t3, "p3"),
+    ]:
+        db_artifact = ArtifactV2(
+            project=project, key=key, updated=updated, producer_id=producer_id
+        )
+        artifacts_to_create.append(db_artifact)
 
-    arts = db.list_artifacts(db_session, project=prj, since=t3, tag="*")
+    db._upsert(db_session, artifacts_to_create)
+
+    arts = db.list_artifacts(db_session, project=project, since=t3, tag="*")
     assert 3 == len(arts), "since t3"
 
-    arts = db.list_artifacts(db_session, project=prj, since=t2, tag="*")
+    arts = db.list_artifacts(db_session, project=project, since=t2, tag="*")
     assert 2 == len(arts), "since t2"
 
     arts = db.list_artifacts(
-        db_session, project=prj, since=t1 + timedelta(days=1), tag="*"
+        db_session, project=project, since=t1 + timedelta(days=1), tag="*"
     )
     assert not arts, "since t1+"
 
-    arts = db.list_artifacts(db_session, project=prj, until=t2, tag="*")
+    arts = db.list_artifacts(db_session, project=project, until=t2, tag="*")
     assert 2 == len(arts), "until t2"
 
-    arts = db.list_artifacts(db_session, project=prj, since=t2, until=t2, tag="*")
+    arts = db.list_artifacts(db_session, project=project, since=t2, until=t2, tag="*")
     assert 1 == len(arts), "since/until t2"
 
 
@@ -109,83 +125,109 @@ def test_run_iter0(db: SQLDB, db_session: Session):
 
 
 def test_artifacts_latest(db: SQLDB, db_session: Session):
-    k1, u1, art1 = "k1", "u1", {"a": 1}
+    k1, t1, art1 = "k1", "t1", {"a": 1}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, u1, project=prj)
+    db.store_artifact(db_session, k1, art1, producer_id=t1, project=prj)
 
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert art1["a"] == arts[0]["a"], "bad artifact"
 
-    u2, art2 = "u2", {"a": 17}
-    db.store_artifact(db_session, k1, art2, u2, project=prj)
+    t2, art2 = "t2", {"a": 17}
+    db.store_artifact(db_session, k1, art2, producer_id=t2, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert 1 == len(arts), "count"
     assert art2["a"] == arts[0]["a"], "bad artifact"
 
-    k2, u3, art3 = "k2", "u3", {"a": 99}
-    db.store_artifact(db_session, k2, art3, u3, project=prj)
+    k2, t3, art3 = "k2", "t3", {"a": 99}
+    db.store_artifact(db_session, k2, art3, producer_id=t3, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert 2 == len(arts), "number"
     assert {17, 99} == set(art["a"] for art in arts), "latest"
 
 
 def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
-    k1, u1, art1 = "k1", "u1", {"a": 1, "b": "blubla"}
-    u2, art2 = "u2", {"a": 2, "b": "blublu"}
+    k1, t1, art1 = "k1", "t1", {"a": 1, "b": "blubla"}
+    t2, art2 = "t2", {"a": 2, "b": "blublu"}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, u1, iter=1, project=prj, tag="tag1")
-    db.store_artifact(db_session, k1, art2, u2, iter=2, project=prj, tag="tag2")
+    db.store_artifact(
+        db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag1"
+    )
+    db.store_artifact(
+        db_session, k1, art2, producer_id=t2, iter=2, project=prj, tag="tag2"
+    )
 
     result = db.read_artifact(db_session, k1, "tag1", iter=1, project=prj)
-    assert result["tag"] == "tag1"
+    assert result["metadata"]["tag"] == "tag1"
     result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
-    assert result["tag"] == "tag2"
+    assert result["metadata"]["tag"] == "tag2"
     result = db.read_artifact(db_session, k1, iter=1, project=prj)
     # When doing get without a tag, the returned object must not contain a tag.
-    assert "tag" not in result
-    # read_artifact supports a case where the tag is actually the uid.
-    result = db.read_artifact(db_session, k1, tag="u2", iter=2, project=prj)
-    assert "tag" not in result
-
-    result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
-    assert result["tag"] == "tag2"
+    assert "tag" not in result["metadata"]
 
     result = db.list_artifacts(db_session, k1, project=prj, tag="*")
-    # TODO: this actually expected to be 3, but this will be fixed in another PR once we restructure the Artifacts table
-    #   and change the way tag_artifacts works ( currently it is unable to untag tag from artifacts which were generated
-    #   in hyper params runs)
-    assert len(result) == 4
+    assert len(result) == 3
     for artifact in result:
         assert (
-            (artifact["a"] == 1 and artifact["tag"] == "tag1")
-            or (artifact["a"] == 2 and artifact["tag"] == "tag2")
-            or (artifact["a"] in (1, 2) and artifact["tag"] == "latest")
+            (artifact["a"] == 1 and artifact["metadata"]["tag"] == "tag1")
+            or (artifact["a"] == 2 and artifact["metadata"]["tag"] == "tag2")
+            or (artifact["a"] in (1, 2) and artifact["metadata"]["tag"] == "latest")
         )
 
     # To be used later, after adding tags
     full_results = result
 
     result = db.list_artifacts(db_session, k1, tag="tag1", project=prj)
-    assert len(result) == 1 and result[0]["tag"] == "tag1" and result[0]["a"] == 1
+    assert (
+        len(result) == 1
+        and result[0]["metadata"]["tag"] == "tag1"
+        and result[0]["a"] == 1
+    )
     result = db.list_artifacts(db_session, k1, tag="tag2", project=prj)
-    assert len(result) == 1 and result[0]["tag"] == "tag2" and result[0]["a"] == 2
+    assert (
+        len(result) == 1
+        and result[0]["metadata"]["tag"] == "tag2"
+        and result[0]["a"] == 2
+    )
 
     # Add another tag to all objects (there are 2 at this point)
+    new_tag = "new-tag"
     expected_results = ArtifactList()
     for artifact in full_results:
         expected_results.append(artifact)
-        artifact_with_new_tag = artifact.copy()
-        artifact_with_new_tag["tag"] = "new-tag"
+        if artifact["metadata"]["tag"] == "latest":
+            # We don't want to add a new tag to the "latest" object (it's the same object as the one with tag "tag2")
+            continue
+        artifact_with_new_tag = copy.deepcopy(artifact)
+        artifact_with_new_tag["metadata"]["tag"] = new_tag
         expected_results.append(artifact_with_new_tag)
 
-    artifacts = db_session.query(Artifact).all()
-    db.tag_artifacts(db_session, artifacts, prj, "new-tag")
+    artifacts = db_session.query(ArtifactV2).all()
+    db.tag_objects_v2(
+        db_session, artifacts, prj, name=new_tag, obj_name_attribute="key"
+    )
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
-    db.store_artifact(db_session, k1, art1, u1, iter=1, project=prj, tag="tag3")
+    # Add another tag to the art1
+    db.store_artifact(
+        db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag3"
+    )
+    # this makes it the latest object of this key, so we need to remove the artifact
+    # with tag "latest" from the expected results
+    expected_results = ArtifactList(
+        [
+            artifact
+            for artifact in expected_results
+            if artifact["metadata"]["tag"] != "latest"
+        ]
+    )
+
     result = db.read_artifact(db_session, k1, "tag3", iter=1, project=prj)
-    assert result["tag"] == "tag3"
+    assert result["metadata"]["tag"] == "tag3"
+    expected_results.append(copy.deepcopy(result))
+
+    # add it again but with the "latest" tag
+    result["metadata"]["tag"] = "latest"
     expected_results.append(result)
 
     result = db.list_artifacts(db_session, k1, prj, tag="*")

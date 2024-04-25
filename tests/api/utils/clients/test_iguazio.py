@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import asyncio
 import datetime
 import functools
 import http
@@ -83,8 +84,8 @@ async def test_verify_request_session_success(
     )
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = mock_request_headers
-
     mock_response_headers = _generate_session_verification_response_headers()
+    mock_request.state.request_id = "test-request-id"
 
     def _verify_session_mock(*args, **kwargs):
         response = {}
@@ -169,6 +170,7 @@ async def test_verify_request_session_failure(
 ):
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
+    mock_request.state.request_id = "test-request-id"
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
     patch_restful_request(
         iguazio_client.is_sync,
@@ -181,46 +183,6 @@ async def test_verify_request_session_failure(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
         assert exc.value.status_code == http.HTTPStatus.UNAUTHORIZED.value
-
-
-@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
-@pytest.mark.asyncio
-async def test_verify_session_success(
-    api_url: str,
-    iguazio_client: server.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
-    aioresponses_mock: aioresponses_mock,
-):
-    session = "some-session"
-    mock_response_headers = _generate_session_verification_response_headers()
-
-    def _verify_session_mock(*args, **kwargs):
-        if iguazio_client.is_sync:
-            request, context = args
-            _verify_request_cookie(request.headers, session)
-            context.headers = mock_response_headers
-        else:
-            _verify_request_cookie(kwargs, session)
-
-        return (
-            {}
-            if iguazio_client.is_sync
-            else CallbackResult(headers=mock_response_headers)
-        )
-
-    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
-    patch_restful_request(
-        iguazio_client.is_sync,
-        requests_mock,
-        aioresponses_mock,
-        method="POST",
-        url=url,
-        callback=_verify_session_mock,
-    )
-    auth_info = await maybe_coroutine(iguazio_client.verify_session(session))
-    _assert_auth_info_from_session_verification_mock_response_headers(
-        auth_info, mock_response_headers
-    )
 
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
@@ -774,11 +736,11 @@ async def test_delete_project(
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 
-    # assert ignoring (and not exploding) on not found
     requests_mock.delete(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
-    await maybe_coroutine(iguazio_client.delete_project(session, project_name))
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        await maybe_coroutine(iguazio_client.delete_project(session, project_name))
 
     # TODO: not sure really needed
     # assert correctly propagating 412 errors (will be returned when project has resources)
@@ -808,6 +770,132 @@ async def test_delete_project_without_wait(
         iguazio_client.delete_project(session, project_name, wait_for_completion=False)
     )
     assert is_running_in_background is True
+
+
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_delete_project_job_cache(
+    api_url: str,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    job_id = "928145d5-4037-40b0-98b6-19a76626d797"
+    session = "1234"
+
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session, job_id),
+    )
+
+    # delete project without waiting, should add the project to the client's cache
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name, wait_for_completion=False)
+    )
+    assert is_running_in_background is True
+    assert project_name in iguazio_client._job_cache._delete_jobs
+    assert iguazio_client._job_cache.get_delete_job_id(project_name) == job_id
+
+    # request again, should wait on the same job id
+    mocker, num_of_calls_until_completion = _mock_job_progress(
+        api_url, requests_mock, session, job_id
+    )
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name, wait_for_completion=True)
+    )
+    assert is_running_in_background is False
+    assert mocker.call_count == num_of_calls_until_completion
+
+
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_delete_project_job_is_done(
+    api_url: str,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project_name = "project-name"
+    job_id_1 = "928145d5-4037-40b0-98b6-19a76626d797"
+    job_id_2 = "123f45f4-f45s-45f4-45f4-45f4f4f4f4f4"
+    session = "1234"
+
+    # set job in the cache
+    iguazio_client._job_cache.set_delete_job(project_name, job_id_1)
+
+    # mock job is already done
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session, job_id_1),
+    )
+
+    def _mock_get_job(state, result, session, request, context):
+        context.status_code = http.HTTPStatus.OK.value
+        assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+        return {"data": {"attributes": {"state": state, "result": result}}}
+
+    responses = [
+        functools.partial(
+            _mock_get_job,
+            server.api.utils.clients.iguazio.JobStates.completed,
+            "",
+            session,
+        ),
+    ]
+    status_mocker = requests_mock.get(
+        f"{api_url}/api/jobs/{job_id_1}",
+        response_list=[{"json": response} for response in responses],
+    )
+
+    requests_mock.delete(
+        f"{api_url}/api/projects",
+        json=functools.partial(_verify_deletion, project_name, session, job_id_2),
+    )
+
+    # the "second" request to delete should replace the job id
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name, wait_for_completion=False)
+    )
+
+    assert is_running_in_background is True
+    assert status_mocker.call_count == 1
+
+    # assert the job id was replaced
+    assert iguazio_client._job_cache.get_delete_job_id(project_name) == job_id_2
+
+
+@pytest.mark.parametrize(
+    "iguazio_client_kind,cache_kind",
+    [
+        ("async", "delete"),
+        ("sync", "delete"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_job_cache_scheduled_invalidation(
+    iguazio_client_kind: str, cache_kind: str
+):
+    mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl = "1 seconds"
+
+    if iguazio_client_kind == "async":
+        client = server.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = server.api.utils.clients.iguazio.Client()
+
+    project_name = "project-name"
+    job_id = "some-job-id"
+
+    client._job_cache.__getattribute__(f"set_{cache_kind}_job")(project_name, job_id)
+
+    assert (
+        client._job_cache.__getattribute__(f"get_{cache_kind}_job_id")(project_name)
+        == job_id
+    )
+
+    await asyncio.sleep(3)
+    assert (
+        client._job_cache.__getattribute__(f"get_{cache_kind}_job_id")(project_name)
+        is None
+    )
 
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
@@ -869,7 +957,7 @@ def _assert_auth_info(
     session: str,
     data_session: str,
     user_id: str,
-    user_group_ids: typing.List[str],
+    user_group_ids: list[str],
 ):
     assert auth_info.username == username
     assert auth_info.session == session
@@ -938,7 +1026,6 @@ def _verify_request_cookie(headers: dict, session: str):
     if "Cookie" in headers:
         assert headers["Cookie"] == expected_session_value
     elif "cookies" in headers:
-
         # in async client we get the `cookies` key while it contains the cookies in form of a dict
         # use requests to construct it back to a string as expected above
         cookie = "; ".join(
@@ -1001,11 +1088,14 @@ def _generate_project(
     annotations=None,
     created=None,
     owner="project-owner",
+    default_function_node_selector=None,
 ) -> mlrun.common.schemas.Project:
     if labels is None:
         labels = {
             "some-label": "some-label-value",
         }
+    if default_function_node_selector is None:
+        default_function_node_selector = {"zone": "us-west-1"}
     if annotations is None:
         annotations = {
             "some-annotation": "some-annotation-value",
@@ -1023,6 +1113,7 @@ def _generate_project(
             desired_state=mlrun.common.schemas.ProjectState.online,
             owner=owner,
             some_extra_field="some value",
+            default_function_node_selector=default_function_node_selector,
         ),
         status=mlrun.common.schemas.ProjectStatus(
             some_extra_field="some value",
@@ -1048,13 +1139,14 @@ def _build_project_response(
             "updated_at": datetime.datetime.utcnow().isoformat(),
             "admin_status": project.spec.desired_state
             or mlrun.common.schemas.ProjectState.online,
+            "default_function_node_selector": [],
         },
     }
     if with_mlrun_project:
-        body["attributes"][
-            "mlrun_project"
-        ] = iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
-            project
+        body["attributes"]["mlrun_project"] = (
+            iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
+                project
+            )
         )
     if project.spec.description:
         body["attributes"]["description"] = project.spec.description
@@ -1063,16 +1155,22 @@ def _build_project_response(
     if owner_access_key:
         body["attributes"]["owner_access_key"] = owner_access_key
     if project.metadata.labels:
-        body["attributes"][
-            "labels"
-        ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
-            project.metadata.labels
+        body["attributes"]["labels"] = (
+            iguazio_client._transform_mlrun_labels_to_iguazio_labels(
+                project.metadata.labels
+            )
+        )
+    if project.spec.default_function_node_selector:
+        body["attributes"]["default_function_node_selector"] = (
+            iguazio_client._transform_mlrun_labels_to_iguazio_labels(
+                project.spec.default_function_node_selector
+            )
         )
     if project.metadata.annotations:
-        body["attributes"][
-            "annotations"
-        ] = iguazio_client._transform_mlrun_labels_to_iguazio_labels(
-            project.metadata.annotations
+        body["attributes"]["annotations"] = (
+            iguazio_client._transform_mlrun_labels_to_iguazio_labels(
+                project.metadata.annotations
+            )
         )
     body["attributes"]["operational_status"] = (
         operational_status.value

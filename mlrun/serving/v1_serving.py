@@ -18,7 +18,6 @@ import socket
 from copy import deepcopy
 from datetime import datetime
 from io import BytesIO
-from typing import Dict
 from urllib.request import urlopen
 
 import nuclio
@@ -26,7 +25,7 @@ import nuclio
 import mlrun
 from mlrun.errors import err_to_str
 from mlrun.platforms.iguazio import OutputStream
-from mlrun.runtimes import RemoteRuntime
+from mlrun.runtimes.nuclio.function import RemoteRuntime
 
 serving_handler = "handler"
 
@@ -97,16 +96,16 @@ class MLModelServer:
         if not self.ready and not self.model:
             raise ValueError("please specify a load method or a model object")
 
-    def preprocess(self, request: Dict) -> Dict:
+    def preprocess(self, request: dict) -> dict:
         return request
 
-    def postprocess(self, request: Dict) -> Dict:
+    def postprocess(self, request: dict) -> dict:
         return request
 
-    def predict(self, request: Dict) -> Dict:
+    def predict(self, request: dict) -> dict:
         raise NotImplementedError()
 
-    def explain(self, request: Dict) -> Dict:
+    def explain(self, request: dict) -> dict:
         raise NotImplementedError()
 
 
@@ -160,7 +159,6 @@ def nuclio_serving_init(context, data):
 
 
 def nuclio_serving_handler(context, event):
-
     # check if valid route & model
     try:
         if hasattr(event, "trigger") and event.trigger.kind not in ["http", ""]:
@@ -201,7 +199,7 @@ class _ServerInfo:
 class HTTPHandler:
     kind = ""
 
-    def __init__(self, models: Dict, server: _ServerInfo = None):
+    def __init__(self, models: dict, server: _ServerInfo = None):
         self.models = models
         self.srvinfo = server
         self.context = None

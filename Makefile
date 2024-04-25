@@ -48,6 +48,7 @@ MLRUN_RAISE_ON_ERROR ?= true
 MLRUN_SKIP_CLONE ?= false
 MLRUN_RELEASE_NOTES_OUTPUT_FILE ?=
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
+MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL ?=
 MLRUN_GPU_CUDA_VERSION ?= 11.7.1-cudnn8-devel-ubuntu20.04
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES
@@ -342,7 +343,7 @@ pull-log-collector:
 
 
 .PHONY: compile-schemas
-compile-schemas: ## Compile schemas
+compile-schemas: ## Compile schemas over docker
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
@@ -416,7 +417,7 @@ build-test-system: compile-schemas update-version-file ## Build system tests doc
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
-	python setup.py bdist_wheel
+	python -m build --wheel
 
 .PHONY: publish-package
 publish-package: package-wheel ## Publish python package wheel
@@ -428,10 +429,8 @@ test-publish: package-wheel ## Test python package publishing
 
 .PHONY: clean
 clean: ## Clean python package build artifacts
-	rm -rf build
-	rm -rf dist
-	rm -rf mlrun.egg-info
-	find . -name '*.pyc' -exec rm {} \;
+	rm -rf build dist mlrun.egg-info
+	find . -name '*.pyc' -not -path "./venv" -exec rm {} \;
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
@@ -508,7 +507,9 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
-	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
+	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
+	MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL=$(MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL) \
+	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
@@ -555,6 +556,8 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 .PHONY: run-api
 run-api: api ## Run mlrun api (dockerized)
+	# clean up any previous api container. Don't remove it after run to be able to debug failures
+	docker rm mlrun-api --force || true
 	docker run \
 		--name mlrun-api \
 		--detach \
@@ -563,11 +566,12 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
+		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db
 run-test-db:
-	# clean up any previous test db container
+	# clean up any previous test db container. Don't remove it after run to be able to debug failures
 	docker rm test-db --force || true
 	docker run \
 		--name=test-db \
@@ -597,10 +601,10 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code (using black and isort)
-	@echo "Running black fmt..."
-	python -m black .
-	python -m isort .
+fmt: ## Format the code using Ruff
+	@echo "Running ruff checks and fixes..."
+	python -m ruff check --fix-only
+	python -m ruff format
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -608,18 +612,14 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports ## Run lint on the code
 
-.PHONY: fmt-check
-fmt-check: ## Format and check the code (using black)
-	@echo "Running black+isort fmt check..."
-	python -m black --check --diff .
-	python -m isort --check --diff .
-
-.PHONY: flake8
-flake8: ## Run flake8 lint
-	@echo "Running flake8 lint..."
-	python -m flake8 .
+.PHONY: lint-check
+lint-check: ## Check the code (using ruff)
+	@echo "Running ruff checks..."
+	python -m ruff check --exit-non-zero-on-fix
+	python -m ruff check --preview --select=CPY001 --exit-non-zero-on-fix
+	python -m ruff format --check
 
 .PHONY: lint-go
 lint-go:

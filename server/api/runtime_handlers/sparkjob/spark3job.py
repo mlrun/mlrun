@@ -15,7 +15,7 @@ import abc
 import os
 from copy import deepcopy
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -196,9 +196,16 @@ with ctx:
         update_in(job, "spec.executor.volumeMounts", runtime.spec.volume_mounts)
         update_in(job, "spec.deps", runtime.spec.deps)
 
-        if runtime.spec.spark_conf:
+        spark_conf = runtime.spec.spark_conf
+        if spark_conf:
+            if (
+                spark_conf.get("spark.eventLog.enabled")
+                and "spark.eventLog.dir" not in spark_conf
+            ):
+                spark_conf["spark.eventLog.dir"] = "/tmp"
+
             job["spec"]["sparkConf"] = {}
-            for k, v in runtime.spec.spark_conf.items():
+            for k, v in spark_conf.items():
                 job["spec"]["sparkConf"][f"{k}"] = f"{v}"
 
         if runtime.spec.hadoop_conf:
@@ -432,8 +439,10 @@ with ctx:
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+    ) -> tuple[bool, Optional[datetime], Optional[str]]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
+        if not state:
+            return False, None, None
         in_terminal_state = state in SparkApplicationStates.terminal_states()
         desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(
             state
@@ -466,7 +475,7 @@ with ctx:
         project: str,
         uid: str,
         crd_object,
-        run: Dict,
+        run: dict,
     ):
         if not run:
             logger.warning(
@@ -497,7 +506,7 @@ with ctx:
         db.store_run(db_session, run, uid, project)
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod
@@ -514,7 +523,7 @@ with ctx:
         return "spark-role=driver"
 
     @staticmethod
-    def _get_crd_info() -> Tuple[str, str, str]:
+    def _get_crd_info() -> tuple[str, str, str]:
         return (
             Spark3Runtime.group,
             Spark3Runtime.version,
@@ -526,7 +535,7 @@ with ctx:
         db: DBInterface,
         db_session: Session,
         namespace: str,
-        deleted_resources: List[Dict],
+        deleted_resources: list[dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,

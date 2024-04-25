@@ -21,13 +21,15 @@ from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+import v3io.dataplane.object
+import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.schemas
@@ -43,7 +45,6 @@ import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
-from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
@@ -62,16 +63,16 @@ def config_test_base():
 
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
-    environ["MLRUN_httpdb__dirpath"] = rundb_path
-    environ["MLRUN_httpdb__logs_path"] = logs_path
-    environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
-    environ["MLRUN_httpdb__projects__counters_cache_ttl"] = "0 seconds"
+    environ["MLRUN_HTTPDB__DIRPATH"] = rundb_path
+    environ["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    environ["MLRUN_HTTPDB__PROJECTS__PERIODIC_SYNC_INTERVAL"] = "0 seconds"
+    environ["MLRUN_HTTPDB__PROJECTS__COUNTERS_CACHE_TTL"] = "0 seconds"
     environ["MLRUN_EXEC_CONFIG"] = ""
     global_context.set(None)
     log_level = "DEBUG"
-    environ["MLRUN_log_level"] = log_level
+    environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
-    mlrun.config.config.reload()
+    mlrun.mlconf.reload()
 
     # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
@@ -81,6 +82,8 @@ def config_test_base():
 
     # no need to raise error when using nop_db
     mlrun.mlconf.httpdb.nop_db.raise_error = False
+    # deploy status is mocked so no need to sleep
+    mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval = 0
 
     # remove the is_running_as_api cache, so it won't pass between tests
     mlrun.config._is_running_as_api = None
@@ -90,7 +93,7 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
 
     # TODO: update this to "sidecar" once the default mode is changed
-    mlrun.config.config.log_collector.mode = "legacy"
+    mlrun.mlconf.log_collector.mode = "legacy"
 
     # revert change of default project after project creation
     mlrun.mlconf.default_project = "default"
@@ -139,12 +142,27 @@ def chdir_to_test_location(request):
 
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
 
@@ -155,12 +173,27 @@ def patch_file_forbidden(monkeypatch):
 
 @pytest.fixture
 def patch_file_not_found(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise FileNotFoundError
+
+        @property
+        def object(self):
+            return MockV3ioObject()
 
     mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
 
@@ -225,11 +258,13 @@ class RunDBMock:
         self._functions[name] = function
         return hash_key
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         self._artifacts[key] = artifact
         return artifact
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
+    def read_artifact(self, key, tag=None, iter=None, project="", tree=None, uid=None):
         return self._artifacts.get(key, None)
 
     def list_artifacts(
@@ -240,12 +275,11 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        kind=None,
-        category=None,
         iter: int = None,
         best_iteration: bool = False,
-        as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        kind: str = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -271,9 +305,9 @@ class RunDBMock:
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,
@@ -353,14 +387,13 @@ class RunDBMock:
         force_build=False,
     ):
         function = func.to_dict()
-        status = NuclioStatus(
-            state="ready",
-            nuclio_name="test-nuclio-name",
-        )
+        function.setdefault("status", {})
+        function["status"]["state"] = "ready"
+        function["status"]["nuclio_name"] = "test-nuclio-name"
         self._functions[function["metadata"]["name"]] = function
         return {
             "data": {
-                "status": status.to_dict(),
+                "status": function.get("status"),
                 "metadata": function.get("metadata"),
                 "spec": function.get("spec"),
             }
@@ -376,6 +409,21 @@ class RunDBMock:
     ):
         return "ready", last_log_timestamp
 
+    def deploy_nuclio_function(
+        self,
+        func,
+        builder_env: Optional[dict] = None,
+    ):
+        return self.remote_builder(func, False)
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        return "ready", last_log_timestamp
+
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
             update_in(self._runs[uid], key, value)
@@ -383,7 +431,7 @@ class RunDBMock:
     def assert_no_mount_or_creds_configured(self, function_name=None):
         function = self._get_function_internal(function_name)
 
-        env_list = function["spec"]["env"]
+        env_list = function["spec"].get("env", [])
         env_params = [item["name"] for item in env_list]
         for env_variable in [
             "V3IO_USERNAME",
@@ -393,8 +441,8 @@ class RunDBMock:
         ]:
             assert env_variable not in env_params
 
-        volume_mounts = function["spec"]["volume_mounts"]
-        volumes = function["spec"]["volumes"]
+        volume_mounts = function["spec"].get("volume_mounts", [])
+        volumes = function["spec"].get("volumes", [])
         assert len(volumes) == 0
         assert len(volume_mounts) == 0
 
@@ -413,8 +461,8 @@ class RunDBMock:
         result.pop("dictionary_item_removed")
         assert result == {}
 
-        volume_mounts = function["spec"]["volume_mounts"]
-        volumes = function["spec"]["volumes"]
+        volume_mounts = function["spec"].get("volume_mounts", [])
+        volumes = function["spec"].get("volumes", [])
 
         if cred_only:
             assert len(volumes) == 0
@@ -560,3 +608,77 @@ def rundb_mock() -> RunDBMock:
         mlrun.get_run_db = orig_get_run_db
         BaseRuntime._get_db = orig_get_db
         config.dbpath = orig_db_path
+
+
+class RemoteBuilderMock:
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func: mlrun.runtimes.BaseRuntime,
+            *args,
+            **kwargs,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                        "build": {
+                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                        },
+                    },
+                    "status": {
+                        "state": "ready",
+                        "build_pod": "build-pod",
+                    }
+                    | func.status.to_dict(),
+                },
+            }
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+        self.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_builder_handler
+        )
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+    def get_builder_status(
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock

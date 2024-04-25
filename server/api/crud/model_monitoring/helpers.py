@@ -11,31 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
-import math
 import typing
 
 import sqlalchemy.orm
 
 import mlrun.common
 import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.schedule
 import mlrun.errors
 import server.api.crud.secrets
 
-Seconds = typing.NewType("Seconds", int)
-Minutes = typing.NewType("Minutes", int)
 
-_SECONDS_IN_MINUTE: Seconds = Seconds(60)
-_MINUTES_IN_HOUR: Minutes = Minutes(60)
-
-
-def seconds2minutes(seconds: Seconds) -> Minutes:
-    return Minutes(math.ceil(seconds / _SECONDS_IN_MINUTE))
-
-
-def get_batching_interval_param(intervals_list: typing.List):
+def get_batching_interval_param(intervals_list: list):
     """Convert each value in the intervals list into a float number. None
     Values will be converted into 0.0.
 
@@ -56,34 +46,6 @@ def get_batching_interval_param(intervals_list: typing.List):
             for interval in intervals_list
         ]
     )
-
-
-def _add_minutes_offset(
-    minute: typing.Optional[typing.Union[int, str]],
-    offset: Minutes,
-) -> typing.Optional[typing.Union[int, str]]:
-    """
-    :param minute: the minute specification in the cron schedule, e.g. "0".
-    :param offset: the offset in minutes to add to the cron minute specification.
-    :return: the minute cron with the offset applied (if supported).
-    """
-    if minute and (
-        (isinstance(minute, str) and str.isdigit(minute)) or isinstance(minute, int)
-    ):
-        minute = (int(minute) + offset) % _MINUTES_IN_HOUR
-    return minute
-
-
-def convert_to_cron_string(
-    cron_trigger: mlrun.common.schemas.schedule.ScheduleCronTrigger,
-    minute_delay: Minutes = Minutes(0),
-) -> str:
-    """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
-    return "{} {} {} * *".format(
-        _add_minutes_offset(cron_trigger.minute, minute_delay),
-        cron_trigger.hour,
-        cron_trigger.day,
-    ).replace("None", "*")
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:
@@ -139,12 +101,15 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(
+    project: str = None,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+) -> typing.Union[list[str]]:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param application_name:    Application name, None for model_monitoring_stream.
+    :param function_name:       Application name. Default is model_monitoring_stream.
 
     :return:                    Monitoring stream path to the relevant application.
     """
@@ -153,16 +118,25 @@ def get_stream_path(project: str = None, application_name: str = None):
         project=project,
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
-        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        if application_name is None
-        else "",
+        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
         target="online",
-        application_name=application_name,
+        function_name=function_name,
     )
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, application_name=application_name
-    )
+    if isinstance(
+        stream_uri, list
+    ):  # ML-6043 - server side gets the new  and the old stream uris.
+        return [
+            mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+                stream_uri=stream_uri_item, project=project, function_name=function_name
+            )
+            for stream_uri_item in stream_uri
+        ]
+    return [
+        mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+            stream_uri=stream_uri, project=project, function_name=function_name
+        )
+    ]

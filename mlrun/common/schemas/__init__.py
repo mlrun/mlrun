@@ -14,7 +14,26 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories, ArtifactIdentifier, ArtifactsFormat
+from .alert import AlertActiveState, AlertConfig, Event
+from .api_gateway import (
+    APIGateway,
+    APIGatewayAuthenticationMode,
+    APIGatewayBasicAuth,
+    APIGatewayMetadata,
+    APIGatewaysOutput,
+    APIGatewaySpec,
+    APIGatewayState,
+    APIGatewayStatus,
+    APIGatewayUpstream,
+)
+from .artifact import (
+    Artifact,
+    ArtifactCategories,
+    ArtifactIdentifier,
+    ArtifactMetadata,
+    ArtifactsFormat,
+    ArtifactSpec,
+)
 from .auth import (
     AuthInfo,
     AuthorizationAction,
@@ -25,6 +44,7 @@ from .auth import (
 )
 from .background_task import (
     BackgroundTask,
+    BackgroundTaskList,
     BackgroundTaskMetadata,
     BackgroundTaskSpec,
     BackgroundTaskState,
@@ -35,6 +55,7 @@ from .clusterization_spec import (
     ClusterizationSpec,
     WaitForChiefToReachOnlineStateFeatureFlag,
 )
+from .common import ImageBuilder
 from .constants import (
     APIStates,
     ClusterizationRole,
@@ -105,6 +126,7 @@ from .model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     Features,
+    FeatureSetFeatures,
     FeatureValues,
     GrafanaColumn,
     GrafanaDataPoint,
@@ -120,6 +142,7 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
+    PrometheusEndpoints,
     TimeSeriesTarget,
 )
 from .notification import (
@@ -130,12 +153,14 @@ from .notification import (
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pagination import PaginationInfo
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOutput,
     ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,

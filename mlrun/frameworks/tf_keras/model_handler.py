@@ -15,7 +15,7 @@
 import os
 import shutil
 import zipfile
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy as np
 import tensorflow as tf
@@ -67,8 +67,8 @@ class TFKerasModelHandler(DLModelHandler):
         model_name: str = None,
         model_format: str = ModelFormats.SAVED_MODEL,
         context: mlrun.MLClientCtx = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         save_traces: bool = False,
         **kwargs,
@@ -174,7 +174,7 @@ class TFKerasModelHandler(DLModelHandler):
         self._weights_file = None  # type: str
 
         # Setup the base handler class:
-        super(TFKerasModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -190,8 +190,8 @@ class TFKerasModelHandler(DLModelHandler):
 
     def set_labels(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -200,7 +200,7 @@ class TFKerasModelHandler(DLModelHandler):
         :param to_remove: A list of labels keys to remove.
         """
         # Update the user's labels:
-        super(TFKerasModelHandler, self).set_labels(to_add=to_add, to_remove=to_remove)
+        super().set_labels(to_add=to_add, to_remove=to_remove)
 
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_FORMAT] = self._model_format
@@ -211,7 +211,7 @@ class TFKerasModelHandler(DLModelHandler):
     @without_mlrun_interface(interface=TFKerasMLRunInterface)
     def save(
         self, output_path: str = None, **kwargs
-    ) -> Union[Dict[str, Artifact], None]:
+    ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -221,7 +221,7 @@ class TFKerasModelHandler(DLModelHandler):
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
-        super(TFKerasModelHandler, self).save(output_path=output_path)
+        super().save(output_path=output_path)
 
         # Setup the returning model artifacts list:
         artifacts = {}  # type: Dict[str, Artifact]
@@ -263,13 +263,13 @@ class TFKerasModelHandler(DLModelHandler):
         # Update the paths and log artifacts if context is available:
         if self._weights_file is not None:
             if self._context is not None:
-                artifacts[
-                    self._get_weights_file_artifact_name()
-                ] = self._context.log_artifact(
-                    self._weights_file,
-                    local_path=self._weights_file,
-                    artifact_path=output_path,
-                    db_key=False,
+                artifacts[self._get_weights_file_artifact_name()] = (
+                    self._context.log_artifact(
+                        self._weights_file,
+                        local_path=self._weights_file,
+                        artifact_path=output_path,
+                        db_key=False,
+                    )
                 )
 
         return artifacts if self._context is not None else None
@@ -291,7 +291,7 @@ class TFKerasModelHandler(DLModelHandler):
                 "Loading a model using checkpoint is not yet implemented."
             )
 
-        super(TFKerasModelHandler, self).load()
+        super().load()
 
         # ModelFormats.H5 - Load from a h5 file:
         if self._model_format == TFKerasModelHandler.ModelFormats.H5:
@@ -308,7 +308,7 @@ class TFKerasModelHandler(DLModelHandler):
         # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Load from a json architecture file and a h5 weights file:
         else:
             # Load the model architecture (json):
-            with open(self._model_file, "r") as json_file:
+            with open(self._model_file) as json_file:
                 model_architecture = json_file.read()
             self._model = keras.models.model_from_json(
                 model_architecture, custom_objects=self._custom_objects
@@ -321,7 +321,7 @@ class TFKerasModelHandler(DLModelHandler):
         model_name: str = None,
         optimize: bool = True,
         input_signature: Union[
-            List[tf.TensorSpec], List[np.ndarray], tf.TensorSpec, np.ndarray
+            list[tf.TensorSpec], list[np.ndarray], tf.TensorSpec, np.ndarray
         ] = None,
         output_path: str = None,
         log: bool = None,
@@ -487,7 +487,7 @@ class TFKerasModelHandler(DLModelHandler):
             ].local()
 
         # Continue collecting from abstract class:
-        super(TFKerasModelHandler, self)._collect_files_from_store_object()
+        super()._collect_files_from_store_object()
 
     def _collect_files_from_local_path(self):
         """
@@ -554,7 +554,7 @@ class TFKerasModelHandler(DLModelHandler):
         """
         # Supported types:
         if isinstance(sample, np.ndarray):
-            return super(TFKerasModelHandler, self)._read_sample(sample=sample)
+            return super()._read_sample(sample=sample)
         elif isinstance(sample, tf.TensorSpec):
             return Feature(
                 name=sample.name,

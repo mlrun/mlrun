@@ -18,7 +18,7 @@
 # The mlrun-api URL. e.g. https://mlrun-api.default-tenant.app.hedingber-28-1.iguazio-cd2.com
 MLRUN_DBPATH:
 
-# The webapi https_direct url - e.g. https://default-tenant.app.hedingber-28-1.iguazio-cd2.com:8444
+# The webapi https_direct url - e.g. https://webapi.default-tenant.app.hedingber-28-1.iguazio-cd2.com
 V3IO_API:
 
 # Iguazio API URL - e.g. https://dashboard.default-tenant.app.hedingber-28-1.iguazio-cd2.com
@@ -29,9 +29,6 @@ V3IO_FRAMESD:
 
 # user used to add v3io mounts to pods - e.g. iguazio
 V3IO_USERNAME:
-
-# password used to generate control sessions (needed only in 2.8) - e.g. password
-V3IO_PASSWORD:
 
 # access key used to add v3io mounts to pods - e.g. 4c1c2011-618f-434a-abd6-d456770fd33c
 V3IO_ACCESS_KEY:
@@ -51,13 +48,32 @@ MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:
 # sql db path string for test_sql_db - e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
 MLRUN_SQL__URL:
 
-AWS_BUCKET_NAME: 
-AWS_ACCESS_KEY_ID:
-AWS_SECRET_ACCESS_KEY:
-
 # databricks authentication token
 DATABRICKS_TOKEN:
 # databricks endpoint - for example abc-d1e2345f-a6b2.cloud.databricks.com (this example is from docs.databricks.com
 # - it is not for use)
 DATABRICKS_HOST:
 DATABRICKS_CLUSTER_ID:
+
+# AWS
+AWS_BUCKET_NAME:
+AWS_ACCESS_KEY_ID:
+AWS_SECRET_ACCESS_KEY:
+
+# GCS
+# Path to Google credentials file (in JSON format)
+GOOGLE_APPLICATION_CREDENTIALS:
+GCS_BUCKET_NAME:
+
+# Azure
+AZURE_STORAGE_CONNECTION_STRING:
+AZURE_CONTAINER:
+
+# Snowflake
+SNOWFLAKE_URL:
+SNOWFLAKE_USER:
+SNOWFLAKE_PASSWORD:
+SNOWFLAKE_DATABASE:
+SNOWFLAKE_SCHEMA:
+SNOWFLAKE_TABLE_NAME:
+SNOWFLAKE_WAREHOUSE:

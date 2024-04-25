@@ -13,8 +13,12 @@
 # limitations under the License.
 #
 import asyncio
+import datetime
+import re
 from typing import Optional
 
+import semver
+from humanfriendly import InvalidTimespan, parse_timespan
 from timelength import TimeLength
 
 import mlrun
@@ -89,3 +93,46 @@ def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int
         raise ValueError(f"Invalid time string {time_str}, must be at least 1 minute")
 
     return total_seconds
+
+
+def extract_image_tag(image_reference):
+    # This matches any word character,dots,hyphens after a colon (:) anchored to the end of the string
+    pattern = r"(?<=:)[\w.-]+$"
+    match = re.search(pattern, image_reference)
+
+    tag = None
+    is_semver = False
+    has_py_package = False
+    if match:
+        tag = match.group()
+        is_semver = semver.Version.is_valid(tag)
+
+        if is_semver:
+            version = semver.Version.parse(tag)
+            # If the version is a prerelease, and it has a hyphen, it means it's a feature branch build
+            has_py_package = (
+                not version.prerelease or version.prerelease.find("-") == -1
+            )
+
+    return tag, has_py_package
+
+
+def is_request_from_leader(
+    projects_role: Optional[mlrun.common.schemas.ProjectsRole], leader_name: str = None
+):
+    leader_name = leader_name or mlrun.mlconf.httpdb.projects.leader
+    if projects_role and projects_role.value == leader_name:
+        return True
+    return False
+
+
+def string_to_timedelta(date_str, raise_on_error=True):
+    date_str = date_str.strip().lower()
+    try:
+        seconds = parse_timespan(date_str)
+    except InvalidTimespan as exc:
+        if raise_on_error:
+            raise exc
+        return None
+
+    return datetime.timedelta(seconds=seconds)

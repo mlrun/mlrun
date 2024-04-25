@@ -15,7 +15,7 @@
 import os
 import pathlib
 import tempfile
-from typing import List, Tuple, Union
+from typing import Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -45,8 +45,7 @@ class NonePackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
 
     # TODO: `None` as pickle will be available from Python 3.10, so this method can be removed once we move to 3.10.
-    @classmethod
-    def get_supported_artifact_types(cls) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the
         'object' artifact type support (None cannot be pickled, only from Python 3.10, and it should not be pickled
@@ -95,10 +94,9 @@ class StrPackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.PATH
 
-    @classmethod
     def pack_path(
-        cls, obj: str, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: str, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a path string value content (pack the file or directory in that path).
 
@@ -138,9 +136,11 @@ class StrPackager(DefaultPackager):
 
         return artifact, instructions
 
-    @classmethod
     def unpack_path(
-        cls, data_item: DataItem, is_directory: bool = False, archive_format: str = None
+        self,
+        data_item: DataItem,
+        is_directory: bool = False,
+        archive_format: str = None,
     ) -> str:
         """
         Unpack a data item representing a path string. If the path is of a file, the file is downloaded to a local
@@ -155,11 +155,8 @@ class StrPackager(DefaultPackager):
 
         :return: The unpacked string.
         """
-        # Get the file to a local temporary directory:
-        path = data_item.local()
-
-        # Mark the downloaded file for future clear:
-        cls.add_future_clearing_path(path=path)
+        # Get the file:
+        path = self.get_data_item_local_path(data_item=data_item)
 
         # If it's not a directory, return the file path. Otherwise, it should be extracted according to the archive
         # format:
@@ -182,7 +179,7 @@ class StrPackager(DefaultPackager):
         )
 
         # Mark the extracted content for future clear:
-        cls.add_future_clearing_path(path=directory_path)
+        self.add_future_clearing_path(path=directory_path)
 
         # Return the extracted directory path:
         return directory_path
@@ -196,13 +193,12 @@ class _BuiltinCollectionPackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.FILE
 
-    @classmethod
     def pack_file(
-        cls,
+        self,
         obj: Union[dict, list],
         key: str,
         file_format: str = DEFAULT_STRUCT_FILE_FORMAT,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a builtin collection as a file by the given format.
 
@@ -215,7 +211,7 @@ class _BuiltinCollectionPackager(DefaultPackager):
         # Write to file:
         formatter = StructFileSupportedFormat.get_format_handler(fmt=file_format)
         temp_directory = pathlib.Path(tempfile.mkdtemp())
-        cls.add_future_clearing_path(path=temp_directory)
+        self.add_future_clearing_path(path=temp_directory)
         file_path = temp_directory / f"{key}.{file_format}"
         formatter.write(obj=obj, file_path=str(file_path))
 
@@ -225,9 +221,8 @@ class _BuiltinCollectionPackager(DefaultPackager):
 
         return artifact, instructions
 
-    @classmethod
     def unpack_file(
-        cls, data_item: DataItem, file_format: str = None
+        self, data_item: DataItem, file_format: str = None
     ) -> Union[dict, list]:
         """
         Unpack a builtin collection from file.
@@ -239,8 +234,7 @@ class _BuiltinCollectionPackager(DefaultPackager):
         :return: The unpacked builtin collection.
         """
         # Get the file:
-        file_path = data_item.local()
-        cls.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:
@@ -265,8 +259,7 @@ class DictPackager(_BuiltinCollectionPackager):
 
     PACKABLE_OBJECT_TYPE = dict
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> dict:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> dict:
         """
         Unpack a dictionary from file.
 
@@ -292,8 +285,7 @@ class ListPackager(_BuiltinCollectionPackager):
 
     PACKABLE_OBJECT_TYPE = list
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> list:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> list:
         """
         Unpack a list from file.
 
@@ -338,8 +330,7 @@ class TuplePackager(ListPackager):
 
     PACKABLE_OBJECT_TYPE = tuple
 
-    @classmethod
-    def pack_result(cls, obj: tuple, key: str) -> dict:
+    def pack_result(self, obj: tuple, key: str) -> dict:
         """
         Pack a tuple as a result.
 
@@ -350,10 +341,9 @@ class TuplePackager(ListPackager):
         """
         return super().pack_result(obj=list(obj), key=key)
 
-    @classmethod
     def pack_file(
-        cls, obj: tuple, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: tuple, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a tuple as a file by the given format.
 
@@ -365,8 +355,7 @@ class TuplePackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> tuple:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> tuple:
         """
         Unpack a tuple from file.
 
@@ -386,8 +375,7 @@ class SetPackager(ListPackager):
 
     PACKABLE_OBJECT_TYPE = set
 
-    @classmethod
-    def pack_result(cls, obj: set, key: str) -> dict:
+    def pack_result(self, obj: set, key: str) -> dict:
         """
         Pack a set as a result.
 
@@ -398,10 +386,9 @@ class SetPackager(ListPackager):
         """
         return super().pack_result(obj=list(obj), key=key)
 
-    @classmethod
     def pack_file(
-        cls, obj: set, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: set, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a set as a file by the given format.
 
@@ -413,8 +400,7 @@ class SetPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> set:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> set:
         """
         Unpack a set from file.
 
@@ -434,10 +420,9 @@ class FrozensetPackager(SetPackager):
 
     PACKABLE_OBJECT_TYPE = frozenset
 
-    @classmethod
     def pack_file(
-        cls, obj: frozenset, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: frozenset, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a frozenset as a file by the given format.
 
@@ -449,8 +434,7 @@ class FrozensetPackager(SetPackager):
         """
         return super().pack_file(obj=set(obj), key=key, file_format=file_format)
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> frozenset:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> frozenset:
         """
         Unpack a frozenset from file.
 
@@ -472,8 +456,7 @@ class BytesPackager(ListPackager):
 
     PACKABLE_OBJECT_TYPE = bytes
 
-    @classmethod
-    def pack_result(cls, obj: bytes, key: str) -> dict:
+    def pack_result(self, obj: bytes, key: str) -> dict:
         """
         Pack bytes as a result.
 
@@ -484,10 +467,9 @@ class BytesPackager(ListPackager):
         """
         return {key: obj}
 
-    @classmethod
     def pack_file(
-        cls, obj: bytes, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: bytes, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a bytes as a file by the given format.
 
@@ -499,8 +481,7 @@ class BytesPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> bytes:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> bytes:
         """
         Unpack a bytes from file.
 
@@ -520,8 +501,7 @@ class BytearrayPackager(BytesPackager):
 
     PACKABLE_OBJECT_TYPE = bytearray
 
-    @classmethod
-    def pack_result(cls, obj: bytearray, key: str) -> dict:
+    def pack_result(self, obj: bytearray, key: str) -> dict:
         """
         Pack a bytearray as a result.
 
@@ -532,10 +512,9 @@ class BytearrayPackager(BytesPackager):
         """
         return {key: bytes(obj)}
 
-    @classmethod
     def pack_file(
-        cls, obj: bytearray, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: bytearray, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a bytearray as a file by the given format.
 
@@ -547,8 +526,7 @@ class BytearrayPackager(BytesPackager):
         """
         return super().pack_file(obj=bytes(obj), key=key, file_format=file_format)
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> bytearray:
+    def unpack_file(self, data_item: DataItem, file_format: str = None) -> bytearray:
         """
         Unpack a bytearray from file.
 
@@ -578,8 +556,7 @@ class PathPackager(StrPackager):
     PACK_SUBCLASSES = True
     DEFAULT_PACKING_ARTIFACT_TYPE = "path"
 
-    @classmethod
-    def pack_result(cls, obj: pathlib.Path, key: str) -> dict:
+    def pack_result(self, obj: pathlib.Path, key: str) -> dict:
         """
         Pack the `Path` as a string result.
 
@@ -590,10 +567,9 @@ class PathPackager(StrPackager):
         """
         return super().pack_result(obj=str(obj), key=key)
 
-    @classmethod
     def pack_path(
-        cls, obj: pathlib.Path, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
-    ) -> Tuple[Artifact, dict]:
+        self, obj: pathlib.Path, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a `Path` value (pack the file or directory in that path).
 
@@ -605,9 +581,11 @@ class PathPackager(StrPackager):
         """
         return super().pack_path(obj=str(obj), key=key, archive_format=archive_format)
 
-    @classmethod
     def unpack_path(
-        cls, data_item: DataItem, is_directory: bool = False, archive_format: str = None
+        self,
+        data_item: DataItem,
+        is_directory: bool = False,
+        archive_format: str = None,
     ) -> pathlib.Path:
         """
         Unpack a data item representing a `Path`. If the path is of a file, the file is downloaded to a local

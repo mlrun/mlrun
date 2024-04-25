@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import sqlalchemy.orm
 
@@ -90,7 +89,7 @@ class DatastoreProfiles(
         self,
         session: sqlalchemy.orm.Session,
         project: str = None,
-    ) -> typing.Dict:
+    ) -> dict:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_datastore_profiles(
             session, project
@@ -109,3 +108,14 @@ class DatastoreProfiles(
         )
         # Delete private part of the secret
         self._delete_secret(project, profile_name)
+
+    def get_datastore_profile(
+        self,
+        session: sqlalchemy.orm.Session,
+        profile_name: str = None,
+        project: str = None,
+    ):
+        project = project or mlrun.mlconf.default_project
+        return server.api.utils.singletons.db.get_db().get_datastore_profile(
+            session, profile_name, project
+        )

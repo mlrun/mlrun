@@ -15,7 +15,6 @@
 import importlib
 import json
 import sys
-from types import ModuleType
 from typing import Callable, Union
 
 import mlrun.errors
@@ -182,7 +181,7 @@ class Metric:
         # Metric string was not provided properly:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"The metric {metric} was not found in the global imports dictionary meaning it was not "
-            f"imported. In order to import it during the run, please provide the full module path to the"
+            f"imported. In order to import it during the run, please provide the full module path to the "
             f"metric. For example: 'module.sub_module.metric' will be parsed as "
             f"from module.sub_module import metric."
         )

@@ -17,7 +17,6 @@ import collections
 import json
 import pathlib
 import re
-import typing
 import unittest.mock
 
 import deepdiff
@@ -94,45 +93,45 @@ def test_requirement_specifiers_convention():
                     requirement_specifier
                 )
 
+    # filter out pinned requirements (==) and requirements with both upper and lower bounds
+    # this is done on requirement with single specifier only, for simplicity
+    for requirement_name, requirement_specifiers in list(
+        invalid_requirement_specifiers_map.items()
+    ):
+        if requirement_specifiers and len(requirement_specifiers) == 1:
+            requirement_specifier = list(requirement_specifiers)[0]
+            bound_up = ">=" in requirement_specifier or "~=" in requirement_specifier
+            bound_down = "<=" in requirement_specifier or "<" in requirement_specifier
+            pinned = "==" in requirement_specifier
+            if pinned or (bound_up and bound_down):
+                invalid_requirement_specifiers_map.pop(requirement_name)
+                continue
+
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "kfp": {"~=1.8.0, <1.8.14"},
-        "aiobotocore": {">=2.4.2,<2.6"},
-        "storey": {"~=1.6.6"},
-        "nuclio-sdk": {">=0.3.0"},
+        "aiobotocore": {">=2.5.0,<2.8"},
+        "storey": {"~=1.7.7"},
+        "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
         "sphinx-book-theme": {"~=1.0.1"},
-        "setuptools": {"~=65.5"},
-        "transformers": {"~=4.11.3"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
         # These are not semver
-        "opencv-contrib-python": {">=4.2.0.34"},
         "pyhive": {" @ git+https://github.com/v3io/PyHive.git@v0.6.999"},
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {">=2023.1,<2023.7"},
-        "adlfs": {">=2022.2,<2023.5"},
-        "s3fs": {">=2023.1,<2023.7"},
-        "gcsfs": {">=2023.1,<2023.7"},
+        "databricks-sdk": {"~=0.13.0"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
-        # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
-        # TODO: make test smart enough to understand that
-        "urllib3": {">=1.26.9, <1.27"},
-        "numpy": {">=1.16.5, <1.23.0"},
-        "boto3": {">=1.24.59,<1.27"},
-        "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=10.0, <13"},
         "nbclassic": {">=0.2.8"},
-        "pandas": {">=1.2, <3"},
-        "gitpython": {"~=3.1, >= 3.1.30"},
+        "gitpython": {"~=3.1, >=3.1.41"},
         "pydantic": {"~=1.10, >=1.10.8"},
+        "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
-        "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
+        "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": {"~=5.4, <5.12.0"},
@@ -143,10 +142,6 @@ def test_requirement_specifiers_convention():
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
-        "pyyaml": {">=5.4.1, <6"},
-        # other requirements
-        "azure-storage-blob": {">=12.13, !=12.18.0"},
-        "aiohttp": {"~=3.8, <3.8.4"},
     }
 
     for (
@@ -166,6 +161,10 @@ def test_requirement_specifiers_convention():
 
 
 def test_requirement_specifiers_inconsistencies():
+    """
+    This test exists to verify we don't have inconsistencies in requirement specifiers between different requirements
+    files
+    """
     requirement_specifiers_map = _generate_all_requirement_specifiers_map()
     inconsistent_specifiers_map = {}
     print(requirement_specifiers_map)
@@ -201,6 +200,9 @@ def test_requirement_specifiers_inconsistencies():
 
 
 def test_requirement_from_remote():
+    """
+    This test checks the functionality of parsing requirement specifiers from remotes
+    """
     requirement_specifiers_map = _parse_requirement_specifiers_list(
         [
             "some-package~=1.9, <1.17.50",
@@ -220,7 +222,7 @@ def test_requirement_from_remote():
     }
 
 
-def _generate_all_requirement_specifiers_map() -> typing.Dict[str, typing.Set]:
+def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = list(
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
@@ -240,7 +242,7 @@ def _generate_all_requirement_specifiers_map() -> typing.Dict[str, typing.Set]:
 
 def _parse_requirement_specifiers_list(
     requirement_specifiers,
-) -> typing.Dict[str, typing.Set]:
+) -> dict[str, set]:
     specific_module_regex = (
         r"^"
         r"(?P<requirementName>[a-zA-Z\-0-9_]+)"
@@ -296,11 +298,6 @@ def _import_extras_requirements():
     return extras_requirements
 
 
-def _is_ignored_requirement_line(line):
-    line = line.strip()
-    return (not line) or (line[0] == "#")
-
-
 def _load_requirements(path):
     """
     Load dependencies from requirements file, exactly like `setup.py`
@@ -324,3 +321,8 @@ def _load_requirements(path):
             # append package
             deps.append(line)
         return deps
+
+
+def _is_ignored_requirement_line(line):
+    line = line.strip()
+    return (not line) or (line[0] == "#")

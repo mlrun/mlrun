@@ -11,17 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import tempfile
 from os import path
-from typing import List
+from typing import Any, Optional
 
+import pandas as pd
 import yaml
 from deprecated import deprecated
 
 import mlrun
+import mlrun.datastore
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
 from ..utils import StorePrefix, is_relative_path
@@ -44,6 +46,15 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_stats",
         "model_target_file",
     ]
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "metrics",
+        "parameters",
+        "inputs",
+        "outputs",
+        "feature_vector",
+        "feature_weights",
+        "feature_stats",
+    ]
 
     def __init__(
         self,
@@ -59,8 +70,8 @@ class ModelArtifactSpec(ArtifactSpec):
         model_file=None,
         metrics=None,
         paraemeters=None,
-        inputs: List[Feature] = None,
-        outputs: List[Feature] = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
         framework=None,
         algorithm=None,
         feature_vector=None,
@@ -82,8 +93,8 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_file = model_file
         self.metrics = metrics or {}
         self.parameters = paraemeters or {}
-        self.inputs: List[Feature] = inputs or []
-        self.outputs: List[Feature] = outputs or []
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.framework = framework
         self.algorithm = algorithm
         self.feature_vector = feature_vector
@@ -92,21 +103,21 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> List[Feature]:
+    def inputs(self) -> ObjectList:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> List[Feature]:
+    def outputs(self) -> ObjectList:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
 
 
@@ -138,7 +149,6 @@ class ModelArtifact(Artifact):
         model_dir=None,
         **kwargs,
     ):
-
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:
@@ -167,22 +177,22 @@ class ModelArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", ModelArtifactSpec)
 
     @property
-    def inputs(self) -> List[Feature]:
+    def inputs(self) -> ObjectList:
         """input feature list"""
         return self.spec.inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         """input feature list"""
         self.spec.inputs = inputs
 
     @property
-    def outputs(self) -> List[Feature]:
+    def outputs(self) -> ObjectList:
         """input feature list"""
         return self.spec.outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         """input feature list"""
         self.spec.outputs = outputs
 
@@ -252,6 +262,7 @@ class ModelArtifact(Artifact):
         """
         subset = df
         inferer = get_infer_interface(subset)
+        numeric_columns = self._extract_numeric_features(df)
         if label_columns:
             if not isinstance(label_columns, list):
                 label_columns = [label_columns]
@@ -265,8 +276,12 @@ class ModelArtifact(Artifact):
             )
         if with_stats:
             self.spec.feature_stats = inferer.get_stats(
-                df, options=InferOptions.Histogram, num_bins=num_bins
+                df[numeric_columns], options=InferOptions.Histogram, num_bins=num_bins
             )
+
+    @staticmethod
+    def _extract_numeric_features(df: pd.DataFrame) -> list[Any]:
+        return [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
 
     @property
     def is_dir(self):
@@ -276,7 +291,7 @@ class ModelArtifact(Artifact):
         if not self.spec.model_file:
             raise ValueError("model_file attr must be specified")
 
-        super(ModelArtifact, self).before_log()
+        super().before_log()
 
         if self.spec.framework:
             self.metadata.labels = self.metadata.labels or {}
@@ -309,7 +324,6 @@ class ModelArtifact(Artifact):
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
-
             # resolving target_path for the model spec
             _, spec_target_path = self.resolve_body_target_hash_path(
                 body=spec_body, artifact_path=artifact_path
@@ -330,14 +344,13 @@ class ModelArtifact(Artifact):
         spec_target_path = spec_target_path or path.join(
             self.spec.target_path, model_spec_filename
         )
-        store_manager.object(url=spec_target_path).put(spec_body)
+        mlrun.datastore.store_manager.object(url=spec_target_path).put(spec_body)
 
     def _upload_body_or_file(
         self,
         artifact_path: str,
         target_model_path: str = None,
     ):
-
         body = self.spec.get_body()
         if body:
             if not target_model_path:
@@ -384,10 +397,10 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyModelArtifact' will be removed in 1.6.0, use 'ModelArtifact' instead",
+    reason="'LegacyModelArtifact' will be removed in 1.7.0, use 'ModelArtifact' instead",
     category=FutureWarning,
 )
 class LegacyModelArtifact(LegacyArtifact):
@@ -432,16 +445,15 @@ class LegacyModelArtifact(LegacyArtifact):
         model_target_file=None,
         **kwargs,
     ):
-
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
-        self._inputs: ObjectList = None
-        self._outputs: ObjectList = None
+        self._inputs: Optional[ObjectList] = None
+        self._outputs: Optional[ObjectList] = None
 
         self.model_file = model_file
         self.parameters = parameters or {}
         self.metrics = metrics or {}
-        self.inputs: List[Feature] = inputs or []
-        self.outputs: List[Feature] = outputs or []
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.extra_data = extra_data or {}
         self.framework = framework
         self.algorithm = algorithm
@@ -451,21 +463,21 @@ class LegacyModelArtifact(LegacyArtifact):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> List[Feature]:
+    def inputs(self) -> Optional[ObjectList]:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: List[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> List[Feature]:
+    def outputs(self) -> Optional[ObjectList]:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: List[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
@@ -500,14 +512,13 @@ class LegacyModelArtifact(LegacyArtifact):
         if not self.model_file:
             raise ValueError("model_file attr must be specified")
 
-        super(LegacyModelArtifact, self).before_log()
+        super().before_log()
 
         if self.framework:
             self.labels = self.labels or {}
             self.labels["framework"] = self.framework
 
     def upload(self):
-
         target_model_path = path.join(self.target_path, self.model_file)
         body = self.get_body()
         if body:
@@ -521,7 +532,7 @@ class LegacyModelArtifact(LegacyArtifact):
         upload_extra_data(self, self.extra_data)
 
         spec_path = path.join(self.target_path, model_spec_filename)
-        store_manager.object(url=spec_path).put(self.to_yaml())
+        mlrun.datastore.store_manager.object(url=spec_path).put(self.to_yaml())
 
 
 def _get_src_path(model_spec: ModelArtifact, filename):
@@ -542,9 +553,9 @@ def get_model(model_dir, suffix=""):
 
     example::
 
-        model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
+        model_file, model_artifact, extra_data = get_model(models_path, suffix=".pkl")
         model = load(open(model_file, "rb"))
-        categories = extra_data['categories'].as_df()
+        categories = extra_data["categories"].as_df()
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
@@ -559,8 +570,8 @@ def get_model(model_dir, suffix=""):
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
 
-    if is_store_uri(model_dir):
-        model_spec, target = store_manager.get_store_artifact(model_dir)
+    if mlrun.datastore.is_store_uri(model_dir):
+        model_spec, target = mlrun.datastore.store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path
@@ -578,7 +589,7 @@ def get_model(model_dir, suffix=""):
     elif model_dir.endswith(suffix):
         model_file = model_dir
     else:
-        dirobj = store_manager.object(url=model_dir)
+        dirobj = mlrun.datastore.store_manager.object(url=model_dir)
         model_dir_list = dirobj.listdir()
         if model_spec_filename in model_dir_list:
             model_spec = _load_model_spec(path.join(model_dir, model_spec_filename))
@@ -595,7 +606,7 @@ def get_model(model_dir, suffix=""):
     if not model_file:
         raise ValueError(f"cant resolve model file for {model_dir} suffix{suffix}")
 
-    obj = store_manager.object(url=model_file)
+    obj = mlrun.datastore.store_manager.object(url=model_file)
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
@@ -605,7 +616,7 @@ def get_model(model_dir, suffix=""):
 
 
 def _load_model_spec(spec_path):
-    data = store_manager.object(url=spec_path).get()
+    data = mlrun.datastore.store_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 
@@ -621,7 +632,7 @@ def _get_file_path(base_path: str, name: str, isdir=False):
 def _get_extra(target, extra_data, is_dir=False):
     extra_dataitems = {}
     for k, v in extra_data.items():
-        extra_dataitems[k] = store_manager.object(
+        extra_dataitems[k] = mlrun.datastore.store_manager.object(
             url=_get_file_path(target, v, isdir=is_dir), key=k
         )
     return extra_dataitems
@@ -638,8 +649,8 @@ def update_model(
     parameters: dict = None,
     metrics: dict = None,
     extra_data: dict = None,
-    inputs: List[Feature] = None,
-    outputs: List[Feature] = None,
+    inputs: list[Feature] = None,
+    outputs: list[Feature] = None,
     feature_vector: str = None,
     feature_weights: list = None,
     key_prefix: str = "",
@@ -653,8 +664,11 @@ def update_model(
 
     example::
 
-        update_model(model_path, metrics={'speed': 100},
-                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+        update_model(
+            model_path,
+            metrics={"speed": 100},
+            extra_data={"my_data": b"some text", "file": "s3://mybucket/.."},
+        )
 
     :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict
@@ -676,8 +690,8 @@ def update_model(
 
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
-    elif is_store_uri(model_artifact):
-        model_spec, _ = store_manager.get_store_artifact(model_artifact)
+    elif mlrun.datastore.is_store_uri(model_artifact):
+        model_spec, _ = mlrun.datastore.store_manager.get_store_artifact(model_artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -715,14 +729,14 @@ def update_model(
         # the model spec yaml should not include the tag, as the same model can be used with different tags,
         # and the tag is not part of the model spec but the metadata of the model artifact
         model_spec_yaml = _remove_tag_from_spec_yaml(model_spec)
-        store_manager.object(url=spec_path).put(model_spec_yaml)
+        mlrun.datastore.store_manager.object(url=spec_path).put(model_spec_yaml)
 
     model_spec.db_key = model_spec.db_key or model_spec.key
     if store_object:
         mlrun.get_run_db().store_artifact(
             model_spec.db_key,
             model_spec.to_dict(),
-            model_spec.tree,
+            tree=model_spec.tree,
             iter=model_spec.iter,
             project=model_spec.project,
         )

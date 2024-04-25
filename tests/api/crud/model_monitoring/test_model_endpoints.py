@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterator
+from collections.abc import Iterator
 from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy.orm import Session as DBSession
+from v3io.dataplane.response import HttpResponseError
 
 import mlrun.common.schemas
 from mlrun.artifacts import ModelArtifact
@@ -31,9 +32,12 @@ def db_session() -> DBSession:
 @pytest.fixture
 def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
     return mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+            uid=123123,
+        ),
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             model_uri="some_fake_uri"
-        )
+        ),
     )
 
 
@@ -45,13 +49,24 @@ def _patch_external_resources() -> Iterator[None]:
             return_value=ModelArtifact(),
         ):
             with patch(
-                "server.api.crud.model_monitoring.model_endpoints.get_model_endpoint_store",
+                "mlrun.model_monitoring.db.get_store_object",
                 autospec=True,
             ):
                 yield
 
 
-@pytest.mark.usefixtures("_patch_external_resources")
+@pytest.fixture()
+def mock_kv() -> Iterator[None]:
+    mock = Mock(spec=["kv"])
+    mock.kv.get = Mock(side_effect=HttpResponseError)
+    with patch(
+        "mlrun.utils.v3io_clients.get_v3io_client",
+        return_value=mock,
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("_patch_external_resources", "mock_kv")
 def test_create_with_empty_feature_stats(
     db_session: DBSession,
     model_endpoint: mlrun.common.schemas.ModelEndpoint,

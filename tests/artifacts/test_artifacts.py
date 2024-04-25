@@ -12,17 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os.path
 import pathlib
+import tempfile
 import typing
 import unittest.mock
 import uuid
 from contextlib import nullcontext as does_not_raise
 
+import pandas as pd
 import pytest
+import yaml
 
 import mlrun
 import mlrun.artifacts
 from mlrun.artifacts.manager import extend_artifact_path
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.utils import StorePrefix
 from tests import conftest
 
@@ -322,26 +327,107 @@ def test_log_artifact(
             assert expected_hash in logged_artifact.target_path
 
 
-def test_log_artifact_with_target_path_and_upload_options():
-    for target_path in ["s3://some/path", None]:
-        # True and None expected to upload
-        for upload_options in [False, True, None]:
-            artifact = mlrun.artifacts.Artifact(
-                key="some-artifact", body="asdasdasdasdas", format="parquet"
-            )
-            logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
-                artifact, target_path=target_path, upload=upload_options
-            )
-            print(logged_artifact)
-            if not target_path and (upload_options or upload_options is None):
-                # if no target path was given, and upload is True or None, we expect the artifact to get uploaded
-                # and a target path to be generated
-                assert logged_artifact.target_path is not None
-                assert logged_artifact.metadata.hash is not None
-            elif target_path:
-                # if target path is given, we don't upload and therefore don't calculate hash
-                assert logged_artifact.target_path == target_path
-                assert logged_artifact.metadata.hash is None
+@pytest.mark.parametrize(
+    "target_path,upload_options",
+    [
+        ("s3://some/path", False),
+        ("s3://some/path", True),
+        ("s3://some/path", None),
+        (None, False),
+        (None, True),
+        (None, None),
+    ],
+)
+def test_log_artifact_with_target_path_and_upload_options(target_path, upload_options):
+    artifact = mlrun.artifacts.Artifact(
+        key="some-artifact", body="asdasdasdasdas", format="parquet"
+    )
+    with unittest.mock.patch.object(mlrun.datastore.DataItem, "put"):
+        logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+            artifact, target_path=target_path, upload=upload_options
+        )
+    if upload_options or (not target_path and upload_options is None):
+        # if upload is True or no target path was given and upload is None,
+        # we expect the artifact to get uploaded and a target path to be generated
+        assert logged_artifact.target_path is not None
+        assert logged_artifact.metadata.hash is not None
+    elif target_path:
+        # if target path is given and upload is not True, we don't upload and therefore don't calculate hash
+        assert logged_artifact.target_path == target_path
+        assert logged_artifact.metadata.hash is None
+
+
+@pytest.mark.parametrize(
+    "local_path, fail",
+    [
+        ("s3://path/file.txt", False),
+        ("", False),
+        ("file://", False),
+        ("file:///not_exists/file.txt", True),
+        ("/not_exists/file.txt", True),
+    ],
+)
+def test_ensure_artifact_source_file_exists(local_path, fail):
+    artifact = mlrun.artifacts.Artifact(
+        "artifact-name",
+    )
+    context = mlrun.get_or_create_ctx("test")
+    if fail:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
+            context.log_artifact(item=artifact, local_path=local_path)
+        assert "Failed to log an artifact, file does not exists" in str(error.value)
+    else:
+        if not local_path or local_path == "file://":
+            df = pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]})
+            with tempfile.NamedTemporaryFile(suffix=".pq", delete=True) as temp_file:
+                path = temp_file.name
+                df.to_parquet(path)
+                if local_path == "file://":
+                    path = local_path + path
+                context.log_artifact(item=artifact, local_path=path)
+        else:
+            context.log_artifact(item=artifact, local_path=local_path)
+
+
+@pytest.mark.parametrize(
+    "body_size,expectation",
+    [
+        (
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+        ),
+        (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, does_not_raise()),
+    ],
+)
+def test_ensure_fail_on_oversized_artifact(body_size, expectation):
+    artifact = mlrun.artifacts.Artifact(
+        "artifact-name",
+        is_inline=True,
+        body="a" * body_size,
+    )
+    context = mlrun.get_or_create_ctx("test")
+    with expectation:
+        context.log_artifact(item=artifact)
+
+
+@pytest.mark.parametrize(
+    "df, fail",
+    [
+        (pd.DataFrame({"num": [0, 1, 2], "color": ["green", "blue", "red"]}), False),
+        (None, True),
+    ],
+)
+def test_ensure_artifact_source_file_exists_by_df(df, fail):
+    context = mlrun.get_or_create_ctx("test")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        full_path = os.path.join(temp_dir, "df.parquet")
+        if fail:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as error:
+                context.log_dataset(key=str(uuid.uuid4()), df=df, local_path=full_path)
+            assert "Failed to log an artifact, file does not exists" in str(error.value)
+        else:
+            context.log_dataset(key=str(uuid.uuid4()), df=df, local_path=full_path)
 
 
 @pytest.mark.parametrize(
@@ -510,3 +596,32 @@ def test_register_artifacts(rundb_mock):
 
     artifact = project.get_artifact(artifact_key)
     assert artifact.tree == expected_tree
+
+
+def test_producer_in_exported_artifact():
+    project_name = "my-project"
+    project = mlrun.new_project(project_name, save=False)
+
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=results_dir
+    )
+
+    assert artifact.producer.get("kind") == "project"
+    assert artifact.producer.get("name") == project_name
+
+    artifact_path = f"{results_dir}/x.yaml"
+    artifact.export(artifact_path)
+
+    with open(artifact_path) as file:
+        exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
+        assert "producer" in exported_artifact["spec"]
+        assert exported_artifact["spec"]["producer"]["kind"] == "project"
+        assert exported_artifact["spec"]["producer"]["name"] == project_name
+
+    # remove the producer from the artifact and export it again
+    artifact.producer = None
+    artifact.export(artifact_path)
+
+    with open(artifact_path) as file:
+        exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
+        assert "producer" not in exported_artifact["spec"]

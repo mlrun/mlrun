@@ -63,7 +63,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
         meta: client.V1ObjectMeta,
-    ) -> typing.Dict:
+    ) -> dict:
         job = copy.deepcopy(self._mpijob_template)
 
         pod_labels = copy.deepcopy(meta.labels)
@@ -139,7 +139,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
         return job
 
-    def _get_job_launcher_status(self, resp: typing.List) -> str:
+    def _get_job_launcher_status(self, resp: list) -> str:
         return mlrun.utils.get_in(resp, "status.launcherStatus")
 
     @staticmethod
@@ -154,7 +154,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+    ) -> tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         """
         https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1alpha1/types.go#L115
         """
@@ -177,7 +177,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod
@@ -194,7 +194,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return "mpi_role_type=launcher"
 
     @staticmethod
-    def _get_crd_info() -> typing.Tuple[str, str, str]:
+    def _get_crd_info() -> tuple[str, str, str]:
         return (
             MpiRuntimeV1Alpha1.crd_group,
             MpiRuntimeV1Alpha1.crd_version,

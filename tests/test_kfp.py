@@ -35,7 +35,6 @@ tests_dir = Path(__file__).absolute().parent
 
 
 def my_job(context, p1=1, p2="a-string"):
-
     # access input metadata, values, files, and secrets (passwords)
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")
@@ -90,7 +89,7 @@ def kfp_dirs(monkeypatch):
         )
         monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
         monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
-        yield (str(meta_dir), str(artifacts_dir), str(output_dir))
+        yield str(meta_dir), str(artifacts_dir), str(output_dir)
 
 
 def test_kfp_function_run(kfp_dirs):

@@ -61,7 +61,7 @@ class LogCollectorErrorRegex:
     )
 
     @classmethod
-    def has_logs_retryable_errors(cls):
+    def get_log_size_retryable_errors(cls):
         return [
             cls.readdirent_resource_temporarily_unavailable,
         ]
@@ -150,8 +150,10 @@ class LogCollectorClient(
 
         # check if this run has logs to collect
         try:
-            has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
-            if not has_logs:
+            log_size = await self.get_log_size(
+                run_uid, project, verbose, raise_on_error
+            )
+            if log_size <= 0:
                 logger.debug(
                     "Run has no logs to collect",
                     run_uid=run_uid,
@@ -202,7 +204,7 @@ class LogCollectorClient(
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 if try_count == config.log_collector.get_logs.max_retries:
-                    raise mlrun.errors.raise_for_status_code(
+                    raise mlrun.errors.err_for_status_code(
                         http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
                         mlrun.errors.err_to_str(exc),
                     )
@@ -210,52 +212,52 @@ class LogCollectorClient(
                 # breath
                 await asyncio.sleep(3)
 
-    async def has_logs(
+    async def get_log_size(
         self,
         run_uid: str,
         project: str,
         verbose: bool = True,
         raise_on_error: bool = True,
-    ) -> bool:
+    ) -> int:
         """
-        Check if the log collector service has logs for the given run
+        Returns the log file size for the given run
         :param run_uid: The run uid
         :param project: The project name
         :param verbose: Whether to log errors
         :param raise_on_error: Whether to raise an exception on error
-        :return: Whether the log collector service has logs for the given run
+        :return: The log file size of the run, if it exists
         """
-        request = self._log_collector_pb2.HasLogsRequest(
+        request = self._log_collector_pb2.GetLogSizeRequest(
             runUID=run_uid, projectName=project
         )
 
-        response = await self._call("HasLogs", request)
+        response = await self._call("GetLogSize", request)
         if not response.success:
             if self._retryable_error(
                 response.errorMessage,
-                LogCollectorErrorRegex.has_logs_retryable_errors(),
+                LogCollectorErrorRegex.get_log_size_retryable_errors(),
             ):
                 if verbose:
                     logger.warning(
-                        "Failed to check if run has logs to collect, retrying",
+                        "Failed to get log file size, retrying",
                         run_uid=run_uid,
                         error=response.errorMessage,
                     )
-                return False
+                return 0
 
-            msg = f"Failed to check if run has logs to collect for {run_uid}"
+            msg = f"Failed to log file size for {run_uid}"
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
             if raise_on_error:
                 raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
                     response.errorCode, response.errorMessage, msg
                 )
-        return response.hasLogs
+        return response.logSize
 
     async def stop_logs(
         self,
         project: str,
-        run_uids: typing.List[str] = None,
+        run_uids: list[str] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
@@ -284,7 +286,7 @@ class LogCollectorClient(
     async def delete_logs(
         self,
         project: str,
-        run_uids: typing.List[str] = None,
+        run_uids: list[str] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
@@ -311,7 +313,40 @@ class LogCollectorClient(
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
 
-    def _retryable_error(self, error_message, retryable_error_patterns) -> bool:
+    async def list_runs_in_progress(
+        self,
+        project: str = None,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> typing.AsyncIterable[str]:
+        """
+        List runs in progress from the log collector service
+        :param project: A project name to filter the runs by. If not provided, all runs in progress will be listed
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: A list of run uids
+        """
+        request = self._log_collector_pb2.ListRunsRequest(
+            project=project,
+        )
+
+        response_stream = self._call_stream("ListRunsInProgress", request)
+        try:
+            async for chunk in response_stream:
+                yield chunk.runUIDs
+        except Exception as exc:
+            msg = "Failed to list runs in progress"
+            if raise_on_error:
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    LogCollectorErrorCode.ErrCodeInternal.value,
+                    mlrun.errors.err_to_str(exc),
+                    msg,
+                )
+            if verbose:
+                logger.warning(msg, error=mlrun.errors.err_to_str(exc))
+
+    @staticmethod
+    def _retryable_error(error_message, retryable_error_patterns) -> bool:
         """
         Check if the error is retryable
         :param error_message: The error message

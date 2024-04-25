@@ -13,8 +13,9 @@
 # limitations under the License.
 #
 import inspect
+from abc import ABCMeta
 from types import MethodType
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, Union
 
 import docstring_parser
 
@@ -23,11 +24,11 @@ from mlrun.datastore import DataItem
 from mlrun.utils import logger
 
 from ..errors import MLRunPackagePackingError, MLRunPackageUnpackingError
-from ..packager import Packager, _PackagerMeta
+from ..packager import Packager
 from ..utils import DEFAULT_PICKLE_MODULE, ArtifactType, Pickler, TypeHintUtils
 
 
-class _DefaultPackagerMeta(_PackagerMeta):
+class _DefaultPackagerMeta(ABCMeta):
     """
     Metaclass for `DefaultPackager` to override `__doc__` attribute into a class property. This way sphinx will get a
     dynamically generated docstring that will include a summary of the packager.
@@ -50,7 +51,7 @@ class _DefaultPackagerMeta(_PackagerMeta):
         return super().__new__(mcls, name, bases, namespace, **kwargs)
 
     @property
-    def __doc__(cls) -> str:
+    def __doc__(cls: type["DefaultPackager"]) -> str:
         """
         Override the `__doc__` attribute of a `DefaultPackager` to be a property in order to auto-summarize the
         packager's class docstring. The summary is concatenated after the original class doc string.
@@ -86,6 +87,13 @@ class _DefaultPackagerMeta(_PackagerMeta):
 
         :returns: The original docstring with the generated packager summary.
         """
+        # Create a packager instance:
+        packager = cls()
+
+        # Get the packager's name and module:
+        packager_name = packager.__class__.__name__
+        packager_module = packager.__module__
+
         # Get the original packager class doc string:
         packager_doc_string = cls._packager_doc.split("\n")
         packager_doc_string = "\n".join(line[4:] for line in packager_doc_string)
@@ -93,21 +101,23 @@ class _DefaultPackagerMeta(_PackagerMeta):
         # Parse the packable type section:
         type_name = (
             "Any type"
-            if cls.PACKABLE_OBJECT_TYPE is ...
+            if packager.PACKABLE_OBJECT_TYPE is ...
             else (
-                f"``{str(cls.PACKABLE_OBJECT_TYPE)}``"
-                if TypeHintUtils.is_typing_type(type_hint=cls.PACKABLE_OBJECT_TYPE)
-                else f"``{cls.PACKABLE_OBJECT_TYPE.__module__}.{cls.PACKABLE_OBJECT_TYPE.__name__}``"
+                f"``{str(packager.PACKABLE_OBJECT_TYPE)}``"
+                if TypeHintUtils.is_typing_type(type_hint=packager.PACKABLE_OBJECT_TYPE)
+                else f"``{packager.PACKABLE_OBJECT_TYPE.__module__}.{packager.PACKABLE_OBJECT_TYPE.__name__}``"
             )
         )
         packing_type = f"**Packing Type**: {type_name}"
 
         # Subclasses support section:
-        packing_sub_classes = f"**Packing Sub-Classes**: {cls.PACK_SUBCLASSES}"
+        packing_sub_classes = f"**Packing Sub-Classes**: {packager.PACK_SUBCLASSES}"
 
         # Priority section:
         priority_value = (
-            cls.PRIORITY if cls.PRIORITY is not ... else "Default priority (5)"
+            packager.priority
+            if packager.priority is not ...
+            else "Default priority (5)"
         )
         priority = f"**Priority**: {priority_value}"
 
@@ -117,9 +127,13 @@ class _DefaultPackagerMeta(_PackagerMeta):
             method_name = f"get_{pack_or_unpack}"
             argument_name = pack_or_unpack.upper()
             return (
-                getattr(cls, argument_name)
-                if cls.__name__ == "DefaultPackager" or method_name not in cls.__dict__
-                else f"Refer to the packager's :py:meth:`~{cls.__module__}.{cls.__name__}.{method_name}` method."
+                getattr(packager, argument_name)
+                if packager_name == "DefaultPackager"
+                or method_name not in packager.__class__.__dict__
+                else (
+                    f"Refer to the packager's "
+                    f":py:meth:`~{packager_module}.{packager_name}.{method_name}` method."
+                )
             )
 
         default_artifact_types = (
@@ -130,17 +144,17 @@ class _DefaultPackagerMeta(_PackagerMeta):
 
         # Artifact types section:
         artifact_types = "**Artifact Types**:"
-        for artifact_type in cls.get_supported_artifact_types():
+        for artifact_type in packager.get_supported_artifact_types():
             # Get the packing method docstring:
             method_doc = docstring_parser.parse(
-                getattr(cls, f"pack_{artifact_type}").__doc__
+                getattr(packager, f"pack_{artifact_type}").__doc__
             )
             # Add the artifact type bullet:
             artifact_type_doc = f"{method_doc.short_description or ''}{method_doc.long_description or ''}".replace(
                 "\n", ""
             )
             artifact_types += (
-                f"\n\n* :py:meth:`{artifact_type}<{cls.__module__}.{cls.__name__}.pack_{artifact_type}>` - "
+                f"\n\n* :py:meth:`{artifact_type}<{packager_module}.{packager_name}.pack_{artifact_type}>` - "
                 + artifact_type_doc
             )
             # Add the artifact type configurations (ignoring the `obj` and `key` parameters):
@@ -189,8 +203,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
       the artifact type was not provided, it uses the default). For example: if the artifact type is `x` then
       the class method ``pack_x`` must be implemented. The signature of each pack class method must be::
 
-          @classmethod
-          def pack_x(cls, obj: Any, key: str, ...) -> Union[Tuple[Artifact, dict], dict]:
+          def pack_x(self, obj: Any, key: str, ...) -> Union[Tuple[Artifact, dict], dict]:
               pass
 
       Where 'x' is the artifact type, 'obj' is the object to pack, `key` is the key to name the artifact and `...` are
@@ -205,8 +218,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
       For example: if the artifact type stored within the ``DataItem`` is `x` then the class method
       ``unpack_x`` must be implemented. The signature of each unpack class method must be::
 
-          @classmethod
-          def unpack_x(cls, data_item: mlrun.DataItem, ...) -> Any:
+          def unpack_x(self, data_item: mlrun.DataItem, ...) -> Any:
               pass
 
       Where 'x' is the artifact type, 'data_item' is the artifact's data item to unpack, `...` are the instructions that
@@ -255,13 +267,13 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
           with open("./some_file.txt", "w") as file:
               file.write("Pack me")
           artifact = Artifact(key="my_artifact")
-          cls.future_clear(path="./some_file.txt")
+          self.add_future_clearing_path(path="./some_file.txt")
           return artifact, None
 
     """
 
     #: The type of object this packager can pack and unpack.
-    PACKABLE_OBJECT_TYPE: Type = ...
+    PACKABLE_OBJECT_TYPE: type = ...
 
     #: A flag for indicating whether to also pack all subclasses of the `PACKABLE_OBJECT_TYPE`.
     PACK_SUBCLASSES = False
@@ -272,8 +284,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     #: The default artifact type to unpack from.
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
 
-    @classmethod
-    def get_default_packing_artifact_type(cls, obj: Any) -> str:
+    def get_default_packing_artifact_type(self, obj: Any) -> str:
         """
         Get the default artifact type for packing an object of this packager.
 
@@ -281,10 +292,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
         :return: The default artifact type.
         """
-        return cls.DEFAULT_PACKING_ARTIFACT_TYPE
+        return self.DEFAULT_PACKING_ARTIFACT_TYPE
 
-    @classmethod
-    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
+    def get_default_unpacking_artifact_type(self, data_item: DataItem) -> str:
         """
         Get the default artifact type used for unpacking a data item holding an object of this packager. The method
         is used when a data item is sent for unpacking without it being a package, but is a simple url or an old /
@@ -294,10 +304,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
         :return: The default artifact type.
         """
-        return cls.DEFAULT_UNPACKING_ARTIFACT_TYPE
+        return self.DEFAULT_UNPACKING_ARTIFACT_TYPE
 
-    @classmethod
-    def get_supported_artifact_types(cls) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager.
 
@@ -307,18 +316,17 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         # unpacked. Result has no unpacking so we add it separately.
         return [
             key[len("pack_") :]
-            for key in dir(cls)
-            if key.startswith("pack_") and f"unpack_{key[len('pack_'):]}" in dir(cls)
+            for key in dir(self)
+            if key.startswith("pack_") and f"unpack_{key[len('pack_'):]}" in dir(self)
         ] + ["result"]
 
-    @classmethod
     def pack(
-        cls,
+        self,
         obj: Any,
         key: str = None,
         artifact_type: str = None,
         configurations: dict = None,
-    ) -> Union[Tuple[Artifact, dict], dict]:
+    ) -> Union[tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -332,16 +340,16 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         """
         # Get default artifact type in case it was not provided:
         if artifact_type is None:
-            artifact_type = cls.get_default_packing_artifact_type(obj=obj)
+            artifact_type = self.get_default_packing_artifact_type(obj=obj)
 
         # Set empty dictionary in case no configurations were given:
         configurations = configurations or {}
 
         # Get the packing method according to the artifact type:
-        pack_method = getattr(cls, f"pack_{artifact_type}")
+        pack_method = getattr(self, f"pack_{artifact_type}")
 
         # Validate correct configurations were passed:
-        cls._validate_method_arguments(
+        self._validate_method_arguments(
             method=pack_method,
             arguments=configurations,
             is_packing=True,
@@ -350,9 +358,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         # Call the packing method and return the package:
         return pack_method(obj=obj, key=key, **configurations)
 
-    @classmethod
     def unpack(
-        cls,
+        self,
         data_item: DataItem,
         artifact_type: str = None,
         instructions: dict = None,
@@ -371,16 +378,18 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         """
         # Get default artifact type in case it was not provided:
         if artifact_type is None:
-            artifact_type = cls.get_default_unpacking_artifact_type(data_item=data_item)
+            artifact_type = self.get_default_unpacking_artifact_type(
+                data_item=data_item
+            )
 
         # Set empty dictionary in case no instructions were given:
         instructions = instructions or {}
 
         # Get the unpacking method according to the artifact type:
-        unpack_method = getattr(cls, f"unpack_{artifact_type}")
+        unpack_method = getattr(self, f"unpack_{artifact_type}")
 
         # Validate correct instructions were passed:
-        cls._validate_method_arguments(
+        self._validate_method_arguments(
             method=unpack_method,
             arguments=instructions,
             is_packing=False,
@@ -389,9 +398,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         # Call the unpacking method and return the object:
         return unpack_method(data_item, **instructions)
 
-    @classmethod
     def is_packable(
-        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+        self, obj: Any, artifact_type: str = None, configurations: dict = None
     ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
@@ -410,11 +418,11 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         object_type = type(obj)
 
         # Check type (ellipses means any type):
-        if cls.PACKABLE_OBJECT_TYPE is not ...:
+        if self.PACKABLE_OBJECT_TYPE is not ...:
             if not TypeHintUtils.is_matching(
                 object_type=object_type,
-                type_hint=cls.PACKABLE_OBJECT_TYPE,
-                include_subclasses=cls.PACK_SUBCLASSES,
+                type_hint=self.PACKABLE_OBJECT_TYPE,
+                include_subclasses=self.PACK_SUBCLASSES,
                 reduce_type_hint=False,
             ):
                 return False
@@ -422,20 +430,19 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         # Check the artifact type:
         if (
             artifact_type is not None
-            and artifact_type not in cls.get_supported_artifact_types()
+            and artifact_type not in self.get_supported_artifact_types()
         ):
             return False
 
         # Packable:
         return True
 
-    @classmethod
     def pack_object(
-        cls,
+        self,
         obj: Any,
         key: str,
         pickle_module_name: str = DEFAULT_PICKLE_MODULE,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         """
         Pack a python object, pickling it into a pkl file and store it in an artifact.
 
@@ -454,12 +461,11 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         artifact = Artifact(key=key, src_path=pickle_path)
 
         # Add the pickle path to the clearing list:
-        cls.add_future_clearing_path(path=pickle_path)
+        self.add_future_clearing_path(path=pickle_path)
 
         return artifact, instructions
 
-    @classmethod
-    def pack_result(cls, obj: Any, key: str) -> dict:
+    def pack_result(self, obj: Any, key: str) -> dict:
         """
         Pack an object as a result.
 
@@ -470,9 +476,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         """
         return {key: obj}
 
-    @classmethod
     def unpack_object(
-        cls,
+        self,
         data_item: DataItem,
         pickle_module_name: str = DEFAULT_PICKLE_MODULE,
         object_module_name: str = None,
@@ -500,10 +505,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         :return: The un-pickled python object.
         """
         # Get the pkl file to local directory:
-        pickle_path = data_item.local()
-
-        # Add the pickle path to the clearing list:
-        cls.add_future_clearing_path(path=pickle_path)
+        pickle_path = self.get_data_item_local_path(data_item=data_item)
 
         # Unpickle and return:
         return Pickler.unpickle(
@@ -515,9 +517,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             object_module_version=object_module_version,
         )
 
-    @classmethod
     def _validate_method_arguments(
-        cls, method: MethodType, arguments: dict, is_packing: bool
+        self, method: MethodType, arguments: dict, is_packing: bool
     ):
         """
         Validate keyword arguments to pass to a method. Used for validating log hint configurations for packing methods
@@ -561,13 +562,13 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         if missing_arguments:
             if is_packing:
                 raise MLRunPackagePackingError(
-                    f"The packager '{cls.__name__}' could not pack the package due to missing configurations: "
-                    f"{', '.join(missing_arguments)}. Add the missing arguments to the log hint of this object in "
-                    f"order to pack it. Make sure you pass a dictionary log hint and not a string in order to pass "
-                    f"configurations in the log hint."
+                    f"The packager '{self.__class__.__name__}' could not pack the package due to missing "
+                    f"configurations: {', '.join(missing_arguments)}. Add the missing arguments to the log hint of "
+                    f"this object in order to pack it. Make sure you pass a dictionary log hint and not a string in "
+                    f"order to pass configurations in the log hint."
                 )
             raise MLRunPackageUnpackingError(
-                f"The packager '{cls.__name__}' could not unpack the package due to missing instructions: "
+                f"The packager '{self.__class__.__name__}' could not unpack the package due to missing instructions: "
                 f"{', '.join(missing_arguments)}. Missing instructions are likely due to an update in the packager's "
                 f"code that not support the old implementation. This backward compatibility should not occur. To "
                 f"overcome it, try to edit the instructions in the artifact's spec to enable unpacking it again."
@@ -580,7 +581,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         if incorrect_arguments:
             arguments_type = "configurations" if is_packing else "instructions"
             logger.warn(
-                f"Unexpected {arguments_type} given for {cls.__name__}: {', '.join(incorrect_arguments)}. "
+                f"Unexpected {arguments_type} given for {self.__class__.__name__}: {', '.join(incorrect_arguments)}. "
                 f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}. The packager tries to "
                 f"continue by ignoring the incorrect arguments."
             )

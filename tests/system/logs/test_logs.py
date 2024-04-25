@@ -19,9 +19,12 @@ import tests.system.base
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestLogCollector(tests.system.base.TestMLRunSystem):
-    custom_project_names_to_delete = []
+    def custom_setup(self):
+        super().custom_setup()
+        self.custom_project_names_to_delete = []
 
     def custom_teardown(self):
+        super().custom_teardown()
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
@@ -63,5 +66,12 @@ class TestLogCollector(tests.system.base.TestMLRunSystem):
 
         # verify the logs are not empty
         assert logs, "Expected logs to be not empty"
+
+        # test log size
+        log_size = mlrun.get_run_db().get_log_size(
+            uid=run.metadata.uid,
+            project=proj.name,
+        )
+        assert log_size, "Expected log size to be not zero"
 
         self._logger.debug("Finished log collector test")

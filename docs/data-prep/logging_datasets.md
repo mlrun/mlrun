@@ -40,10 +40,11 @@ def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
                         index=False, artifact_path=target_path)
 ```
 
+This code can be placed in a python file, or as a cell in the Python notebook.
 You can run this function locally or as a job. For example, to run it locally:
 ``` python
 from os import path
-from mlrun import new_project, run_local, mlconf
+from mlrun import new_project, mlconf
 
 project_name = 'my-project'
 project_path = path.abspath('conf')
@@ -55,12 +56,18 @@ artifact_path = path.abspath('jobs')
 mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 
 source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
+
+# Create a function from py or notebook (ipynb) file
+get_data_func = project.set_function('./get_data.py'
+    name='get_data'
+    kind='job', 
+    image='mlrun/mlrun')
+    
 # Run get-data function locally
-get_data_run = run_local(name='get_data',
-                         handler=get_data,
-                         inputs={'source_url': source_url},
-                         project=project_name,
-                         artifact_path=artifact_path)
+get_data_run = get_data_func.run(handler="get_data",
+    inputs={'source_url': source_url},
+    artifact_path=artifact_path,
+    local=True)
 ```
 
 The dataset location is returned in the `outputs` field, therefore you can get the location by calling

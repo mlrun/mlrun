@@ -24,11 +24,11 @@ import server.api.utils.auth.verifier
 router = fastapi.APIRouter()
 
 
-# TODO: remove /log/{project}/{uid} in 1.7.0
+# TODO: remove /log/{project}/{uid} in 1.8.0
 @router.post(
     "/log/{project}/{uid}",
     deprecated=True,
-    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/logs/{uid} instead",
 )
 @router.post("/projects/{project}/logs/{uid}")
@@ -59,11 +59,11 @@ async def store_log(
     return {}
 
 
-# TODO: remove /log/{project}/{uid} in 1.7.0
+# TODO: remove /log/{project}/{uid} in 1.8.0
 @router.get(
     "/log/{project}/{uid}",
     deprecated=True,
-    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/logs/{uid} instead",
 )
 @router.get("/projects/{project}/logs/{uid}")
@@ -79,6 +79,10 @@ async def get_log(
         server.api.api.deps.get_db_session
     ),
 ):
+    if offset < 0:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Offset cannot be negative",
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.log,
         project,
@@ -97,3 +101,24 @@ async def get_log(
         media_type="text/plain",
         headers=headers,
     )
+
+
+@router.get("/projects/{project}/logs/{uid}/size")
+async def get_log_size(
+    project: str,
+    uid: str,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        server.api.api.deps.authenticate_request
+    ),
+):
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.log,
+        project,
+        uid,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    log_file_size = await server.api.crud.Logs().get_log_size(project, uid)
+    return {
+        "size": log_file_size,
+    }

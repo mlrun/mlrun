@@ -30,7 +30,6 @@ logger = create_logger(level="debug", name="test-integration")
 
 
 class TestMLRunIntegration:
-
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
@@ -43,13 +42,13 @@ class TestMLRunIntegration:
     db_name = "mlrun"
     db_dsn = f"mysql+pymysql://{db_user}@{db_host_internal}:{db_port}/{db_name}"
 
-    def setup_method(self, method):
+    def setup_method(self, method, extra_env=None):
         self._logger = logger
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
         self._run_db()
-        api_url = self._run_api()
+        api_url = self._run_api(extra_env)
         self._test_env = {}
         self._old_env = {}
         self._setup_env({"MLRUN_DBPATH": api_url})
@@ -90,7 +89,7 @@ class TestMLRunIntegration:
 
     @property
     def base_url(self):
-        return mlrun.config.config.dbpath + "/api/v1/"
+        return mlrun.mlconf.dbpath + "/api/v1/"
 
     def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")
@@ -104,7 +103,7 @@ class TestMLRunIntegration:
             if value:
                 os.environ[env_var] = value
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _teardown_env(self):
         self._logger.debug("Tearing down test environment")
@@ -113,7 +112,7 @@ class TestMLRunIntegration:
                 del os.environ[env_var]
         os.environ.update(self._old_env)
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _run_db(self):
         self._logger.debug("Starting DataBase")
@@ -132,7 +131,7 @@ class TestMLRunIntegration:
 
         self._ensure_database_liveness(timeout=self.db_liveness_timeout)
 
-    def _run_api(self):
+    def _run_api(self, extra_env=None):
         self._logger.debug("Starting API")
         self._run_command(
             # already compiled schemas in run-test-db
@@ -144,7 +143,8 @@ class TestMLRunIntegration:
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
                     "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
-                }
+                },
+                extra_env,
             ),
             cwd=TestMLRunIntegration.root_path,
         )
@@ -169,9 +169,13 @@ class TestMLRunIntegration:
 
     def _remove_api(self):
         if self.api_container_id:
-            logs = self._run_command("docker", args=["logs", self.api_container_id])
+            logs = self._run_command(
+                "docker", args=["logs", self.api_container_id]
+            ).replace("\n", "\n\t")
+            # for tests, we want to see the logs in human readable form
             self._logger.debug(
-                "Removing API container", container_id=self.api_container_id, logs=logs
+                f"Removing API container. Container logs:\n {logs}",
+                container_id=self.api_container_id,
             )
             self._run_command("docker", args=["rm", "--force", self.api_container_id])
 
@@ -207,9 +211,11 @@ class TestMLRunIntegration:
         self._logger.debug("Database ready for connection")
 
     @staticmethod
-    def _extend_current_env(env):
+    def _extend_current_env(env, extra_env=None):
         current_env = copy.deepcopy(os.environ)
         current_env.update(env)
+        if extra_env:
+            current_env.update(extra_env)
         return current_env
 
     @staticmethod

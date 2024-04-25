@@ -35,7 +35,9 @@ import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import server.api.api.endpoints.functions
 import server.api.crud
+import server.api.utils.functions
 import tests.api.api.utils
+import tests.api.conftest
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
@@ -46,7 +48,7 @@ from server.api.utils.singletons.k8s import get_k8s_helper
 logger = create_logger(level="debug", name="test-runtime")
 
 
-class TestRuntimeBase:
+class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s_helper().namespace = self.namespace
@@ -91,15 +93,6 @@ class TestRuntimeBase:
     def setup_method_fixture(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
-        # We want this mock for every test, ideally we would have simply put it in the setup_method
-        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
-        # in order to be able to mock k8s stuff
-        get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(return_value=[])
-        get_k8s_helper().v1api = unittest.mock.Mock()
-        get_k8s_helper().crdapi = unittest.mock.Mock()
-        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
-        )
         self._create_project(client)
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()
@@ -156,7 +149,7 @@ class TestRuntimeBase:
             name=self.name, project=self.project, artifact_path=self.artifact_path
         )
 
-    def _generate_preemptible_tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+    def _generate_preemptible_tolerations(self) -> list[k8s_client.V1Toleration]:
         return mlrun.k8s_utils.generate_preemptible_tolerations()
 
     def _generate_tolerations(self):
@@ -343,6 +336,33 @@ class TestRuntimeBase:
 
         self._mock_get_logger_pods()
 
+    def _mock_list_namespaced_config_map(self):
+        def _generate_config_map(
+            namespace: str,
+            **kwargs,
+        ):
+            return k8s_client.V1ConfigMapList(
+                items=[
+                    k8s_client.V1ConfigMap(
+                        metadata=k8s_client.V1ObjectMeta(
+                            name=kwargs["label_selector"].split("=")[-1]
+                        )
+                    ),
+                ]
+            )
+
+        get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            side_effect=_generate_config_map
+        )
+
+    def _mock_replace_namespaced_config_map(self):
+        get_k8s_helper().v1api.replace_namespaced_config_map = unittest.mock.Mock()
+
+    def _mock_get_config_map_body(self):
+        return get_k8s_helper().v1api.replace_namespaced_config_map.call_args.kwargs[
+            "body"
+        ]
+
     def _mock_get_logger_pods(self):
         # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
@@ -402,7 +422,7 @@ class TestRuntimeBase:
     @staticmethod
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
-        server.api.api.endpoints.functions._build_function(
+        server.api.utils.functions.build_function(
             db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 
@@ -559,18 +579,14 @@ class TestRuntimeBase:
         (
             _,
             kwargs,
-        ) = (
-            server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
-        )
+        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["body"]
 
     def _get_create_custom_object_namespace_arg(self):
         (
             _,
             kwargs,
-        ) = (
-            server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
-        )
+        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["namespace"]
 
     def _get_create_pod_namespace_arg(self):

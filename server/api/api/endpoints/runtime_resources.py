@@ -116,7 +116,6 @@ async def _delete_runtime_resources(
     # TODO: once we have more granular permissions, we should check if the user is allowed to delete the specific
     #  runtime resources and not just the project in general
     if not_allowed_projects_exist:
-
         # if the user is not allowed to delete at least one of the projects, we return 403 as to:
         # 1. not leak information about the existence of not allowed projects
         # 2. not allow the user to do a partial delete action (delete some projects' resources and not others)
@@ -204,8 +203,8 @@ async def _get_runtime_resources_allowed_projects(
     kind: typing.Optional[str] = None,
     object_id: typing.Optional[str] = None,
     action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
-) -> typing.Tuple[
-    typing.List[str],
+) -> tuple[
+    list[str],
     mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     bool,
     bool,
@@ -216,7 +215,9 @@ async def _get_runtime_resources_allowed_projects(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    grouped_by_project_runtime_resources_output: (
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    )
     grouped_by_project_runtime_resources_output = await run_in_threadpool(
         server.api.crud.RuntimeResources().list_runtime_resources,
         project,
@@ -256,6 +257,6 @@ async def _get_runtime_resources_allowed_projects(
 
 
 def _generate_label_selector_for_allowed_projects(
-    allowed_projects: typing.List[str],
+    allowed_projects: list[str],
 ):
     return f"mlrun/project in ({', '.join(allowed_projects)})"

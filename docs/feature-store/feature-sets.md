@@ -11,9 +11,9 @@ The feature set object contains the following information:
 - **Metadata** &mdash; General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
 - **Key attributes** &mdash; Entity, timestamp key (optional), label column.
 - **Features** &mdash; The list of features along with their schema, metadata, validation policies and statistics.
-- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](../serving/available-steps.html#sources).
+- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](./sources-targets.html#sources).
 - **Transformation** &mdash; The data transformation pipeline (e.g. aggregation, enrichment etc.).
-- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. See the [target descriptions](../serving/available-steps.html#targets).
+- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. See the [target descriptions](./sources-targets.html#targets).
 - **Function** &mdash; The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
 **In this section**
@@ -32,13 +32,19 @@ The feature set object contains the following information:
 Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
 * **name** &mdash; The feature set name is a unique name within a project. 
-* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the key columns 
+* **entities** &mdash; Each feature set must be associated with one or more index columns. When joining feature sets, the key columns 
    are determined by the relations field if it exists, and otherwise by the entities.
+   
+```{admonition} Caution
+Avoid using timestamps or bool as entities.
+```   
+   
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
-   - Spark
-   - pandas
-   - storey. Default. (Some advanced functionalities are in the Beta state.)
+   - spark &mdash; Good for simple batch transformations
+   - pandas &mdash; Good for simple batch transformations
+   - storey &mdash; Default. Stream processing engine that can handle complex workflows and real-time sources. (Some advanced functionalities are in the Beta state.)</br>
+   See more about [transformations](./transformations.html#built-in-transformations).
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
 * **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
    See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
@@ -71,12 +77,12 @@ Typical code, from defining the feature set through ingesting its data:
 ```
 # Flag the feature set as passthrough
 my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
-csv_source = CSVSource("my_csv", path="data.csv"), time_field="timestamp")
+csv_source = CSVSource("my_csv", path="data.csv")
 # Ingest the source data, but only to online/nosql target
-fstore.ingest(my_fset, csv_source) 
+my_fset.ingest(csv_source) 
 vector = fstore.FeatureVector("myvector", features=[f"my_fset"])
 # Read the offline data directly from the csv source
-resp = fstore.get_offline_features(vector, entity_timestamp_column="timestamp", with_indexes=True) 
+resp = vector.get_offline_features(entity_timestamp_column="timestamp", with_indexes=True)  
 ```
 
 
@@ -92,9 +98,6 @@ The data pipeline is defined using MLRun graph (DAG) language. Graph steps can b
 (such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
 Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
 
-The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
-can handle complex workflows and real-time sources.
-
 The results from the transformation pipeline are stored in one or more material targets.  Data for offline 
 access, such as training, is usually stored in Parquet files. Data for online access such as serving is stored 
 in the Iguazio NoSQL DB (`NoSqlTarget`). You can use the default targets or add/replace with additional custom targets.
@@ -108,7 +111,7 @@ feature_set.graph.to(DropColumns(drop_columns))\
                  .to(RenameColumns(mapping={'bad': 'bed'}))
 feature_set.add_aggregation('hr', ['avg'], ["1h"])
 feature_set.plot()
-fstore.ingest(feature_set, data_df)
+feature_set.ingest(data_df)
 ```
 
 Graph example (pandas engine):
@@ -119,7 +122,7 @@ def myfunc1(df, context=None):
 
 stocks_set = fstore.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
 stocks_set.graph.to(name="s1", handler="myfunc1")
-df = fstore.ingest(stocks_set, stocks_df)
+df = stocks_set.ingest(stocks_df)
 ```
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
@@ -134,7 +137,7 @@ data schema, as well as processing the graph logic (assuming there is one) on a 
 The preview operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
-df = fstore.preview(quotes_set, quotes)
+df = quotes_set.preview(quotes)
 
 # print the featue statistics
 print(quotes_set.get_stats_table())

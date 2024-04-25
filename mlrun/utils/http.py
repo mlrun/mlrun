@@ -14,7 +14,6 @@
 #
 
 import time
-import typing
 
 import requests
 import requests.adapters
@@ -110,9 +109,9 @@ class HTTPSessionWithRetry(requests.Session):
     def request(self, method, url, **kwargs):
         retry_count = 0
         kwargs.setdefault("headers", {})
-        kwargs["headers"][
-            "User-Agent"
-        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        kwargs["headers"]["User-Agent"] = (
+            f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        )
         while True:
             try:
                 response = super().request(method, url, **kwargs)
@@ -123,7 +122,7 @@ class HTTPSessionWithRetry(requests.Session):
 
                 self._logger.warning(
                     "Error during request handling, retrying",
-                    exc=str(exc),
+                    exc=err_to_str(exc),
                     retry_count=retry_count,
                     url=url,
                     method=method,
@@ -202,9 +201,7 @@ class HTTPSessionWithRetry(requests.Session):
     def _method_retryable(self, method: str):
         return method in self._retry_methods
 
-    def _resolve_retry_methods(
-        self, retry_on_post: bool = False
-    ) -> typing.FrozenSet[str]:
+    def _resolve_retry_methods(self, retry_on_post: bool = False) -> frozenset[str]:
         methods = urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
         methods = methods.union({"PATCH"})
         if retry_on_post:

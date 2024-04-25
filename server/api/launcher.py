@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
@@ -21,6 +21,8 @@ import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
+import mlrun.projects.operations
+import mlrun.projects.pipelines
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -57,7 +59,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -65,16 +67,16 @@ class ServerSideLauncher(launcher.BaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: Dict[str, list] = None,
+        hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -198,9 +200,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-            project_name
-            or runtime.metadata.project
-            or mlrun.config.config.default_project
+            project_name or runtime.metadata.project or mlrun.mlconf.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
@@ -212,11 +212,19 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project, runtime, copy_function=False, try_auto_mount=False
             )
 
+        if (
+            not runtime.spec.image
+            and not runtime.requires_build()
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
+
     def _enrich_full_spec(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
     ):
-
         # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
         # config and params passed in the auth_info.
         # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
@@ -268,11 +276,20 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
 
         self._validate_state_thresholds(run.spec.state_thresholds)
+
+        if (
+            mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
+            and not runtime.spec.image
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"This runtime kind ({runtime.kind}) must have a valid image"
+            )
+
         super()._validate_runtime(runtime, run)
 
     @staticmethod
     def _validate_state_thresholds(
-        state_thresholds: Optional[Dict[str, str]] = None,
+        state_thresholds: Optional[dict[str, str]] = None,
     ):
         """
         Validate the state thresholds

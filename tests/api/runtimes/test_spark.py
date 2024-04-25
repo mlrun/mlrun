@@ -195,7 +195,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_security_context=None,
         expected_executor_security_context=None,
     ):
-
         body = self._get_custom_object_creation_body()
 
         if expected_driver_security_context:
@@ -218,7 +217,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self,
         expected_image_pull_secret=None,
     ):
-
         body = self._get_custom_object_creation_body()
         if expected_image_pull_secret:
             assert body["spec"].get("imagePullSecrets") == mlrun.utils.helpers.as_list(
@@ -234,7 +232,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_deploy_default_image_without_limits(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-        mlrun.config.config.httpdb.builder.docker_registry = "test_registry"
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.spec.image = None
         runtime.spec.use_default_image = True
@@ -617,18 +615,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_deploy_with_image_pull_secret(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-
         # no image pull secret
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_image_pull_secret()
 
         # default image pull secret
-        mlrun.config.config.function.spec.image_pull_secret.default = "my_secret"
+        mlrun.mlconf.function.spec.image_pull_secret.default = "my_secret"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_image_pull_secret(
-            mlrun.config.config.function.spec.image_pull_secret.default,
+            mlrun.mlconf.function.spec.image_pull_secret.default,
         )
 
         # override default image pull secret
@@ -659,7 +656,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self._reset_mocks()
 
-        mlrun.config.config.artifact_path = "v3io:///mypath"
+        mlrun.mlconf.artifact_path = "v3io:///mypath"
 
         runtime.with_driver_limits(cpu="1")
         runtime.with_driver_requests(cpu="1", mem="1G")
@@ -710,11 +707,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "timestamp_for_filtering": "timestamp",
                 "engine_args": None,
             },
-            "outputs": [],
             "output_path": "v3io:///mypath",
-            "secret_sources": [],
             "function": "None/my-vector-merger@349f744e83e1a71d8b1faf4bbf3723dc0625daed",
-            "data_stores": [],
             "handler": "merge_handler",
             "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
         }

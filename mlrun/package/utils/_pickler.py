@@ -13,12 +13,13 @@
 # limitations under the License.
 #
 import importlib
+import importlib.metadata as importlib_metadata
 import os
 import sys
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Union
 
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
@@ -34,7 +35,7 @@ class Pickler:
     @staticmethod
     def pickle(
         obj: Any, pickle_module_name: str, output_path: str = None
-    ) -> Tuple[str, Dict[str, Union[str, None]]]:
+    ) -> tuple[str, dict[str, Union[str, None]]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
 
@@ -188,26 +189,15 @@ class Pickler:
         """
         # First we'll try to get the module version from `importlib`:
         try:
-            # Since Python 3.8, `version` is part of `importlib.metadata`. Before 3.8, we'll use the module
-            # `importlib_metadata` to get `version`.
-            if (
-                sys.version_info[1] > 7
-            ):  # TODO: Remove once Python 3.7 is not supported.
-                from importlib.metadata import version
-            else:
-                from importlib_metadata import version
-
-            return version(module_name)
-        except (ModuleNotFoundError, importlib.metadata.PackageNotFoundError):
-            # User won't necessarily have the `importlib_metadata` module, so we will ignore it by catching
-            # `ModuleNotFoundError`. `PackageNotFoundError` is ignored as well as this is raised when `version` could
-            # not find the package related to the module.
+            return importlib_metadata.version(module_name)
+        except importlib.metadata.PackageNotFoundError:
+            # `PackageNotFoundError` is ignored this is raised when `version` could not find the package related to the
+            # module.
             pass
 
-        # Secondly, if importlib could not get the version (most likely 'importlib_metadata' is not installed), we'll
-        # try to use `pkg_resources` to get the version (the version will be found only if the package name is equal to
-        # the module name. For example, if the module name is 'x' then the way we installed the package must be
-        # 'pip install x'):
+        # Secondly, if importlib could not get the version, we'll try to use `pkg_resources` to get the version (the
+        # version will be found only if the package name is equal to the module name. For example, if the module name is
+        # 'x' then the way we installed the package must be 'pip install x'):
         import pkg_resources
 
         with warnings.catch_warnings():

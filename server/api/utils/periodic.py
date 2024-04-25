@@ -21,7 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.errors
 from mlrun.utils import logger
 
-tasks: typing.Dict = {}
+tasks: dict = {}
 
 
 async def _periodic_function_wrapper(
@@ -49,7 +49,7 @@ def run_function_periodically(
     replace: bool,
     function,
     *args,
-    **kwargs
+    **kwargs,
 ):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)

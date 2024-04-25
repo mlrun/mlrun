@@ -1,8 +1,8 @@
 (projects)=
 # Projects and automation
 
-MLRun **Project** is a container for all your work on a particular ML application. Projects host [functions](../runtimes/functions.html), [workflows](../concepts/workflow-overview.html), [artifacts (datasets, models, etc.)](../store/artifacts.html), [features (sets, vectors)](../feature-store/feature-store.html), and configuration (parameters, [secrets](../secrets.html)
-, source, etc.). Projects have owners and members with role-based access control.
+MLRun **Project** is a container for all your work on a particular ML application. Projects host [functions](../runtimes/functions.html), [workflows](../concepts/workflow-overview.html), [artifacts (datasets, models, etc.)](../store/artifacts.html), [features (sets, vectors)](../feature-store/feature-store.html), 
+and configuration (parameters, [secrets](../secrets.html), source, etc.). Projects have owners and members with role-based access control.
 
 <p align="center"><img src="../_static/images/project.png" alt="mlrun-project" width="600"/></p><br>
 
@@ -22,6 +22,7 @@ load-project
 run-build-deploy
 build-run-workflows-pipelines
 ../secrets
+project-setup
 ```
 
 **See also:**

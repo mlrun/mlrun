@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
@@ -69,7 +69,7 @@ class SQLRunDB(RunDBInterface):
         #  we will change it.
         raise NotImplementedError(
             "This should be changed to async call, if you are running in the API, use `server.api.crud.get_log`"
-            " method directly instead and not through the get_db().get_log() method"
+            " method directly instead and not through the get_db().get_log() method. "
             "This will be removed in 1.5.0",
         )
 
@@ -107,14 +107,14 @@ class SQLRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name=None,
-        uid: Optional[Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=None,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, list[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime.datetime = None,
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
@@ -129,8 +129,8 @@ class SQLRunDB(RunDBInterface):
         with_notifications: bool = False,
     ):
         return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
             server.api.crud.Runs().list_runs,
-            db_session=self.session,
             name=name,
             uid=uid,
             project=project,
@@ -151,8 +151,8 @@ class SQLRunDB(RunDBInterface):
             with_notifications=with_notifications,
         )
 
-    def del_run(self, uid, project=None, iter=None):
-        return self._transform_db_error(
+    async def del_run(self, uid, project=None, iter=None):
+        return await self._transform_db_error(
             server.api.crud.Runs().delete_run,
             self.session,
             uid,
@@ -160,8 +160,10 @@ class SQLRunDB(RunDBInterface):
             project,
         )
 
-    def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
-        return self._transform_db_error(
+    async def del_runs(
+        self, name=None, project=None, labels=None, state=None, days_ago=0
+    ):
+        return await self._transform_db_error(
             server.api.crud.Runs().delete_runs,
             self.session,
             name,
@@ -171,7 +173,9 @@ class SQLRunDB(RunDBInterface):
             days_ago,
         )
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().store_artifact,
             self.session,
@@ -181,16 +185,19 @@ class SQLRunDB(RunDBInterface):
             iter,
             tag,
             project,
+            tree,
         )
 
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         return self._transform_db_error(
             server.api.crud.Artifacts().get_artifact,
             self.session,
             key,
-            tag,
-            iter,
-            project,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=tree,
+            object_uid=uid,
         )
 
     def list_artifacts(
@@ -205,6 +212,7 @@ class SQLRunDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -222,9 +230,10 @@ class SQLRunDB(RunDBInterface):
             best_iteration=best_iteration,
             kind=kind,
             category=category,
+            producer_id=tree,
         )
 
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
             self.session,
@@ -427,7 +436,7 @@ class SQLRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
-        labels: List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._transform_db_error(
@@ -466,8 +475,8 @@ class SQLRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        entities: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_features,
@@ -484,7 +493,7 @@ class SQLRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_entities,
@@ -501,9 +510,9 @@ class SQLRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        entities: List[str] = None,
-        features: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        features: list[str] = None,
+        labels: list[str] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -601,7 +610,7 @@ class SQLRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -673,7 +682,7 @@ class SQLRunDB(RunDBInterface):
 
     def store_run_notifications(
         self,
-        notification_objects: List[mlrun.model.Notification],
+        notification_objects: list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,
@@ -685,6 +694,24 @@ class SQLRunDB(RunDBInterface):
             server.api.crud.Notifications().store_run_notifications,
             notification_objects,
             run_uid,
+            project,
+            mask_params,
+        )
+
+    def store_alert_notifications(
+        self,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.Notifications().store_alerts_notifications,
+            notification_objects,
+            alert_id,
             project,
             mask_params,
         )
@@ -724,12 +751,24 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
     ):
         return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
             server.api.crud.Hub().list_hub_sources,
-            self.session,
             item_name,
             tag,
             version,
         )
+
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: str = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.summary,
+        project: str = None,
+    ):
+        raise NotImplementedError()
 
     def list_pipelines(
         self,
@@ -755,6 +794,22 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        raise NotImplementedError()
+
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
+        raise NotImplementedError()
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        raise NotImplementedError()
+
+    def delete_api_gateway(self, name, project=None):
+        raise NotImplementedError()
+
     def list_project_secrets(
         self,
         project: str,
@@ -762,7 +817,7 @@ class SQLRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ) -> mlrun.common.schemas.SecretsData:
         raise NotImplementedError()
 
@@ -782,7 +837,7 @@ class SQLRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ):
         raise NotImplementedError()
 
@@ -818,10 +873,10 @@ class SQLRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
     ):
         raise NotImplementedError()
 
@@ -831,7 +886,7 @@ class SQLRunDB(RunDBInterface):
         endpoint_id: str,
         start: Optional[str] = None,
         end: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         features: bool = False,
     ):
         raise NotImplementedError()
@@ -889,26 +944,118 @@ class SQLRunDB(RunDBInterface):
         # done from ingest()
         pass
 
+    def get_log_size(self, uid, project=""):
+        raise NotImplementedError("Getting log size is not supported on the server")
+
     def watch_log(self, uid, project="", watch=True, offset=0):
         raise NotImplementedError("Watching logs is not supported on the server")
 
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
-        raise NotImplementedError()
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.DatastoreProfiles().get_datastore_profile,
+            name,
+            project,
+        )
 
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()
 
     def list_datastore_profiles(
         self, project: str
-    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+    ) -> list[mlrun.common.schemas.DatastoreProfile]:
         raise NotImplementedError()
 
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         raise NotImplementedError()
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
+        ],
+        arguments: Optional[dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        notifications: list[mlrun.model.Notification] = None,
+    ) -> "mlrun.common.schemas.WorkflowResponse":
+        raise NotImplementedError()
+
+    def remote_builder(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        raise NotImplementedError()
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def set_run_notifications(
+        self,
+        project: str,
+        runs: list[mlrun.model.RunObject],
+        notifications: list[mlrun.model.Notification],
+    ):
+        raise NotImplementedError()
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        raise NotImplementedError()
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        raise NotImplementedError
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
 
     def _transform_db_error(self, func, *args, **kwargs):
         try:
@@ -922,6 +1069,31 @@ class SQLRunDB(RunDBInterface):
 
         except DBError as exc:
             raise mlrun.db.RunDBError(exc.args) from exc
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name, project=""):
+        pass
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

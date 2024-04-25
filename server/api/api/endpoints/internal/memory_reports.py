@@ -25,9 +25,7 @@ router = fastapi.APIRouter(prefix="/memory-reports")
     response_model=mlrun.common.schemas.MostCommonObjectTypesReport,
 )
 def get_most_common_objects_report():
-    report = (
-        server.api.utils.memory_reports.MemoryUsageReport().create_most_common_objects_report()
-    )
+    report = server.api.utils.memory_reports.MemoryUsageReport().create_most_common_objects_report()
     return mlrun.common.schemas.MostCommonObjectTypesReport(object_types=report)
 
 

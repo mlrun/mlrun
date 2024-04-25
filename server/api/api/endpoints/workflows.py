@@ -17,7 +17,7 @@ import copy
 import traceback
 import typing
 from http import HTTPStatus
-from typing import Dict, Optional
+from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -108,28 +108,40 @@ async def submit_workflow(
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
+
+    # If workflow spec has not passed need to create on same name:
+    requested_workflow_name = getattr(workflow_request.spec, "name", name)
+
     # Check permission CREATE workflow on new workflow's name
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
-        # If workflow spec has not passed need to create on same name:
-        resource_name=getattr(workflow_request.spec, "name", name),
+        resource_name=requested_workflow_name,
         action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
-    # Re-route to chief in case of schedule
-    if (
-        _is_requested_schedule(name, workflow_request.spec, project)
-        and mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        chief_client = server.api.utils.clients.chief.Client()
-        return await chief_client.submit_workflow(
-            project=project.metadata.name,
-            name=name,
-            request=request,
-            json=workflow_request.dict(),
+
+    # Validate permissions and re-route to chief if needed in case of schedule
+    if _is_requested_schedule(name, workflow_request.spec, project):
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.schedule,
+            project_name=project.metadata.name,
+            resource_name=requested_workflow_name,
+            action=mlrun.common.schemas.AuthorizationAction.create,
+            auth_info=auth_info,
         )
+
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = server.api.utils.clients.chief.Client()
+            return await chief_client.submit_workflow(
+                project=project.metadata.name,
+                name=name,
+                request=request,
+                json=workflow_request.dict(),
+            )
 
     workflow_spec = _fill_workflow_missing_fields_from_project(
         project=project,
@@ -137,6 +149,7 @@ async def submit_workflow(
         spec=workflow_request.spec,
         arguments=workflow_request.arguments,
     )
+
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
@@ -181,9 +194,9 @@ async def submit_workflow(
             client_version
         )
     if client_python_version is not None:
-        workflow_runner.metadata.labels[
-            "mlrun/client_python_version"
-        ] = sanitize_label_value(client_python_version)
+        workflow_runner.metadata.labels["mlrun/client_python_version"] = (
+            sanitize_label_value(client_python_version)
+        )
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(
@@ -202,6 +215,7 @@ async def submit_workflow(
                 runner=workflow_runner,
                 project=project,
                 workflow_request=updated_request,
+                auth_info=auth_info,
             )
             status = mlrun.run.RunStatuses.running
             run_uid = run.uid()
@@ -247,7 +261,7 @@ def _is_requested_schedule(
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.Project, name: str
-) -> typing.Optional[Dict]:
+) -> typing.Optional[dict]:
     """
     Getting workflow from project by name.
 
@@ -266,22 +280,25 @@ def _fill_workflow_missing_fields_from_project(
     project: mlrun.common.schemas.Project,
     workflow_name: str,
     spec: mlrun.common.schemas.WorkflowSpec,
-    arguments: typing.Dict,
+    arguments: dict,
 ) -> mlrun.common.schemas.WorkflowSpec:
     """
     Fill the workflow spec details from the project object, with favour to spec
 
     :param project:         MLRun project that contains the workflow.
-    :param workflow_name:   workflow name
-    :param spec:            workflow spec input
-    :param arguments:       arguments to workflow
+    :param workflow_name:   Workflow name
+    :param spec:            Workflow spec input
+    :param arguments:       Arguments to workflow
 
-    :return: completed workflow spec
+    :return: Completed workflow spec
     """
 
-    # while we expect workflow to be exists on project spec, we might get a case where the workflow is not exists.
-    # this is possible when workflow is not set prior to its execution.
+    # While we expect workflow to exist on project spec, we might get a case where the workflow does not exist.
+    # This is possible when workflow is not set prior to its execution.
     workflow = _get_workflow_by_name(project, workflow_name)
+    if spec and spec.schedule is None:
+        # Do not enrich with schedule from project's workflow when spec was provided
+        workflow.pop("schedule", None)
 
     if spec:
         # Merge between the workflow spec provided in the request with existing
@@ -291,9 +308,9 @@ def _fill_workflow_missing_fields_from_project(
 
     if "name" not in workflow:
         log_and_raise(
-            reason=f"workflow {workflow_name} not found in project"
+            reason=f"Workflow {workflow_name} not found in project"
             if not workflow
-            else "workflow spec is invalid",
+            else "Workflow spec is invalid",
         )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)

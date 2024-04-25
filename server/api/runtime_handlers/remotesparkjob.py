@@ -31,7 +31,7 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
         super().run(runtime=runtime, run=run, execution=execution)
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

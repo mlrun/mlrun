@@ -28,10 +28,33 @@ import server.api.utils.singletons.scheduler
 class Notifications(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
+    def store_alerts_notifications(
+        self,
+        session: sqlalchemy.orm.Session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        project = project or mlrun.mlconf.default_project
+
+        # we don't mask the notification params when it's a status update as they are already masked
+        notification_objects_to_store = notification_objects
+        if mask_params:
+            notification_objects_to_store = (
+                server.api.api.utils.validate_and_mask_notification_list(
+                    notification_objects, alert_id, project
+                )
+            )
+
+        server.api.utils.singletons.db.get_db().store_alert_notifications(
+            session, notification_objects_to_store, alert_id, project
+        )
+
     def store_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
-        notification_objects: typing.List[mlrun.model.Notification],
+        notification_objects: list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,
@@ -56,7 +79,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         run_uid: str,
         project: str = "",
-    ) -> typing.List[mlrun.model.Notification]:
+    ) -> list[mlrun.model.Notification]:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_run_notifications(
             session, run_uid, project
@@ -93,7 +116,7 @@ class Notifications(
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
-        notifications: typing.List[mlrun.common.schemas.Notification],
+        notifications: list[mlrun.common.schemas.Notification],
         notification_parent: typing.Union[
             mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
         ],

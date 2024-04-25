@@ -15,12 +15,14 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .constants import (
+    ControllerPolicy,
     DriftStatus,
     EndpointType,
     EndpointUID,
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
+    FeatureSetFeatures,
     FileTargetKind,
     FunctionURI,
     ModelEndpointTarget,
@@ -28,9 +30,12 @@ from .constants import (
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     ProjectSecretKeys,
+    PrometheusEndpoints,
     PrometheusMetric,
+    SchedulingKeys,
     TimeSeriesTarget,
     VersionedModel,
+    WriterEvent,
 )
 from .grafana import (
     GrafanaColumn,

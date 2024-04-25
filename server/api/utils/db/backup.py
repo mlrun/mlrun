@@ -24,7 +24,7 @@ from mlrun import mlconf
 from mlrun.utils import logger
 
 
-class DBBackupUtil(object):
+class DBBackupUtil:
     def __init__(
         self,
         backup_file_format: str = mlconf.httpdb.db.backup.file_format,

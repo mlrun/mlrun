@@ -27,7 +27,6 @@ import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/abstract"
 
 	"github.com/nuclio/errors"
-	"github.com/nuclio/logger"
 )
 
 type Store struct {
@@ -38,13 +37,13 @@ type Store struct {
 	stateLock               sync.Locker
 }
 
-func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *Store {
-	abstractClient := abstract.NewAbstractClient(logger)
+func NewFileStore(configuration *statestore.Config) *Store {
+	abstractClient := abstract.NewAbstractClient(configuration.Logger, configuration.AdvancedLogLevel)
 	return &Store{
 		Store: abstractClient,
 		// setting _metadata with "_" as a subdirectory, so it won't conflict with projects directories
-		stateFilePath:           path.Join(baseDirPath, "_metadata", "state.json"),
-		stateFileUpdateInterval: stateFileUpdateInterval,
+		stateFilePath:           path.Join(configuration.BaseDir, "_metadata", "state.json"),
+		stateFileUpdateInterval: configuration.StateFileUpdateInterval,
 		fileLock:                &sync.Mutex{},
 		stateLock:               &sync.Mutex{},
 	}
@@ -75,6 +74,27 @@ func (s *Store) Initialize(ctx context.Context) error {
 	s.Logger.DebugWithCtx(ctx, "Successfully initialized file state store")
 
 	return nil
+}
+
+func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
+	if s.Store.AdvancedLogLevel >= 1 {
+		s.Logger.DebugWithCtx(ctx,
+			"Adding item to state file",
+			"runUID", runUID,
+			"selector", selector,
+			"project", project)
+	}
+	return s.Store.AddLogItem(ctx, runUID, selector, project)
+}
+
+func (s *Store) RemoveLogItem(ctx context.Context, runUID, project string) error {
+	if s.Store.AdvancedLogLevel >= 1 {
+		s.Logger.DebugWithCtx(ctx,
+			"Removing item from state file",
+			"runUID", runUID,
+			"project", project)
+	}
+	return s.Store.RemoveLogItem(runUID, project)
 }
 
 // WriteState writes the state to file, used mainly for testing

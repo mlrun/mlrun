@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -29,12 +30,12 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
-    fill_project_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
     resolve_image_tag_suffix,
     str_to_timestamp,
+    template_artifact_path,
     update_in,
     validate_artifact_key_name,
     validate_tag_name,
@@ -54,6 +55,34 @@ def test_retry_until_successful_fatal_failure():
         mlrun.utils.helpers.retry_until_successful(
             0, 1, logger, True, _raise_fatal_failure
         )
+
+
+def test_retry_until_successful_sync():
+    counter = 0
+
+    def increase_counter():
+        nonlocal counter
+        counter += 1
+        if counter < 3:
+            raise Exception("error")
+
+    mlrun.utils.helpers.retry_until_successful(0, 3, logger, True, increase_counter)
+
+
+@pytest.mark.asyncio
+async def test_retry_until_successful_async():
+    counter = 0
+
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        nonlocal counter
+        counter += 1
+        if counter < 3:
+            raise Exception("error")
+
+    await mlrun.utils.helpers.retry_until_successful_async(
+        0, 3, logger, True, increase_counter
+    )
 
 
 @pytest.mark.parametrize(
@@ -686,7 +715,7 @@ def test_parse_store_uri(uri, expected_output):
         },
         {
             "artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
-            "expected_artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
+            "expected_artifact_path": "v3io://path-with-unrealted-template/project",
         },
         {
             "artifact_path": "v3io://template-project-not-provided/{{project}}",
@@ -704,12 +733,12 @@ def test_parse_store_uri(uri, expected_output):
         },
     ],
 )
-def test_fill_project_path_template(case):
+def test_template_artifact_path(case):
     if case.get("raise"):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fill_project_path_template(case["artifact_path"], case.get("project"))
+            template_artifact_path(case["artifact_path"], case.get("project"))
     else:
-        filled_artifact_path = fill_project_path_template(
+        filled_artifact_path = template_artifact_path(
             case["artifact_path"], case.get("project")
         )
         assert case["expected_artifact_path"] == filled_artifact_path
@@ -869,7 +898,6 @@ def test_create_step_backoff():
             for _ in range(0, step_occurrences):
                 assert step_value, next(backoff)
         else:
-
             # Run another 10 iterations:
             for _ in range(0, 10):
                 assert step_value, next(backoff)
@@ -928,3 +956,44 @@ def test_retry_until_successful():
 def test_iterate_list_by_chunks(iterable_list, chunk_size, expected_chunked_list):
     chunked_list = mlrun.utils.iterate_list_by_chunks(iterable_list, chunk_size)
     assert list(chunked_list) == expected_chunked_list
+
+
+@pytest.mark.parametrize(
+    "username,expected_normalized_username",
+    [
+        # sanity, all good
+        ("test", "test"),
+        # ensure ends with alphanumeric
+        ("test.", "test"),
+        ("test-", "test"),
+        # lowercase
+        ("TestUser", "testuser"),
+        # remove special characters
+        ("UserName!@#$", "username"),
+        # dasherize
+        ("user_name", "user-name"),
+        ("User-Name_123", "user-name-123"),
+        # everything with @ (email-like username)
+        ("User_Name@domain.com", "user-name"),
+        ("user@domain.com", "user"),
+        ("user.name@example.com", "username"),
+        ("user_name@example.com", "user-name"),
+    ],
+)
+def test_normalize_username(username, expected_normalized_username):
+    normalized_username = mlrun.utils.helpers.normalize_project_username(username)
+    assert normalized_username == expected_normalized_username
+
+
+@pytest.mark.parametrize(
+    "basedir,path,is_symlink, is_valid",
+    [
+        ("/base", "/base/valid", False, True),
+        ("/base", "/base/valid", True, True),
+        ("/base", "/../invalid", True, False),
+        ("/base", "/../invalid", False, False),
+    ],
+)
+def test_is_safe_path(basedir, path, is_symlink, is_valid):
+    safe = mlrun.utils.is_safe_path(basedir, path, is_symlink)
+    assert safe == is_valid

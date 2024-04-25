@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import datetime
-import unittest.mock
 
 import deepdiff
 import pytest
@@ -22,8 +21,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import server.api.initial_data
-import server.api.utils.singletons.db
 from server.api.db.base import DBInterface
 from server.api.db.sqldb.models import Project
 
@@ -37,19 +34,31 @@ def test_get_project(
     project_labels = {
         "some-label": "some-label-value",
     }
+    project_default_node_selector = {"gpu": "true"}
     db.create_project(
         db_session,
         mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name, labels=project_labels
             ),
-            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
+            spec=mlrun.common.schemas.ProjectSpec(
+                description=project_description,
+                default_function_node_selector=project_default_node_selector,
+            ),
         ),
     )
 
     project_output = db.get_project(db_session, project_name)
     assert project_output.metadata.name == project_name
     assert project_output.spec.description == project_description
+    assert (
+        deepdiff.DeepDiff(
+            project_default_node_selector,
+            project_output.spec.default_function_node_selector,
+            ignore_order=True,
+        )
+        == {}
+    )
     assert (
         deepdiff.DeepDiff(
             project_labels,
@@ -80,29 +89,6 @@ def test_get_project_with_pre_060_record(
     )
     # when GET performed on a project of the old format - we're upgrading it to the new format - ensuring it happened
     assert updated_record.full_object is not None
-
-
-def test_data_migration_enrich_project_state(
-    db: DBInterface,
-    db_session: sqlalchemy.orm.Session,
-):
-    for i in range(10):
-        project_name = f"project-name-{i}"
-        _generate_and_insert_pre_060_record(db_session, project_name)
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        # getting default value from the schema
-        assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
-        assert project.status.state is None
-    server.api.initial_data._enrich_project_state(db, db_session)
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
-        assert project.status.state == project.spec.desired_state
-    # verify not storing for no reason
-    db.store_project = unittest.mock.Mock()
-    server.api.initial_data._enrich_project_state(db, db_session)
-    assert db.store_project.call_count == 0
 
 
 def _generate_and_insert_pre_060_record(
@@ -194,7 +180,6 @@ def test_list_project_names_filter(
     db: DBInterface,
     db_session: sqlalchemy.orm.Session,
 ):
-
     project_names = ["project-1", "project-2", "project-3", "project-4", "project-5"]
     for project in project_names:
         db.create_project(

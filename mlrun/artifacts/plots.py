@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import typing
 from io import BytesIO
 
 from deprecated import deprecated
@@ -20,6 +21,9 @@ import mlrun
 
 from ..utils import dict_to_json
 from .base import Artifact, LegacyArtifact
+
+if typing.TYPE_CHECKING:
+    from plotly.graph_objs import Figure
 
 
 class PlotArtifact(Artifact):
@@ -176,7 +180,7 @@ class BokehArtifact(Artifact):
         if figure is not None and not isinstance(figure, Figure):
             raise ValueError(
                 "BokehArtifact requires the figure parameter to be a "
-                "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
+                f"'bokeh.plotting.Figure' but received '{type(figure)}'"
             )
 
         # Call the artifact initializer:
@@ -207,10 +211,10 @@ class PlotlyArtifact(Artifact):
 
     def __init__(
         self,
-        figure=None,
-        key: str = None,
-        target_path: str = None,
-    ):
+        figure: typing.Optional["Figure"] = None,
+        key: typing.Optional[str] = None,
+        target_path: typing.Optional[str] = None,
+    ) -> None:
         """
         Initialize a Plotly artifact with the given figure.
 
@@ -247,7 +251,7 @@ class PlotlyArtifact(Artifact):
         self._figure = figure
         self.spec.format = "html"
 
-    def get_body(self):
+    def get_body(self) -> str:
         """
         Get the artifact's body - the Plotly figure's html code.
 
@@ -256,10 +260,10 @@ class PlotlyArtifact(Artifact):
         return self._figure.to_html()
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyPlotArtifact' will be removed in 1.6.0, use 'PlotArtifact' instead",
+    reason="'LegacyPlotArtifact' will be removed in 1.7.0, use 'PlotArtifact' instead",
     category=FutureWarning,
 )
 class LegacyPlotArtifact(LegacyArtifact):
@@ -303,10 +307,10 @@ class LegacyPlotArtifact(LegacyArtifact):
         return self._TEMPLATE.format(self.description or self.key, self.key, data_uri)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyChartArtifact' will be removed in 1.6.0, use 'ChartArtifact' instead",
+    reason="'LegacyChartArtifact' will be removed in 1.7.0, use 'ChartArtifact' instead",
     category=FutureWarning,
 )
 class LegacyChartArtifact(LegacyArtifact):
@@ -377,10 +381,10 @@ class LegacyChartArtifact(LegacyArtifact):
         )
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyBokehArtifact' will be removed in 1.6.0, use 'BokehArtifact' instead",
+    reason="'LegacyBokehArtifact' will be removed in 1.7.0, use 'BokehArtifact' instead",
     category=FutureWarning,
 )
 class LegacyBokehArtifact(LegacyArtifact):
@@ -412,7 +416,7 @@ class LegacyBokehArtifact(LegacyArtifact):
         if figure is not None and not isinstance(figure, Figure):
             raise ValueError(
                 "BokehArtifact requires the figure parameter to be a "
-                "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
+                f"'bokeh.plotting.Figure' but received '{type(figure)}'"
             )
 
         # Call the artifact initializer:
@@ -433,10 +437,10 @@ class LegacyBokehArtifact(LegacyArtifact):
         return file_html(self._figure, CDN, self.key)
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyPlotlyArtifact' will be removed in 1.6.0, use 'PlotlyArtifact' instead",
+    reason="'LegacyPlotlyArtifact' will be removed in 1.7.0, use 'PlotlyArtifact' instead",
     category=FutureWarning,
 )
 class LegacyPlotlyArtifact(LegacyArtifact):

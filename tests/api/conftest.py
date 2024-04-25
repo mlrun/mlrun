@@ -12,26 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 import unittest.mock
+from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Generator
 
 import deepdiff
 import httpx
 import kfp
 import pytest
+import semver
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.db.factory
 import mlrun.launcher.factory
+import mlrun.utils.singleton
 import server.api.crud
 import server.api.launcher
 import server.api.rundb.sqldb
 import server.api.runtime_handlers.mpijob
 import server.api.utils.clients.iguazio
+import server.api.utils.projects.remotes.leader as project_leader
 import server.api.utils.runtimes.nuclio
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
@@ -44,7 +49,7 @@ from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 from server.api.initial_data import init_data
-from server.api.main import BASE_VERSIONED_API_PREFIX, app
+from server.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 
 @pytest.fixture(autouse=True)
@@ -59,6 +64,7 @@ def api_config_test():
     server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
+    server.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
 
     # we need to override the run db container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed
@@ -131,6 +137,24 @@ def client(db) -> Generator:
 
 
 @pytest.fixture()
+def unversioned_client(db) -> Generator:
+    """
+    unversioned_client is a test client that doesn't have the version prefix in the url.
+    When using this client, the version prefix must be added to the url manually.
+    This is useful when tests use several endpoints that are not under the same version prefix.
+    """
+    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+        mlconf.httpdb.logs_path = log_dir
+        mlconf.monitoring.runs.interval = 0
+        mlconf.runtimes_cleanup_interval = 0
+        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+        with TestClient(app) as unversioned_test_client:
+            set_base_url_for_test_client(unversioned_test_client, API_PREFIX)
+            yield unversioned_test_client
+
+
+@pytest.fixture()
 @pytest.mark.asyncio
 async def async_client(db) -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
@@ -142,6 +166,59 @@ async def async_client(db) -> Generator:
         async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
             set_base_url_for_test_client(async_client)
             yield async_client
+
+
+@pytest.fixture
+def kfp_client_mock(monkeypatch) -> kfp.Client:
+    server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
+    )
+    kfp_client_mock = unittest.mock.Mock()
+    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
+    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
+    return kfp_client_mock
+
+
+@pytest.fixture()
+async def api_url() -> str:
+    api_url = "http://iguazio-api-url:8080"
+    mlrun.mlconf.iguazio_api_url = api_url
+    return api_url
+
+
+@pytest.fixture()
+async def iguazio_client(
+    api_url: str,
+    request: pytest.FixtureRequest,
+) -> server.api.utils.clients.iguazio.Client:
+    if request.param == "async":
+        client = server.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = server.api.utils.clients.iguazio.Client()
+
+    # force running init again so the configured api url will be used
+    client.__init__()
+    client._wait_for_job_completion_retry_interval = 0
+    client._wait_for_project_terminal_state_retry_interval = 0
+
+    # inject the request param into client, so we can use it in tests
+    setattr(client, "mode", request.param)
+    return client
+
+
+class MockedK8sHelper:
+    @pytest.fixture(autouse=True)
+    def mock_k8s_helper(self, db: sqlalchemy.orm.Session, client: TestClient):
+        # We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+        # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
+        server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
+            unittest.mock.Mock(return_value=[])
+        )
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+        server.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
+        server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
 
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
@@ -258,7 +335,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 @pytest.fixture()
-def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
     k8s_secrets_mock.mock_functions(
@@ -267,39 +344,96 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
     yield k8s_secrets_mock
 
 
-@pytest.fixture
-def kfp_client_mock(monkeypatch) -> kfp.Client:
-    server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
-    )
-    kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
-    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-    return kfp_client_mock
+class MockedProjectFollowerIguazioClient(
+    project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton
+):
+    def __init__(self):
+        self._db_session = None
+        self._unversioned_client = None
+
+    def create_project(
+        self,
+        session: str,
+        project: mlrun.common.schemas.Project,
+        wait_for_completion: bool = True,
+    ) -> bool:
+        server.api.crud.Projects().create_project(self._db_session, project)
+        return False
+
+    def update_project(
+        self,
+        session: str,
+        name: str,
+        project: mlrun.common.schemas.Project,
+    ):
+        pass
+
+    def delete_project(
+        self,
+        session: str,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        wait_for_completion: bool = True,
+    ) -> bool:
+        api_version = "v2"
+        igz_version = mlrun.mlconf.get_parsed_igz_version()
+        if igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
+            api_version = "v1"
+
+        self._unversioned_client.delete(
+            f"{api_version}/projects/{name}",
+            headers={
+                mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader,
+                mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy,
+            },
+        )
+
+        # Mock waiting for completion in iguazio (return False to indicate 'not running in background')
+        return False
+
+    def list_projects(
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
+        return [], None
+
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.common.schemas.Project:
+        pass
+
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
+        pass
+
+    def get_project_owner(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.common.schemas.ProjectOwner:
+        pass
 
 
 @pytest.fixture()
-async def api_url() -> str:
-    api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config.iguazio_api_url = api_url
-    return api_url
+def mock_project_follower_iguazio_client(
+    db: sqlalchemy.orm.Session, unversioned_client: TestClient
+):
+    """
+    This fixture mocks the project leader iguazio client.
+    """
+    mlrun.mlconf.httpdb.projects.leader = "iguazio"
+    mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
+    old_iguazio_client = server.api.utils.clients.iguazio.Client
+    server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
+    server.api.utils.singletons.project_member.initialize_project_member()
+    iguazio_client = MockedProjectFollowerIguazioClient()
+    iguazio_client._db_session = db
+    iguazio_client._unversioned_client = unversioned_client
 
+    yield iguazio_client
 
-@pytest.fixture()
-async def iguazio_client(
-    api_url: str,
-    request: pytest.FixtureRequest,
-) -> server.api.utils.clients.iguazio.Client:
-    if request.param == "async":
-        client = server.api.utils.clients.iguazio.AsyncClient()
-    else:
-        client = server.api.utils.clients.iguazio.Client()
-
-    # force running init again so the configured api url will be used
-    client.__init__()
-    client._wait_for_job_completion_retry_interval = 0
-    client._wait_for_project_terminal_state_retry_interval = 0
-
-    # inject the request param into client, so we can use it in tests
-    setattr(client, "mode", request.param)
-    return client
+    server.api.utils.clients.iguazio.Client = old_iguazio_client

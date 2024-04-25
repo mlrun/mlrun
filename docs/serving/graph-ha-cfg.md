@@ -21,6 +21,10 @@ performs additional processing of events after the function handler returns, the
 lost. The mechanism of Window ACK provides a solution for such 
 stateful event processing.
 
+```{admonition} Note
+For stateful functions, each worker has its own state. See, for example, {py:meth}`~storey.transformations.MapWithState`.
+```
+
 With Window ACK, the consumer group's committed offset is delayed by one window, committing the offset at (processed event num – window). 
 When the function restarts (for any reason including scale-up or scale-down), it starts consuming from this last committed point. 
 
@@ -32,9 +36,15 @@ graph structure and should be calculated accordingly. The following sections exp
 
 A consumer function is essentially a Nuclio function with a stream trigger. As part of the trigger, you can set a consumer group.  
 
-When the consumer function is part of a graph then the consumer function’s number of replicas is derived from the number of shards and is 
-therefore nonconfigurable. The same applies to the number of workers in each replica, which is set to 1 and is not configurable.  
-
+The number of replicas per function depends on the  source:
+- `StreamSource`: The number of replicas is derived from the number of shards and is therefore nonconfigurable. Furthermore, the number of workers in each replica is set to 1 and also is not configurable.  
+- `KafkaSource`: For Nuclio earlier than 1.12.10, it is 1 and non-configurable. For 1.12.10 and later, the number of replicas is set with, for example:
+   - `function.spec.min_replicas = 2`. Default = 1
+   - `function.spec.max_replicas = 3`. Default = 4	
+   
+   and the number of workers is set with:
+   - `KafkaSource(attributes={"max_workers": 1})`. Default = 1
+   
 The consumer function has one buffer per worker, measured in number of messages, holding the incoming events that were received by the worker and are waiting to be 
 processed. Once this buffer is full, events need to be processed so that the function is able to receive more events. The buffer size is 
 configurable and is key to the overall configuration. 

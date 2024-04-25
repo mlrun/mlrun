@@ -14,7 +14,6 @@
 #
 import os
 import tempfile
-from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -41,27 +40,30 @@ _COMMON_OBJECT_INSTRUCTIONS = {
 }
 
 
-_ARRAY_SAMPLE = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+_ARRAY_SAMPLES = [
+    np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+    np.array([{"A": 1}, {"B": 2}, {"C": 3}]),
+]
 
 
-def pack_array() -> np.ndarray:
-    return _ARRAY_SAMPLE
+def pack_array(i: int) -> np.ndarray:
+    return _ARRAY_SAMPLES[i]
 
 
-def validate_array(result: List[List[int]]) -> bool:
-    return (np.array(result) == _ARRAY_SAMPLE).all()
+def validate_array(result: list, i: int) -> bool:
+    return (np.array(result) == _ARRAY_SAMPLES[i]).all()
 
 
-def unpack_array(obj: np.ndarray):
+def unpack_array(obj: np.ndarray, i: int):
     assert isinstance(obj, np.ndarray)
-    assert (obj == _ARRAY_SAMPLE).all()
+    assert (obj == _ARRAY_SAMPLES[i]).all()
 
 
-def prepare_array_file(file_format: str) -> Tuple[str, str]:
+def prepare_array_file(file_format: str, i: int) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_array.{file_format}")
     formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
-    formatter.save(obj=_ARRAY_SAMPLE, file_path=file_path)
+    formatter.save(obj=_ARRAY_SAMPLES[i], file_path=file_path)
     return file_path, temp_directory
 
 
@@ -70,38 +72,54 @@ class NumPyNDArrayPackagerTester(PackagerTester):
     A tester for the `NumPyNDArrayPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNDArrayPackager
+    PACKAGER_IN_TEST = NumPyNDArrayPackager()
 
     TESTS = [
-        PackTest(
-            pack_handler="pack_array",
-            log_hint="my_result",
-            validation_function=validate_array,
-            pack_parameters={},
-            default_artifact_type_object=np.ones(1),
-        ),
+        *[
+            PackTest(
+                pack_handler="pack_array",
+                log_hint="my_result",
+                validation_function=validate_array,
+                pack_parameters={"i": i},
+                validation_parameters={"i": i},
+                default_artifact_type_object=np.ones(1),
+            )
+            for i in range(len(_ARRAY_SAMPLES))
+        ],
         *[
             UnpackTest(
                 prepare_input_function=prepare_array_file,
                 unpack_handler="unpack_array",
-                prepare_parameters={"file_format": file_format},
+                prepare_parameters={"file_format": file_format, "i": 0},
+                unpack_parameters={"i": 0},
             )
             for file_format in NumPySupportedFormat.get_single_array_formats()
         ],
-        PackToUnpackTest(
-            pack_handler="pack_array",
-            log_hint="my_result: result",
-        ),
-        PackToUnpackTest(
-            pack_handler="pack_array",
-            log_hint="my_result: object",
-            expected_instructions=_COMMON_OBJECT_INSTRUCTIONS,
-            unpack_handler="unpack_array",
-        ),
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_array",
+                log_hint="my_result: result",
+                pack_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_SAMPLES))
+        ],
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_array",
+                log_hint="my_result: object",
+                expected_instructions=_COMMON_OBJECT_INSTRUCTIONS,
+                unpack_handler="unpack_array",
+                pack_parameters={"i": i},
+                unpack_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_SAMPLES))
+        ],
         PackToUnpackTest(
             pack_handler="pack_array",
             log_hint="my_result: dataset",
             unpack_handler="unpack_array",
+            pack_parameters={"i": 0},
+            unpack_parameters={"i": 0},
         ),
         *[
             PackToUnpackTest(
@@ -113,9 +131,26 @@ class NumPyNDArrayPackagerTester(PackagerTester):
                 },
                 expected_instructions={"file_format": file_format},
                 unpack_handler="unpack_array",
+                pack_parameters={"i": 0},
+                unpack_parameters={"i": 0},
             )
             for file_format in NumPySupportedFormat.get_single_array_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_array",
+            log_hint={
+                "key": "my_array",
+                "artifact_type": "file",
+                "file_format": NumPySupportedFormat.NPY,
+            },
+            expected_instructions={
+                "file_format": NumPySupportedFormat.NPY,
+                "allow_pickle": True,
+            },
+            unpack_handler="unpack_array",
+            pack_parameters={"i": 1},
+            unpack_parameters={"i": 1},
+        ),
     ]
 
 
@@ -140,7 +175,7 @@ class NumPyNumberPackagerTester(PackagerTester):
     A tester for the `NumPyNumberPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNumberPackager
+    PACKAGER_IN_TEST = NumPyNumberPackager()
 
     TESTS = [
         PackTest(
@@ -161,37 +196,40 @@ class NumPyNumberPackagerTester(PackagerTester):
     ]
 
 
-_ARRAY_DICT_SAMPLE = {f"my_array_{i}": _ARRAY_SAMPLE * i for i in range(1, 5)}
+_ARRAY_DICT_SAMPLES = [
+    {f"my_array_{i}": _ARRAY_SAMPLES[0] * i for i in range(1, 5)},
+    {f"my_object_array_{i}": _ARRAY_SAMPLES[1] for i in range(1, 5)},
+]
 
 
-def pack_array_dict() -> Dict[str, np.ndarray]:
-    return _ARRAY_DICT_SAMPLE
+def pack_array_dict(i: int) -> dict[str, np.ndarray]:
+    return _ARRAY_DICT_SAMPLES[i]
 
 
-def unpack_array_dict(obj: Dict[str, np.ndarray]):
+def unpack_array_dict(obj: dict[str, np.ndarray], i: int):
     assert isinstance(obj, dict) and all(
         isinstance(key, str) and isinstance(value, np.ndarray)
         for key, value in obj.items()
     )
-    assert obj.keys() == _ARRAY_DICT_SAMPLE.keys()
-    for obj_array, sample_array in zip(obj.values(), _ARRAY_DICT_SAMPLE.values()):
+    assert obj.keys() == _ARRAY_DICT_SAMPLES[i].keys()
+    for obj_array, sample_array in zip(obj.values(), _ARRAY_DICT_SAMPLES[i].values()):
         assert (obj_array == sample_array).all()
 
 
-def validate_array_dict(result: Dict[str, list]) -> bool:
+def validate_array_dict(result: dict[str, list], i: int) -> bool:
     # Numppy arrays are serialized as lists:
-    for key in _ARRAY_DICT_SAMPLE:
+    for key in _ARRAY_DICT_SAMPLES[i]:
         array = result.pop(key)
-        if not (np.array(array) == _ARRAY_DICT_SAMPLE[key]).all():
+        if not (np.array(array) == _ARRAY_DICT_SAMPLES[i][key]).all():
             return False
     return len(result) == 0
 
 
-def prepare_array_dict_file(file_format: str, **save_kwargs) -> Tuple[str, str]:
+def prepare_array_dict_file(file_format: str, i: int, **save_kwargs) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
-    formatter.save(obj=_ARRAY_DICT_SAMPLE, file_path=file_path, **save_kwargs)
+    formatter.save(obj=_ARRAY_DICT_SAMPLES[i], file_path=file_path, **save_kwargs)
     return file_path, temp_directory
 
 
@@ -200,35 +238,50 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
     A tester for the `NumPyNDArrayDictPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNDArrayDictPackager
+    PACKAGER_IN_TEST = NumPyNDArrayDictPackager()
 
     TESTS = [
-        PackTest(
-            pack_handler="pack_array_dict",
-            log_hint="my_result: result",
-            validation_function=validate_array_dict,
-        ),
+        [
+            PackTest(
+                pack_handler="pack_array_dict",
+                log_hint="my_result: result",
+                validation_function=validate_array_dict,
+                pack_parameters={"i": i},
+                validation_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_DICT_SAMPLES))
+        ],
         *[
             UnpackTest(
                 prepare_input_function=prepare_array_dict_file,
                 unpack_handler="unpack_array_dict",
-                prepare_parameters={"file_format": file_format},
+                prepare_parameters={"file_format": file_format, "i": 0},
+                unpack_parameters={"i": 0},
             )
             for file_format in NumPySupportedFormat.get_multi_array_formats()
         ],
-        PackToUnpackTest(
-            pack_handler="pack_array_dict",
-            log_hint="my_array: result",
-        ),
-        PackToUnpackTest(
-            pack_handler="pack_array_dict",
-            log_hint="my_array: object",
-            expected_instructions={
-                **COMMON_OBJECT_INSTRUCTIONS,
-                "object_module_name": dict.__module__,
-            },
-            unpack_handler="unpack_array_dict",
-        ),
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_array_dict",
+                log_hint="my_array: result",
+                pack_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_DICT_SAMPLES))
+        ],
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_array_dict",
+                log_hint="my_array: object",
+                expected_instructions={
+                    **COMMON_OBJECT_INSTRUCTIONS,
+                    "object_module_name": dict.__module__,
+                },
+                unpack_handler="unpack_array_dict",
+                pack_parameters={"i": i},
+                unpack_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_DICT_SAMPLES))
+        ],
         *[
             PackToUnpackTest(
                 pack_handler="pack_array_dict",
@@ -240,38 +293,54 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
                     "file_format": file_format,
                 },
                 unpack_handler="unpack_array_dict",
+                pack_parameters={"i": 0},
+                unpack_parameters={"i": 0},
             )
             for file_format in NumPySupportedFormat.get_multi_array_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_array_dict",
+            log_hint={
+                "key": "my_array",
+                "file_format": NumPySupportedFormat.NPZ,
+            },
+            expected_instructions={
+                "file_format": NumPySupportedFormat.NPZ,
+                "allow_pickle": True,
+            },
+            unpack_handler="unpack_array_dict",
+            pack_parameters={"i": 1},
+            unpack_parameters={"i": 1},
+        ),
     ]
 
 
-_ARRAY_LIST_SAMPLE = list(_ARRAY_DICT_SAMPLE.values())
+_ARRAY_LIST_SAMPLES = [list(array_dict.values()) for array_dict in _ARRAY_DICT_SAMPLES]
 
 
-def pack_array_list() -> List[np.ndarray]:
-    return _ARRAY_LIST_SAMPLE
+def pack_array_list(i: int) -> list[np.ndarray]:
+    return _ARRAY_LIST_SAMPLES[i]
 
 
-def unpack_array_list(obj: List[np.ndarray]):
+def unpack_array_list(obj: list[np.ndarray], i: int):
     assert isinstance(obj, list) and all(isinstance(value, np.ndarray) for value in obj)
-    for obj_array, sample_array in zip(obj, _ARRAY_LIST_SAMPLE):
+    for obj_array, sample_array in zip(obj, _ARRAY_LIST_SAMPLES[i]):
         assert (obj_array == sample_array).all()
 
 
-def validate_array_list(result: List[list]) -> bool:
+def validate_array_list(result: list[list], i: int) -> bool:
     # Numppy arrays are serialized as lists:
-    for result_array, sample_array in zip(result, _ARRAY_LIST_SAMPLE):
+    for result_array, sample_array in zip(result, _ARRAY_LIST_SAMPLES[i]):
         if not (np.array(result_array) == sample_array).all():
             return False
     return True
 
 
-def prepare_array_list_file(file_format: str, **save_kwargs) -> Tuple[str, str]:
+def prepare_array_list_file(file_format: str, i: int, **save_kwargs) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
     formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
-    formatter.save(obj=_ARRAY_LIST_SAMPLE, file_path=file_path, **save_kwargs)
+    formatter.save(obj=_ARRAY_LIST_SAMPLES[i], file_path=file_path, **save_kwargs)
     return file_path, temp_directory
 
 
@@ -280,35 +349,50 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
     A tester for the `NumPyNDArrayListPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNDArrayListPackager
+    PACKAGER_IN_TEST = NumPyNDArrayListPackager()
 
     TESTS = [
-        PackTest(
-            pack_handler="pack_array_list",
-            log_hint="my_result: result",
-            validation_function=validate_array_list,
-        ),
+        *[
+            PackTest(
+                pack_handler="pack_array_list",
+                log_hint="my_result: result",
+                validation_function=validate_array_list,
+                pack_parameters={"i": i},
+                validation_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_LIST_SAMPLES))
+        ],
         *[
             UnpackTest(
                 prepare_input_function=prepare_array_list_file,
                 unpack_handler="unpack_array_list",
-                prepare_parameters={"file_format": file_format},
+                prepare_parameters={"file_format": file_format, "i": 0},
+                unpack_parameters={"i": 0},
             )
             for file_format in NumPySupportedFormat.get_multi_array_formats()
         ],
-        PackToUnpackTest(
-            pack_handler="pack_array_list",
-            log_hint="my_array: result",
-        ),
-        PackToUnpackTest(
-            pack_handler="pack_array_list",
-            log_hint="my_array: object",
-            expected_instructions={
-                **COMMON_OBJECT_INSTRUCTIONS,
-                "object_module_name": dict.__module__,
-            },
-            unpack_handler="unpack_array_list",
-        ),
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_array_list",
+                log_hint="my_array: result",
+                pack_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_LIST_SAMPLES))
+        ],
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_array_list",
+                log_hint="my_array: object",
+                expected_instructions={
+                    **COMMON_OBJECT_INSTRUCTIONS,
+                    "object_module_name": list.__module__,
+                },
+                unpack_handler="unpack_array_list",
+                pack_parameters={"i": i},
+                unpack_parameters={"i": i},
+            )
+            for i in range(len(_ARRAY_LIST_SAMPLES))
+        ],
         *[
             PackToUnpackTest(
                 pack_handler="pack_array_list",
@@ -320,7 +404,23 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
                     "file_format": file_format,
                 },
                 unpack_handler="unpack_array_list",
+                pack_parameters={"i": 0},
+                unpack_parameters={"i": 0},
             )
             for file_format in NumPySupportedFormat.get_multi_array_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_array_list",
+            log_hint={
+                "key": "my_array",
+                "file_format": NumPySupportedFormat.NPZ,
+            },
+            expected_instructions={
+                "file_format": NumPySupportedFormat.NPZ,
+                "allow_pickle": True,
+            },
+            unpack_handler="unpack_array_list",
+            pack_parameters={"i": 1},
+            unpack_parameters={"i": 1},
+        ),
     ]

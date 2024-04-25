@@ -21,7 +21,6 @@ import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from dateutil.tz import tzlocal
 from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
@@ -171,7 +170,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler, store: bool):
     # but executing the actual functional code - bumping the counter - happens a few microseconds afterwards.
     # To avoid transient errors on slow systems, we add extra margin.
     time_to_sleep = (
-        end_date - datetime.now()
+        end_date - mlrun.utils.now_date()
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
@@ -181,6 +180,7 @@ async def test_create_schedule(db: Session, scheduler: Scheduler, store: bool):
 @pytest.mark.asyncio
 async def test_invoke_schedule(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
@@ -241,6 +241,7 @@ async def test_invoke_schedule(
 # ML-4902
 async def test_get_schedule_last_run_deleted(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
@@ -288,10 +289,10 @@ async def test_get_schedule_last_run_deleted(
 @pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-
     project_name = config.default_project
     create_project(db, project_name)
 
@@ -320,7 +321,7 @@ async def test_create_schedule_mlrun_function(
         cron_trigger,
     )
     time_to_sleep = (
-        end_date - datetime.now()
+        end_date - mlrun.utils.now_date()
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
@@ -412,7 +413,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
         )
     )
     time_to_sleep = (
-        end_date - datetime.now()
+        end_date - mlrun.utils.now_date()
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
@@ -819,7 +820,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     )
 
     # wait so one run will complete
-    time_to_sleep = (start_date - datetime.now()).total_seconds() + 1
+    time_to_sleep = (start_date - mlrun.utils.now_date()).total_seconds() + 1
     await asyncio.sleep(time_to_sleep)
 
     # stop the scheduler and assert indeed only one call happened
@@ -954,8 +955,9 @@ async def test_schedule_access_key_generation(
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     access_key = "generated-access-key"
+    get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
     server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
-        unittest.mock.Mock(return_value=access_key)
+        get_or_create_access_key_mock
     )
     scheduler.create_schedule(
         db,
@@ -966,14 +968,15 @@ async def test_schedule_access_key_generation(
         scheduled_object,
         cron_trigger,
     )
-    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
+    get_or_create_access_key_mock.assert_called_once()
     _assert_schedule_auth_secrets(
         k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
     )
 
     access_key = "generated-access-key-2"
+    get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
     server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
-        unittest.mock.Mock(return_value=access_key)
+        get_or_create_access_key_mock
     )
     scheduler.update_schedule(
         db,
@@ -984,7 +987,7 @@ async def test_schedule_access_key_generation(
         schedule_name,
         labels={"label-key": "label-value"},
     )
-    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
+    get_or_create_access_key_mock.assert_called_once()
     _assert_schedule_auth_secrets(
         k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
     )
@@ -1088,6 +1091,7 @@ async def test_schedule_convert_from_old_credentials_to_new(
 @pytest.mark.asyncio
 async def test_update_schedule(
     db: Session,
+    client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
@@ -1222,7 +1226,7 @@ async def test_update_schedule(
         hour=end_date.hour,
         minute=end_date.minute,
         second=end_date.second,
-        tzinfo=tzlocal(),
+        tzinfo=timezone.utc,
     )
 
     _assert_schedule(
@@ -1236,7 +1240,7 @@ async def test_update_schedule(
         config.httpdb.scheduling.default_concurrency_limit,
     )
     time_to_sleep = (
-        end_date - datetime.now()
+        end_date - mlrun.utils.now_date()
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
@@ -1293,6 +1297,10 @@ async def test_update_schedule_failure_not_found_in_scheduler(
 
 
 @pytest.mark.asyncio
+# Marking the test as flaky since it depends on the scheduler to run the job in the right time.
+# We were experiencing issues with concurrency_limit > 1 where some job might be unexpectedly skipped due to
+# milliseconds delay. This issue is rare and if it seems to be happening more frequently, it should be addressed.
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.parametrize(
     # The function waits 2 seconds and the schedule runs every second for 4 seconds. So:
     # For 1 concurrent job, the second and fourth jobs should be skipped resulting in 2 runs.
@@ -1333,7 +1341,7 @@ async def test_schedule_job_concurrency_limit(
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
 
-    now = datetime.now(timezone.utc)
+    now = mlrun.utils.now_date()
     now_plus_1_seconds = now + timedelta(seconds=1)
     now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
@@ -1354,7 +1362,7 @@ async def test_schedule_job_concurrency_limit(
 
     random_sleep_time = random.randint(1, 5)
     await asyncio.sleep(random_sleep_time)
-    after_sleep_timestamp = datetime.now(timezone.utc)
+    after_sleep_timestamp = mlrun.utils.now_date()
 
     schedule = scheduler.get_schedule(
         db,
@@ -1392,7 +1400,7 @@ async def test_schedule_job_next_run_time(
     While the 1st run is still running, manually invoke the schedule (should fail due to concurrency limit)
     and check that the next run time is updated.
     """
-    now = datetime.now(timezone.utc)
+    now = mlrun.utils.now_date()
     now_plus_1_seconds = now + timedelta(seconds=1)
     now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
@@ -1420,7 +1428,7 @@ async def test_schedule_job_next_run_time(
         concurrency_limit=1,
     )
 
-    while datetime.now(timezone.utc) < now_plus_5_seconds:
+    while mlrun.utils.now_date() < now_plus_5_seconds:
         runs = get_db().list_runs(db, project=project_name)
         if len(runs) == 1:
             break
@@ -1431,7 +1439,7 @@ async def test_schedule_job_next_run_time(
 
     # invoke schedule should fail due to concurrency limit
     # the next run time should be updated to the next second after the invocation failure
-    schedule_invocation_timestamp = datetime.now(timezone.utc)
+    schedule_invocation_timestamp = mlrun.utils.now_date()
     await scheduler.invoke_schedule(
         db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
     )
@@ -1673,13 +1681,13 @@ def _get_start_and_end_time_for_scheduled_trigger(
     The scheduler executes the job on round seconds (when microsecond == 0)
     Therefore if the start time will be a round second - let's say 12:08:06.000000 and the end time 12:08:07.000000
     it means two executions will happen - at 06 and 07 second.
-    This is obviously very rare (since the times are based on datetime.now()) - usually the start time
+    This is obviously very rare (since the times are based on mlrun.utils.now_date()) - usually the start time
     will be something like 12:08:06.100000 then the end time will be 12:08:07.10000 - meaning there will be only
      one execution on the 07 second.
     So instead of conditioning every assertion we're doing on whether the start time was a round second,
      we simply make sure it's not a round second.
     """
-    now = datetime.now()
+    now = mlrun.utils.now_date()
     if now.microsecond == 0:
         now = now + timedelta(seconds=1, milliseconds=1)
     start_date = now + timedelta(seconds=1)

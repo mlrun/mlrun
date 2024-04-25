@@ -19,9 +19,8 @@ from mlrun.utils import logger
 
 
 def evaluate_condition_in_separate_process(
-    condition: str, context: typing.Dict[str, typing.Any], timeout: int = 5
+    condition: str, context: dict[str, typing.Any], timeout: int = 5
 ):
-
     if not condition:
         return True
 
@@ -45,14 +44,13 @@ def evaluate_condition_in_separate_process(
 
 
 def _evaluate_condition_wrapper(
-    connection, condition: str, context: typing.Dict[str, typing.Any]
+    connection, condition: str, context: dict[str, typing.Any]
 ):
     connection.send(_evaluate_condition(condition, context))
     return connection.close()
 
 
-def _evaluate_condition(condition: str, context: typing.Dict[str, typing.Any]):
-
+def _evaluate_condition(condition: str, context: dict[str, typing.Any]):
     import jinja2.sandbox
 
     jinja_env = jinja2.sandbox.SandboxedEnvironment()

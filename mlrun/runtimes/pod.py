@@ -15,6 +15,7 @@ import copy
 import inspect
 import os
 import re
+import time
 import typing
 from enum import Enum
 
@@ -105,6 +106,50 @@ class KubeResourceSpec(FunctionSpec):
         "security_context",
         "state_thresholds",
     ]
+    _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "replicas",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "priority_class_name",
+        "tolerations",
+        "preemption_mode",
+        "security_context",
+    ]
+    _k8s_fields_to_serialize = [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "env",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "tolerations",
+        "security_context",
+    ]
+    _fields_to_serialize = FunctionSpec._fields_to_serialize + _k8s_fields_to_serialize
+    _fields_to_enrich = FunctionSpec._fields_to_enrich + [
+        "env",  # Removing sensitive data from env
+    ]
+    _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
+        # TODO: affinity, tolerations and node_selector are skipped due to preemption mode transitions.
+        #  Preemption mode 'none' depends on the previous mode while the default mode may enrich these values.
+        #  When we allow 'None' values for these attributes we get their true values and they will undo the default
+        #  enrichment when creating the runtime from dict.
+        #  The enrichment should move to the server side and then this can be removed.
+        "affinity",
+        "tolerations",
+        "node_selector",
+    ]
 
     def __init__(
         self,
@@ -186,6 +231,9 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
+        # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
+        # _dict_fields and doesn't have a setter.
+        self._termination_grace_period_seconds = None
         self.__fields_pending_discard = {}
 
     @property
@@ -219,7 +267,7 @@ class KubeResourceSpec(FunctionSpec):
         self._affinity = transform_attribute_to_k8s_class_instance("affinity", affinity)
 
     @property
-    def tolerations(self) -> typing.List[k8s_client.V1Toleration]:
+    def tolerations(self) -> list[k8s_client.V1Toleration]:
         return self._tolerations
 
     @tolerations.setter
@@ -257,15 +305,46 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    def to_dict(self, fields=None, exclude=None):
-        exclude = exclude or []
-        _exclude = ["affinity", "tolerations", "security_context"]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-        api = k8s_client.ApiClient()
-        for field in _exclude:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
+    @property
+    def termination_grace_period_seconds(self) -> typing.Optional[int]:
+        return self._termination_grace_period_seconds
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        """
+        Serialize a field to a dict, list, or primitive type.
+        If field_name is in _k8s_fields_to_serialize, we will apply k8s serialization
+        """
+        k8s_api = k8s_client.ApiClient()
+        if field_name in self._k8s_fields_to_serialize:
+            return k8s_api.sanitize_for_serialization(getattr(self, field_name))
+        return super()._serialize_field(struct, field_name, strip)
+
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        k8s_api = k8s_client.ApiClient()
+        if strip:
+            if field_name == "env":
+                # We first try to pull from struct because the field might have been already serialized and if not,
+                # we pull from self
+                envs = struct.get(field_name, None) or getattr(self, field_name, None)
+                if envs:
+                    serialized_envs = k8s_api.sanitize_for_serialization(envs)
+                    for env in serialized_envs:
+                        if env["name"].startswith("V3IO_"):
+                            env["value"] = ""
+                    return serialized_envs
+        return super()._enrich_field(struct=struct, field_name=field_name, strip=strip)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ):
+        if strip:
+            # Reset this, since mounts and env variables were cleared.
+            struct["disable_auto_mount"] = False
+        return super()._apply_enrichment_before_to_dict_completion(struct, strip)
 
     def update_vols_and_mounts(
         self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
@@ -423,9 +502,9 @@ class KubeResourceSpec(FunctionSpec):
                         )
                         is None
                     ):
-                        resources[resource_requirement][
-                            resource_type
-                        ] = default_resources[resource_requirement][resource_type]
+                        resources[resource_requirement][resource_type] = (
+                            default_resources[resource_requirement][resource_type]
+                        )
         # This enables the user to define that no defaults would be applied on the resources
         elif resources == {}:
             return resources
@@ -448,7 +527,7 @@ class KubeResourceSpec(FunctionSpec):
             return {}
         return resources
 
-    def _merge_node_selector(self, node_selector: typing.Dict[str, str]):
+    def _merge_node_selector(self, node_selector: dict[str, str]):
         if not node_selector:
             return
 
@@ -457,7 +536,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _merge_tolerations(
         self,
-        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations: list[k8s_client.V1Toleration],
         tolerations_field_name: str,
     ):
         if not tolerations:
@@ -491,9 +570,7 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-            node_selector
-        )
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
 
     def enrich_function_preemption_spec(
         self,
@@ -593,7 +670,6 @@ class KubeResourceSpec(FunctionSpec):
             )
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
-
             # remove preemptible anti-affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
@@ -645,7 +721,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _merge_node_selector_term_to_node_affinity(
         self,
-        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
+        node_selector_terms: list[k8s_client.V1NodeSelectorTerm],
         affinity_field_name: str,
     ):
         if not node_selector_terms:
@@ -655,17 +731,13 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if (
-            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        ):
+        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = (
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        )
+        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -694,7 +766,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_affinity_node_selector_requirement(
         self,
-        node_selector_requirements: typing.List[k8s_client.V1NodeSelectorRequirement],
+        node_selector_requirements: list[k8s_client.V1NodeSelectorRequirement],
         affinity_field_name: str = "affinity",
     ):
         """
@@ -741,26 +813,26 @@ class KubeResourceSpec(FunctionSpec):
             self._initialize_affinity(affinity_field_name)
             self._initialize_node_affinity(affinity_field_name)
 
+            # fmt: off
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
                 new_required_during_scheduling_ignored_during_execution
             )
+            # fmt: on
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
-        node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm],
-        node_selector_requirements_to_prune: typing.List[
-            k8s_client.V1NodeSelectorRequirement
-        ],
-    ) -> typing.List[k8s_client.V1NodeSelectorTerm]:
+        node_selector_terms: list[k8s_client.V1NodeSelectorTerm],
+        node_selector_requirements_to_prune: list[k8s_client.V1NodeSelectorRequirement],
+    ) -> list[k8s_client.V1NodeSelectorTerm]:
         """
         Goes over each expression in all the terms provided and removes the expressions if it matches
         one of the requirements provided to remove
 
         :return: New list of terms without the provided node selector requirements
         """
-        new_node_selector_terms: typing.List[k8s_client.V1NodeSelectorTerm] = []
+        new_node_selector_terms: list[k8s_client.V1NodeSelectorTerm] = []
         for term in node_selector_terms:
-            new_node_selector_requirements: typing.List[
+            new_node_selector_requirements: list[
                 k8s_client.V1NodeSelectorRequirement
             ] = []
             for node_selector_requirement in term.match_expressions:
@@ -789,7 +861,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_tolerations(
         self,
-        tolerations: typing.List[k8s_client.V1Toleration],
+        tolerations: list[k8s_client.V1Toleration],
         tolerations_field_name: str = "tolerations",
     ):
         """
@@ -818,7 +890,7 @@ class KubeResourceSpec(FunctionSpec):
 
     def _prune_node_selector(
         self,
-        node_selector: typing.Dict[str, str],
+        node_selector: dict[str, str],
         node_selector_field_name: str,
     ):
         """
@@ -894,7 +966,6 @@ class AutoMountType(str, Enum):
         return mlrun.platforms.other.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
-
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun.v3io_cred,
@@ -907,11 +978,15 @@ class AutoMountType(str, Enum):
 
 
 class KubeResource(BaseRuntime):
+    """
+    A parent class for runtimes that generate k8s resources when executing.
+    """
+
     kind = "job"
     _is_nested = True
 
     def __init__(self, spec=None, metadata=None):
-        super().__init__(metadata, spec)
+        super().__init__(metadata=metadata, spec=spec)
         self.verbose = False
 
     @property
@@ -921,28 +996,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude, strip=strip)
-        api = k8s_client.ApiClient()
-        struct = api.sanitize_for_serialization(struct)
-        if strip:
-            spec = struct["spec"]
-            for attr in [
-                "volumes",
-                "volume_mounts",
-                "driver_volume_mounts",
-                "executor_volume_mounts",
-            ]:
-                if attr in spec:
-                    del spec[attr]
-            if "env" in spec and spec["env"]:
-                for ev in spec["env"]:
-                    if ev["name"].startswith("V3IO_"):
-                        ev["value"] = ""
-            # Reset this, since mounts and env variables were cleared.
-            spec["disable_auto_mount"] = False
-        return struct
 
     def apply(self, modify):
         """
@@ -1005,6 +1058,32 @@ class KubeResource(BaseRuntime):
                 return True
         return False
 
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        """
+        Enriches the runtime spec with the project-level node selector.
+
+        This method merges the project-level node selector with the existing function node_selector.
+        The merge logic used here combines the two dictionaries, giving precedence to
+        the keys in the runtime node_selector. If there are conflicting keys between the
+        two dictionaries, the values from self.spec.node_selector will overwrite the
+        values from project_node_selector.
+
+        Example:
+        Suppose self.spec.node_selector = {"type": "gpu", "zone": "us-east-1"}
+        and project_node_selector = {"type": "cpu", "environment": "production"}.
+        After the merge, the resulting node_selector will be:
+        {"type": "gpu", "zone": "us-east-1", "environment": "production"}
+
+        Note:
+        - The merge uses the ** operator, also known as the "unpacking" operator in Python,
+          combining key-value pairs from each dictionary. Later dictionaries take precedence
+          when there are conflicting keys.
+        """
+        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
+
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
         i = 0
@@ -1060,7 +1139,7 @@ class KubeResource(BaseRuntime):
 
     def set_state_thresholds(
         self,
-        state_thresholds: typing.Dict[str, str],
+        state_thresholds: dict[str, str],
         patch: bool = True,
     ):
         """
@@ -1072,11 +1151,13 @@ class KubeResource(BaseRuntime):
         If the threshold is not set for a state, the default threshold will be used.
 
         :param state_thresholds: A dictionary of state to threshold. The supported states are:
-            * pending_scheduled - The pod is scheduled on a node but not yet running
-            * pending_not_scheduled - The pod is not yet scheduled on a node
-            * running - The is running
-            * image_pull_backoff - The is in image pull backoff
+
+            * pending_scheduled - The pod/crd is scheduled on a node but not yet running
+            * pending_not_scheduled - The pod/crd is not yet scheduled on a node
+            * executing - The pod/crd started and is running
+            * image_pull_backoff - The pod/crd is in image pull backoff
             See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)
         """
@@ -1119,9 +1200,9 @@ class KubeResource(BaseRuntime):
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[typing.Dict[str, str]] = None,
+        node_selector: typing.Optional[dict[str, str]] = None,
         affinity: typing.Optional[k8s_client.V1Affinity] = None,
-        tolerations: typing.Optional[typing.List[k8s_client.V1Toleration]] = None,
+        tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
     ):
         """
         Enables to control on which k8s node the job will run
@@ -1192,14 +1273,14 @@ class KubeResource(BaseRuntime):
         For Iguazio we handle security context internally -
         see mlrun.common.schemas.function.SecurityContextEnrichmentModes
 
-        Example:
+        Example::
 
             from kubernetes import client as k8s_client
 
             security_context = k8s_client.V1SecurityContext(
-                        run_as_user=1000,
-                        run_as_group=3000,
-                    )
+                run_as_user=1000,
+                run_as_group=3000,
+            )
             function.with_security_context(security_context)
 
         More info:
@@ -1257,6 +1338,150 @@ class KubeResource(BaseRuntime):
                 )
 
         self.spec.validate_service_account(allowed_service_accounts)
+
+    def _configure_mlrun_build_with_source(
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+    ):
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
+
+        self.spec.build.source = source
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
+        if target_dir:
+            self.spec.build.source_code_target_dir = target_dir
+
+        self.spec.build.load_source_on_run = pull_at_runtime
+        if (
+            self.spec.build.base_image
+            and not self.spec.build.commands
+            and pull_at_runtime
+            and not self.spec.image
+        ):
+            # if we load source from repo and don't need a full build use the base_image as the image
+            self.spec.image = self.spec.build.base_image
+        elif not pull_at_runtime:
+            # clear the image so build will not be skipped
+            self.spec.build.base_image = self.spec.build.base_image or self.spec.image
+            self.spec.image = ""
+
+    def _resolve_build_with_mlrun(self, with_mlrun: typing.Optional[bool] = None):
+        build = self.spec.build
+        if with_mlrun is None:
+            if build.with_mlrun is not None:
+                with_mlrun = build.with_mlrun
+            else:
+                with_mlrun = build.base_image and not (
+                    build.base_image.startswith("mlrun/")
+                    or "/mlrun/" in build.base_image
+                )
+        if (
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
+        ):
+            logger.info(
+                "Running build to add mlrun package, set "
+                "with_mlrun=False to skip if its already in the image"
+            )
+        return with_mlrun
+
+    def _build_image(
+        self,
+        builder_env,
+        force_build,
+        mlrun_version_specifier,
+        show_on_failure,
+        skip_deployed,
+        watch,
+        is_kfp,
+        with_mlrun,
+    ):
+        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
+        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
+        if is_kfp:
+            watch = True
+
+        db = self._get_db()
+        data = db.remote_builder(
+            self,
+            with_mlrun,
+            mlrun_version_specifier,
+            skip_deployed,
+            builder_env=builder_env,
+            force_build=force_build,
+        )
+        self.status = data["data"].get("status", None)
+        self.spec.image = mlrun.utils.get_in(
+            data, "data.spec.image"
+        ) or mlrun.utils.get_in(data, "data.spec.build.image")
+        self.spec.build.base_image = self.spec.build.base_image or mlrun.utils.get_in(
+            data, "data.spec.build.base_image"
+        )
+        # Get the source target dir in case it was enriched due to loading source
+        self.spec.build.source_code_target_dir = mlrun.utils.get_in(
+            data, "data.spec.build.source_code_target_dir"
+        ) or mlrun.utils.get_in(data, "data.spec.clone_target_dir")
+        ready = data.get("ready", False)
+        if not ready:
+            logger.info(
+                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+            )
+        if watch and not ready:
+            state = self._build_watch(
+                watch=watch,
+                show_on_failure=show_on_failure,
+            )
+            ready = state == "ready"
+            self.status.state = state
+
+        if watch and not ready:
+            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
+        return ready
+
+    def _build_watch(
+        self,
+        watch: bool = True,
+        logs: bool = True,
+        show_on_failure: bool = False,
+    ):
+        db = self._get_db()
+        offset = 0
+        try:
+            text, _ = db.get_builder_status(self, 0, logs=logs)
+        except mlrun.db.RunDBError:
+            raise ValueError("function or build process not found")
+
+        def print_log(text):
+            if text and (
+                not show_on_failure
+                or self.status.state == mlrun.common.schemas.FunctionState.error
+            ):
+                print(text, end="")
+
+        print_log(text)
+        offset += len(text)
+        if watch:
+            while self.status.state in [
+                mlrun.common.schemas.FunctionState.pending,
+                mlrun.common.schemas.FunctionState.running,
+            ]:
+                time.sleep(2)
+                if show_on_failure:
+                    text = ""
+                    db.get_builder_status(self, 0, logs=False)
+                    if self.status.state == mlrun.common.schemas.FunctionState.error:
+                        # re-read the full log on failure
+                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                else:
+                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                print_log(text)
+                offset += len(text)
+
+        return self.status.state
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

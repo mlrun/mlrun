@@ -35,8 +35,8 @@ class LogHintUtils:
 
     @staticmethod
     def parse_log_hint(
-        log_hint: typing.Union[typing.Dict[str, str], str, None]
-    ) -> typing.Union[typing.Dict[str, str], None]:
+        log_hint: typing.Union[dict[str, str], str, None],
+    ) -> typing.Union[dict[str, str], None]:
         """
         Parse a given log hint from string to a logging configuration dictionary. The string will be read as the
         artifact key ('key' in the dictionary) and if the string have a single colon, the following structure is

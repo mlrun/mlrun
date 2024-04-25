@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import collections
 import datetime
+import json
 import os
 import pathlib
 import typing
@@ -24,17 +24,23 @@ import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.artifacts
+import mlrun.artifacts.base
 import mlrun.common.schemas
+import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
 import server.api.db.sqldb.helpers
 import server.api.db.sqldb.models
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
-import server.api.utils.db.sqlite_migration
+from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
-from mlrun.errors import err_to_str
-from mlrun.utils import is_legacy_artifact, logger
+from mlrun.errors import MLRunPreconditionFailedError, err_to_str
+from mlrun.utils import (
+    is_legacy_artifact,
+    is_link_artifact,
+    logger,
+)
 from server.api.db.init_db import init_db
 from server.api.db.session import close_session, create_session
 
@@ -58,17 +64,12 @@ def init_data(
                 f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
             )
 
-    sqlite_migration_util = None
-    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = (
-            server.api.utils.db.sqlite_migration.SQLiteMigrationUtil()
-        )
     alembic_util = _create_alembic_util()
     (
         is_migration_needed,
         is_migration_from_scratch,
         is_backup_needed,
-    ) = _resolve_needed_operations(alembic_util, sqlite_migration_util, from_scratch)
+    ) = _resolve_needed_operations(alembic_util, from_scratch)
 
     if (
         not is_migration_from_scratch
@@ -91,9 +92,6 @@ def init_data(
     if is_migration_from_scratch or is_migration_needed:
         try:
             _perform_schema_migrations(alembic_util)
-
-            _perform_database_migration(sqlite_migration_util)
-
             init_db()
             db_session = create_session()
             try:
@@ -113,6 +111,15 @@ def init_data(
         config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+    if not from_scratch:
+        # Cleanup pagination cache on api startup
+        session = create_session()
+        server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+            session
+        )
+        session.commit()
+
     logger.info("Initial data created")
 
 
@@ -122,7 +129,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 4
+latest_data_version = 5
 
 
 def update_default_configuration_data():
@@ -137,42 +144,29 @@ def update_default_configuration_data():
 
 def _resolve_needed_operations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
-    sqlite_migration_util: typing.Optional[
-        server.api.utils.db.sqlite_migration.SQLiteMigrationUtil
-    ],
     force_from_scratch: bool = False,
-) -> typing.Tuple[bool, bool, bool]:
-    is_database_migration_needed = False
-    if sqlite_migration_util is not None:
-        is_database_migration_needed = (
-            sqlite_migration_util.is_database_migration_needed()
-        )
-    # the util checks whether the target DB has data, when database migration needed, it obviously does not have data
-    # but in that case it's not really a migration from scratch
+) -> tuple[bool, bool, bool]:
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
-    ) and not is_database_migration_needed
+    )
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
         and config.httpdb.db.data_migrations_mode == "enabled"
     )
-    is_migration_needed = is_database_migration_needed or (
-        not is_migration_from_scratch
-        and (is_schema_migration_needed or is_data_migration_needed)
+    is_migration_needed = not is_migration_from_scratch and (
+        is_schema_migration_needed or is_data_migration_needed
     )
     is_backup_needed = (
         config.httpdb.db.backup.mode == "enabled"
         and is_migration_needed
         and not is_migration_from_scratch
-        and not is_database_migration_needed
     )
     logger.info(
         "Checking if migration is needed",
         is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
-        is_database_migration_needed=is_database_migration_needed,
         is_backup_needed=is_backup_needed,
         is_migration_needed=is_migration_needed,
     )
@@ -212,16 +206,6 @@ def _is_latest_data_version():
     return current_data_version == latest_data_version
 
 
-def _perform_database_migration(
-    sqlite_migration_util: typing.Optional[
-        server.api.utils.db.sqlite_migration.SQLiteMigrationUtil
-    ],
-):
-    if sqlite_migration_util:
-        logger.info("Performing database migration")
-        sqlite_migration_util.transfer()
-
-
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     if config.httpdb.db.data_migrations_mode == "enabled":
         db = server.api.db.sqldb.db.SQLDB()
@@ -233,215 +217,24 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 latest_data_version=latest_data_version,
             )
             if current_data_version < 1:
-                _perform_version_1_data_migrations(db, db_session)
+                raise MLRunPreconditionFailedError(
+                    "Data migration from data version 0 is not supported. "
+                    "Upgrade to MLRun <= 1.5.0 before performing this migration"
+                )
             if current_data_version < 2:
                 _perform_version_2_data_migrations(db, db_session)
             if current_data_version < 3:
                 _perform_version_3_data_migrations(db, db_session)
             if current_data_version < 4:
                 _perform_version_4_data_migrations(db, db_session)
+            if current_data_version < 5:
+                _perform_version_5_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = server.api.db.sqldb.db.SQLDB()
     _add_data_version(db, db_session)
-
-
-def _fix_datasets_large_previews(
-    db: server.api.db.sqldb.db.SQLDB,
-    db_session: sqlalchemy.orm.Session,
-):
-    logger.info("Fixing datasets large previews")
-    # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, "*")
-    for artifact in artifacts:
-        try:
-            artifact_dict = artifact.struct
-            if (
-                artifact_dict
-                and artifact_dict.get("kind") == mlrun.artifacts.DatasetArtifact.kind
-            ):
-                is_legacy = is_legacy_artifact(artifact_dict)
-
-                header = (
-                    artifact_dict.get("header", [])
-                    if is_legacy
-                    else artifact_dict.get("spec", {}).get("header", [])
-                )
-                if header and len(header) > mlrun.artifacts.dataset.max_preview_columns:
-                    logger.debug(
-                        "Found dataset artifact with more than allowed columns in preview fields. Fixing",
-                        artifact=artifact_dict,
-                    )
-                    columns_to_remove = header[
-                        mlrun.artifacts.dataset.max_preview_columns :
-                    ]
-
-                    # align preview
-                    preview = (
-                        artifact_dict.get("preview")
-                        if is_legacy
-                        else artifact_dict.get("status", {}).get("preview")
-                    )
-                    if preview:
-                        new_preview = []
-                        for preview_row in preview:
-                            # sanity
-                            if (
-                                len(preview_row)
-                                < mlrun.artifacts.dataset.max_preview_columns
-                            ):
-                                logger.warning(
-                                    "Found artifact with more than allowed columns in header definition, "
-                                    "but preview data is valid. Leaving preview as is",
-                                    artifact=artifact_dict,
-                                )
-                            new_preview.append(
-                                preview_row[
-                                    : mlrun.artifacts.dataset.max_preview_columns
-                                ]
-                            )
-
-                        if is_legacy:
-                            artifact_dict["preview"] = new_preview
-                        else:
-                            artifact_dict["status"]["preview"] = new_preview
-
-                    # align stats
-                    for column_to_remove in columns_to_remove:
-                        artifact_stats = (
-                            artifact_dict.get("stats", {})
-                            if is_legacy
-                            else artifact_dict.get("status").get("stats", {})
-                        )
-                        if column_to_remove in artifact_stats:
-                            del artifact_stats[column_to_remove]
-
-                    # align schema
-                    schema_dict = (
-                        artifact_dict.get("schema", {})
-                        if is_legacy
-                        else artifact_dict.get("spec").get("schema", {})
-                    )
-                    if schema_dict.get("fields"):
-                        new_schema_fields = []
-                        for field in schema_dict["fields"]:
-                            if field.get("name") not in columns_to_remove:
-                                new_schema_fields.append(field)
-                        schema_dict["fields"] = new_schema_fields
-
-                    # lastly, align headers
-                    if is_legacy:
-                        artifact_dict["header"] = header[
-                            : mlrun.artifacts.dataset.max_preview_columns
-                        ]
-                    else:
-                        artifact_dict["spec"]["header"] = header[
-                            : mlrun.artifacts.dataset.max_preview_columns
-                        ]
-
-                    logger.debug(
-                        "Fixed dataset artifact preview fields. Storing",
-                        artifact=artifact_dict,
-                    )
-                    db._store_artifact(
-                        db_session,
-                        artifact.key,
-                        artifact_dict,
-                        artifact.uid,
-                        project=artifact.project,
-                        tag_artifact=False,
-                    )
-        except Exception as exc:
-            logger.warning(
-                "Failed fixing dataset artifact large preview. Continuing",
-                exc=exc,
-            )
-
-
-def _fix_artifact_tags_duplications(
-    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Fixing artifact tags duplications")
-    # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, "*")
-    # get all artifact tags
-    tags = db._query(db_session, server.api.db.sqldb.models.Artifact.Tag).all()
-    # artifact record id -> artifact
-    artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
-    tags_to_delete = []
-    projects = {artifact.project for artifact in artifacts}
-    for project in projects:
-        artifact_keys = {
-            artifact.key for artifact in artifacts if artifact.project == project
-        }
-        for artifact_key in artifact_keys:
-            artifact_key_tags = []
-            for tag in tags:
-                # sanity
-                if tag.obj_id not in artifact_record_id_map:
-                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
-                if artifact_record_id_map[tag.obj_id].key == artifact_key:
-                    artifact_key_tags.append(tag)
-            tag_name_tags_map = collections.defaultdict(list)
-            for tag in artifact_key_tags:
-                tag_name_tags_map[tag.name].append(tag)
-            for tag_name, _tags in tag_name_tags_map.items():
-                if len(_tags) == 1:
-                    continue
-                tags_artifacts = [artifact_record_id_map[tag.obj_id] for tag in _tags]
-                last_updated_artifact = _find_last_updated_artifact(tags_artifacts)
-                for tag in _tags:
-                    if tag.obj_id != last_updated_artifact.id:
-                        tags_to_delete.append(tag)
-    if tags_to_delete:
-        logger.info(
-            "Found duplicated artifact tags. Removing duplications",
-            tags_to_delete=[
-                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
-            ],
-            tags=[tag.to_dict() for tag in tags],
-            artifacts=[artifact.to_dict() for artifact in artifacts],
-        )
-        for tag in tags_to_delete:
-            db_session.delete(tag)
-        db_session.commit()
-
-
-def _find_last_updated_artifact(
-    artifacts: typing.List[server.api.db.sqldb.models.Artifact],
-):
-    # sanity
-    if not artifacts:
-        raise RuntimeError("No artifacts given")
-    last_updated_artifact = None
-    last_updated_artifact_time = datetime.datetime.min
-    artifacts_with_same_update_time = []
-    for artifact in artifacts:
-        if artifact.updated > last_updated_artifact_time:
-            last_updated_artifact = artifact
-            last_updated_artifact_time = last_updated_artifact.updated
-            artifacts_with_same_update_time = [last_updated_artifact]
-        elif artifact.updated == last_updated_artifact_time:
-            artifacts_with_same_update_time.append(artifact)
-    if len(artifacts_with_same_update_time) > 1:
-        logger.warning(
-            "Found several artifact with same update time, heuristically choosing the first",
-            artifacts=[
-                artifact.to_dict() for artifact in artifacts_with_same_update_time
-            ],
-        )
-        # we don't really need to do anything to choose the first, it's already happening because the first if is >
-        # and not >=
-    if not last_updated_artifact:
-        logger.warning(
-            "No artifact had update time, heuristically choosing the first",
-            artifacts=[artifact.to_dict() for artifact in artifacts],
-        )
-        last_updated_artifact = artifacts[0]
-
-    return last_updated_artifact
 
 
 def _perform_version_2_data_migrations(
@@ -462,8 +255,8 @@ def _align_runs_table(
         run.start_time = (
             server.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
         )
-        # in case no start time was in the body, we took the time from thecolumn, let's make sure the body will have it
-        # as well
+        # in case no start time was in the body, we took the time from the column, let's make sure the body will have
+        # it as well
         run_dict.setdefault("status", {})["start_time"] = (
             db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
         )
@@ -513,35 +306,6 @@ def _rename_marketplace_kind_to_hub(
         # save the object back to the db
         hub.full_object = hub_dict
         db._upsert(db_session, [hub], ignore=True)
-
-
-def _perform_version_1_data_migrations(
-    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _enrich_project_state(db, db_session)
-    _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
-
-
-def _enrich_project_state(
-    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Enriching projects state")
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        changed = False
-        if not project.spec.desired_state:
-            changed = True
-            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
-        if not project.status.state:
-            changed = True
-            project.status.state = project.spec.desired_state
-        if changed:
-            logger.debug(
-                "Found project without state data. Enriching",
-                name=project.metadata.name,
-            )
-            db.store_project(db_session, project.metadata.name, project)
 
 
 def _perform_version_4_data_migrations(
@@ -663,7 +427,7 @@ def _resolve_current_data_version(
         if not projects or not projects.projects:
             logger.info(
                 "No projects in DB, assuming latest data version",
-                exc=exc,
+                exc=err_to_str(exc),
                 latest_data_version=latest_data_version,
             )
             return latest_data_version
@@ -679,12 +443,382 @@ def _resolve_current_data_version(
         elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
             logger.info(
                 "Data version table exist without version, assuming prior version",
-                exc=exc,
+                exc=err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition
 
         raise exc
+
+
+def _perform_version_5_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_artifacts_table_v2(db, db_session)
+
+
+def _migrate_artifacts_table_v2(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    """
+    Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
+    The migration is done in batches, to not overload the db. A state file is used to keep track of the migration
+    progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
+    Delete the old artifacts table when done.
+    """
+
+    # count the total number of artifacts to migrate
+    total_artifacts_count = db._query(
+        db_session, server.api.db.sqldb.models.Artifact
+    ).count()
+
+    if total_artifacts_count == 0:
+        logger.info("No v1 artifacts in the system, skipping migration")
+        return
+
+    logger.info(
+        "Migrating artifacts to artifacts_v2 table",
+        total_artifacts_count=total_artifacts_count,
+    )
+    batch_size = config.artifacts.artifact_migration_batch_size
+
+    # get the id of the last migrated artifact and the list of all link artifacts ids from the state file
+    last_migrated_artifact_id, link_artifact_ids = _get_migration_state()
+
+    while True:
+        # migrate the next batch
+        last_migrated_artifact_id, batch_link_artifact_ids = _migrate_artifacts_batch(
+            db, db_session, last_migrated_artifact_id, batch_size
+        )
+        if batch_link_artifact_ids:
+            link_artifact_ids.update(batch_link_artifact_ids)
+
+        if last_migrated_artifact_id is None:
+            # we're done
+            break
+        _update_state_file(last_migrated_artifact_id, link_artifact_ids)
+
+    # find the best iteration artifacts the link artifacts point at ,
+    # and mark them as best iteration artifacts in the new artifacts_v2 table
+    _mark_best_iteration_artifacts(db, db_session, link_artifact_ids)
+
+    # delete the state file
+    _delete_state_file()
+
+    logger.debug("Deleting old artifacts table, including their labels and tags")
+
+    # drop the old artifacts table, including their labels and tags tables
+    db.delete_table_records(
+        db_session, server.api.db.sqldb.models.Artifact.Label, raise_on_not_exists=False
+    )
+    db.delete_table_records(
+        db_session, server.api.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
+    )
+    db.delete_table_records(
+        db_session, server.api.db.sqldb.models.Artifact, raise_on_not_exists=False
+    )
+
+    logger.info("Finished migrating artifacts to artifacts_v2 table successfully")
+
+
+def _migrate_artifacts_batch(
+    db: server.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    last_migrated_artifact_id: int,
+    batch_size: int,
+):
+    new_artifacts = []
+    old_id_to_artifact = {}
+    artifacts_labels_to_migrate = []
+    link_artifact_ids = []
+
+    # get artifacts from the db, sorted by id
+    query = db._query(db_session, server.api.db.sqldb.models.Artifact)
+    if last_migrated_artifact_id > 0:
+        # skip the artifacts that were already migrated
+        query = query.filter(
+            server.api.db.sqldb.models.Artifact.id > last_migrated_artifact_id
+        )
+
+    query = query.order_by(server.api.db.sqldb.models.Artifact.id).limit(batch_size)
+
+    artifacts = query.all()
+
+    if len(artifacts) == 0:
+        # we're done
+        return None, None
+
+    logger.debug("Migrating artifacts batch", batch_size=len(artifacts))
+
+    for artifact in artifacts:
+        new_artifact = server.api.db.sqldb.models.ArtifactV2()
+
+        artifact_dict = artifact.struct
+
+        if is_legacy_artifact(artifact_dict):
+            # convert the legacy artifact to the new format, by setting a metadata field and spec field
+            # and copying the old fields to the spec
+            artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact_dict
+            ).to_dict()
+
+        # if it is a link artifact, keep its id. we will use it later to update the best iteration artifacts
+        if is_link_artifact(artifact_dict):
+            link_artifact_ids.append(artifact.id)
+            continue
+
+        artifact_metadata = artifact_dict.get("metadata", None)
+
+        # producer_id - the current uid value
+        # uid can be in the metadata or in the artifact itself, or in the tree field
+        old_uid = artifact_metadata.get("uid", None)
+        if not old_uid:
+            old_uid = artifact_dict.get("uid", None)
+        if not old_uid:
+            old_uid = artifact_metadata.get("tree", None)
+        new_artifact.producer_id = old_uid
+
+        # project - copy as is
+        new_artifact.project = artifact_metadata.get("project", None)
+
+        # iteration - the artifact's iteration
+        iteration = artifact_metadata.get("iter", None)
+        new_artifact.iteration = int(iteration) if iteration else 0
+
+        # key - retain the db key to ensure BC of reading artifacts by the index key.
+        # if iteration is concatenated to the key, remove it as this was only handled in the backend,
+        # and now the iteration is saved in a separate column
+        key = artifact.key
+        if iteration and key.startswith(f"{iteration}-"):
+            key = key[len(f"{iteration}-") :]
+        new_artifact.key = key
+
+        # best iteration
+        # if iteration == 0 it means it is from a single run since link artifacts were already
+        # handled above - so we can set is as best iteration.
+        # otherwise set to false, the best iteration artifact will be updated later
+        if new_artifact.iteration == 0:
+            new_artifact.best_iteration = True
+        else:
+            new_artifact.best_iteration = False
+
+        # uid - calculate as the hash of the artifact object
+        uid = fill_artifact_object_hash(
+            artifact_dict, new_artifact.iteration, new_artifact.producer_id
+        )
+        new_artifact.uid = uid
+
+        # kind - doesn't exist in v1, will be set to "artifact" by default
+        new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
+
+        # updated - the artifact's updated time
+        updated = artifact_metadata.get("updated", datetime.datetime.now())
+        new_artifact.updated = updated
+
+        # created - the artifact's created time
+        # since this is a new field, we just take the updated time
+        new_artifact.created = updated
+
+        # full_object - the artifact dict
+        new_artifact.full_object = artifact_dict
+
+        # save the new object to the db
+        new_artifacts.append(new_artifact)
+
+        last_migrated_artifact_id = artifact.id
+
+        # keep the old tag to artifact mapping, so we can migrate the tags later
+        old_id_to_artifact[artifact.id] = new_artifact
+
+        # save the artifact's labels to migrate them later
+        labels = artifact_metadata.get("labels", {})
+        if labels:
+            artifacts_labels_to_migrate.append((new_artifact, labels))
+
+    # add the new artifacts to the db session
+    db_session.add_all(new_artifacts)
+
+    # commit the new artifacts first, so they will get an id that can be used when creating tags and labels
+    db._commit(db_session, new_artifacts)
+
+    # migrate artifact labels to the new table ("artifact_v2_labels")
+    new_labels = _migrate_artifact_labels(db_session, artifacts_labels_to_migrate)
+
+    # migrate artifact tags to the new table ("artifact_v2_tags")
+    new_tags = _migrate_artifact_tags(db_session, old_id_to_artifact)
+
+    # commit the new labels and tags
+    db._commit(db_session, new_labels + new_tags)
+
+    return last_migrated_artifact_id, link_artifact_ids
+
+
+def _migrate_artifact_labels(
+    db_session: sqlalchemy.orm.Session,
+    artifacts_labels_to_migrate: list,
+):
+    if not artifacts_labels_to_migrate:
+        return []
+
+    labels = []
+
+    # iterate over all the artifacts, and create labels for each one
+    for artifact, artifacts_labels in artifacts_labels_to_migrate:
+        for name, value in artifacts_labels.items():
+            new_label = artifact.Label(
+                name=name,
+                value=value,
+                parent=artifact.id,
+            )
+            labels.append(new_label)
+    if labels:
+        db_session.add_all(labels)
+    return labels
+
+
+def _migrate_artifact_tags(
+    db_session: sqlalchemy.orm.Session,
+    old_id_to_artifact: dict[typing.Any, server.api.db.sqldb.models.ArtifactV2],
+):
+    if not old_id_to_artifact:
+        return []
+
+    new_tags = []
+
+    # get all tags that are attached to the artifacts we migrated
+    old_tags = (
+        db_session.query(server.api.db.sqldb.models.Artifact.Tag)
+        .filter(
+            server.api.db.sqldb.models.Artifact.Tag.obj_id.in_(
+                old_id_to_artifact.keys()
+            )
+        )
+        .all()
+    )
+
+    for old_tag in old_tags:
+        new_artifact = old_id_to_artifact[old_tag.obj_id]
+
+        # create a new tag object
+        new_tag = server.api.db.sqldb.models.ArtifactV2.Tag(
+            project=new_artifact.project,
+            name=old_tag.name,
+            obj_name=new_artifact.key,
+            obj_id=new_artifact.id,
+        )
+        new_tags.append(new_tag)
+
+    if new_tags:
+        db_session.add_all(new_tags)
+
+    return new_tags
+
+
+def _mark_best_iteration_artifacts(
+    db: server.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    link_artifact_ids: list,
+):
+    artifacts_to_commit = []
+
+    # get all link artifacts
+    link_artifacts = (
+        db_session.query(server.api.db.sqldb.models.Artifact)
+        .filter(server.api.db.sqldb.models.Artifact.id.in_(link_artifact_ids))
+        .all()
+    )
+
+    # get all the artifacts that are attached to the link artifacts
+    for link_artifact in link_artifacts:
+        link_artifact_dict = link_artifact.struct
+        if is_legacy_artifact(link_artifact_dict):
+            # convert the legacy artifact to the new format, so we can use the same logic
+            link_artifact_dict = (
+                mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                    link_artifact_dict
+                ).to_dict()
+            )
+
+        # get the artifacts attached to the link artifact
+        # if the link key was set explicitly, we should use it to find the artifacts, otherwise use the artifact's key
+        link_artifact_key = link_artifact_dict.get("spec").get(
+            "link_key", None
+        ) or link_artifact_dict.get("key", None)
+        link_iteration = link_artifact_dict.get("spec").get("link_iteration", None)
+        link_tree = link_artifact_dict.get("spec").get("link_tree", None)
+
+        if not link_iteration:
+            logger.warning(
+                "Link artifact is missing link iteration, skipping",
+                link_artifact_key=link_artifact_key,
+                link_artifact_id=link_artifact.id,
+            )
+            continue
+
+        # get the artifacts attached to the link artifact
+        query = db._query(db_session, server.api.db.sqldb.models.ArtifactV2).filter(
+            server.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
+            server.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
+        )
+        if link_tree:
+            query = query.filter(
+                server.api.db.sqldb.models.ArtifactV2.producer_id == link_tree
+            )
+
+        artifact = query.one_or_none()
+        if not artifact:
+            logger.warning(
+                "Link artifact is pointing to a non-existent artifact, skipping",
+                link_artifact_key=link_artifact_key,
+                link_iteration=link_iteration,
+                link_artifact_id=link_artifact.id,
+            )
+            continue
+
+        artifact.best_iteration = True
+        artifacts_to_commit.append(artifact)
+
+    db._commit(db_session, artifacts_to_commit)
+
+
+def _get_migration_state():
+    """
+    Get the id of the last migrated artifact from the state file.
+    If the state file does not exist, return 0.
+    """
+    try:
+        with open(config.artifacts.artifact_migration_state_file_path) as state_file:
+            state = json.load(state_file)
+            return state.get("last_migrated_id", 0), set(
+                state.get("link_artifact_ids", [])
+            )
+    except FileNotFoundError:
+        return 0, set()
+
+
+def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
+    """Create or update the state file with the given batch index.
+
+    :param last_migrated_id: The id of the last migrated artifact.
+    """
+    state_file_path = config.artifacts.artifact_migration_state_file_path
+    state_file_dir = os.path.dirname(state_file_path)
+    if not os.path.exists(state_file_dir):
+        os.makedirs(state_file_dir)
+    with open(state_file_path, "w") as state_file:
+        state = {
+            "last_migrated_id": last_migrated_id,
+            "link_artifact_ids": list(link_artifact_ids),
+        }
+        json.dump(state, state_file)
+
+
+def _delete_state_file():
+    """Delete the state file."""
+    try:
+        os.remove(config.artifacts.artifact_migration_state_file_path)
+    except FileNotFoundError:
+        pass
 
 
 def main() -> None:

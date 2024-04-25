@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Callable, Dict, List, Union
+from typing import Callable, Union
 
 import tensorflow as tf
 from packaging import version
@@ -38,7 +38,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: List[Callable[[Union[Variable]], Union[float, Variable]]],
+        statistics_functions: list[Callable[[Union[Variable]], Union[float, Variable]]],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
@@ -67,7 +67,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Default: 'epoch'.
         """
-        super(_TFKerasTensorboardLogger, self).__init__(
+        super().__init__(
             statistics_functions=statistics_functions,
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -255,15 +255,15 @@ class TensorboardLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
-        weights: Union[bool, List[str]] = False,
-        statistics_functions: List[
+        weights: Union[bool, list[str]] = False,
+        statistics_functions: list[
             Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
         ] = None,
-        dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
+        dynamic_hyperparameters: dict[
+            str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[TFKerasTypes.TrackableType, List[Union[str, int]]]
+        static_hyperparameters: dict[
+            str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -325,7 +325,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :raise MLRunInvalidArgumentError: In case both 'context' and 'tensorboard_directory' parameters were not given
                                           or the 'update_frequency' was incorrect.
         """
-        super(TensorboardLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -352,7 +352,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         self._logged_model = False
         self._logged_hyperparameters = False
 
-    def get_weights(self) -> Dict[str, Variable]:
+    def get_weights(self) -> dict[str, Variable]:
         """
         Get the weights tensors tracked. The weights will be stored in a dictionary where each key is the weight's name
         and the value is the weight's parameter (tensor).
@@ -361,7 +361,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         """
         return self._logger.weights
 
-    def get_weights_statistics(self) -> Dict[str, Dict[str, List[float]]]:
+    def get_weights_statistics(self) -> dict[str, dict[str, list[float]]]:
         """
         Get the weights mean results logged. The results will be stored in a dictionary where each key is the weight's
         name and the value is a list of mean values per epoch.
@@ -408,7 +408,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs: Currently the output of the last call to `on_epoch_end()` is passed to this argument for this
                      method but that may change in the future.
         """
-        super(TensorboardLoggingCallback, self).on_train_end()
+        super().on_train_end()
 
         # Write the final run summary:
         self._logger.write_final_summary_text()
@@ -453,7 +453,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs: Currently no data is passed to this argument for this method but that may change in the
                      future.
         """
-        super(TensorboardLoggingCallback, self).on_test_end(logs=logs)
+        super().on_test_end(logs=logs)
 
         # Check if needed to end the run (in case of evaluation and not training):
         if not self._is_training:
@@ -477,7 +477,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                       `Model`'s metrics are returned. Example : `{'loss': 0.2, 'acc': 0.7}`.
         """
         # Update the dynamic hyperparameters
-        super(TensorboardLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Log the weights statistics:
         self._logger.log_weights_statistics()
@@ -515,9 +515,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs:  Aggregated metric results up until this batch.
         """
         # Log the batch's results:
-        super(TensorboardLoggingCallback, self).on_train_batch_end(
-            batch=batch, logs=logs
-        )
+        super().on_train_batch_end(batch=batch, logs=logs)
 
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_training_results()
@@ -540,9 +538,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs:  Aggregated metric results up until this batch.
         """
         # Log the batch's results:
-        super(TensorboardLoggingCallback, self).on_test_batch_end(
-            batch=batch, logs=logs
-        )
+        super().on_test_batch_end(batch=batch, logs=logs)
 
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_validation_results()
@@ -554,9 +550,9 @@ class TensorboardLoggingCallback(LoggingCallback):
             self._logger.write_dynamic_hyperparameters()
 
     @staticmethod
-    def get_default_weight_statistics_list() -> List[
-        Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
-    ]:
+    def get_default_weight_statistics_list() -> (
+        list[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]]
+    ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
 
@@ -569,7 +565,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         After the trainer / evaluator run begins, this method will be called to setup the results, hyperparameters
         and weights dictionaries for logging.
         """
-        super(TensorboardLoggingCallback, self)._setup_run()
+        super()._setup_run()
 
         # Check if needed to track weights:
         if self._tracked_weights is False:

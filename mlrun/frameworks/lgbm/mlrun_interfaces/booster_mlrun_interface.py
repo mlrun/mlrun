@@ -17,7 +17,6 @@ from abc import ABC
 import lightgbm as lgb
 
 from ..._common import MLRunInterface
-from ..._ml_common import MLModelHandler
 from ..utils import LGBMTypes
 
 
@@ -44,6 +43,4 @@ class LGBMBoosterMLRunInterface(MLRunInterface, ABC):
         :param restoration: Restoration information tuple as returned from 'remove_interface' in order to add the
                             interface in a certain state.
         """
-        super(LGBMBoosterMLRunInterface, cls).add_interface(
-            obj=obj, restoration=restoration
-        )
+        super().add_interface(obj=obj, restoration=restoration)

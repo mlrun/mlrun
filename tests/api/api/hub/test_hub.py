@@ -351,7 +351,7 @@ def test_hub_get_asset(
     asset_object, url = manager.get_asset(source_object, item, "html_asset")
     relative_asset_path = "functions/channel/dev_function/latest/static/my_html.html"
     asset_path = pathlib.Path(__file__).absolute().parent / relative_asset_path
-    with open(asset_path, "r") as f:
+    with open(asset_path) as f:
         expected_content = f.read()
     # Validating content and url:
     assert expected_content == asset_object.decode("utf-8") and url == str(asset_path)

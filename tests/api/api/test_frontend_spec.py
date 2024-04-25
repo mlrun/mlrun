@@ -142,7 +142,10 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
+    assert (
+        server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        == 2
+    )
 
     # happy scenario - grafana url found, verify returned correctly
     grafana_url = "some-url.com"
@@ -155,10 +158,18 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert (
         frontend_spec.jobs_dashboard_url
-        == f"{grafana_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1"
-        f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
+        == grafana_url
+        + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}&var-filter={filter_value}"
     )
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
+    assert (
+        frontend_spec.model_monitoring_dashboard_url
+        == grafana_url
+        + "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}&var-MODELENDPOINT={model_endpoint}"
+    )
+    assert (
+        server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        == 2
+    )
 
 
 def test_get_frontend_spec_nuclio_streams(
@@ -212,7 +223,7 @@ def test_get_frontend_spec_ce(
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
 
     assert frontend_spec.ce["release"] == ce_release
-    assert frontend_spec.ce["mode"] == frontend_spec.ce_mode == ce_mode
+    assert frontend_spec.ce["mode"] == ce_mode
 
 
 def test_get_frontend_spec_feature_store_data_prefixes(
@@ -221,11 +232,13 @@ def test_get_frontend_spec_feature_store_data_prefixes(
     feature_store_data_prefix_default = "feature-store-data-prefix-default"
     feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
     feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
+    feature_store_data_prefix_dsnosql = "feature-store-data-prefix-dsnosql"
     mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
     mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
     mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
         feature_store_data_prefix_redisnosql
     )
+    mlrun.mlconf.feature_store.data_prefixes.dsnosql = feature_store_data_prefix_dsnosql
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
@@ -240,4 +253,8 @@ def test_get_frontend_spec_feature_store_data_prefixes(
     assert (
         frontend_spec.feature_store_data_prefixes["redisnosql"]
         == feature_store_data_prefix_redisnosql
+    )
+    assert (
+        frontend_spec.feature_store_data_prefixes["dsnosql"]
+        == feature_store_data_prefix_dsnosql
     )

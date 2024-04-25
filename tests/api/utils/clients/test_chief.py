@@ -35,7 +35,7 @@ from tests.common_fixtures import aioresponses_mock
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://chief-api.default-tenant.svc.cluster.local"
-    mlrun.config.config.httpdb.clusterization.chief.url = api_url
+    mlrun.mlconf.httpdb.clusterization.chief.url = api_url
     return api_url
 
 
@@ -120,7 +120,6 @@ async def test_retry_on_exception(
     chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
-
     # ensure the session to make sure the retry options are set
     await chief_client._ensure_session()
     retry_attempts = chief_client._session.retry_options.attempts
@@ -301,12 +300,14 @@ async def test_do_not_escape_cookie(
         assert (
             request.cookies["session"] == expected_cookie_header
         ), "Cookie session escaping is malfunctioning"
+        assert request.headers["x-request-id"] == "test-request-id"
         return aiohttp.web.Response(status=200)
 
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
     mock_request._cookies = {"session": session_cookie}
     mock_request._query_params = starlette.datastructures.QueryParams()
+    mock_request.state.request_id = "test-request-id"
 
     app = aiohttp.web.Application()
     app.router.add_post("/api/v1/operations/migrations", handler)

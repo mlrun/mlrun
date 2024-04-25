@@ -90,7 +90,7 @@ Extra data: `{self._event[WriterEvent.RESULT_EXTRA_DATA]}`\
 
 class ModelMonitoringWriter(StepToDict):
     """
-    Write monitoring app events to V3IO KV storage
+    Write monitoring application results to the target databases
     """
 
     kind = "monitoring_application_stream_pusher"

@@ -4822,7 +4822,9 @@ class TestFeatureStore(TestMLRunSystem):
         )
         return result
 
-    def test_parquet_filters(self):
+    # @pytest.mark.parametrize("engine", ["local", "dask"])  #TODO return
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_parquet_filters(self, engine):
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)
         filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
@@ -4870,6 +4872,7 @@ class TestFeatureStore(TestMLRunSystem):
                 feature_vector=vec,
                 additional_filters=[("bad", "=", 95)],
                 with_indexes=True,
+                engine=engine,
             )
             .to_dataframe()
             .reset_index(drop=False)

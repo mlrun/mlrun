@@ -176,6 +176,7 @@ class FileTargetKind:
     LOG_STREAM = "log_stream"
     APP_RESULTS = "app_results"
     MONITORING_SCHEDULES = "monitoring_schedules"
+    MONITORING_APPLICATION = "monitoring_application"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -208,6 +209,12 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     WRITER = "model-monitoring-writer"
+
+
+class V3IOTSDBTables(MonitoringStrEnum):
+    APP_RESULTS = "app-results"
+    METRICS = "metrics"
+    EVENTS = "events"
 
 
 @dataclass
@@ -316,4 +323,6 @@ class TSDBTarget:
     V3IO_RATE = "1/s"
 
 
-MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"
+class HistogramDataDriftApplicationConstants:
+    NAME = "histogram-data-drift"
+    GENERAL_RESULT_NAME = "general_drift"

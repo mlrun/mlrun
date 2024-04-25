@@ -138,7 +138,6 @@ class EventStreamProcessor:
 
         self.tsdb_configurations = {
             "access_key": self.v3io_access_key,
-            "table": self.tsdb_path,
             "container": self.tsdb_container,
             "v3io_framesd": self.v3io_framesd,
         }

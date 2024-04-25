@@ -15,6 +15,7 @@
 
 
 from abc import ABC
+import pandas as pd
 
 
 class TSDBtarget(ABC):
@@ -71,5 +72,32 @@ class TSDBtarget(ABC):
                                  earliest time.
         :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
                  includes timestamps and the values.
+        """
+        pass
+
+
+    def get_records(
+        self,
+        table: str,
+        columns: list[str] = None,
+        filter_query: str = "",
+        start: str = "now-1h",
+        end: str = "now",
+    ) -> pd.DataFrame:
+        """
+         Getting records from TSDB data collection.
+        :param table:            Path to the collection to query.
+        :param columns:          Columns to include in the result.
+        :param filter_query:     Filter expression.
+        :param start:            The start time of the metrics.
+        :param end:              The end time of the metrics.
+
+        :return: DataFrame with the provided attributes from the data collection.
+        """
+        pass
+
+    def create_tsdb_application_tables(self):
+        """
+        Create the application tables in the TSDB target.
         """
         pass

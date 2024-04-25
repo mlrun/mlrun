@@ -4813,7 +4813,15 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
-    # @pytest.mark.parametrize("with_indexes", [True, False])
+    @staticmethod
+    def _get_sorted_df(df: pd.DataFrame, sort_column: str):
+        result = (
+            df.reindex(sorted(df.columns), axis=1)
+            .sort_values(by=sort_column)
+            .reset_index(drop=True)
+        )
+        return result
+
     def test_parquet_filters(self):
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)
@@ -4833,7 +4841,7 @@ class TestFeatureStore(TestMLRunSystem):
             filtered_df.sort_values(by="patient_id").reset_index(drop=True),
         )
         feature_set = fstore.FeatureSet(
-            "test-fs", entities=[fstore.Entity("patient_id")]
+            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
         )
 
         target = ParquetTarget(
@@ -4843,24 +4851,27 @@ class TestFeatureStore(TestMLRunSystem):
             partition_cols=["department"],
         )
         feature_set.ingest(source=parquet_source, targets=[target])
-        room_filtered_df = filtered_df.query("room == 1")
         result = target.as_df(filters=("room", "=", 1)).reset_index(drop=False)
         # We want to include patient_id in the comparison and to sort both the columns and the values.
-        result = (
-            result.reindex(sorted(result.columns), axis=1)
-            .sort_values(by="patient_id")
-            .reset_index(drop=True)
-        )
-        expected = (
-            room_filtered_df.sort_values(by="patient_id")
-            .reset_index(drop=True)
-            .reindex(sorted(room_filtered_df.columns), axis=1)
-        )
+        result = self._get_sorted_df(result, "patient_id")
+        expected = self._get_sorted_df(filtered_df.query("room == 1"), "patient_id")
         #  reset category type to string:
         result["department"] = result["department"].astype("str")
-        assert_frame_equal(result, expected, check_like=True)
-
-        #  TODO complete assert get_offine features.
+        assert_frame_equal(result, expected)
+        vec = fstore.FeatureVector(
+            name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        result = (
+            fstore.get_offline_features(
+                feature_vector=vec, filters=[("bad", "=", 95)], with_indexes=True
+            )
+            .to_dataframe()
+            .reset_index(drop=False)
+        )
+        expected = self._get_sorted_df(filtered_df.query("bad == 95"), "patient_id")
+        result = self._get_sorted_df(result, "patient_id")
+        result["department"] = result["department"].astype("str")
+        assert_frame_equal(result, expected)
 
 
 def verify_purge(fset, targets):

@@ -188,25 +188,24 @@ async def delete_function(
                 get_scheduler().delete_schedule, db_session, project, name
             )
 
-    fn = await run_in_threadpool(
-        server.api.crud.Functions().get_function, db_session, name, project
+    # getting all function tags
+    functions = await run_in_threadpool(
+        server.api.crud.Functions().list_functions, db_session, project, name
     )
-    if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
-        # getting all function tags, so we can delete all nuclio functions mapped to given function
-        all_nuclio_functions_mapped_to_function = await run_in_threadpool(
-            server.api.crud.Functions().list_functions, db_session, project, name
-        )
-
-        async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-            tasks = []
-            for function in all_nuclio_functions_mapped_to_function:
-                nuclio_name = mlrun.runtimes.nuclio.function.get_fullname(
-                    name, project, function.get("metadata", {}).get("tag")
-                )
-                tasks.append(
-                    client.delete_function(name=nuclio_name, project_name=project)
-                )
-            await asyncio.gather(*tasks)
+    if len(functions) > 0:
+        if functions[0].get("kind") in RuntimeKinds.nuclio_runtimes():
+            async with server.api.utils.clients.async_nuclio.Client(
+                auth_info
+            ) as client:
+                tasks = []
+                for function in functions:
+                    nuclio_name = mlrun.runtimes.nuclio.function.get_fullname(
+                        name, project, function.get("metadata", {}).get("tag")
+                    )
+                    tasks.append(
+                        client.delete_function(name=nuclio_name, project_name=project)
+                    )
+                await asyncio.gather(*tasks)
 
     await run_in_threadpool(
         server.api.crud.Functions().delete_function, db_session, project, name

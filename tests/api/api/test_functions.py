@@ -228,12 +228,29 @@ async def test_list_functions_with_hash_key_versioned(
     assert list_functions_results[0]["metadata"]["hash"] == hash_key
 
 
-@pytest.mark.parametrize("post_schedule", [True, False])
-def test_delete_function_with_schedule(
+@pytest.mark.parametrize(
+    "post_schedule, kind",
+    [
+        (True, "job"),
+        (False, "job"),
+        (False, "remote"),
+    ],
+)
+@unittest.mock.patch.object(server.api.utils.clients.async_nuclio, "Client")
+@unittest.mock.patch.object(
+    server.api.utils.clients.async_nuclio.Client, "delete_function"
+)
+def test_delete_function(
+    patched_nuclio_client,
+    patched_delete_nuclio_function,
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     post_schedule,
+    kind,
 ):
+    patched_nuclio_client.return_value = fastapi.testclient.TestClient
+    patched_delete_nuclio_function.return_value.return_value = None
+
     # create project and function
     tests.api.api.utils.create_project(client, PROJECT)
 
@@ -242,7 +259,7 @@ def test_delete_function_with_schedule(
     project_name = "project-name"
 
     function = {
-        "kind": "job",
+        "kind": kind,
         "metadata": {
             "name": function_name,
             "project": project_name,
@@ -291,7 +308,7 @@ def test_delete_function_with_schedule(
     response = client.delete(function_endpoint)
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    response = client.get(function_endpoint)
+    response = client.get(function_endpoint, params={"hash_key": hash_key})
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     if post_schedule:

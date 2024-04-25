@@ -714,7 +714,7 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
@@ -962,7 +962,7 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
@@ -973,7 +973,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
-            filters=filters,
+            additional_filters=additional_filters,
             **kwargs,
         )
         if not columns:
@@ -1104,10 +1104,10 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
-        #  TODO decide if need to raise an error if filters exist or query the data after reading it...
+        #  TODO decide if need to raise an error if additional_filters exist or query the data after reading it...
         df = super().as_df(
             columns=columns,
             df_module=df_module,
@@ -1214,7 +1214,7 @@ class SnowflakeTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1289,7 +1289,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1535,7 +1535,7 @@ class StreamTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1623,7 +1623,7 @@ class KafkaTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1680,7 +1680,7 @@ class TSDBTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1797,7 +1797,7 @@ class DFTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         return select_columns_from_df(
@@ -1974,7 +1974,7 @@ class SQLTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         try:

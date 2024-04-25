@@ -901,7 +901,7 @@ class FeatureSet(ModelObj):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return featureset (offline) data as dataframe
@@ -913,7 +913,7 @@ class FeatureSet(ModelObj):
         :param end_time:     filter by end time
         :param time_column:  specify the time column name in the file
         :param kwargs:       additional reader (csv, parquet, ..) args
-        :param filters: (list of tuples, optional): List of filters conditions as tuples.
+        :param additional_filters: (list of tuples, optional): List of additional_filters conditions as tuples.
                                                     Each tuple should be in the format (column_name, operator, value).
                                                     Supported operators: '=', '>=', '<=', '>', '<'.
                                                     Example: ('Product', '=', 'Computer')]
@@ -935,7 +935,7 @@ class FeatureSet(ModelObj):
                 start_time=start_time,
                 end_time=end_time,
                 time_field=time_column,
-                filters=filters,
+                additional_filters=additional_filters,
                 **kwargs,
             )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
@@ -955,7 +955,7 @@ class FeatureSet(ModelObj):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
-            filters=filters,
+            additional_filters=additional_filters,
             **kwargs,
         )
         return result

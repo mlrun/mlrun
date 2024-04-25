@@ -225,7 +225,7 @@ class SparkFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         time_column=None,
-        filters=None,
+        additional_filters=None,
     ):
         source_kwargs = {}
         if feature_set.spec.passthrough:
@@ -255,7 +255,7 @@ class SparkFeatureMerger(BaseMerger):
             time_field=time_column,
             start_time=start_time,
             end_time=end_time,
-            filters=filters,
+            additional_filters=additional_filters,
             **source_kwargs,
         )
 

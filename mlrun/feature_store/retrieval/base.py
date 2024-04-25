@@ -88,7 +88,7 @@ class BaseMerger(abc.ABC):
         update_stats=None,
         query=None,
         order_by=None,
-        filters=None,
+        additional_filters=None,
     ):
         self._target = target
 
@@ -135,7 +135,7 @@ class BaseMerger(abc.ABC):
             timestamp_for_filtering=timestamp_for_filtering,
             query=query,
             order_by=order_by,
-            filters=filters,
+            additional_filters=additional_filters,
         )
 
     def _write_to_offline_target(self, timestamp_key=None):
@@ -188,7 +188,7 @@ class BaseMerger(abc.ABC):
         timestamp_for_filtering=None,
         query=None,
         order_by=None,
-        filters=None,
+        additional_filters=None,
     ):
         self._create_engine_env()
 
@@ -262,7 +262,7 @@ class BaseMerger(abc.ABC):
                 start_time if time_column else None,
                 end_time if time_column else None,
                 time_column,
-                filters,
+                additional_filters,
             )
 
             fs_entities_and_timestamp = list(feature_set.spec.entities.keys())
@@ -759,7 +759,7 @@ class BaseMerger(abc.ABC):
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
         time_column: typing.Optional[str] = None,
-        filters=None,
+        additional_filters=None,
     ):
         """
         Return the feature_set data frame according to the args

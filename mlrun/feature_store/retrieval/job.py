@@ -42,7 +42,7 @@ def run_merge_job(
     start_time=None,
     end_time=None,
     timestamp_for_filtering=None,
-    filters=None,
+    additional_filters=None,
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -117,7 +117,7 @@ def run_merge_job(
             "end_time": end_time,
             "timestamp_for_filtering": timestamp_for_filtering,
             "engine_args": engine_args,
-            "filters": filters,
+            "additional_filters": additional_filters,
         },
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )

@@ -102,7 +102,7 @@ class BaseSourceDriver(DataSource):
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
         """return the source data as dataframe"""
         return mlrun.store_manager.object(url=self.path).as_df(
@@ -246,9 +246,9 @@ class CSVSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
-        #  TODO decide if need to raise an error if filters exist or query the data after reading it...
+        #  TODO decide if need to raise an error if additional_filters exist or query the data after reading it...
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
@@ -284,7 +284,7 @@ class ParquetSource(BaseSourceDriver):
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
-    :param filters: (list of tuples, optional): List of filters conditions as tuples.
+    :param additional_filters: (list of tuples, optional): List of additional_filters conditions as tuples.
     """
 
     kind = "parquet"
@@ -301,7 +301,7 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        filters: Optional[list[tuple]] = None,
+        additional_filters: Optional[list[tuple]] = None,
     ):
         super().__init__(
             name,
@@ -313,7 +313,7 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
-        self.filters = filters
+        self.additional_filters = additional_filters
 
     @property
     def start_time(self):
@@ -347,7 +347,7 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         context=None,
-        filters=None,
+        additional_filters=None,
     ):
         import storey
 
@@ -365,7 +365,7 @@ class ParquetSource(BaseSourceDriver):
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,
-            additional_filters=self.filters or filters,
+            additional_filters=self.additional_filters or additional_filters,
             **attributes,
         )
 
@@ -388,7 +388,7 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
@@ -398,7 +398,7 @@ class ParquetSource(BaseSourceDriver):
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
             format="parquet",
-            filters=filters or self.filters,
+            additional_filters=additional_filters or self.additional_filters,
             **reader_args,
         )
 
@@ -524,7 +524,7 @@ class BigQuerySource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
@@ -754,7 +754,7 @@ class DataFrameSource:
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
         #  TODO figure out what to do here...
         return self._df
@@ -951,7 +951,7 @@ class KafkaSource(OnlineSource):
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
@@ -1092,7 +1092,7 @@ class SQLSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
-        filters=None,
+        additional_filters=None,
     ):
         import sqlalchemy as sqlalchemy
 

@@ -1596,3 +1596,13 @@ def get_serving_spec():
             )
     spec = json.loads(data)
     return spec
+
+
+def additional_filters_warning(additional_filters, class_name):
+    if additional_filters and any(
+        additional_filter for additional_filter in additional_filters
+    ):
+        mlrun.utils.logger.warn(
+            f"additional_filters parameter is not supported in {class_name},"
+            f" parameter has been ignored."
+        )

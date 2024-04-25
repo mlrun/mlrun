@@ -105,13 +105,9 @@ class BaseSourceDriver(DataSource):
         additional_filters=None,
     ):
         """return the source data as dataframe"""
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -255,13 +251,9 @@ class CSVSource(BaseSourceDriver):
         time_field=None,
         additional_filters=None,
     ):
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
@@ -542,13 +534,9 @@ class BigQuerySource(BaseSourceDriver):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
@@ -776,13 +764,9 @@ class DataFrameSource:
         time_field=None,
         additional_filters=None,
     ):
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return self._df
 
     def is_iterator(self):
@@ -1122,13 +1106,9 @@ class SQLSource(BaseSourceDriver):
     ):
         import sqlalchemy as sqlalchemy
 
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
         parse_dates = self.attributes.get("parse_dates")

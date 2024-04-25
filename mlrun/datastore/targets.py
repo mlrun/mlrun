@@ -718,13 +718,9 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
@@ -1114,13 +1110,9 @@ class CSVTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         df = super().as_df(
             columns=columns,
             df_module=df_module,
@@ -1813,13 +1805,9 @@ class DFTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return select_columns_from_df(
             filter_df_start_end_time(
                 self._df,
@@ -2003,13 +1991,9 @@ class SQLTarget(BaseStoreTarget):
         except (ModuleNotFoundError, ImportError) as exc:
             self._raise_sqlalchemy_import_error(exc)
 
-        if additional_filters and any(
-            additional_filter for additional_filter in additional_filters
-        ):
-            mlrun.utils.logger.warn(
-                f"additional_filters parameter is not supported in {self.__class__},"
-                f" parameter has been ignored."
-            )
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)

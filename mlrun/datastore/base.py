@@ -180,9 +180,15 @@ class DataStore:
 
     @staticmethod
     def _parquet_reader(
-        df_module, url, file_system, time_column, start_time, end_time, additional_filters
+        df_module,
+        url,
+        file_system,
+        time_column,
+        start_time,
+        end_time,
+        additional_filters,
     ):
-        from storey.utils import combine_filters, find_filters, find_partitions
+        from storey.utils import find_filters, find_partitions
 
         def set_filters(
             partitions_time_attributes,
@@ -191,19 +197,18 @@ class DataStore:
             filters_inner,
             kwargs,
         ):
-            datetime_filters = []
+            filters = []
             find_filters(
                 partitions_time_attributes,
                 start_time_inner,
                 end_time_inner,
-                datetime_filters,
+                filters,
                 time_column,
             )
-            total_filters = combine_filters(
-                datetime_filters=datetime_filters, additional_filters=filters_inner
-            )
+            if filters and filters_inner:
+                filters[0] += filters_inner
 
-            kwargs["filters"] = total_filters
+            kwargs["filters"] = filters
 
         def reader(*args, **kwargs):
             time_limit = start_time or end_time
@@ -325,7 +330,13 @@ class DataStore:
                 kwargs["columns"] = columns
 
             reader = self._parquet_reader(
-                df_module, url, file_system, time_column, start_time, end_time, additional_filters
+                df_module,
+                url,
+                file_system,
+                time_column,
+                start_time,
+                end_time,
+                additional_filters,
             )
 
         elif file_url.endswith(".json") or format == "json":

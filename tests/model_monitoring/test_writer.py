@@ -34,7 +34,7 @@ from mlrun.model_monitoring.writer import (
 )
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 
-TEST_PROJECT = "test-application-results-v2"
+TEST_PROJECT = "test-application-results"
 V3IO_TABLE_CONTAINER = f"bigdata/{TEST_PROJECT}"
 
 

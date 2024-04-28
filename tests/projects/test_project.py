@@ -1716,7 +1716,6 @@ def test_create_api_gateway_valid(
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
             name="gateway-f1-f2",
-            project=project_name,
         ),
         spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
             functions=functions,
@@ -1773,10 +1772,14 @@ def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
         functions = [f1, f2]
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            name="gateway-f1-f2",
-            functions=functions,
-            canary=canary,
-            project=project_name,
+            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name="gateway-f1-f2",
+            ),
+            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=functions,
+                canary=canary,
+                project=project_name,
+            ),
         )
 
 

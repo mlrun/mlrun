@@ -615,7 +615,12 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            project=self.project_name, functions=self.f1, name=self.gw_name
+            metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name=self.gw_name,
+            ),
+            spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=[self.f1, self.f2], project=self.project_name
+            ),
         )
 
     def _cleanup_gateway(self):

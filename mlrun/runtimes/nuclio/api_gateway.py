@@ -99,14 +99,12 @@ class APIGatewayMetadata(ModelObj):
     def __init__(
         self,
         name: str,
-        project: str,
         namespace: str = None,
         labels: dict = None,
         annotations: dict = None,
         creation_timestamp: str = None,
     ):
         """
-        :param project: The project name
         :param name: The name of the API gateway
         :param namespace: The namespace of the API gateway
         :param labels: The labels of the API gateway
@@ -115,7 +113,6 @@ class APIGatewayMetadata(ModelObj):
         """
         self.name = name
         self.namespace = namespace
-        self.project = project
         self.labels = labels or {}
         self.annotations = annotations or {}
         self.creation_timestamp = creation_timestamp
@@ -129,6 +126,7 @@ class APIGatewayMetadata(ModelObj):
 class APIGatewaySpec(ModelObj):
     _dict_fields = [
         "functions",
+        "project",
         "name",
         "description",
         "host",
@@ -152,21 +150,20 @@ class APIGatewaySpec(ModelObj):
                 ServingRuntime,
             ],
         ],
+        project: str = None,
         description: str = "",
         host: str = None,
         path: str = "/",
         authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
         canary: Optional[list[int]] = None,
-        project: str = None,
     ):
         """
-        :param project: The project name
         :param functions: The list of functions associated with the API gateway
             Can be a list of function names (["my-func1", "my-func2"])
             or a list or a single entity of
             :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
             :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
-
+        :param project: The project name
         :param description: Optional description of the API gateway
         :param path: Optional path of the API gateway, default value is "/"
         :param authentication: The authentication for the API gateway of type
@@ -180,6 +177,7 @@ class APIGatewaySpec(ModelObj):
         self.authentication = authentication
         self.functions = functions
         self.canary = canary
+        self.project = project
 
         self.validate(project=project, functions=functions, canary=canary)
 
@@ -388,7 +386,7 @@ class APIGateway(ModelObj):
         Synchronize the API gateway from the server.
         """
         synced_gateway = mlrun.get_run_db().get_api_gateway(
-            self.metadata.name, self.metadata.project
+            self.metadata.name, self.spec.project
         )
         synced_gateway = self.from_scheme(synced_gateway)
 
@@ -439,7 +437,7 @@ class APIGateway(ModelObj):
                 f"the number of functions passed is {len(functions)}"
             )
         self.spec.validate(
-            project=self.metadata.project, functions=functions, canary=canary
+            project=self.spec.project, functions=functions, canary=canary
         )
 
     @classmethod
@@ -453,7 +451,6 @@ class APIGateway(ModelObj):
         )
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
-                project=project,
                 name=api_gateway.spec.name,
             ),
             spec=APIGatewaySpec(
@@ -560,6 +557,14 @@ class APIGateway(ModelObj):
     @name.setter
     def name(self, value):
         self.metadata.name = value
+
+    @property
+    def project(self):
+        return self.spec.project
+
+    @project.setter
+    def project(self, value):
+        self.spec.project = value
 
     @property
     def description(self):

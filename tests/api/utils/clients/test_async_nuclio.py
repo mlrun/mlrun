@@ -56,7 +56,6 @@ async def test_nuclio_get_api_gateway(
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
             name="test-basic",
-            project="default-project",
         ),
         spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
             functions=["test"],
@@ -109,7 +108,6 @@ async def test_nuclio_store_api_gateway(
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
             name="new-gw",
-            project="default",
         ),
         spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
             functions=["test-func"],

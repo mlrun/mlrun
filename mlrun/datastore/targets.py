@@ -1549,6 +1549,25 @@ class StreamTarget(BaseStoreTarget):
 
 
 class KafkaTarget(BaseStoreTarget):
+    """
+    Kafka target storage driver, used to write data into kafka topics.
+    example::
+        # define target
+        kafka_target = KafkaTarget(
+            name="kafka", path="my_topic", brokers="localhost:9092"
+        )
+        # ingest
+        stocks_set.ingest(stocks, [kafka_target])
+    :param name:                target name
+    :param path:                topic name e.g. "my_topic"
+    :param after_step:          optional, after what step in the graph to add the target
+    :param columns:             optional, which columns from data to write
+    :param bootstrap_servers:   Deprecated. Use the brokers parameter instead
+    :param producer_options:    additional configurations for kafka producer
+    :param brokers:             kafka broker as represented by a host:port pair, or a list of kafka brokers, e.g.
+        "localhost:9092", or ["kafka-broker-1:9092", "kafka-broker-2:9092"]
+    """
+
     kind = TargetTypes.kafka
     is_table = False
     is_online = False

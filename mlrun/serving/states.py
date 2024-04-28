@@ -360,6 +360,7 @@ class BaseStep(ModelObj):
         :param steps: list of steps to follow this one
         :param force: whether to overwrite existing downstream steps. If False, this method will fail if any downstream
         steps have already been defined. Defaults to False.
+        :return: the last step added to the flow
 
         example:
             a 3-step pipeline (step1 -> step2 -> step3) to overwrite existing downstream steps:
@@ -369,7 +370,7 @@ class BaseStep(ModelObj):
                     dict(name="step3", class_name="Step3Class"),
                 ],
                 force=True,
-            )
+            ).to(dict(name="step4", class_name="Step4Class"),)
         """
         if hasattr(self, "steps"):
             parent = self

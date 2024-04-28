@@ -29,7 +29,7 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
-V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 100
+V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 10
 
 
 class V3ioStore(DataStore):

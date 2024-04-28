@@ -655,6 +655,37 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    @abstractmethod
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        project="",
+    ):
+        pass
+
+    @abstractmethod
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def list_alerts_configs(self, project=""):
+        pass
+
+    @abstractmethod
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",
@@ -695,6 +726,17 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_log_size(self, uid, project=""):
+        pass
+
+    @abstractmethod
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
         pass
 
     @abstractmethod

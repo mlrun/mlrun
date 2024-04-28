@@ -72,7 +72,7 @@ def create_project(
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def store_project(
+async def store_project(
     project: mlrun.common.schemas.Project,
     name: str,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
@@ -85,7 +85,8 @@ def store_project(
         server.api.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().store_project(
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().store_project,
         db_session,
         name,
         project,

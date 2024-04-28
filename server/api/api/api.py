@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends
 
 from server.api.api import deps
 from server.api.api.endpoints import (
+    alerts,
     artifacts,
     artifacts_v2,
     auth,
@@ -23,6 +24,7 @@ from server.api.api.endpoints import (
     client_spec,
     clusterization_spec,
     datastore_profile,
+    events,
     feature_store,
     files,
     frontend_spec,
@@ -149,6 +151,16 @@ api_router.include_router(
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    events.router,
+    tags=["events"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    alerts.router,
+    tags=["alerts"],
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(

@@ -370,7 +370,7 @@ class BaseStep(ModelObj):
                     dict(name="step3", class_name="Step3Class"),
                 ],
                 force=True,
-            ).to(dict(name="step4", class_name="Step4Class"),)
+            ).to(dict(name="step4", class_name="Step4Class"))
         """
         if hasattr(self, "steps"):
             parent = self

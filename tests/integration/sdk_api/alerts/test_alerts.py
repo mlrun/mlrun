@@ -495,7 +495,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         return mlrun.common.schemas.Event(
             kind=event_kind,
             entity={"kind": entity_kind, "project": project, "id": 1234},
-            value=0.2,
+            value_dict={"value": 0.2},
         )
 
     @staticmethod

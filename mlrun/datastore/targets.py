@@ -1529,8 +1529,8 @@ class KafkaTarget(BaseStoreTarget):
     :param path:                topic name e.g. "my_topic"
     :param bootstrap_servers:   Deprecated. Use the brokers parameter instead.
     :param producer_options:    additional configurations for kafka producer
-    :param brokers:             kafka broker, or list of kafka brokers, e.g. "localhost:9092", or
-        ["kafka-broker-1:9092", "kafka-broker-2:9092"]
+    :param brokers:             kafka broker as represented by a host:port pair, or a list of kafka brokers, e.g.
+        "localhost:9092", or ["kafka-broker-1:9092", "kafka-broker-2:9092"]
     """
 
     kind = TargetTypes.kafka

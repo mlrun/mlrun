@@ -106,6 +106,9 @@ class PipelineRun(FlexibleMapper):
     def finished_at(self, finished_at):
         self._external_data["finished_at"] = finished_at
 
+    def workflow_manifest(self) -> PipelineManifest:
+        return self._workflow_manifest
+
 
 class PipelineExperiment(FlexibleMapper):
     @property

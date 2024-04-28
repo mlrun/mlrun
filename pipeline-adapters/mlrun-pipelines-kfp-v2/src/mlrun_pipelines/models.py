@@ -27,74 +27,85 @@ class PipelineManifest(FlexibleMapper):
     """
 
     def get_schema_version(self) -> str:
-        raise NotImplementedError
+        try:
+            return self._external_data["schemaVersion"]
+        except KeyError:
+            return self._external_data["apiVersion"]
 
     def is_argo_compatible(self) -> bool:
-        raise NotImplementedError
+        if self.get_schema_version().startswith("argoproj.io"):
+            return True
+        return False
 
     def get_executors(self):
-        raise NotImplementedError
+        if self.is_argo_compatible():
+            yield from [
+                (t.get("name"), t) for t in self._external_data["spec"]["templates"]
+            ]
+        else:
+            yield from self._external_data["deploymentSpec"]["executors"].items()
 
 
 class PipelineRun(FlexibleMapper):
     @property
     def id(self):
-        raise NotImplementedError
+        return self._external_data["run_id"]
 
     @property
     def name(self):
-        raise NotImplementedError
+        return self._external_data["display_name"]
 
     @name.setter
     def name(self, name):
-        raise NotImplementedError
+        self._external_data["display_name"] = name
 
     @property
     def status(self):
-        raise NotImplementedError
+        return self._external_data["state"]
 
     @status.setter
     def status(self, status):
-        raise NotImplementedError
+        self._external_data["state"] = status
 
     @property
     def description(self):
-        raise NotImplementedError
+        return self._external_data["description"]
 
     @description.setter
     def description(self, description):
-        raise NotImplementedError
+        self._external_data["description"] = description
 
     @property
     def created_at(self):
-        raise NotImplementedError
+        return self._external_data["created_at"]
 
     @created_at.setter
     def created_at(self, created_at):
-        raise NotImplementedError
+        self._external_data["created_at"] = created_at
 
     @property
     def scheduled_at(self):
-        raise NotImplementedError
+        return self._external_data["scheduled_at"]
 
     @scheduled_at.setter
     def scheduled_at(self, scheduled_at):
-        raise NotImplementedError
+        self._external_data["scheduled_at"] = scheduled_at
 
     @property
     def finished_at(self):
-        raise NotImplementedError
+        return self._external_data["finished_at"]
 
     @finished_at.setter
     def finished_at(self, finished_at):
-        raise NotImplementedError
+        self._external_data["finished_at"] = finished_at
 
-    @property
     def workflow_manifest(self) -> PipelineManifest:
-        raise NotImplementedError
+        return PipelineManifest(
+            self._external_data["pipeline_spec"],
+        )
 
 
 class PipelineExperiment(FlexibleMapper):
     @property
     def id(self):
-        raise NotImplementedError
+        return self._external_data["experiment_id"]

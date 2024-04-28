@@ -3214,7 +3214,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
+    ) -> None:
         """
         Redeploy model monitoring application controller function.
 
@@ -3224,13 +3224,14 @@ class HTTPRunDB(RunDBInterface):
         :param image: The image of the model monitoring controller function.
                                          By default, the image is mlrun/mlrun.
         """
-
-        params = {
-            "image": image,
-            "base_period": base_period,
-        }
-        path = f"projects/{project}/model-monitoring/model-monitoring-controller"
-        self.api_call(method="POST", path=path, params=params)
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/model-monitoring-controller",
+            params={
+                "base_period": base_period,
+                "image": image,
+            },
+        )
 
     def enable_model_monitoring(
         self,

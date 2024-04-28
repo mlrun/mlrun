@@ -893,10 +893,8 @@ def test_import_artifact_retain_producer(rundb_mock):
     # load a new project from the first project's context
     project_3 = mlrun.load_project(name="project-3", context=project_1.context)
 
-    # make sure the artifact was registered with the original producer
-    # the db key should include the run since it's a run artifact
-    db_key = f"{run_name}_{new_key}"
-    loaded_artifact = project_3.get_artifact(db_key)
+    # make sure the artifact was registered with the new key
+    loaded_artifact = project_3.get_artifact(new_key)
     assert loaded_artifact.producer == artifact.producer
 
 
@@ -2091,7 +2089,7 @@ class TestModelMonitoring:
     @staticmethod
     @pytest.fixture
     def project() -> mlrun.projects.MlrunProject:
-        return unittest.mock.Mock()  # spec_set=mlrun.projects.MlrunProject)
+        return unittest.mock.Mock()
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -2125,3 +2123,17 @@ class TestModelMonitoring:
         assert (
             deleted_fns == expected_deleted_fns
         ), "The deleted functions are different than expexted"
+
+    @staticmethod
+    def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:
+        with unittest.mock.patch.object(
+            project, "_wait_for_functions_deployment", autospec=True
+        ) as mock:
+            mlrun.projects.MlrunProject.enable_model_monitoring(
+                project, deploy_histogram_data_drift_app=False, wait_for_deployment=True
+            )
+
+        mock.assert_called_once()
+        assert (
+            mock.call_args_list[0].args[0] == mm_consts.MonitoringFunctionNames.list()
+        ), "Expected to wait for the infra functions"

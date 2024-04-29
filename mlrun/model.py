@@ -624,6 +624,11 @@ class RunMetadata(ModelObj):
     def iteration(self, iteration):
         self._iteration = iteration
 
+    def is_workflow_runner(self):
+        if not self.labels:
+            return False
+        return self.labels.get("job-type", "") == "workflow-runner"
+
 
 class HyperParamStrategies:
     grid = "grid"
@@ -1067,6 +1072,14 @@ class RunStatus(ModelObj):
         self.ui_url = ui_url
         self.reason = reason
         self.notifications = notifications or {}
+
+    def is_failed(self):
+        if not self.state:
+            return None
+        return self.state.casefold() in [
+            mlrun.run.RunStatuses.failed.casefold(),
+            mlrun.run.RunStatuses.error.casefold(),
+        ]
 
 
 class RunTemplate(ModelObj):

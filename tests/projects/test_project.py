@@ -1712,15 +1712,23 @@ def test_create_api_gateway_valid(
         project.set_function(f2)
         functions = [f1, f2]
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        name="gateway-f1-f2",
-        functions=functions,
-        canary=canary,
-        project=project_name,
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="gateway-f1-f2",
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=functions,
+            canary=canary,
+            project=project_name,
+        ),
     )
     if with_basic_auth:
         api_gateway.with_basic_auth("test_username", "test_password")
 
     gateway = project.store_api_gateway(api_gateway)
+
+    gateway_dict = gateway.to_dict()
+    assert "metadata" in gateway_dict
+    assert "spec" in gateway_dict
 
     assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if with_basic_auth:
@@ -1762,10 +1770,14 @@ def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
         functions = [f1, f2]
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            name="gateway-f1-f2",
-            functions=functions,
-            canary=canary,
-            project=project_name,
+            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name="gateway-f1-f2",
+            ),
+            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=functions,
+                canary=canary,
+                project=project_name,
+            ),
         )
 
 
@@ -1813,7 +1825,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
 
     assert gateways[0].name == "test"
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
-    assert gateways[0].functions == ["my-func1"]
+    assert gateways[0].spec.functions == ["my-func1"]
 
     assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
 

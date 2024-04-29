@@ -30,7 +30,7 @@ async def api_url() -> str:
 
 
 @pytest.fixture()
-async def nuclio_client(
+def nuclio_client(
     api_url,
 ) -> server.api.utils.clients.async_nuclio.Client:
     auth_info = mlrun.common.schemas.AuthInfo()
@@ -54,9 +54,13 @@ async def test_nuclio_get_api_gateway(
     mock_aioresponse,
 ):
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        functions=["test"],
-        name="test-basic",
-        project="default-project",
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="test-basic",
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=["test"],
+            project="default-project",
+        ),
     )
     api_gateway.with_basic_auth("test", "test")
     api_gateway.with_canary(["test", "test2"], [20, 80])
@@ -69,14 +73,14 @@ async def test_nuclio_get_api_gateway(
     )
     r = await nuclio_client.get_api_gateway("test-basic", "default")
     received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
-    assert received_api_gateway.name == api_gateway.name
-    assert received_api_gateway.description == api_gateway.description
+    assert received_api_gateway.name == api_gateway.metadata.name
+    assert received_api_gateway.description == api_gateway.spec.description
     assert (
         received_api_gateway.authentication.authentication_mode
-        == api_gateway.authentication.authentication_mode
+        == api_gateway.spec.authentication.authentication_mode
     )
-    assert received_api_gateway.functions == ["test", "test2"]
-    assert received_api_gateway.canary == [20, 80]
+    assert received_api_gateway.spec.functions == ["test", "test2"]
+    assert received_api_gateway.spec.canary == [20, 80]
 
 
 @pytest.mark.asyncio
@@ -102,9 +106,13 @@ async def test_nuclio_store_api_gateway(
 ):
     request_url = f"{api_url}/api/api_gateways/new-gw"
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        project="default",
-        name="new-gw",
-        functions=["test-func"],
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="new-gw",
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=["test-func"],
+            project="default",
+        ),
     )
 
     mock_aioresponse.put(

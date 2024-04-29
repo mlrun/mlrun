@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import json
 import typing
 
 import numpy as np
@@ -22,31 +21,33 @@ import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
-import mlrun.utils.v3io_clients
 from mlrun.artifacts.model import ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
-from mlrun.model_monitoring.api import get_or_create_model_endpoint
-from mlrun.model_monitoring.helpers import calculate_inputs_statistics
+from mlrun.execution import MLClientCtx
+from mlrun.model_monitoring.helpers import (
+    calculate_inputs_statistics,
+    get_endpoint_record,
+)
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
-class MonitoringApplicationContext(mlrun.MLClientCtx):
+class MonitoringApplicationContext(MLClientCtx):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    def __post_init__(self):
         self.application_name: typing.Optional[str] = None
         self.start_infer_time: typing.Optional[pd.Timestamp] = None
         self.end_infer_time: typing.Optional[pd.Timestamp] = None
         self.latest_request: typing.Optional[pd.Timestamp] = None
         self.endpoint_id: typing.Optional[str] = None
         self.output_stream_uri: typing.Optional[str] = None
-        self.data: typing.Optional[dict[str, typing.Any]] = (
-            None  # for inputs, outputs, and other data
-        )
 
         self._sample_df: typing.Optional[pd.DataFrame] = None
         self._model_endpoint: typing.Optional[ModelEndpoint] = None
         self._feature_stats: typing.Optional[FeatureStats] = None
 
+    @classmethod
     def from_dict(
         cls,
         attrs: dict,
@@ -63,14 +64,16 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
 
         """
 
-        # Call the parent class from_dict method - maybe we should take only the relevant attributes, and not all.
         if not context:
-            self: MonitoringApplicationContext = super(cls).from_dict(
-                attrs,
-                **kwargs,
+            self = (
+                super().from_dict(
+                    attrs=attrs.get(mm_constants.ApplicationEvent.MLRUN_CONTEXT, {}),
+                    **kwargs,
+                ),
             )
         else:
-            self: MonitoringApplicationContext = context
+            self = context
+            self.__post_init__()
 
         self.start_infer_time = pd.Timestamp(
             attrs.get(mm_constants.ApplicationEvent.START_INFER_TIME)
@@ -93,12 +96,6 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
 
         return self
 
-    def __getitem__(self, key) -> typing.Any:
-        return self.data.get(key)
-
-    def __setitem__(self, key, value) -> None:
-        self.data[key] = value
-
     def to_dict(self) -> dict:
         """TODO: edit"""
         a = super(self).to_dict()
@@ -106,7 +103,7 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
 
     @property
     def sample_df(self) -> pd.DataFrame:
-        if not hasattr(self, "_sample_df") or not self._sample_df:
+        if not hasattr(self, "_sample_df") or self._sample_df is None:
             feature_set = fstore.get_feature_set(
                 self.model_endpoint.status.monitoring_feature_set_uri
             )
@@ -124,21 +121,21 @@ class MonitoringApplicationContext(mlrun.MLClientCtx):
                 end_time=self.end_infer_time,
                 timestamp_for_filtering=mm_constants.FeatureSetFeatures.time_stamp(),
             )
-            self._sample_df = offline_response.to_dataframe()
+            self._sample_df = offline_response.to_dataframe().reset_index(drop=True)
         return self._sample_df
 
     @property
     def model_endpoint(self) -> ModelEndpoint:
         if not hasattr(self, "_model_endpoint") or not self._model_endpoint:
-            self._model_endpoint = get_or_create_model_endpoint(
-                self.project, self.endpoint_id
+            self._model_endpoint = ModelEndpoint.from_flat_dict(
+                get_endpoint_record(self.project, self.endpoint_id)
             )
         return self._model_endpoint
 
     @property
     def feature_stats(self) -> FeatureStats:
         if not hasattr(self, "_feature_stats") or not self._feature_stats:
-            self._feature_stats = self.model_endpoint.status.feature_stats
+            self._feature_stats = json.loads(self.model_endpoint.status.feature_stats)
             pad_features_hist(self._feature_stats)
         return self._feature_stats
 

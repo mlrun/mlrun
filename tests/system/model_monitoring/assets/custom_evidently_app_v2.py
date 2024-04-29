@@ -25,7 +25,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultStatusApp,
 )
 from mlrun.model_monitoring.application import ModelMonitoringApplicationResult
-from mlrun.model_monitoring.applications import (
+from mlrun.model_monitoring.evidently_application import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
 )

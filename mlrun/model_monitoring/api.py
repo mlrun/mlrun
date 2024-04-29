@@ -25,10 +25,9 @@ import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.application
+import mlrun.model_monitoring.applications as mm_app
 import mlrun.serving
 from mlrun.data_types.infer import InferOptions, get_df_stats
-from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
-from mlrun.model_monitoring.applications.base_v2 import ModelMonitoringApplicationBaseV2
 from mlrun.utils import datetime_now, logger
 
 from .helpers import update_model_endpoint_last_request
@@ -591,7 +590,10 @@ def _create_model_monitoring_function_base(
     project: str,
     func: typing.Union[str, None] = None,
     application_class: typing.Union[
-        str, ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2, None
+        str,
+        mlrun.model_monitoring.application.ModelMonitoringApplicationBase,
+        mm_app.ModelMonitoringApplicationBaseV2,
+        None,
     ] = None,
     name: typing.Optional[str] = None,
     image: typing.Optional[str] = None,
@@ -604,7 +606,10 @@ def _create_model_monitoring_function_base(
     Note: this is an internal API only.
     This function does not set the labels or mounts v3io.
     """
-    if isinstance(application_class, ModelMonitoringApplicationBase):
+    if isinstance(
+        application_class,
+        mlrun.model_monitoring.application.ModelMonitoringApplicationBase,
+    ):
         warnings.warn(
             "The `ModelMonitoringApplicationBase` class is deprecated from version 1.7.0, "
             "please use `ModelMonitoringApplicationBaseV2`. It will be removed in 1.9.0.",

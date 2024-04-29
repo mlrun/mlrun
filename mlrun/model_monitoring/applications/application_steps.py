@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
+import json
 from typing import Optional
 
 import mlrun.common.helpers
@@ -23,8 +24,8 @@ from mlrun.model_monitoring.helpers import get_stream_path
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
-from ..application import ModelMonitoringApplicationResult
 from .context import MonitoringApplicationContext
+from .results import ModelMonitoringApplicationResult
 
 
 class _PushToMonitoringWriter(StepToDict):
@@ -70,9 +71,15 @@ class _PushToMonitoringWriter(StepToDict):
         metadata = {
             mm_constant.WriterEvent.APPLICATION_NAME: application_context.application_name,
             mm_constant.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
-            mm_constant.WriterEvent.START_INFER_TIME: application_context.start_infer_time,
-            mm_constant.WriterEvent.END_INFER_TIME: application_context.end_infer_time,
-            mm_constant.WriterEvent.CURRENT_STATS: application_context.sample_df_stats,
+            mm_constant.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
+                sep=" ", timespec="microseconds"
+            ),
+            mm_constant.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
+                sep=" ", timespec="microseconds"
+            ),
+            mm_constant.WriterEvent.CURRENT_STATS: json.dumps(
+                application_context.sample_df_stats
+            ),
         }
         for result in application_results:
             data = result.to_dict()
@@ -105,14 +112,17 @@ class _PrepareMonitoringEvent:
         :param event: Application event.
         :return: Application event.
         """
-        if not hasattr(event, "metadata"):
+        if not event.get("mlrun_context"):
             application_context = MonitoringApplicationContext().from_dict(
-                event, context=self.context, model_endpoint_dict=self.model_endpoints
+                event,
+                context=copy.deepcopy(self.context),
+                model_endpoint_dict=self.model_endpoints,
             )
         else:
             application_context = MonitoringApplicationContext().from_dict(event)
-        if application_context.endpoint_id not in self.model_endpoints:
-            self.model_endpoints = application_context.model_endpoint
+        self.model_endpoints.setdefault(
+            application_context.endpoint_id, application_context.model_endpoint
+        )
         return application_context
 
     @staticmethod
@@ -122,4 +132,5 @@ class _PrepareMonitoringEvent:
             upload_artifacts=True,
             labels={"workflow": "model-monitoring-app-logger"},
         )
+        context.__class__ = MonitoringApplicationContext
         return context

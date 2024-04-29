@@ -41,6 +41,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
@@ -56,9 +57,6 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
-from ..model_monitoring.application import (
-    ModelMonitoringApplicationBase,
-)
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
 from ..utils import (
@@ -1846,7 +1844,11 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1909,7 +1911,11 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -1962,7 +1968,10 @@ class MlrunProject(ModelObj):
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         application_class: typing.Union[
-            str, ModelMonitoringApplicationBase, None
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+            None,
         ] = None,
         name: typing.Optional[str] = None,
         image: typing.Optional[str] = None,

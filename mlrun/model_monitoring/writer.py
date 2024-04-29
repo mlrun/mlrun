@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import json
 from typing import Any, NewType
 
 import pandas as pd
@@ -211,9 +210,7 @@ class ModelMonitoringWriter(StepToDict):
             result_event = _AppResultEvent(
                 {key: event[key] for key in WriterEvent.list()}
             )
-            result_event[WriterEvent.CURRENT_STATS] = json.loads(
-                event[WriterEvent.CURRENT_STATS]
-            )
+            result_event[WriterEvent.CURRENT_STATS] = event[WriterEvent.CURRENT_STATS]
             return result_event
         except KeyError as err:
             raise _WriterEventValueError(

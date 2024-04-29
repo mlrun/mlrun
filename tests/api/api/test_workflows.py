@@ -64,16 +64,14 @@ def test_get_workflow_fail_fast(db: Session, client: TestClient):
             },
         },
         "spec": {
-          "parameters": {
-              "workflow_name": "main"
-            },
+            "parameters": {"workflow_name": "main"},
         },
         "status": {
             "state": "failed",
             "error": "some dummy error",
-
             # workflow id is empty to simulate a failed remote runner
-            "results": {"workflow_id": None}},
+            "results": {"workflow_id": None},
+        },
     }
     server.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
     resp = client.get(

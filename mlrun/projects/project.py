@@ -2650,12 +2650,14 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        self.sync_functions(always=sync)
-        if not self.spec._function_objects:
-            raise ValueError(
-                "There are no functions in the project."
-                " Make sure you've set your functions with project.set_function()."
-            )
+        if engine not in ["remote"]:
+            # for remote runs we don't require the functions to be synced as they can be loaded dynamically during run
+            self.sync_functions(always=sync)
+            if not self.spec._function_objects:
+                raise ValueError(
+                    "There are no functions in the project."
+                    " Make sure you've set your functions with project.set_function()."
+                )
 
         if not name and not workflow_path and not workflow_handler:
             raise ValueError("Workflow name, path, or handler must be specified")

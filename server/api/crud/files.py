@@ -15,8 +15,11 @@
 import mimetypes
 from http import HTTPStatus
 
+import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
+import server.api.utils.auth.verifier
+import server.api.utils.singletons.k8s
 from mlrun import store_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
@@ -35,6 +38,21 @@ class Files(
     ):
         return self._get_filestat(schema, path, user, auth_info, secrets=secrets)
 
+    def delete_files_with_project_secrets(
+        self,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        project: str,
+        path: str = "",
+        schema: str = None,
+        user: str = "",
+        secrets: dict = None,
+    ):
+        secrets = secrets or {}
+        project_secrets = self._verify_and_get_project_secrets(project)
+        project_secrets.update(secrets)
+
+        self._delete_files(schema, path, user, auth_info, project_secrets, project)
+
     def _get_filestat(
         self,
         schema: str,
@@ -43,15 +61,8 @@ class Files(
         auth_info: mlrun.common.schemas.AuthInfo,
         secrets: dict = None,
     ):
-        _, filename = path.split(path)
+        path = self._resolve_obj_path(schema, path, user)
 
-        path = server.api.api.utils.get_obj_path(schema, path, user=user)
-        if not path:
-            server.api.api.utils.log_and_raise(
-                HTTPStatus.NOT_FOUND.value,
-                path=path,
-                err="illegal path prefix or schema",
-            )
         logger.debug("Got get filestat request", path=path)
 
         secrets = secrets or {}
@@ -74,3 +85,49 @@ class Files(
             "modified": stat.modified,
             "mimetype": ctype,
         }
+
+    def _delete_files(
+        self,
+        schema: str,
+        path: str,
+        user: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        secrets: dict = None,
+        project: str = "",
+    ):
+        path = self._resolve_obj_path(schema, path, user)
+
+        logger.debug("Got delete files request", path=path)
+
+        secrets = secrets or {}
+        secrets.update(server.api.api.utils.get_secrets(auth_info))
+
+        # TODO: handle delete some files
+        obj = store_manager.object(url=path, secrets=secrets, project=project)
+        obj.delete()
+
+    @staticmethod
+    def _resolve_obj_path(schema: str, path: str, user: str):
+        path = server.api.api.utils.get_obj_path(schema, path, user=user)
+        if not path:
+            server.api.api.utils.log_and_raise(
+                HTTPStatus.NOT_FOUND.value,
+                path=path,
+                err="illegal path prefix or schema",
+            )
+        return path
+
+    @staticmethod
+    def _verify_and_get_project_secrets(project):
+        # If running on Docker or locally, we cannot retrieve project secrets, so skip.
+        if not server.api.utils.singletons.k8s.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return {}
+
+        secrets_data = server.api.crud.Secrets().list_project_secrets(
+            project,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            allow_secrets_from_k8s=True,
+        )
+        return secrets_data.secrets or {}

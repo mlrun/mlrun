@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import unittest.mock
 from http import HTTPStatus
 
 import pytest
@@ -20,7 +19,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 # fixtures for test, aren't used directly so we need to ignore the lint here
-import mlrun
 from tests.common_fixtures import (  # noqa: F401
     patch_file_forbidden,
     patch_file_not_found,
@@ -46,27 +44,6 @@ def validate_files_status_code(client: TestClient, status_code: int):
 
     resp = client.get("projects/{project}/filestat?schema=v3io&path=mybucket/files.txt")
     assert resp.status_code == status_code
-
-
-class DatastoreObjectMock:
-    def get(self, size, offset):
-        return "dummy body"
-
-    def listdir(self):
-        return ["file1", "file2", "dir1/file3"]
-
-    def delete(self):
-        return None
-
-
-@pytest.fixture
-def files_mock():
-    old_object = mlrun.store_manager.object
-    mlrun.store_manager.object = unittest.mock.Mock(return_value=DatastoreObjectMock())
-
-    yield mlrun.store_manager.object
-
-    mlrun.store_manager.object = old_object
 
 
 def test_files(db: Session, client: TestClient, files_mock, k8s_secrets_mock) -> None:
@@ -100,34 +77,3 @@ def test_files(db: Session, client: TestClient, files_mock, k8s_secrets_mock) ->
     assert resp
     files_mock.assert_called_once_with(url=path, secrets=env_secrets, project="proj1")
     files_mock.reset_mock()
-
-
-def test_delete_file(
-    db: Session, client: TestClient, files_mock, k8s_secrets_mock
-) -> None:
-    path = "s3://somebucket/some/path/file"
-    project = "proj1"
-
-    env_secrets = {"V3IO_ACCESS_KEY": None}
-    project_secrets = {"secret1": "value1", "secret2": "value2"}
-    full_secrets = project_secrets.copy()
-    full_secrets.update(env_secrets)
-    k8s_secrets_mock.store_project_secrets(project, project_secrets)
-    url = f"projects/{project}/files?path={path}"
-
-    resp = client.delete(url)
-    assert resp.status_code == HTTPStatus.NO_CONTENT.value
-    files_mock.assert_called_once_with(url=path, secrets=full_secrets, project=project)
-    files_mock.reset_mock()
-
-    # user supplied secrets - use the same key to override project secrets
-    user_secrets = {"secret1": "user-secret"}
-    override_secrets = full_secrets.copy()
-    override_secrets.update(user_secrets)
-    resp = client.request("DELETE", url, json=override_secrets)
-    assert resp.status_code == HTTPStatus.NO_CONTENT.value
-    files_mock.assert_called_once_with(
-        url=path, secrets=override_secrets, project=project
-    )
-    files_mock.reset_mock()
-

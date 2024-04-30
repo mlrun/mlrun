@@ -195,7 +195,7 @@ class Artifacts(
     ):
         project = project or mlrun.mlconf.default_project
 
-        obj_path = ""
+        path = ""
 
         # delete artifacts data by deletion strategy
         if deletion_strategy in [
@@ -203,16 +203,13 @@ class Artifacts(
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             try:
-                server.api.api.endpoints.files.delete_files_with_project_secrets(
-                    project=project,
-                    secrets=secrets,
-                    auth_info=auth_info,
-                    obj_path=obj_path,
+                server.api.crud.Files().delete_files_with_project_secrets(
+                    auth_info, project, path, secrets
                 )
             except Exception as err:
                 logger.debug(
                     "Failed delete artifacts data",
-                    path=obj_path,
+                    path=path,
                     deletion_strategy=deletion_strategy,
                     err=err_to_str(err),
                 )

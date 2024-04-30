@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts
 import mlrun.common.schemas
 import server.api.api.endpoints.artifacts_v2
-import server.api.api.endpoints.files
+import server.api.crud.files
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.utils.helpers import is_legacy_artifact
 
@@ -264,12 +264,8 @@ def test_fails_deleting_artifact_data(
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
 
-    server.api.api.endpoints.files.delete_files_with_project_secrets = (
-        unittest.mock.MagicMock()
-    )
-
     with unittest.mock.patch(
-        "server.api.api.endpoints.files.delete_files_with_project_secrets",
+        "server.api.crud.files.Files.delete_files_with_project_secrets",
         side_effect=Exception("some error"),
     ):
         resp = unversioned_client.delete(
@@ -281,15 +277,13 @@ def test_fails_deleting_artifact_data(
 def test_delete_artifact_data_default_deletion_strategy(
     db: Session, unversioned_client: TestClient
 ):
-    server.api.api.endpoints.files.delete_files_with_project_secrets = (
-        unittest.mock.MagicMock()
-    )
+    server.api.crud.Files.delete_files_with_project_secrets = unittest.mock.MagicMock()
 
     # checking metadata-only as default deletion_strategy
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     resp = unversioned_client.delete(url)
-    server.api.api.endpoints.files.delete_files_with_project_secrets.assert_not_called()
-    server.api.api.endpoints.files.delete_files_with_project_secrets.reset_mock()
+    server.api.crud.Files.delete_files_with_project_secrets.assert_not_called()
+    server.api.crud.Files.delete_files_with_project_secrets.reset_mock()
     assert resp.status_code == HTTPStatus.NO_CONTENT.value
 
 

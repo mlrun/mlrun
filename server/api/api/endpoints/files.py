@@ -136,38 +136,6 @@ async def get_filestat_with_project_secrets(
     )
 
 
-@router.delete("/projects/{project}/files")
-async def delete_files_with_project_secrets(
-    project: str,
-    schema: str = "",
-    obj_path: str = fastapi.Query("", alias="path"),
-    user: str = "",
-    secrets: dict = None,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        server.api.api.deps.authenticate_request
-    ),
-):
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-
-    secrets = secrets or {}
-    project_secrets = await _verify_and_get_project_secrets(project, auth_info)
-    project_secrets.update(secrets)
-
-    return await run_in_threadpool(
-        _delete_files,
-        schema,
-        obj_path,
-        user,
-        auth_info,
-        secrets=project_secrets,
-        project=project,
-    )
-
-
 def _get_files(
     schema: str,
     objpath: str,
@@ -233,27 +201,6 @@ async def _verify_and_get_project_secrets(project, auth_info):
         allow_secrets_from_k8s=True,
     )
     return secrets_data.secrets or {}
-
-
-def _delete_files(
-    schema: str,
-    obj_path: str,
-    user: str,
-    auth_info: mlrun.common.schemas.AuthInfo,
-    secrets: dict = None,
-    project: str = "",
-):
-    obj_path = _resolve_obj_path(schema, obj_path, user)
-
-    logger.debug("Got delete files request", path=obj_path)
-
-    secrets = secrets or {}
-    secrets.update(get_secrets(auth_info))
-
-    obj = store_manager.object(url=obj_path, secrets=secrets, project=project)
-    obj.delete()
-
-    return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 def _resolve_obj_path(schema: str, obj_path: str, user: str):

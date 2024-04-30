@@ -437,3 +437,24 @@ def mock_project_follower_iguazio_client(
     yield iguazio_client
 
     server.api.utils.clients.iguazio.Client = old_iguazio_client
+
+
+class DatastoreObjectMock:
+    def get(self, size, offset):
+        return "dummy body"
+
+    def listdir(self):
+        return ["file1", "file2", "dir1/file3"]
+
+    def delete(self):
+        return None
+
+
+@pytest.fixture
+def files_mock():
+    old_object = mlrun.store_manager.object
+    mlrun.store_manager.object = unittest.mock.Mock(return_value=DatastoreObjectMock())
+
+    yield mlrun.store_manager.object
+
+    mlrun.store_manager.object = old_object

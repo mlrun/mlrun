@@ -13,6 +13,7 @@
 # limitations under the License.
 import copy
 import json
+import typing
 from typing import Optional
 
 import mlrun.common.helpers
@@ -25,7 +26,7 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 from .context import MonitoringApplicationContext
-from .results import ModelMonitoringApplicationResult
+from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult
 
 
 class _PushToMonitoringWriter(StepToDict):
@@ -58,7 +59,12 @@ class _PushToMonitoringWriter(StepToDict):
     def do(
         self,
         event: tuple[
-            list[ModelMonitoringApplicationResult], MonitoringApplicationContext
+            list[
+                typing.Union[
+                    ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric
+                ]
+            ],
+            MonitoringApplicationContext,
         ],
     ) -> None:
         """
@@ -68,7 +74,7 @@ class _PushToMonitoringWriter(StepToDict):
         """
         self._lazy_init()
         application_results, application_context = event
-        metadata = {
+        writer_event = {
             mm_constant.WriterEvent.APPLICATION_NAME: application_context.application_name,
             mm_constant.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
             mm_constant.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
@@ -83,9 +89,16 @@ class _PushToMonitoringWriter(StepToDict):
         }
         for result in application_results:
             data = result.to_dict()
-            data.update(metadata)
-            logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")
-            self.output_stream.push([data])
+            writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
+                "result"
+                if type(result) == ModelMonitoringApplicationResult
+                else "metric"
+            )
+            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
+            logger.info(
+                f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
+            )
+            self.output_stream.push([writer_event])
 
     def _lazy_init(self):
         if self.output_stream is None:
@@ -130,7 +143,6 @@ class _PrepareMonitoringEvent:
         context = mlrun.get_or_create_ctx(
             f"{app_name}-logger",
             upload_artifacts=True,
-            labels={"workflow": "model-monitoring-app-logger"},
         )
         context.__class__ = MonitoringApplicationContext
         return context

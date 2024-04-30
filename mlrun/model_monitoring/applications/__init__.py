@@ -14,10 +14,12 @@
 #
 
 from .base import ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2
+from .context import MonitoringApplicationContext
 from .evidently_base import (
     _HAS_EVIDENTLY,
     SUPPORTED_EVIDENTLY_VERSION,
     EvidentlyModelMonitoringApplicationBase,
     EvidentlyModelMonitoringApplicationBaseV2,
 )
+from .histogram_data_drift import HistogramDataDriftApplication
 from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult

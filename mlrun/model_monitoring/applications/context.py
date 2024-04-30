@@ -147,12 +147,18 @@ class MonitoringApplicationContext(MLClientCtx):
     @property
     def feature_names(self) -> list[str]:
         """from the model endpoint"""
-        return self.model_endpoint.spec.feature_names
+        feature_names = self.model_endpoint.spec.feature_names
+        return (
+            feature_names
+            if isinstance(feature_names, list)
+            else json.loads(feature_names)
+        )
 
     @property
     def label_names(self) -> list[str]:
         """from the model endpoint"""
-        return self.model_endpoint.spec.label_names
+        label_names = self.model_endpoint.spec.label_names
+        return label_names if isinstance(label_names, list) else json.loads(label_names)
 
     @property
     def model(self) -> typing.Tuple[str, ModelArtifact, dict]:

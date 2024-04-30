@@ -56,11 +56,11 @@ class ModelMonitoringApplicationResult:
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.WriterEvent.RESULT_NAME: self.name,
-            mm_constant.WriterEvent.RESULT_VALUE: self.value,
-            mm_constant.WriterEvent.RESULT_KIND: self.kind,
-            mm_constant.WriterEvent.RESULT_STATUS: self.status,
-            mm_constant.WriterEvent.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
+            mm_constant.ResultData.RESULT_NAME: self.name,
+            mm_constant.ResultData.RESULT_VALUE: self.value,
+            mm_constant.ResultData.RESULT_KIND: self.kind.value,
+            mm_constant.ResultData.RESULT_STATUS: self.status.value,
+            mm_constant.ResultData.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
         }
 
 
@@ -85,13 +85,13 @@ class ModelMonitoringApplicationMetric:
                 "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
             )
 
-    # def to_dict(self):
-    #     """
-    #     Convert the object to a dictionary format suitable for writing.
-    #
-    #     :returns:    (dict) Dictionary representation of the result.
-    #     """
-    #     return {
-    #         mm_constant.WriterEvent.RESULT_NAME: self.name,
-    #         mm_constant.WriterEvent.RESULT_VALUE: self.value,
-    #     }
+    def to_dict(self):
+        """
+        Convert the object to a dictionary format suitable for writing.
+
+        :returns:    (dict) Dictionary representation of the result.
+        """
+        return {
+            mm_constant.MetricData.METRIC_NAME: self.name,
+            mm_constant.MetricData.METRIC_VALUE: self.value,
+        }

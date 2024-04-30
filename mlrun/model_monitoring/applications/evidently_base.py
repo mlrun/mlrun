@@ -20,6 +20,7 @@ import pandas as pd
 import semver
 
 import mlrun.model_monitoring.applications.base as mm_base
+import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.errors import MLRunIncompatibleVersionError
 
 SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.11")
@@ -158,21 +159,26 @@ class EvidentlyModelMonitoringApplicationBaseV2(
         )
 
     def log_evidently_object(
-        self, evidently_object: Union["Report", "Suite"], artifact_name: str
+        self,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+        evidently_object: Union["Report", "Suite"],
+        artifact_name: str,
     ):
         """
          Logs an Evidently report or suite as an artifact.
 
+        :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
         :param evidently_object:    (Union[Report, Suite]) The Evidently report or suite object.
         :param artifact_name:       (str) The name for the logged artifact.
         """
         evidently_object_html = evidently_object.get_html()
-        self.context.log_artifact(
+        monitoring_context.log_artifact(
             artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
         )
 
     def log_project_dashboard(
         self,
+        monitoring_context: mm_context.MonitoringApplicationContext,
         timestamp_start: pd.Timestamp,
         timestamp_end: pd.Timestamp,
         artifact_name: str = "dashboard",
@@ -180,9 +186,10 @@ class EvidentlyModelMonitoringApplicationBaseV2(
         """
         Logs an Evidently project dashboard.
 
-        :param timestamp_start: (pd.Timestamp) The start timestamp for the dashboard data.
-        :param timestamp_end:   (pd.Timestamp) The end timestamp for the dashboard data.
-        :param artifact_name:   (str) The name for the logged artifact.
+        :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
+        :param timestamp_start:     (pd.Timestamp) The start timestamp for the dashboard data.
+        :param timestamp_end:       (pd.Timestamp) The end timestamp for the dashboard data.
+        :param artifact_name:       (str) The name for the logged artifact.
         """
 
         dashboard_info = self.evidently_project.build_dashboard_info(
@@ -195,7 +202,7 @@ class EvidentlyModelMonitoringApplicationBaseV2(
         )
 
         dashboard_html = self._render(determine_template("inline"), template_params)
-        self.context.log_artifact(
+        monitoring_context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
 

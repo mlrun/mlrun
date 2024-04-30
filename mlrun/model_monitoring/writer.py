@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import json
 from typing import Any, NewType
 
 import pandas as pd
@@ -74,7 +75,7 @@ class _Notifier:
         self._severity = severity
 
     def _should_send_event(self) -> bool:
-        return self._event[WriterEvent.RESULT_STATUS] >= ResultStatusApp.detected
+        return self._event[WriterEvent.RESULT_STATUS] >= ResultStatusApp.detected.value
 
     def _generate_message(self) -> str:
         return f"""\
@@ -143,14 +144,20 @@ class ModelMonitoringWriter(StepToDict):
             rate=_TSDB_RATE,
         )
 
-    def _update_kv_db(self, event: _AppResultEvent) -> None:
+    def _update_kv_db(self, event: _AppResultEvent, kind: str = "result") -> None:
+        if kind == "metric":
+            # TODO : Implement the logic for writing metrics to KV
+            return
         event = _AppResultEvent(event.copy())
         application_result_store = mlrun.model_monitoring.get_store_object(
             project=self.project
         )
         application_result_store.write_application_result(event=event)
 
-    def _update_tsdb(self, event: _AppResultEvent) -> None:
+    def _update_tsdb(self, event: _AppResultEvent, kind: str = "result") -> None:
+        if kind == "metric":
+            # TODO : Implement the logic for writing metrics to TSDB
+            return
         event = _AppResultEvent(event.copy())
         event[WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
             event[WriterEvent.END_INFER_TIME]
@@ -201,17 +208,26 @@ class ModelMonitoringWriter(StepToDict):
             mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
-    def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
+    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, str]:
         """
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         try:
+            logger.info("[David] Reconstructing event", event=event)
+            kind = event.pop(WriterEvent.EVENT_KIND, "result")
             result_event = _AppResultEvent(
-                {key: event[key] for key in WriterEvent.list()}
+                json.loads(event.pop(WriterEvent.DATA, "{}"))
             )
-            result_event[WriterEvent.CURRENT_STATS] = event[WriterEvent.CURRENT_STATS]
-            return result_event
+            if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
+                result_event = _AppResultEvent(
+                    {key: event[key] for key in WriterEvent.list()}
+                )
+            else:
+                result_event.update(
+                    _AppResultEvent({key: event[key] for key in event.keys()})
+                )
+            return result_event, kind
         except KeyError as err:
             raise _WriterEventValueError(
                 "The received event misses some keys compared to the expected "
@@ -223,13 +239,16 @@ class ModelMonitoringWriter(StepToDict):
             ) from err
 
     def do(self, event: _RawEvent) -> None:
-        event = self._reconstruct_event(event)
+        event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
-        self._update_tsdb(event)
-        self._update_kv_db(event)
+        self._update_tsdb(event, kind)
+        self._update_kv_db(event, kind)
         _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
-        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
+        if (
+            mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
+            and kind == "result"
+        ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             endpoint_record = self._endpoints_records.setdefault(
                 endpoint_id,

@@ -117,12 +117,29 @@ class WriterEvent(MonitoringStrEnum):
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
+    CURRENT_STATS = "current_stats"
+    EVENT_KIND = "event_kind"  # metric or result
+    DATA = "data"
+
+    # deprecated fields - TODO : delete in 1.9.0
     RESULT_NAME = "result_name"
     RESULT_VALUE = "result_value"
     RESULT_KIND = "result_kind"
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
-    CURRENT_STATS = "current_stats"
+
+
+class MetricData(MonitoringStrEnum):
+    METRIC_NAME = "metric_name"
+    METRIC_VALUE = "metric_value"
+
+
+class ResultData(MonitoringStrEnum):
+    RESULT_NAME = "result_name"
+    RESULT_VALUE = "result_value"
+    RESULT_KIND = "result_kind"
+    RESULT_STATUS = "result_status"
+    RESULT_EXTRA_DATA = "result_extra_data"
 
 
 class EventLiveStats:

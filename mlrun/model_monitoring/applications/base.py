@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Union, cast
+from typing import Any, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -64,17 +64,26 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
     def do(
         self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> tuple[
-        list[mm_results.ModelMonitoringApplicationResult],
+        list[
+            Union[
+                mm_results.ModelMonitoringApplicationResult,
+                mm_results.ModelMonitoringApplicationMetric,
+            ]
+        ],
         mm_context.MonitoringApplicationContext,
     ]:
         """
         Process the monitoring event and return application results.
-
         :param monitoring_context:   (MonitoringApplicationContext) The monitoring context to process.
         :returns:                    (list[ModelMonitoringApplicationResult], dict) The application results
                                      and the original event for the application.
         """
         results = self.do_tracking(monitoring_context=monitoring_context)
+        if isinstance(results, dict):
+            results = [
+                mm_results.ModelMonitoringApplicationMetric(name=key, value=value)
+                for key, value in results.items()
+            ]
         results = results if isinstance(results, list) else [results]
         return results, monitoring_context
 
@@ -84,7 +93,13 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> Union[
         mm_results.ModelMonitoringApplicationResult,
-        list[mm_results.ModelMonitoringApplicationResult],
+        list[
+            Union[
+                mm_results.ModelMonitoringApplicationResult,
+                mm_results.ModelMonitoringApplicationMetric,
+            ]
+        ],
+        dict[str, Any],
     ]:
         """
         Implement this method with your custom monitoring logic.
@@ -92,7 +107,10 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         :param monitoring_context:      (MonitoringApplicationContext) The monitoring context to process.
 
         :returns:                       (ModelMonitoringApplicationResult) or
-                                        (list[ModelMonitoringApplicationResult]) of the application results.
+                                        (list[Union[ModelMonitoringApplicationResult,
+                                        ModelMonitoringApplicationMetric]])
+                                        or dictionary that contains the application metrics only (in this case the name of
+                                        each metric is the key and the value is the corresponding value).
         """
         raise NotImplementedError
 

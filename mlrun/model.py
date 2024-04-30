@@ -1073,7 +1073,12 @@ class RunStatus(ModelObj):
         self.reason = reason
         self.notifications = notifications or {}
 
-    def is_failed(self):
+    def is_failed(self) -> Optional[bool]:
+        """
+        This method returns whether a run has failed.
+        Returns none if state has yet to be defined. callee is responsible for handling None.
+        (e.g wait for state to be defined)
+        """
         if not self.state:
             return None
         return self.state.casefold() in [

@@ -30,7 +30,7 @@ from pathlib import Path
 import kubernetes.client
 import semver
 import sqlalchemy.orm
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -1280,18 +1280,12 @@ def verify_project_is_deleted(project_name, auth_info):
 
 
 def create_function_deletion_background_task(
-    background_tasks: fastapi.BackgroundTasks,
+    background_tasks: BackgroundTasks,
     db_session: sqlalchemy.orm.Session,
     project_name: str,
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
-    background_task_kind_format = (
-        server.api.utils.background_tasks.BackgroundTaskKinds.function_deletion
-    )
-    background_task_kind = background_task_kind_format.format(function_name)
-    background_task_name = str(uuid.uuid4())
-
     # create the background task for function deletion
     return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db_session=db_session,
@@ -1299,7 +1293,7 @@ def create_function_deletion_background_task(
         background_tasks=background_tasks,
         function=_delete_function,
         timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
-        name=background_task_name,
+        name=None,
         function_name=function_name,
         auth_info=auth_info,
     )

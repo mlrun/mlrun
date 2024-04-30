@@ -2024,12 +2024,24 @@ class MlrunProject(ModelObj):
 
         return resolved_function_name, function_object, func
 
+    def _wait_for_functions_deployment(self, function_names: list[str]) -> None:
+        """
+        Wait for the deployment of functions on the backend.
+
+        :param function_names: A list of function names.
+        """
+        for fn_name in function_names:
+            fn = typing.cast(RemoteRuntime, self.get_function(key=fn_name))
+            fn._wait_for_function_deployment(db=fn._get_db())
+
     def enable_model_monitoring(
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        *,
         deploy_histogram_data_drift_app: bool = True,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2039,7 +2051,6 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-
         :param default_controller_image:        Deprecated.
         :param base_period:                     The time period in minutes in which the model monitoring controller
                                                 function is triggered. By default, the base period is 10 minutes.
@@ -2047,6 +2058,9 @@ class MlrunProject(ModelObj):
                                                 stream & histogram data drift functions, which are real time nuclio
                                                 functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
+                                                Otherwise, deploy the model monitoring infrastructure on the
+                                                background, including the histogram data drift app if selected.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2064,37 +2078,55 @@ class MlrunProject(ModelObj):
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
 
+        if wait_for_deployment:
+            deployment_functions = mm_constants.MonitoringFunctionNames.list()
+            if deploy_histogram_data_drift_app:
+                deployment_functions.append(
+                    mm_constants.HistogramDataDriftApplicationConstants.NAME
+                )
+            self._wait_for_functions_deployment(deployment_functions)
+
     def deploy_histogram_data_drift_app(
         self,
         *,
         image: str = "mlrun/mlrun",
         db: Optional[mlrun.db.RunDBInterface] = None,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image: The image on which the application will run.
-        :param db:    An optional DB object.
+        :param image:               The image on which the application will run.
+        :param db:                  An optional DB object.
+        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
+                                    Otherwise, deploy the application on the background.
         """
         if db is None:
             db = mlrun.db.get_run_db(secrets=self._secrets)
         db.deploy_histogram_data_drift_app(project=self.name, image=image)
 
+        if wait_for_deployment:
+            self._wait_for_functions_deployment(
+                [mm_constants.HistogramDataDriftApplicationConstants.NAME]
+            )
+
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        *,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Redeploy model monitoring application controller functions.
 
-
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         is triggered. By default, the base period is 10 minutes.
-        :param image:                    The image of the model monitoring controller, writer & monitoring
-                                         stream functions, which are real time nuclio functions.
-                                         By default, the image is mlrun/mlrun.
-        :returns: model monitoring controller job as a dictionary.
+        :param base_period:         The time period in minutes in which the model monitoring controller function
+                                    is triggered. By default, the base period is 10 minutes.
+        :param image:               The image of the model monitoring controller, writer & monitoring
+                                    stream functions, which are real time nuclio functions.
+                                    By default, the image is mlrun/mlrun.
+        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
+                                    Otherwise, deploy the controller on the background.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(
@@ -2102,6 +2134,11 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             image=image,
         )
+
+        if wait_for_deployment:
+            self._wait_for_functions_deployment(
+                [mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER]
+            )
 
     def disable_model_monitoring(
         self, *, delete_histogram_data_drift_app: bool = True

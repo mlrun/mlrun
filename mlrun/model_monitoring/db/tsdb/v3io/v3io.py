@@ -329,7 +329,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
-        :param table:            Path to the collection to query.
+        :param table:            Table key to query. The table key should exist in the class tables dictionary.
         :param columns:          Columns to include in the result.
         :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
                                  divided by ' AND '.

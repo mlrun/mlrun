@@ -34,26 +34,30 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,
-                sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-                feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-                start_infer_time: pd.Timestamp,
-                end_infer_time: pd.Timestamp,
-                schedule_time: pd.Timestamp,
-                latest_request: pd.Timestamp,
-                endpoint_id: str,
-                output_stream_uri: str,
-            ) -> ModelMonitoringApplicationResult:
-                self.context.log_artifact(
+                monitoring_context: mm_context.MonitoringApplicationContext,
+            ) -> Union[
+                mm_results.ModelMonitoringApplicationResult,
+                list[
+                    Union[
+                        mm_results.ModelMonitoringApplicationResult,
+                        mm_results.ModelMonitoringApplicationMetric,
+                    ]
+                ],
+                dict[str, Any],
+            ]:
+                monitoring_context.log_artifact(
                     TableArtifact(
                         "sample_df_stats", df=self.dict_to_histogram(sample_df_stats)
                     )
                 )
-                return ModelMonitoringApplicationResult(
-                    name="data_drift_test",
-                    value=0.5,
-                    kind=mm_constant.ResultKindApp.data_drift,
-                    status=mm_constant.ResultStatusApp.detected,
-                )
+                return [
+                    ModelMonitoringApplicationResult(
+                        name="data_drift_test",
+                        value=0.5,
+                        kind=mm_constant.ResultKindApp.data_drift,
+                        status=mm_constant.ResultStatusApp.detected,
+                    )
+                ]
 
 
         # mlrun: end-code
@@ -74,7 +78,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
     ]:
         """
         Process the monitoring event and return application results.
-        :param monitoring_context:   (MonitoringApplicationContext) The monitoring context to process.
+        :param monitoring_context:   (MonitoringApplicationContext) The monitoring application context.
         :returns:                    (list[ModelMonitoringApplicationResult], dict) The application results
                                      and the original event for the application.
         """
@@ -109,7 +113,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         :returns:                       (ModelMonitoringApplicationResult) or
                                         (list[Union[ModelMonitoringApplicationResult,
                                         ModelMonitoringApplicationMetric]])
-                                        or dictionary that contains the application metrics only (in this case the name of
+                                        or dict that contains the application metrics only (in this case the name of
                                         each metric is the key and the value is the corresponding value).
         """
         raise NotImplementedError

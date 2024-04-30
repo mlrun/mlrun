@@ -214,7 +214,6 @@ class ModelMonitoringWriter(StepToDict):
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         try:
-            logger.info("[David] Reconstructing event", event=event)
             kind = event.pop(WriterEvent.EVENT_KIND, "result")
             result_event = _AppResultEvent(
                 json.loads(event.pop(WriterEvent.DATA, "{}"))

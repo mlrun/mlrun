@@ -127,8 +127,6 @@ class BaseSourceDriver(DataSource):
             "to a Spark dataframe is not possible, as this operation is not supported"
         )
 
-    from storey.targets import StreamTarget
-
     def _filter_spark_df(self, df, time_field=None, columns=None):
         if not (columns or time_field):
             return df

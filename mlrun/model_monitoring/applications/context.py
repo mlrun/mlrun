@@ -32,6 +32,26 @@ from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
 class MonitoringApplicationContext(MLClientCtx):
+    """
+    The monitoring context holds all the relevant information for the monitoring application,
+    and also it can be used for logging artifacts and results.
+    The monitoring context has the following attributes:
+
+    - application_name: str
+    - start_infer_time: pd.Timestamp
+    - end_infer_time: pd.Timestamp
+    - latest_request: pd.Timestamp
+    - endpoint_id: str
+    - output_stream_uri: str
+    - sample_df: pd.DataFrame
+    - model_endpoint: ModelEndpoint
+    - feature_stats: FeatureStats
+    - sample_df_stats: FeatureStats
+    - feature_names: list[str]
+    - label_names: list[str]
+    - model: tuple[str, ModelArtifact, dict]
+    """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -95,11 +115,6 @@ class MonitoringApplicationContext(MLClientCtx):
         self.data = {}
 
         return self
-
-    def to_dict(self) -> dict:
-        """TODO: edit"""
-        a = super(self).to_dict()
-        return a
 
     @property
     def sample_df(self) -> pd.DataFrame:
@@ -193,8 +208,3 @@ class MonitoringApplicationContext(MLClientCtx):
         histograms = pd.DataFrame(histograms)
 
         return histograms
-
-    """
-    Application context object.
-
-    """

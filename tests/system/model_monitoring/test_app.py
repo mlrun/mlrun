@@ -331,7 +331,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
 
-    @pytest.mark.parametrize("with_training_set", [True])
+    @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)
@@ -339,6 +339,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         for i in range(len(self.apps_data)):
             if "with_training_set" in self.apps_data[i].kwargs:
                 self.apps_data[i].kwargs["with_training_set"] = with_training_set
+
+        # workaround for ML-5997
+        if not with_training_set:
+            self.apps_data.pop(0)
 
         with ThreadPoolExecutor() as executor:
             executor.submit(

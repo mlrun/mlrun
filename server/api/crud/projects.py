@@ -162,7 +162,7 @@ class Projects(
             )
 
         # verify project can be deleted in nuclio
-        if mlrun.config.config.nuclio_dashboard_url:
+        if mlrun.mlconf.nuclio_dashboard_url:
             nuclio_client = server.api.utils.clients.nuclio.Client()
             nuclio_client.delete_project(
                 session,
@@ -200,6 +200,8 @@ class Projects(
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             server.api.crud.Logs().delete_project_logs_legacy(name)
+
+        server.api.crud.Events().delete_project_alert_events(name)
 
         # delete db resources
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
@@ -410,7 +412,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        if not mlrun.config.config.nuclio_dashboard_url:
+        if not mlrun.mlconf.nuclio_dashboard_url:
             return
 
         nuclio_client = server.api.utils.clients.nuclio.Client()

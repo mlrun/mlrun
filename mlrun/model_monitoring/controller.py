@@ -350,7 +350,12 @@ class MonitoringApplicationController:
                     {
                         app.metadata.name
                         for app in monitoring_functions
-                        if app.status.state == "ready"
+                        if (
+                            app.status.state == "ready"
+                            # workaround for the default app, as its `status.state` is `None`
+                            or app.metadata.name
+                            == mm_constants.HistogramDataDriftApplicationConstants.NAME
+                        )
                     }
                 )
             if not applications_names:
@@ -358,6 +363,10 @@ class MonitoringApplicationController:
                     "No monitoring functions found", project=self.project
                 )
                 return
+            self.context.logger.info(
+                "Starting to iterate over the applications",
+                applications=applications_names,
+            )
 
         except Exception as e:
             self.context.logger.error(
@@ -493,8 +502,7 @@ class MonitoringApplicationController:
 
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(
-                        sample_set_statistics=feature_stats,
-                        inputs=df,
+                        sample_set_statistics=feature_stats, inputs=df
                     )
 
                     cls._push_to_applications(

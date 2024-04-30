@@ -698,6 +698,24 @@ class SQLRunDB(RunDBInterface):
             mask_params,
         )
 
+    def store_alert_notifications(
+        self,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.Notifications().store_alerts_notifications,
+            notification_objects,
+            alert_id,
+            project,
+            mask_params,
+        )
+
     def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
@@ -973,6 +991,72 @@ class SQLRunDB(RunDBInterface):
     ) -> "mlrun.common.schemas.WorkflowResponse":
         raise NotImplementedError()
 
+    def remote_builder(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        raise NotImplementedError()
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def set_run_notifications(
+        self,
+        project: str,
+        runs: list[mlrun.model.RunObject],
+        notifications: list[mlrun.model.Notification],
+    ):
+        raise NotImplementedError()
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        raise NotImplementedError()
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        raise NotImplementedError
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
+
     def _transform_db_error(self, func, *args, **kwargs):
         try:
             return func(*args, **kwargs)
@@ -985,6 +1069,31 @@ class SQLRunDB(RunDBInterface):
 
         except DBError as exc:
             raise mlrun.db.RunDBError(exc.args) from exc
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name, project=""):
+        pass
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

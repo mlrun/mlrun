@@ -23,24 +23,29 @@ import semver
 import mlrun.datastore
 
 
-def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list]:
+def parse_kafka_url(
+    url: str, brokers: typing.Union[list, str] = None
+) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
-    :param bootstrap_servers: List of bootstrap servers for the kafka brokers.
+    :param brokers: List of kafka brokers.
 
     :return: A tuple of:
          [0] = Kafka topic value
          [1] = List of bootstrap servers
     """
-    bootstrap_servers = bootstrap_servers or []
+    brokers = brokers or []
+
+    if isinstance(brokers, str):
+        brokers = brokers.split(",")
 
     # Parse the provided URL into six components according to the general structure of a URL
     url = urlparse(url)
 
     # Add the network location to the bootstrap servers list
     if url.netloc:
-        bootstrap_servers = [url.netloc] + bootstrap_servers
+        brokers = [url.netloc] + brokers
 
     # Get the topic value from the parsed url
     query_dict = parse_qs(url.query)
@@ -49,7 +54,7 @@ def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list
     else:
         topic = url.path
         topic = topic.lstrip("/")
-    return topic, bootstrap_servers
+    return topic, brokers
 
 
 def upload_tarball(source_dir, target, secrets=None):

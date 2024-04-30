@@ -72,7 +72,7 @@ def config_test_base():
     log_level = "DEBUG"
     environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
-    mlrun.config.config.reload()
+    mlrun.mlconf.reload()
 
     # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
@@ -93,7 +93,7 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
 
     # TODO: update this to "sidecar" once the default mode is changed
-    mlrun.config.config.log_collector.mode = "legacy"
+    mlrun.mlconf.log_collector.mode = "legacy"
 
     # revert change of default project after project creation
     mlrun.mlconf.default_project = "default"
@@ -409,6 +409,21 @@ class RunDBMock:
     ):
         return "ready", last_log_timestamp
 
+    def deploy_nuclio_function(
+        self,
+        func,
+        builder_env: Optional[dict] = None,
+    ):
+        return self.remote_builder(func, False)
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        return "ready", last_log_timestamp
+
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
             update_in(self._runs[uid], key, value)
@@ -593,3 +608,77 @@ def rundb_mock() -> RunDBMock:
         mlrun.get_run_db = orig_get_run_db
         BaseRuntime._get_db = orig_get_db
         config.dbpath = orig_db_path
+
+
+class RemoteBuilderMock:
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func: mlrun.runtimes.BaseRuntime,
+            *args,
+            **kwargs,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                        "build": {
+                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                        },
+                    },
+                    "status": {
+                        "state": "ready",
+                        "build_pod": "build-pod",
+                    }
+                    | func.status.to_dict(),
+                },
+            }
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+        self.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_builder_handler
+        )
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+    def get_builder_status(
+        self,
+        func: BaseRuntime,
+        offset=0,
+        logs=True,
+        last_log_timestamp=0,
+        verbose=False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock

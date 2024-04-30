@@ -65,11 +65,11 @@ LIST_FUNCTION_API = "projects/{project}/functions"
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
-        mlrun.config.config.httpdb.projects.leader = "nop"
+        mlrun.mlconf.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
         server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
-        mlrun.config.config.httpdb.projects.leader = "mlrun"
+        mlrun.mlconf.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
@@ -677,9 +677,7 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.config.config.log_collector.mode = (
-        mlrun.common.schemas.LogsCollectorMode.sidecar
-    )
+    mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
     project_name = "project-name"
 
@@ -1189,6 +1187,34 @@ def _create_resources_of_all_kinds(
         )
         db.store_run_notifications(db_session, [notification], run_uid, project)
 
+    # Create alert notifications
+    notification = mlrun.model.Notification(
+        kind="slack",
+        when=["completed", "error"],
+        name="test-alert-notification",
+        message="test-message",
+        condition="",
+        severity="info",
+        params={"some-param": "some-value"},
+    )
+
+    alert = mlrun.common.schemas.AlertConfig(
+        project=project,
+        name="test_alert",
+        summary="oops",
+        severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        entity={
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
+            "project": project,
+            "id": "*",
+        },
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
+        notifications=[notification.to_dict()],
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+    )
+    alert = db.store_alert(db_session, alert)
+    db.store_alert_notifications(db_session, [notification], alert.id, project)
+
     # Create several logs
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -1377,6 +1403,7 @@ def _assert_db_resources_in_project(
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
+            or cls.__tablename__ == "alert_states"
         ):
             continue
         number_of_cls_records = 0

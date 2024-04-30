@@ -3321,7 +3321,7 @@ class TestFeatureStore(TestMLRunSystem):
     )
     def test_kafka_target_datastore_profile(self, kafka_consumer):
         profile = DatastoreProfileKafkaTarget(
-            name="dskafkatarget", bootstrap_servers=kafka_brokers, topic=kafka_topic
+            name="dskafkatarget", brokers=kafka_brokers, topic=kafka_topic
         )
         register_temporary_client_datastore_profile(profile)
 
@@ -3368,7 +3368,7 @@ class TestFeatureStore(TestMLRunSystem):
         target = KafkaTarget(
             "kafka",
             path=kafka_topic,
-            bootstrap_servers=kafka_brokers,
+            brokers=kafka_brokers,
         )
         stocks_set.ingest(stocks, [target])
 
@@ -3402,7 +3402,7 @@ class TestFeatureStore(TestMLRunSystem):
         target = KafkaTarget(
             "kafka",
             path=kafka_topic,
-            bootstrap_servers=kafka_brokers,
+            brokers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
         try:

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 import mlrun.utils.regex
 import server.api.utils.singletons.k8s
 from mlrun.runtimes import RuntimeClassMode, Spark3Runtime
-from mlrun.runtimes.constants import RunStates, SparkApplicationStates
+from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.utils import (
     get_in,
     logger,

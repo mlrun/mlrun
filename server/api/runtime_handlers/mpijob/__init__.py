@@ -17,7 +17,7 @@ import mlrun.k8s_utils
 import mlrun.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
-from mlrun.runtimes.constants import MPIJobCRDVersions
+from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from server.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 from server.api.runtime_handlers.mpijob.v1alpha1 import MpiV1Alpha1RuntimeHandler
 

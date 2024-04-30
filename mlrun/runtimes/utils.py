@@ -30,7 +30,7 @@ from mlrun.artifacts import TableArtifact
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.runtimes.constants import RunLabels
+from mlrun.common.runtimes.constants import RunLabels
 from mlrun.runtimes.generators import selector
 from mlrun.utils import get_in, helpers, logger, verify_field_regex
 

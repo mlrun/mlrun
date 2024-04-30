@@ -19,7 +19,7 @@ import pytest
 
 import mlrun
 import tests.system.base
-from mlrun.runtimes.constants import RunStates
+from mlrun.common.runtimes.constants import RunStates
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
 base_image = "mlrun/mlrun"

@@ -14,7 +14,7 @@
 #
 from dateutil import parser
 
-import mlrun.runtimes.constants
+import mlrun.common.runtimes.constants
 from mlrun.utils import get_in
 from server.api.db.sqldb.models import Base
 
@@ -44,7 +44,7 @@ def run_labels(run) -> dict:
 
 
 def run_state(run):
-    return get_in(run, "status.state", mlrun.runtimes.constants.RunStates.created)
+    return get_in(run, "status.state", mlrun.common.runtimes.constants.RunStates.created)
 
 
 def update_labels(obj, labels: dict):

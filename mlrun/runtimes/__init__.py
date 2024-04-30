@@ -31,7 +31,7 @@ __all__ = [
 from mlrun.runtimes.utils import resolve_spark_operator_version
 
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
-from .constants import MPIJobCRDVersions
+from ..common.runtimes.constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa

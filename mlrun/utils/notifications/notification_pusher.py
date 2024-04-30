@@ -30,7 +30,7 @@ import mlrun.errors
 import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
-import mlrun.runtimes.constants
+import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
 from mlrun import mlconf
 from mlrun.utils import logger
@@ -410,7 +410,7 @@ class NotificationPusher(_NotificationPusherBase):
                     project=project, name=name, hash_key=hash_key
                 )
                 function["status"] = {
-                    "state": mlrun.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                    "state": mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
                         node["phase"]
                     ),
                 }

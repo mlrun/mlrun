@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import server.api.runtime_handlers.mpijob
 import server.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes.constants import PodPhases, RunStates
+from mlrun.common.runtimes.constants import PodPhases, RunStates
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.k8s import get_k8s_helper

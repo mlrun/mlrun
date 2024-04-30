@@ -37,7 +37,7 @@ import server.api.crud.runtimes.nuclio.helpers
 import server.api.utils.runtimes.nuclio
 from mlrun import code_to_function, mlconf
 from mlrun.platforms.iguazio import split_path
-from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.utils import logger
 from server.api.utils.functions import build_function
 from tests.api.conftest import K8sSecretsMock

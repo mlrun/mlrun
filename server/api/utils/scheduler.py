@@ -38,7 +38,7 @@ import server.api.utils.singletons.project_member
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import RunObject
-from mlrun.runtimes.constants import RunStates
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.utils import logger
 from server.api.db.session import close_session, create_session
 from server.api.utils.singletons.db import get_db

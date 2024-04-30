@@ -25,10 +25,10 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.runtimes.constants
+import mlrun.common.runtimes.constants
 import server.api.crud
 import server.api.utils.clients.chief
-from mlrun.runtimes.constants import PodPhases, RunStates
+from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
 from server.api.constants import LogSources
 from server.api.runtime_handlers import get_runtime_handler
@@ -49,7 +49,7 @@ class TestRuntimeHandlerBase:
         self.run_uid = "test_run_uid"
         self.kind = "job"
 
-        mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
+        mlrun.mlconf.mpijob_crd_version = mlrun.common.runtimes.constants.MPIJobCRDVersions.v1
         self.custom_setup()
 
         self._logger.info(

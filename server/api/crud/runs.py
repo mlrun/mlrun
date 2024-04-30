@@ -24,7 +24,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.lists
 import mlrun.runtimes
-import mlrun.runtimes.constants
+import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -78,14 +78,14 @@ class Runs(
         #  (once 1.5.x clients are not supported)
         if (
             data
-            and data.get("status.state") == mlrun.runtimes.constants.RunStates.aborted
+            and data.get("status.state") == mlrun.common.runtimes.constants.RunStates.aborted
         ):
             current_run = server.api.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
             if (
                 current_run.get("status", {}).get("state")
-                in mlrun.runtimes.constants.RunStates.terminal_states()
+                in mlrun.common.runtimes.constants.RunStates.terminal_states()
             ):
                 raise mlrun.errors.MLRunConflictError(
                     "Run is already in terminal state, can not be aborted"
@@ -236,7 +236,7 @@ class Runs(
         run_state = run.get("status", {}).get("state")
         if (
             run_state
-            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete run in {run_state} state, consider aborting the run first"
@@ -281,7 +281,7 @@ class Runs(
         if (
             state
             and state
-            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete runs in {state} state, consider aborting the run first"
@@ -350,7 +350,7 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         run_updates = run_updates or {}
-        run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
         logger.debug(
             "Aborting run",
             project=project,
@@ -370,8 +370,8 @@ class Runs(
             new_background_task_id == server.api.constants.internal_abort_task_id
             and current_run_state
             in [
-                mlrun.runtimes.constants.RunStates.aborting,
-                mlrun.runtimes.constants.RunStates.aborted,
+                mlrun.common.runtimes.constants.RunStates.aborting,
+                mlrun.common.runtimes.constants.RunStates.aborted,
             ]
         ):
             logger.warning(
@@ -381,7 +381,7 @@ class Runs(
             )
             return
 
-        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
+        if current_run_state in mlrun.common.runtimes.constants.RunStates.terminal_states():
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
             )
@@ -394,14 +394,14 @@ class Runs(
 
         # mark run as aborting
         aborting_updates = {
-            "status.state": mlrun.runtimes.constants.RunStates.aborting,
+            "status.state": mlrun.common.runtimes.constants.RunStates.aborting,
             "status.abort_task_id": new_background_task_id,
         }
         server.api.utils.singletons.db.get_db().update_run(
             db_session, aborting_updates, uid, project, iter
         )
 
-        run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
         try:
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
@@ -422,7 +422,7 @@ class Runs(
                 iter=iter,
             )
             run_updates = {
-                "status.state": mlrun.runtimes.constants.RunStates.error,
+                "status.state": mlrun.common.runtimes.constants.RunStates.error,
                 "status.error": f"Failed to abort run, error: {err}",
             }
             server.api.utils.singletons.db.get_db().update_run(

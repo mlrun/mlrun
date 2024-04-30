@@ -345,7 +345,8 @@ def load_project(
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
-    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of loading an existing project yaml as a baseline for a new project with a different name
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
@@ -487,7 +488,8 @@ def get_or_create_project(
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :param parameters:   key/value pairs to add to the project.spec.params
-    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of loading an existing project yaml as a baseline for a new project with a different name
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """

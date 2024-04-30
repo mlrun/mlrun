@@ -1280,6 +1280,7 @@ def verify_project_is_deleted(project_name, auth_info):
 
 
 def create_function_deletion_background_task(
+    background_tasks: fastapi.BackgroundTasks,
     db_session: sqlalchemy.orm.Session,
     project_name: str,
     function_name: str,
@@ -1292,13 +1293,13 @@ def create_function_deletion_background_task(
     background_task_name = str(uuid.uuid4())
 
     # create the background task for function deletion
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        background_task_kind,
-        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
-        _delete_function,
-        background_task_name,
+    return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db_session=db_session,
-        project_name=project_name,
+        project=project_name,
+        background_tasks=background_tasks,
+        function=_delete_function,
+        timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
+        name=background_task_name,
         function_name=function_name,
         auth_info=auth_info,
     )
@@ -1306,7 +1307,7 @@ def create_function_deletion_background_task(
 
 async def _delete_function(
     db_session: sqlalchemy.orm.Session,
-    project_name: str,
+    project: str,
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
@@ -1314,7 +1315,7 @@ async def _delete_function(
     functions = await run_in_threadpool(
         server.api.crud.Functions().list_functions,
         db_session,
-        project_name,
+        project,
         function_name,
     )
     if len(functions) > 0:
@@ -1328,13 +1329,13 @@ async def _delete_function(
             # generate Nuclio function names based on function tags
             nuclio_function_names = [
                 mlrun.runtimes.nuclio.function.get_fullname(
-                    function_name, project_name, function.get("metadata", {}).get("tag")
+                    function_name, project, function.get("metadata", {}).get("tag")
                 )
                 for function in functions
             ]
             # delete Nuclio functions associated with the function tags in batches
             failed_requests = await delete_nuclio_functions_in_batches(
-                auth_info, project_name, nuclio_function_names
+                auth_info, project, nuclio_function_names
             )
             if failed_requests:
                 error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
@@ -1344,26 +1345,28 @@ async def _delete_function(
     await run_in_threadpool(
         server.api.crud.Functions().delete_function,
         db_session,
-        project_name,
+        project,
         function_name,
     )
 
 
-async def delete_nuclio_functions_in_batches(auth_info, project_name, function_names):
+async def delete_nuclio_functions_in_batches(
+    auth_info: mlrun.common.schemas.AuthInfo, project_name: str, function_names: str
+):
     async def delete_function(
         nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
-        project,
-        function,
+        project: str,
+        function: str,
     ):
         try:
             await nuclio_client.delete_function(name=function, project_name=project)
             return None
-        except Exception as e:
+        except Exception as exc:
             # return tuple with failure info
-            return function, str(e)
+            return function, str(exc)
 
     # batch size for deleting functions in parallel
-    batch_size = 10
+    batch_size = mlrun.mlconf.background_tasks.function_deletion_batch_size
     failed_requests = []
 
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:

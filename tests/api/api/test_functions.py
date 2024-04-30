@@ -239,7 +239,10 @@ async def test_list_functions_with_hash_key_versioned(
         (False, "remote"),
     ],
 )
-@pytest.mark.parametrize("use_v2_deletion_endpoint", [True, False])
+@pytest.mark.parametrize(
+    "function_deletion_endpoint_prefix, expected_status",
+    [("v1/", HTTPStatus.NO_CONTENT.value), ("v2/", HTTPStatus.ACCEPTED.value)],
+)
 @unittest.mock.patch.object(server.api.utils.clients.async_nuclio, "Client")
 @unittest.mock.patch.object(
     server.api.utils.clients.async_nuclio.Client, "delete_function"
@@ -248,16 +251,19 @@ def test_delete_function(
     patched_nuclio_client,
     patched_delete_nuclio_function,
     db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
+    unversioned_client: fastapi.testclient.TestClient,
     post_schedule,
     kind,
-    use_v2_deletion_endpoint,
+    function_deletion_endpoint_prefix,
+    expected_status,
 ):
     patched_nuclio_client.return_value = fastapi.testclient.TestClient
     patched_delete_nuclio_function.return_value.return_value = None
-
+    endpoint_prefix = "v1/"
     # create project and function
-    tests.api.api.utils.create_project(client, PROJECT)
+    tests.api.api.utils.create_project(
+        unversioned_client, PROJECT, endpoint_prefix=endpoint_prefix
+    )
 
     function_tag = "function-tag"
     function_name = "function-name"
@@ -274,7 +280,9 @@ def test_delete_function(
     }
 
     function_endpoint = f"projects/{PROJECT}/functions/{function_name}"
-    function = client.post(function_endpoint, data=mlrun.utils.dict_to_json(function))
+    function = unversioned_client.post(
+        f"{endpoint_prefix}{function_endpoint}", data=mlrun.utils.dict_to_json(function)
+    )
     assert function.status_code == HTTPStatus.OK.value
     hash_key = function.json()["hash_key"]
 
@@ -300,30 +308,31 @@ def test_delete_function(
         )
 
         endpoint = f"projects/{PROJECT}/schedules"
-        response = client.post(endpoint, data=mlrun.utils.dict_to_json(schedule.dict()))
+        response = unversioned_client.post(
+            f"{endpoint_prefix}{endpoint}",
+            data=mlrun.utils.dict_to_json(schedule.dict()),
+        )
         assert response.status_code == HTTPStatus.CREATED.value
 
-        response = client.get(endpoint)
+        response = unversioned_client.get(f"{endpoint_prefix}{endpoint}")
         assert (
             response.status_code == HTTPStatus.OK.value
             and response.json()["schedules"][0]["name"] == function_name
         )
 
     # delete the function and assert that it has been removed, as has its schedule if created
-    if use_v2_deletion_endpoint:
-        v2_endpoint = str(client.base_url).replace("/v1/", "/v2/")
-        response = client.request("DELETE", f"{v2_endpoint}{function_endpoint}")
-        assert response.status_code == HTTPStatus.ACCEPTED
+    response = unversioned_client.delete(
+        f"{function_deletion_endpoint_prefix}{function_endpoint}"
+    )
+    assert response.status_code == expected_status
 
-    else:
-        response = client.delete(function_endpoint)
-        assert response.status_code == HTTPStatus.NO_CONTENT.value
-
-    response = client.get(function_endpoint, params={"hash_key": hash_key})
+    response = unversioned_client.get(
+        f"{endpoint_prefix}{function_endpoint}", params={"hash_key": hash_key}
+    )
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     if post_schedule:
-        response = client.get(endpoint)
+        response = unversioned_client.get(f"{endpoint_prefix}{endpoint}")
         assert (
             response.status_code == HTTPStatus.OK.value
             and not response.json()["schedules"]

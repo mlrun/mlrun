@@ -141,7 +141,7 @@ async def get_function(
     "/projects/{project}/functions/{name}",
     status_code=HTTPStatus.NO_CONTENT.value,
     deprecated=True,
-    description="'/projects/{project}/functions/{name}' will be removed in 1.9.0, "
+    description="'/v1/projects/{project}/functions/{name}' will be removed in 1.9.0, "
     "use '/v2/projects/{project}/functions/{name}' instead.",
 )
 async def delete_function(

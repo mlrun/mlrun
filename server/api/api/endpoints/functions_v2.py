@@ -103,6 +103,7 @@ async def delete_function(
             )
     task, task_name = await run_in_threadpool(
         server.api.api.utils.create_function_deletion_background_task,
+        background_tasks,
         db_session,
         project,
         name,

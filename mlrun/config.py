@@ -188,6 +188,7 @@ default_config = {
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
+        "function_deletion_batch_size": 10,
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
             "operations": {

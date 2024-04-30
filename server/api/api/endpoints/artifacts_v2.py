@@ -22,7 +22,7 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun.common.schemas.artifact import ArtifactsFormat
+from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies, ArtifactsFormat
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.utils import artifact_project_and_resource_name_extractor
@@ -226,7 +226,7 @@ async def delete_artifact(
     tree: str = None,
     tag: str = None,
     object_uid: str = Query(None, alias="object-uid"),
-    deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+    deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
     secrets: dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -260,7 +260,7 @@ async def delete_artifacts(
     tag: str = "",
     tree: str = None,
     labels: list[str] = Query([], alias="label"),
-    deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+    deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
     secrets: dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),

@@ -24,6 +24,7 @@ import mlrun.model_monitoring.model_endpoint
 import server.api.crud
 import server.api.db.session
 from mlrun.common.db.sql_session import create_session
+from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.db import RunDBInterface
 from server.api.db.base import DBError
 from server.api.db.sqldb.db import SQLDB
@@ -240,7 +241,7 @@ class SQLRunDB(RunDBInterface):
         project="",
         tree=None,
         uid=None,
-        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only,
+        deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
         secrets: dict = None,
     ):
         return self._transform_db_error(

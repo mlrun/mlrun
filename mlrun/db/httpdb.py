@@ -1149,7 +1149,7 @@ class HTTPRunDB(RunDBInterface):
             )
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
             background_task = self._wait_for_background_task_to_reach_terminal_state(
-                background_task.metadata.name
+                background_task.metadata.name, project=project
             )
             if (
                 background_task.status.state

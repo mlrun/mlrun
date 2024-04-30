@@ -43,7 +43,7 @@ demos
 Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 
 
-`````{div} full-width
+`````{div}
 
 ````{grid} 3
 :gutter: 2

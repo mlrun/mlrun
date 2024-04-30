@@ -20,7 +20,6 @@ import aiohttp
 
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
 from mlrun.common.constants import MLRUN_CREATED_LABEL
 from mlrun.utils import logger

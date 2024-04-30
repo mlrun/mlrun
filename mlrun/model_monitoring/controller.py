@@ -613,7 +613,7 @@ class MonitoringApplicationController:
             mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                 project=project,
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ),  # TODO : change/ not relevant
+            ),
             mm_constants.ApplicationEvent.MLRUN_CONTEXT: {},  # TODO : for future use by ad-hoc batch infer
         }
         for app_name in applications_names:

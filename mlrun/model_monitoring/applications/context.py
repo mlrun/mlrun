@@ -37,19 +37,20 @@ class MonitoringApplicationContext(MLClientCtx):
     and also it can be used for logging artifacts and results.
     The monitoring context has the following attributes:
 
-    - application_name: str
-    - start_infer_time: pd.Timestamp
-    - end_infer_time: pd.Timestamp
-    - latest_request: pd.Timestamp
-    - endpoint_id: str
-    - output_stream_uri: str
-    - sample_df: pd.DataFrame
-    - model_endpoint: ModelEndpoint
-    - feature_stats: FeatureStats
-    - sample_df_stats: FeatureStats
-    - feature_names: list[str]
-    - label_names: list[str]
-    - model: tuple[str, ModelArtifact, dict]
+    :param application_name:        (str) the app name
+    :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
+    :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
+    :param sample_df:               (pd.DataFrame) The new sample DataFrame.
+    :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
+    :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
+    :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
+    :param endpoint_id:             (str) ID of the monitored model endpoint
+    :param output_stream_uri:       (str) URI of the output stream for results
+    :param model_endpoint:          (ModelEndpoint) The model endpoint object.
+    :param feature_names:           (list[str]) List of models feature names.
+    :param label_names:             (list[str]) List of models label names.
+    :param model:                   (tuple[str, ModelArtifact, dict]) The model file, model spec object, and list of
+
     """
 
     def __init__(self, **kwargs):

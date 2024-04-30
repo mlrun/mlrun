@@ -32,7 +32,6 @@ import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
-from mlrun import mlconf
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
@@ -461,7 +460,7 @@ class NotificationPusher(_NotificationPusherBase):
 
     @staticmethod
     def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
-        kfp_client = kfp.Client(namespace=mlconf.namespace)
+        kfp_client = kfp.Client(namespace=mlrun.config.config.namespace)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

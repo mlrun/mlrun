@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import collections
 import copy
 import functools
@@ -1320,11 +1321,14 @@ async def _delete_function(
         # Since we request functions by a specific name and project,
         # in MLRun terminology, they are all just versions of the same function
         # therefore, it's enough to check the kind of the first one only
-        if functions[0].get("kind") in RuntimeKinds.nuclio_runtimes():
+        if (
+            functions[0].get("kind")
+            in mlrun.runtimes.RuntimeKindsRuntimeKinds.nuclio_runtimes()
+        ):
             # generate Nuclio function names based on function tags
             nuclio_function_names = [
                 mlrun.runtimes.nuclio.function.get_fullname(
-                    name, project, function.get("metadata", {}).get("tag")
+                    function_name, project_name, function.get("metadata", {}).get("tag")
                 )
                 for function in functions
             ]

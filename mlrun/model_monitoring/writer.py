@@ -30,9 +30,6 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 
-_TSDB_BE = "tsdb"
-_TSDB_RATE = "1/s"
-_TSDB_TABLE = "app-results"
 _RawEvent = dict[str, Any]
 _AppResultEvent = NewType("_AppResultEvent", _RawEvent)
 

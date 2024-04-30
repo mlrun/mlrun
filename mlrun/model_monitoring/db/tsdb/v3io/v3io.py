@@ -295,7 +295,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
 
         try:
             data = self.get_records(
-                table=self.tables[mm_constants.V3IOTSDBTables.EVENTS],
+                table=mm_constants.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,
@@ -343,9 +343,14 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                                  earliest time.
         :return: DataFrame with the provided attributes from the data collection.
         """
+        if table not in self.tables:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Table '{table}' does not exist in the tables list of the TSDB connector."
+                f"Available tables: {list(self.tables.keys())}"
+            )
         return self._frames_client.read(
             backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
-            table=table,
+            table=self.tables[table],
             columns=columns,
             filter=filter_query,
             start=start,

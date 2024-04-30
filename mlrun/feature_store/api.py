@@ -181,6 +181,9 @@ def get_offline_features(
                                                 Supported operators: '=', '>=', '<=', '>', '<'.
                                                 Example: ('Product', '=', 'Computer')]
 
+                                For all supported filters, please see:
+                                https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
+
 
     """
     return _get_offline_features(

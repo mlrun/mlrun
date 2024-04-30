@@ -207,7 +207,9 @@ def new_project(
                 "Unsupported option, cannot use subpath argument with project templates"
             )
         if from_template.endswith(".yaml"):
-            project = _load_project_file(from_template, name, secrets, allow_cross_project=True)
+            project = _load_project_file(
+                from_template, name, secrets, allow_cross_project=True
+            )
         elif from_template.startswith("git://"):
             clone_git(from_template, context, secrets, clone=True)
             shutil.rmtree(path.join(context, ".git"))
@@ -704,13 +706,17 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
     name_from_struct = struct.get("metadata", {}).get("name", "")
     if name and name_from_struct and name_from_struct != name:
         if allow_cross_project:
-            logger.warn("Project name is different than specified on its project yaml. Overriding.", existing_name=name_from_struct, overriding_name=name)
+            logger.warn(
+                "Project name is different than specified on its project yaml. Overriding.",
+                existing_name=name_from_struct,
+                overriding_name=name,
+            )
         else:
             raise ValueError(
                 f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
-                 "1. Set the `allow_cross_project=True` when loading the project.\n"
+                "1. Set the `allow_cross_project=True` when loading the project.\n"
                 f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
-                 "3. Use different project context dir."
+                "3. Use different project context dir."
             )
     struct.setdefault("metadata", {})["name"] = name or name_from_struct
     return MlrunProject.from_dict(struct)
@@ -1829,11 +1835,17 @@ class MlrunProject(ModelObj):
         context = context or self.spec.context
         if context:
             project = _load_project_dir(
-                context, self.metadata.name, self.spec.subpath, allow_cross_project=False
+                context,
+                self.metadata.name,
+                self.spec.subpath,
+                allow_cross_project=False,
             )
         else:
             project = _load_project_file(
-                self.spec.origin_url, self.metadata.name, self._secrets, allow_cross_project=False
+                self.spec.origin_url,
+                self.metadata.name,
+                self._secrets,
+                allow_cross_project=False,
             )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo

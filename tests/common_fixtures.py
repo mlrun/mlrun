@@ -116,7 +116,7 @@ def aioresponses_mock():
 
 @pytest.fixture
 def ensure_default_project() -> mlrun.projects.project.MlrunProject:
-    return mlrun.get_or_create_project("default")
+    return mlrun.get_or_create_project("default", allow_cross_project=True)
 
 
 @pytest.fixture()

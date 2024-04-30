@@ -148,7 +148,13 @@ def _get_files(
 ):
     _, filename = objpath.split(objpath)
 
-    objpath = _resolve_obj_path(schema, objpath, user)
+    objpath = get_obj_path(schema, objpath, user=user)
+    if not objpath:
+        log_and_raise(
+            HTTPStatus.NOT_FOUND.value,
+            path=objpath,
+            err="illegal path prefix or schema",
+        )
 
     logger.debug("Got get files request", path=objpath)
 
@@ -201,14 +207,3 @@ async def _verify_and_get_project_secrets(project, auth_info):
         allow_secrets_from_k8s=True,
     )
     return secrets_data.secrets or {}
-
-
-def _resolve_obj_path(schema: str, obj_path: str, user: str):
-    objpath = get_obj_path(schema, obj_path, user=user)
-    if not objpath:
-        log_and_raise(
-            HTTPStatus.NOT_FOUND.value,
-            path=objpath,
-            err="illegal path prefix or schema",
-        )
-    return objpath

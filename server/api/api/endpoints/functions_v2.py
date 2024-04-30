@@ -101,7 +101,7 @@ async def delete_function(
             await run_in_threadpool(
                 get_scheduler().delete_schedule, db_session, project, name
             )
-    task, task_name = await run_in_threadpool(
+    task = await run_in_threadpool(
         server.api.api.utils.create_function_deletion_background_task,
         background_tasks,
         db_session,
@@ -109,10 +109,6 @@ async def delete_function(
         name,
         auth_info,
     )
-    if task:
-        background_tasks.add_task(task)
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
-    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
-        task_name
-    )
+    return task

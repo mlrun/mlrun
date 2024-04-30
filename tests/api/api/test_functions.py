@@ -48,9 +48,6 @@ PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 
-# V2 endpoints
-V2_PREFIX = "v2/"
-
 
 def test_build_status_pod_not_found(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

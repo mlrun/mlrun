@@ -185,9 +185,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     def do_tracking(
         self,
         application_name: str,
-        # TODO change back to pd.Dataframe for BC
-        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
         start_infer_time: pd.Timestamp,
         end_infer_time: pd.Timestamp,
@@ -202,8 +201,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         Implement this method with your custom monitoring logic.
 
         :param application_name:        (str) the app name
-        :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
-        :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
+        :param sample_df_stats:         (pd.DataFrame) The new sample distribution.
+        :param feature_stats:           (pd.DataFrame) The train sample distribution.
         :param sample_df:               (pd.DataFrame) The new sample DataFrame.
         :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
         :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
@@ -222,8 +221,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> tuple[
         str,
-        mlrun.common.model_monitoring.helpers.FeatureStats,
-        mlrun.common.model_monitoring.helpers.FeatureStats,
+        pd.DataFrame,
+        pd.DataFrame,
         pd.DataFrame,
         pd.Timestamp,
         pd.Timestamp,
@@ -250,8 +249,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         """
         return (
             monitoring_context.application_name,
-            monitoring_context.sample_df_stats,
-            monitoring_context.feature_stats,
+            cls.dict_to_histogram(monitoring_context.sample_df_stats),
+            cls.dict_to_histogram(monitoring_context.feature_stats),
             monitoring_context.sample_df,
             monitoring_context.start_infer_time,
             monitoring_context.end_infer_time,

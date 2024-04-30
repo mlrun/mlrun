@@ -19,7 +19,6 @@ from uuid import UUID
 import pandas as pd
 from sklearn.datasets import load_iris
 
-import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
@@ -167,8 +166,8 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
         start_infer_time: pd.Timestamp,
         end_infer_time: pd.Timestamp,

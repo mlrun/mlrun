@@ -233,9 +233,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_get_project(self):
         project_name = "some-project"
         # create an empty project
-        mlrun.get_or_create_project(project_name)
+        mlrun.get_or_create_project(project_name, allow_cross_project=True)
         # get it from the db
-        project = mlrun.get_or_create_project(project_name)
+        project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 
         # verify default values
         assert project.metadata.name == project_name
@@ -250,7 +250,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_set_project_secrets(self):
         # A basic test verifying that we can access (mocked) project-secrets functionality in integration tests.
         project_name = "some-project"
-        project_object = mlrun.get_or_create_project(project_name)
+        project_object = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 
         secrets = {"secret1": "value1", "secret2": "value2"}
         project_object.set_secrets(secrets)

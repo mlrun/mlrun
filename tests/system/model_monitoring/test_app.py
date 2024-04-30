@@ -142,7 +142,7 @@ class _V3IORecordsChecker:
     ) -> None:
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
-                mlrun.get_or_create_project(cls.project_name),
+                mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
                 kind=mm_constants.FileTargetKind.APPS_PARQUET,
             )
         )

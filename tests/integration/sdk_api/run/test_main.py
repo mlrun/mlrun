@@ -368,7 +368,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
 
     def test_main_local_project(self):
-        mlrun.get_or_create_project("testproject")
+        mlrun.get_or_create_project("testproject", allow_cross_project=True)
         project_path = str(self.assets_path)
         args = "-f simple -p x=2 --dump"
         out = self._exec_main("run", args.split(), cwd=project_path)

@@ -599,7 +599,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _generate_event_request(project, event_kind, entity_kind):
         return mlrun.common.schemas.Event(
             kind=event_kind,
-            entity={"kind": entity_kind, "project": project, "id": 1234},
+            entity={"kind": entity_kind, "project": project, "ids": [1234]},
             value_dict={"value": 0.2},
         )
 
@@ -635,7 +635,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=name,
             summary=summary,
             severity=severity,
-            entity={"kind": entity_kind, "project": entity_project, "id": "*"},
+            entities={"kind": entity_kind, "project": entity_project, "ids": ["*"]},
             trigger={"events": [event_name]},
             criteria=criteria,
             notifications=notifications,

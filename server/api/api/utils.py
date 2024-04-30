@@ -1276,3 +1276,108 @@ def verify_project_is_deleted(project_name, auth_info):
         True,
         _verify_project_is_deleted,
     )
+
+
+def create_function_deletion_background_task(
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    background_task_kind_format = (
+        server.api.utils.background_tasks.BackgroundTaskKinds.function_deletion
+    )
+    background_task_kind = background_task_kind_format.format(function_name)
+    background_task_name = str(uuid.uuid4())
+
+    # create the background task for function deletion
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_task_kind,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
+        _delete_function,
+        background_task_name,
+        db_session=db_session,
+        project_name=project_name,
+        function_name=function_name,
+        auth_info=auth_info,
+    )
+
+
+async def _delete_function(
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    # getting all function tags
+    functions = await run_in_threadpool(
+        server.api.crud.Functions().list_functions,
+        db_session,
+        project_name,
+        function_name,
+    )
+    if len(functions) > 0:
+        # Since we request functions by a specific name and project,
+        # in MLRun terminology, they are all just versions of the same function
+        # therefore, it's enough to check the kind of the first one only
+        if functions[0].get("kind") in RuntimeKinds.nuclio_runtimes():
+            # generate Nuclio function names based on function tags
+            nuclio_function_names = [
+                mlrun.runtimes.nuclio.function.get_fullname(
+                    name, project, function.get("metadata", {}).get("tag")
+                )
+                for function in functions
+            ]
+            # delete Nuclio functions associated with the function tags in batches
+            failed_requests = await delete_nuclio_functions_in_batches(
+                auth_info, project_name, nuclio_function_names
+            )
+            if failed_requests:
+                error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
+                raise mlrun.errors.MLRunInternalServerError(error_message)
+
+    # delete the function from the database
+    await run_in_threadpool(
+        server.api.crud.Functions().delete_function,
+        db_session,
+        project_name,
+        function_name,
+    )
+
+
+async def delete_nuclio_functions_in_batches(auth_info, project_name, function_names):
+    async def delete_function(
+        nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
+        project,
+        function,
+    ):
+        try:
+            await nuclio_client.delete_function(name=function, project_name=project)
+            return None
+        except Exception as e:
+            # return tuple with failure info
+            return function, str(e)
+
+    # batch size for deleting functions in parallel
+    batch_size = 10
+    failed_requests = []
+
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        for i in range(0, len(function_names), batch_size):
+            # split function names into batches
+            batch_functions = function_names[i : i + batch_size]
+            tasks = []
+            for function_name in batch_functions:
+                # create tasks to delete each function in the batch
+                tasks.append(delete_function(client, project_name, function_name))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # process results to identify failed deletion requests
+            for result in results:
+                if isinstance(result, tuple):
+                    nuclio_name, error_message = result
+                    failed_requests.append(
+                        f"Failed to delete nuclio function {nuclio_name}: {error_message}"
+                    )
+    return failed_requests

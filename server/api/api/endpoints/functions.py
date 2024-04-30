@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
@@ -41,7 +40,6 @@ import server.api.db.session
 import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.chief
 import server.api.utils.functions
 import server.api.utils.pagination
@@ -138,8 +136,13 @@ async def get_function(
     }
 
 
+# TODO: Remove in 1.9.0
 @router.delete(
-    "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
+    "/projects/{project}/functions/{name}",
+    status_code=HTTPStatus.NO_CONTENT.value,
+    deprecated=True,
+    description="'/projects/{project}/functions/{name}' will be removed in 1.9.0, "
+    "use '/v2/projects/{project}/functions/{name}' instead.",
 )
 async def delete_function(
     request: Request,
@@ -187,26 +190,6 @@ async def delete_function(
             await run_in_threadpool(
                 get_scheduler().delete_schedule, db_session, project, name
             )
-
-    # getting all function tags
-    functions = await run_in_threadpool(
-        server.api.crud.Functions().list_functions, db_session, project, name
-    )
-    if len(functions) > 0:
-        if functions[0].get("kind") in RuntimeKinds.nuclio_runtimes():
-            async with server.api.utils.clients.async_nuclio.Client(
-                auth_info
-            ) as client:
-                tasks = []
-                for function in functions:
-                    nuclio_name = mlrun.runtimes.nuclio.function.get_fullname(
-                        name, project, function.get("metadata", {}).get("tag")
-                    )
-                    tasks.append(
-                        client.delete_function(name=nuclio_name, project_name=project)
-                    )
-                await asyncio.gather(*tasks)
-
     await run_in_threadpool(
         server.api.crud.Functions().delete_function, db_session, project, name
     )

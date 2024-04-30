@@ -48,6 +48,9 @@ PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 
+# V2 endpoints
+V2_PREFIX = "v2/"
+
 
 def test_build_status_pod_not_found(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -236,6 +239,7 @@ async def test_list_functions_with_hash_key_versioned(
         (False, "remote"),
     ],
 )
+@pytest.mark.parametrize("use_v2_deletion_endpoint", [True, False])
 @unittest.mock.patch.object(server.api.utils.clients.async_nuclio, "Client")
 @unittest.mock.patch.object(
     server.api.utils.clients.async_nuclio.Client, "delete_function"
@@ -247,6 +251,7 @@ def test_delete_function(
     client: fastapi.testclient.TestClient,
     post_schedule,
     kind,
+    use_v2_deletion_endpoint,
 ):
     patched_nuclio_client.return_value = fastapi.testclient.TestClient
     patched_delete_nuclio_function.return_value.return_value = None
@@ -305,8 +310,14 @@ def test_delete_function(
         )
 
     # delete the function and assert that it has been removed, as has its schedule if created
-    response = client.delete(function_endpoint)
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    if use_v2_deletion_endpoint:
+        v2_endpoint = str(client.base_url).replace("/v1/", "/v2/")
+        response = client.request("DELETE", f"{v2_endpoint}{function_endpoint}")
+        assert response.status_code == HTTPStatus.ACCEPTED
+
+    else:
+        response = client.delete(function_endpoint)
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     response = client.get(function_endpoint, params={"hash_key": hash_key})
     assert response.status_code == HTTPStatus.NOT_FOUND.value

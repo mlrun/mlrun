@@ -1288,14 +1288,16 @@ def create_function_deletion_background_task(
 ):
     # create the background task for function deletion
     return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
-        db_session=db_session,
-        project=project_name,
-        background_tasks=background_tasks,
-        function=_delete_function,
-        timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
-        name=None,
-        function_name=function_name,
-        auth_info=auth_info,
+        db_session,
+        project_name,
+        background_tasks,
+        _delete_function,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
+        None,
+        db_session,
+        project_name,
+        function_name,
+        auth_info,
     )
 
 
@@ -1316,10 +1318,7 @@ async def _delete_function(
         # Since we request functions by a specific name and project,
         # in MLRun terminology, they are all just versions of the same function
         # therefore, it's enough to check the kind of the first one only
-        if (
-            functions[0].get("kind")
-            in mlrun.runtimes.RuntimeKindsRuntimeKinds.nuclio_runtimes()
-        ):
+        if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
             # generate Nuclio function names based on function tags
             nuclio_function_names = [
                 mlrun.runtimes.nuclio.function.get_fullname(
@@ -1345,7 +1344,9 @@ async def _delete_function(
 
 
 async def delete_nuclio_functions_in_batches(
-    auth_info: mlrun.common.schemas.AuthInfo, project_name: str, function_names: str
+    auth_info: mlrun.common.schemas.AuthInfo,
+    project_name: str,
+    function_names: list[str],
 ):
     async def delete_function(
         nuclio_client: server.api.utils.clients.iguazio.AsyncClient,

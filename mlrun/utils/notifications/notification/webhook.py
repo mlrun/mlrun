@@ -56,7 +56,7 @@ class WebhookNotification(NotificationBase):
         if alert:
             request_body["alert"] = alert.dict()
             if event_data:
-                request_body["value"] = event_data.value
+                request_body["value"] = event_data.value_dict
                 request_body["id"] = event_data.entity.id
 
         if custom_html:

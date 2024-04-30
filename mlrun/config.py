@@ -548,7 +548,7 @@ default_config = {
     },
     "feature_store": {
         "data_prefixes": {
-            "default": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
+            "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
             "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/nosql",

@@ -444,7 +444,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         fn.save()
 
         # create another project
-        project2 = mlrun.get_or_create_project("second-project", allow_cross_project=True)
+        project2 = mlrun.get_or_create_project(
+            "second-project", allow_cross_project=True
+        )
 
         # from the second project - run the function that we stored in the first project
         args = (

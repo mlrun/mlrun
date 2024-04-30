@@ -599,7 +599,9 @@ def rundb_mock() -> RunDBMock:
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:
-        mlrun.get_or_create_project("default", context=tmp_dir, allow_cross_project=True)
+        mlrun.get_or_create_project(
+            "default", context=tmp_dir, allow_cross_project=True
+        )
 
         yield mock_object
 

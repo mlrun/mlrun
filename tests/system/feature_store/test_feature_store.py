@@ -4854,9 +4854,7 @@ class TestFeatureStore(TestMLRunSystem):
             partition_cols=["department"],
         )
         feature_set.ingest(source=parquet_source, targets=[target])
-        result = target.as_df(additional_filters=("room", "=", 1)).reset_index(
-            drop=False
-        )
+        result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
         # We want to include patient_id in the comparison and to sort both the columns and the values.
         result = self._get_sorted_df(result, "patient_id")
         expected = self._get_sorted_df(filtered_df.query("room == 1"), "patient_id")
@@ -4874,7 +4872,7 @@ class TestFeatureStore(TestMLRunSystem):
                 engine=engine,
             )
             .to_dataframe()
-            .reset_index(drop=False)
+            .reset_index()
         )
         expected = self._get_sorted_df(filtered_df.query("bad == 95"), "patient_id")
         result = self._get_sorted_df(result, "patient_id")

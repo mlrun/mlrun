@@ -4815,12 +4815,11 @@ class TestFeatureStore(TestMLRunSystem):
 
     @staticmethod
     def _get_sorted_df(df: pd.DataFrame, sort_column: str):
-        result = (
+        return (
             df.reindex(sorted(df.columns), axis=1)
             .sort_values(by=sort_column)
             .reset_index(drop=True)
         )
-        return result
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_parquet_filters(self, engine):

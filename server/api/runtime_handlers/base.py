@@ -1624,7 +1624,7 @@ class BaseRuntimeHandler(ABC):
                     run_state=run_state,
                 )
 
-        logger.info("Updating run state", run_state=run_state)
+        logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
             "status.state": run_state,
             "status.last_update": now_date().isoformat(),

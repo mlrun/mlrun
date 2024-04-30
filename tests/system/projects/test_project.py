@@ -394,19 +394,25 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.get_or_create_project(name, project_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         project.spec.description = "mytest"
         project.save()
 
         # get project should read from DB
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.get_or_create_project(name, project_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         project.save()
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)
 
         # get project should read from context (project.yaml)
-        project = mlrun.get_or_create_project(name, project_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         assert project.spec.description == "mytest", "failed to get project"
 
     def test_new_project_overwrite(self):
@@ -645,7 +651,9 @@ class TestProject(TestMLRunSystem):
         current_dirname = os.path.dirname(current_file_abspath)
         os.chdir(current_dirname)
 
-        project = mlrun.get_or_create_project(name, user_project=True, context="./", allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name, user_project=True, context="./", allow_cross_project=True
+        )
 
         handler_fn = project.set_function(
             func="./assets/handler.py",
@@ -1301,7 +1309,9 @@ class TestProject(TestMLRunSystem):
         )
 
         context = "./load"
-        project = mlrun.get_or_create_project(project_1_name, context=context, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            project_1_name, context=context, allow_cross_project=True
+        )
 
         # create artifact with an explicit db_key
         artifact_key = "artifact_key"

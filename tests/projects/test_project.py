@@ -1941,7 +1941,9 @@ def test_project_create_remote():
     with tempfile.TemporaryDirectory() as tmp_dir:
         # create a project
         project_name = "project-name"
-        project = mlrun.get_or_create_project(project_name, context=tmp_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
 
         project.create_remote(
             url="https://github.com/mlrun/some-git-repo.git",
@@ -1993,7 +1995,9 @@ def test_set_remote_as_update(
     with tempfile.TemporaryDirectory() as tmp_dir:
         # create a project
         project_name = "project-name"
-        project = mlrun.get_or_create_project(project_name, context=tmp_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
 
         project.create_remote(
             url=url,
@@ -2032,7 +2036,9 @@ def test_create_remote(url, name, expected):
     with tempfile.TemporaryDirectory() as tmp_dir:
         # create a project
         project_name = "project-name"
-        project = mlrun.get_or_create_project(project_name, context=tmp_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
 
         project.create_remote(
             url="https://github.com/mlrun/some-git-repo.git",
@@ -2060,7 +2066,9 @@ def test_remove_remote(name):
     with tempfile.TemporaryDirectory() as tmp_dir:
         # create a project
         project_name = "project-name"
-        project = mlrun.get_or_create_project(project_name, context=tmp_dir, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
 
         project.create_remote(
             url="https://github.com/mlrun/some-git-repo.git",

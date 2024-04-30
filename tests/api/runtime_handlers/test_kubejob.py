@@ -26,9 +26,9 @@ import server.api.crud
 import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
+from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
-from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db

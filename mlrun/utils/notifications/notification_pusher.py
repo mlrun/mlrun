@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import kfp
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
@@ -30,7 +31,6 @@ import mlrun.errors
 import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
-import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
 from mlrun import mlconf
 from mlrun.utils import logger

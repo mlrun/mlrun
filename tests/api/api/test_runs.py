@@ -24,9 +24,9 @@ import fastapi
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.common.runtimes.constants
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
@@ -796,7 +796,9 @@ def test_abort_aborted_run_with_background_task(
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
         # abort again should return the same background task
@@ -847,7 +849,9 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
         # abort again should create a new failed background task
@@ -904,7 +908,9 @@ def test_abort_run_background_task_not_found(db: Session, client: TestClient) ->
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
 

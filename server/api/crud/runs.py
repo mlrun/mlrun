@@ -19,12 +19,12 @@ import typing
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.lists
 import mlrun.runtimes
-import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -78,7 +78,8 @@ class Runs(
         #  (once 1.5.x clients are not supported)
         if (
             data
-            and data.get("status.state") == mlrun.common.runtimes.constants.RunStates.aborted
+            and data.get("status.state")
+            == mlrun.common.runtimes.constants.RunStates.aborted
         ):
             current_run = server.api.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
@@ -381,7 +382,10 @@ class Runs(
             )
             return
 
-        if current_run_state in mlrun.common.runtimes.constants.RunStates.terminal_states():
+        if (
+            current_run_state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
             )

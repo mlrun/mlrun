@@ -27,10 +27,10 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
+from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.common.runtimes.constants import RunLabels
 from mlrun.runtimes.generators import selector
 from mlrun.utils import get_in, helpers, logger, verify_field_regex
 

@@ -33,8 +33,8 @@ import server.api.utils.auth
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
 import tests.api.conftest
-from mlrun.config import config
 from mlrun.common.runtimes.constants import RunStates
+from mlrun.config import config
 from mlrun.utils import logger
 from server.api.utils.scheduler import Scheduler
 from server.api.utils.singletons.db import get_db

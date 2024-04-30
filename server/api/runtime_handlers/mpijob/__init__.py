@@ -16,8 +16,8 @@ from dependency_injector import containers, providers
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 import server.api.utils.singletons.k8s
-from mlrun.config import config
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
+from mlrun.config import config
 from server.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 from server.api.runtime_handlers.mpijob.v1alpha1 import MpiV1Alpha1RuntimeHandler
 

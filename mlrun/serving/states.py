@@ -363,7 +363,12 @@ class BaseStep(ModelObj):
         :return: the last step added to the flow
 
         example:
-            a 3-step pipeline (step1 -> step2 -> step3) to overwrite existing downstream steps:
+            The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
+            single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
+            Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
+            graph were step1 -> step2_old) and that following the execution of this code the existing downstream steps
+            are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
+
             step1.set_flow(
                 [
                     dict(name="step2", handler="step2_handler"),

@@ -217,11 +217,11 @@ train_function.with_limits(gpus=gpus, cpu=cpu, mem=mem)
 train_function.save()
 ```
 
-### Loading project from template
-Loading a project from a template can be done only if one of the following conditions is met:
-1. Use the `allow_cross_project` flag -  if True, allow loading a project with a different name than the provided name.
-2. The yaml file needs to be deleted or edited to change the name in it.
-3. The context dir needs to be changed.
+### Loading a project from a template
+You can load a project from a template only if you make one of these changes:
+1. Set the allow_cross_project flag = True and change the name of the project.
+2. Change the name in the yaml file or delete the file.
+3. Change the context dir.
 
 ```python
 import mlrun

@@ -207,7 +207,7 @@ def new_project(
                 "Unsupported option, cannot use subpath argument with project templates"
             )
         if from_template.endswith(".yaml"):
-            project = _load_project_file(from_template, name, secrets, True)
+            project = _load_project_file(from_template, name, secrets, allow_cross_project=True)
         elif from_template.startswith("git://"):
             clone_git(from_template, context, secrets, clone=True)
             shutil.rmtree(path.join(context, ".git"))
@@ -343,7 +343,7 @@ def load_project(
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
-    :param allow_cross_project: if True, allow loading a project with a different name than the provided name
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
@@ -485,7 +485,7 @@ def get_or_create_project(
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :param parameters:   key/value pairs to add to the project.spec.params
-    :param allow_cross_project: if True, allow loading a project with a different name than the provided name
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
@@ -704,13 +704,13 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
     name_from_struct = struct.get("metadata", {}).get("name", "")
     if name and name_from_struct and name_from_struct != name:
         if allow_cross_project:
-            logger.warn(f"The yaml file was generated for {name_from_struct} project")
+            logger.warn("Project name is different than specified on its project yaml. Overriding.", existing_name=name_from_struct, overriding_name=name)
         else:
             raise ValueError(
                 f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
-                "1. Use the allow_cross_project flag.\n"
-                "2. The yaml file needs to be deleted or edited to change the name in it.\n"
-                "3. The context dir needs to be changed."
+                 "1. Set the `allow_cross_project=True` when loading the project.\n"
+                f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
+                 "3. Use different project context dir."
             )
     struct.setdefault("metadata", {})["name"] = name or name_from_struct
     return MlrunProject.from_dict(struct)
@@ -1829,11 +1829,11 @@ class MlrunProject(ModelObj):
         context = context or self.spec.context
         if context:
             project = _load_project_dir(
-                context, self.metadata.name, self.spec.subpath, False
+                context, self.metadata.name, self.spec.subpath, allow_cross_project=False
             )
         else:
             project = _load_project_file(
-                self.spec.origin_url, self.metadata.name, self._secrets, False
+                self.spec.origin_url, self.metadata.name, self._secrets, allow_cross_project=False
             )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo

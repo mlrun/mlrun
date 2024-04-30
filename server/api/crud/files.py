@@ -47,6 +47,8 @@ class Files(
         user: str = "",
         secrets: dict = None,
     ):
+        # TODO: delete some files
+        
         secrets = secrets or {}
         project_secrets = self._verify_and_get_project_secrets(project)
         project_secrets.update(secrets)

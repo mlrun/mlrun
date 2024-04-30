@@ -194,6 +194,7 @@ class Artifacts(
     ):
         project = project or mlrun.mlconf.default_project
 
+        # TODO: get object path and send it as param
         path = ""
 
         # delete artifacts data by deletion strategy

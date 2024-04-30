@@ -415,14 +415,15 @@ class DataItem:
 
 
         # reading run results using DataItem (run.artifact())
-        train_run = train_iris_func.run(inputs={'dataset': dataset},
-                                        params={'label_column': 'label'})
+        train_run = train_iris_func.run(
+            inputs={"dataset": dataset}, params={"label_column": "label"}
+        )
 
-        train_run.artifact('confusion-matrix').show()
-        test_set = train_run.artifact('test_set').as_df()
+        train_run.artifact("confusion-matrix").show()
+        test_set = train_run.artifact("test_set").as_df()
 
         # create and use DataItem from uri
-        data = mlrun.get_dataitem('http://xyz/data.json').get()
+        data = mlrun.get_dataitem("http://xyz/data.json").get()
     """
 
     def __init__(

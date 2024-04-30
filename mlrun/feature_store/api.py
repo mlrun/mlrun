@@ -137,7 +137,10 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+            vector,
+            entity_rows=trades,
+            entity_timestamp_column="time",
+            query="ticker in ['GOOG'] and bid>100",
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -317,7 +320,7 @@ def get_online_feature_service(
 
             Example::
 
-                svc = get_online_feature_service(vector_uri, entity_keys=['ticker'])
+                svc = get_online_feature_service(vector_uri, entity_keys=["ticker"])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)
@@ -466,7 +469,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun')
+        config = RunConfig(image="mlrun/mlrun")
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets

@@ -181,9 +181,10 @@ def _assert_function_code(fn, file_path=None):
 
 
 def _assert_function_handler(fn):
-    filepath, expected_handler = (
-        mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
-    )
+    (
+        filepath,
+        expected_handler,
+    ) = mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
     expected_filename = pathlib.Path(filepath).name
     expected_function_handler = f"{expected_filename.split('.')[0]}:{expected_handler}"
     assert fn.spec.function_handler == expected_function_handler

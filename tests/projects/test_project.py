@@ -29,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring as mm_consts
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -892,10 +893,8 @@ def test_import_artifact_retain_producer(rundb_mock):
     # load a new project from the first project's context
     project_3 = mlrun.load_project(name="project-3", context=project_1.context)
 
-    # make sure the artifact was registered with the original producer
-    # the db key should include the run since it's a run artifact
-    db_key = f"{run_name}_{new_key}"
-    loaded_artifact = project_3.get_artifact(db_key)
+    # make sure the artifact was registered with the new key
+    loaded_artifact = project_3.get_artifact(new_key)
     assert loaded_artifact.producer == artifact.producer
 
 
@@ -1713,15 +1712,23 @@ def test_create_api_gateway_valid(
         project.set_function(f2)
         functions = [f1, f2]
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-        name="gateway-f1-f2",
-        functions=functions,
-        canary=canary,
-        project=project_name,
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="gateway-f1-f2",
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=functions,
+            canary=canary,
+            project=project_name,
+        ),
     )
     if with_basic_auth:
         api_gateway.with_basic_auth("test_username", "test_password")
 
     gateway = project.store_api_gateway(api_gateway)
+
+    gateway_dict = gateway.to_dict()
+    assert "metadata" in gateway_dict
+    assert "spec" in gateway_dict
 
     assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if with_basic_auth:
@@ -1763,10 +1770,14 @@ def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
         functions = [f1, f2]
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            name="gateway-f1-f2",
-            functions=functions,
-            canary=canary,
-            project=project_name,
+            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name="gateway-f1-f2",
+            ),
+            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=functions,
+                canary=canary,
+                project=project_name,
+            ),
         )
 
 
@@ -1814,7 +1825,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
 
     assert gateways[0].name == "test"
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
-    assert gateways[0].functions == ["my-func1"]
+    assert gateways[0].spec.functions == ["my-func1"]
 
     assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
 
@@ -2078,7 +2089,7 @@ class TestModelMonitoring:
     @staticmethod
     @pytest.fixture
     def project() -> mlrun.projects.MlrunProject:
-        return unittest.mock.Mock()  # spec_set=mlrun.projects.MlrunProject)
+        return unittest.mock.Mock()
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -2086,15 +2097,10 @@ class TestModelMonitoring:
         [
             (
                 True,
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list()
-                + [
-                    mlrun.common.schemas.model_monitoring.constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
-                ],
+                mm_consts.constants.MonitoringFunctionNames.list()
+                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
             ),
-            (
-                False,
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.list(),
-            ),
+            (False, mm_consts.constants.MonitoringFunctionNames.list()),
         ],
     )
     def test_disable(
@@ -2117,3 +2123,17 @@ class TestModelMonitoring:
         assert (
             deleted_fns == expected_deleted_fns
         ), "The deleted functions are different than expexted"
+
+    @staticmethod
+    def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:
+        with unittest.mock.patch.object(
+            project, "_wait_for_functions_deployment", autospec=True
+        ) as mock:
+            mlrun.projects.MlrunProject.enable_model_monitoring(
+                project, deploy_histogram_data_drift_app=False, wait_for_deployment=True
+            )
+
+        mock.assert_called_once()
+        assert (
+            mock.call_args_list[0].args[0] == mm_consts.MonitoringFunctionNames.list()
+        ), "Expected to wait for the infra functions"

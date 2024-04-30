@@ -354,7 +354,7 @@ class MonitoringApplicationController:
                             app.status.state == "ready"
                             # workaround for the default app, as its `status.state` is `None`
                             or app.metadata.name
-                            == mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME
+                            == mm_constants.HistogramDataDriftApplicationConstants.NAME
                         )
                     }
                 )
@@ -502,8 +502,7 @@ class MonitoringApplicationController:
 
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(
-                        sample_set_statistics=feature_stats,
-                        inputs=df,
+                        sample_set_statistics=feature_stats, inputs=df
                     )
 
                     cls._push_to_applications(

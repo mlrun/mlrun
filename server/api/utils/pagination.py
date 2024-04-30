@@ -161,16 +161,20 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
-        token, page, page_size, method, method_kwargs = (
-            self._create_or_update_pagination_cache_record(
-                session,
-                method,
-                auth_info,
-                token,
-                page,
-                page_size,
-                **method_kwargs,
-            )
+        (
+            token,
+            page,
+            page_size,
+            method,
+            method_kwargs,
+        ) = self._create_or_update_pagination_cache_record(
+            session,
+            method,
+            auth_info,
+            token,
+            page,
+            page_size,
+            **method_kwargs,
         )
 
         try:

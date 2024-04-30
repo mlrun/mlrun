@@ -331,6 +331,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             name="git-proj2",
             user_project=True,
             subpath="subdir",
+            allow_cross_project=True,
         )
         # using project.name because this is a user project meaning the project name get concatenated with the user name
         self.custom_project_names_to_delete.append(project.name)

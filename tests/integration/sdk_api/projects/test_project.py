@@ -50,7 +50,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         project_function_object = project.spec._function_objects
         project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
         project.export(str(project_file_path))
-        imported_project = mlrun.load_project("./", str(project_file_path))
+        imported_project = mlrun.load_project(
+            "./", str(project_file_path), allow_cross_project=True
+        )
         assert imported_project.spec._function_objects == {}
         imported_project.sync_functions()
         _assert_project_function_objects(imported_project, project_function_object)
@@ -201,7 +203,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_load_project_from_db(self):
         project_name = "some-project"
         mlrun.new_project(project_name)
-        mlrun.load_project(".", f"db://{project_name}")
+        mlrun.load_project(".", f"db://{project_name}", allow_cross_project=True)
 
     def test_load_project_with_save(self):
         project_name = "some-project"
@@ -212,21 +214,33 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         imported_project_name = "imported-project"
         # loaded project but didn't saved
         mlrun.load_project(
-            "./", str(project_file_path), name=imported_project_name, save=False
+            "./",
+            str(project_file_path),
+            name=imported_project_name,
+            save=False,
+            allow_cross_project=True,
         )
 
         # loading project from db, but earlier load didn't saved, expected to fail
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            mlrun.load_project(".", f"db://{imported_project_name}", save=False)
+            mlrun.load_project(
+                ".",
+                f"db://{imported_project_name}",
+                save=False,
+                allow_cross_project=True,
+            )
 
         # loading project and saving
         expected_project = mlrun.load_project(
-            "./", str(project_file_path), name=imported_project_name
+            "./",
+            str(project_file_path),
+            name=imported_project_name,
+            allow_cross_project=True,
         )
 
         # loading project from db, expected to succeed
         loaded_project_from_db = mlrun.load_project(
-            ".", f"db://{imported_project_name}", save=False
+            ".", f"db://{imported_project_name}", save=False, allow_cross_project=True
         )
         _assert_projects(expected_project, loaded_project_from_db)
 

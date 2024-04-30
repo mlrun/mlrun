@@ -59,7 +59,9 @@ def test_sync_functions(rundb_mock):
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    imported_project = mlrun.load_project(
+        "./", str(project_file_path), save=False, allow_cross_project=True
+    )
     assert imported_project.spec._function_objects == {}
     imported_project.sync_functions()
     _assert_project_function_objects(imported_project, project_function_object)
@@ -543,7 +545,11 @@ def test_load_project_and_sync_functions(
 ):
     url = "git://github.com/mlrun/project-demo.git"
     project = mlrun.load_project(
-        context=str(context), url=url, sync_functions=sync, save=save
+        context=str(context),
+        url=url,
+        sync_functions=sync,
+        save=save,
+        allow_cross_project=True,
     )
     assert len(project.spec._function_objects) == expected_num_of_funcs
 
@@ -1038,7 +1044,9 @@ def test_replace_exported_artifact_producer(rundb_mock):
     project_1.save()
 
     # load a new project from the first project's context
-    project_3 = mlrun.load_project(name="project-3", context=project_1.context)
+    project_3 = mlrun.load_project(
+        name="project-3", context=project_1.context, allow_cross_project=True
+    )
 
     # make sure the artifact was registered with the new project producer
     loaded_artifact = project_3.get_artifact(key)
@@ -1274,7 +1282,9 @@ def test_project_exports_default_image():
     project.set_default_image(default_image)
 
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    imported_project = mlrun.load_project(
+        "./", str(project_file_path), save=False, allow_cross_project=True
+    )
     assert imported_project.default_image == default_image
 
 
@@ -1456,7 +1466,9 @@ def test_load_project_with_git_enrichment(
     rundb_mock,
 ):
     url = "git://github.com/mlrun/project-demo.git"
-    project = mlrun.load_project(context=str(context), url=url, save=True)
+    project = mlrun.load_project(
+        context=str(context), url=url, save=True, allow_cross_project=True
+    )
 
     assert (
         project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
@@ -1472,7 +1484,9 @@ def test_remove_owner_name_in_load_project_from_yaml():
     # Load the project from yaml and validate that the owner name was removed
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    imported_project = mlrun.load_project(
+        "./", str(project_file_path), save=False, allow_cross_project=True
+    )
     assert project.spec.owner == "some_owner"
     assert imported_project.spec.owner is None
 
@@ -1723,7 +1737,7 @@ def test_load_project_from_yaml_with_function(context):
         tag="latest",
     )
     project.save()
-    loaded_project = mlrun.load_project(context=str(context))
+    loaded_project = mlrun.load_project(context=str(context), allow_cross_project=True)
     for function_name in ["my-func", "my-other-func"]:
         assert (
             deepdiff.DeepDiff(
@@ -2189,7 +2203,9 @@ def test_load_project_dir(project_file_name, expectation):
             str(pathlib.Path(project_dir) / project_file_name),
         )
         with expectation:
-            project = mlrun.load_project(project_dir, save=False)
+            project = mlrun.load_project(
+                project_dir, save=False, allow_cross_project=True
+            )
             # just to make sure the project was loaded correctly from the file
             assert project.name == "pipe2"
     finally:

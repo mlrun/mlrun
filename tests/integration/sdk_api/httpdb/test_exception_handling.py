@@ -27,7 +27,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         handlers to be triggered and verifies that for all of them the actual error details returned in the response and
         that the client successfully parses them and raise the right error class
         """
-        mlrun.get_or_create_project("some-project", context="./")
+        mlrun.get_or_create_project("some-project", context="./", allow_cross_project=True)
         # log_and_raise - mlrun code uses log_and_raise (common) which raises fastapi.HTTPException because we're
         # sending a store artifact request with an invalid json body
         # This is practically verifies that log_and_raise puts the kwargs under the details

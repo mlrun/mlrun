@@ -47,7 +47,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def custom_setup(self):
         # ensure default project exists
-        mlrun.get_or_create_project("default")
+        mlrun.get_or_create_project("default", allow_cross_project=True)
 
     def test_main_run_basic(self):
         out = self._exec_run(
@@ -432,7 +432,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_main_run_function_from_another_project(self):
         # test running function from another project and validate that the function is stored in the current project
-        project = mlrun.get_or_create_project("first-project")
+        project = mlrun.get_or_create_project("first-project", allow_cross_project=True)
 
         fn = mlrun.code_to_function(
             name="new-func",
@@ -444,7 +444,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         fn.save()
 
         # create another project
-        project2 = mlrun.get_or_create_project("second-project")
+        project2 = mlrun.get_or_create_project("second-project", allow_cross_project=True)
 
         # from the second project - run the function that we stored in the first project
         args = (

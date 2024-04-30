@@ -994,7 +994,7 @@ def test_import_artifact_retain_producer(rundb_mock):
     project_1.save()
 
     # load a new project from the first project's context
-    project_3 = mlrun.load_project(name="project-3", context=project_1.context)
+    project_3 = mlrun.load_project(name="project-3", context=project_1.context, allow_cross_project=True)
 
     # make sure the artifact was registered with the new key
     loaded_artifact = project_3.get_artifact(new_key)

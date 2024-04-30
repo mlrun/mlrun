@@ -211,13 +211,11 @@ class DataStore:
             kwargs["filters"] = filters
 
         def reader(*args, **kwargs):
-            time_limit = start_time or end_time
-            if time_limit or additional_filters:
-                if time_column is None and time_limit:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "When providing start_time or end_time, must provide time_column"
-                    )
-
+            if time_column is None and (start_time or end_time):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "When providing start_time or end_time, must provide time_column"
+                )
+            if start_time or end_time or additional_filters:
                 partitions_time_attributes = find_partitions(url, file_system)
                 set_filters(
                     partitions_time_attributes,
@@ -234,7 +232,7 @@ class DataStore:
                     ):
                         raise ex
 
-                    #  TODO fix this code, if end_time has tz and start_time is None?
+                    #  TODO ML-6308 fix.
                     if start_time.tzinfo:
                         start_time_inner = start_time.replace(tzinfo=None)
                         end_time_inner = end_time.replace(tzinfo=None)

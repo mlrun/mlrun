@@ -409,8 +409,8 @@ def test_set_flow_error():
     r2 = dict(name="r2", handler="json.dumps")
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="'set_flow' called on a step that already has downstream steps. "
-        "If you want to overwrite existing steps, set force=True",
+        match=r"set_flow\(\) called on a step that already has downstream steps. "
+        "If you want to overwrite existing steps, set force=True.",
     ):
         graph.set_flow(steps=[r1, r2])
 

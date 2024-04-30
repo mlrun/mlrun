@@ -377,30 +377,7 @@ class BaseStep(ModelObj):
                 force=True,
             ).to(dict(name="step4", class_name="Step4Class"))
         """
-        if hasattr(self, "steps"):
-            parent = self
-        elif self._parent:
-            parent = self._parent
-        else:
-            raise GraphError(
-                f"step {self.name} parent is not set or it's not part of a graph"
-            )
-
-        if not force and parent._steps:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "'set_flow' called on a step that already has downstream steps. "
-                "If you want to overwrite existing steps, set force=True"
-            )
-
-        parent.steps = None
-        step = self
-        for next_step in steps:
-            if isinstance(next_step, dict):
-                step = step.to(**next_step)
-            else:
-                step = step.to(next_step)
-
-        return step
+        raise NotImplementedError("set_flow() can only be called on a FlowStep")
 
 
 class TaskStep(BaseStep):
@@ -1310,6 +1287,27 @@ class FlowStep(BaseStep):
                     f"cant set before, there is no step named {step_name}"
                 )
             self[step_name].after_step(name)
+
+    def set_flow(
+        self,
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
+        force: bool = False,
+    ):
+        if not force and self.steps:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "set_flow() called on a step that already has downstream steps. "
+                "If you want to overwrite existing steps, set force=True."
+            )
+
+        self.steps = None
+        step = self
+        for next_step in steps:
+            if isinstance(next_step, dict):
+                step = step.to(**next_step)
+            else:
+                step = step.to(next_step)
+
+        return step
 
 
 class RootFlowStep(FlowStep):

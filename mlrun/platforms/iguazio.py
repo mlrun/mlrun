@@ -525,7 +525,7 @@ def add_or_refresh_credentials(
     # different access keys for the 2 usages
     token = (
         token
-        # can't use mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session cause this is running in the
+        # can't use mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session cause this is running in the
         # import execution path (when we're initializing the run db) and therefore we can't import mlrun.runtimes
         or os.environ.get("MLRUN_AUTH_SESSION")
         or os.environ.get("V3IO_ACCESS_KEY")

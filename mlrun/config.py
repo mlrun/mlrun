@@ -359,7 +359,7 @@ default_config = {
             #                  is set to ClusterIP
             #  ---------------------------------------------------------------------
             # Note: adding a mode requires special handling on
-            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",

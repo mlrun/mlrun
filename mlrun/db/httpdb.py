@@ -645,10 +645,10 @@ class HTTPRunDB(RunDBInterface):
                 nil_resp += 1
 
             if watch and state in [
-                mlrun.runtimes.constants.RunStates.pending,
-                mlrun.runtimes.constants.RunStates.running,
-                mlrun.runtimes.constants.RunStates.created,
-                mlrun.runtimes.constants.RunStates.aborting,
+                mlrun.common.runtimes.constants.RunStates.pending,
+                mlrun.common.runtimes.constants.RunStates.running,
+                mlrun.common.runtimes.constants.RunStates.created,
+                mlrun.common.runtimes.constants.RunStates.aborting,
             ]:
                 continue
             else:

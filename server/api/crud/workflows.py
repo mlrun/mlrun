@@ -216,7 +216,7 @@ class WorkflowRunners(
             labels["job-type"] = "workflow-runner"
             labels["workflow"] = runner.metadata.name
         mlrun.runtimes.utils.enrich_run_labels(
-            labels, [mlrun.runtimes.constants.RunLabels.owner]
+            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
 
         run_spec = self._prepare_run_object_for_single_run(

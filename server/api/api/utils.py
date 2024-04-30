@@ -790,7 +790,7 @@ def ensure_function_has_auth_set(
             mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
         auth_env_vars = {
-            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+            mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
                 secret_name,
                 access_key_secret_key,
             )

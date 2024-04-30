@@ -77,7 +77,10 @@ def resolve_function_ingresses(function_spec):
 
 def enrich_function_with_ingress(config, mode, service_type):
     # do not enrich with an ingress
-    if mode == mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes.never:
+    if (
+        mode
+        == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.never
+    ):
         return
 
     ingresses = resolve_function_ingresses(config["spec"])
@@ -114,11 +117,14 @@ def enrich_function_with_ingress(config, mode, service_type):
         http_trigger["attributes"]["serviceType"] = service_type
         config["spec"].setdefault("triggers", {})[http_trigger["name"]] = http_trigger
 
-    if mode == mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes.always:
+    if (
+        mode
+        == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.always
+    ):
         enrich()
     elif (
         mode
-        == mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes.on_cluster_ip
+        == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.on_cluster_ip
     ):
         # service type is not cluster ip, bail out
         if service_type and service_type.lower() != "clusterip":

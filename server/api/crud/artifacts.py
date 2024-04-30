@@ -22,7 +22,6 @@ import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
-import server.api.api.endpoints.files
 import server.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger

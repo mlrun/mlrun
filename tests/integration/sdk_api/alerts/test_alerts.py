@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 
-import pydantic.error_wrappers
 import pytest
 
 import mlrun
+import mlrun.alerts
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.utils
@@ -176,6 +176,82 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
 
+    def test_alert_templates(self):
+        project_name = "my-project"
+        project = mlrun.new_project(project_name)
+
+        # one of the pre-defined system templates
+        drift_system_template = mlrun.common.schemas.AlertTemplate(
+            template_id=2,
+            template_name="DriftDetected",
+            template_description="Generic template for drift detected alerts",
+            system_generated=True,
+            description="Model drift has been detected",
+            severity=alert_constants.AlertSeverity.HIGH,
+            trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+        )
+
+        drift_template = project.get_alert_template("DriftDetected")
+        self._validate_alert_template(drift_template, drift_system_template)
+
+        all_system_templates = project.list_alert_templates()
+        assert len(all_system_templates) == 3
+        assert all_system_templates[0].template_name == "JobFailed"
+        assert all_system_templates[1].template_name == "DriftDetected"
+        assert all_system_templates[2].template_name == "DriftSuspected"
+
+        # generate an alert from a template
+        alert_name = "new_alert"
+        alert_summary = "Model is drifting"
+        alert_from_template = mlrun.alerts.alert.AlertConfig(
+            project=project_name,
+            name=alert_name,
+            summary=alert_summary,
+            template=drift_template,
+        )
+
+        # test modifiers on the alert config
+        entity = alert_constants.EventEntity(
+            kind=alert_constants.EventEntityKind.MODEL, project=project_name, id="*"
+        )
+        alert_from_template.with_entity(entity=entity)
+
+        notifications = [
+            mlrun.common.schemas.Notification(
+                kind="slack",
+                name="slack_drift",
+                message="Ay caramba!",
+                severity="warning",
+                when=["now"],
+                secret_params={
+                    "webhook": "https://hooks.slack.com/services/",
+                },
+                condition="oops",
+            )
+        ]
+        alert_from_template.with_notifications(notifications=notifications)
+
+        self._validate_alert(
+            alert_from_template,
+            project_name=project_name,
+            alert_name=alert_name,
+            alert_summary=alert_summary,
+            alert_description=drift_template.description,
+            alert_severity=drift_template.severity,
+            alert_trigger=drift_template.trigger,
+            alert_reset_policy=drift_template.reset_policy,
+            alert_entity=entity,
+            alert_notifications=notifications,
+        )
+
+        project.store_alert_config(alert_from_template)
+        alerts = project.list_alerts_configs()
+        assert len(alerts) == 1
+        self._validate_alert(
+            alerts[0], project_name=project_name, alert_name=alert_name
+        )
+
     def _create_alerts_test(self, project_name, alert1, alert2):
         invalid_notification = [
             {
@@ -225,7 +301,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "alert_entity_kind",
                 "param_value": "endpoint",
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunInvalidArgumentError,
                 "case": "testing create alert with invalid entity kind",
             },
             {
@@ -237,7 +313,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "severity",
                 "param_value": "critical",
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunInvalidArgumentError,
                 "case": "testing create alert with invalid severity",
             },
             {
@@ -249,13 +325,13 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "reset_policy",
                 "param_value": "scheduled",
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunInvalidArgumentError,
                 "case": "testing create alert with invalid reset policy",
             },
             {
                 "param_name": "notifications",
                 "param_value": invalid_notification,
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunInvalidArgumentError,
                 "case": "testing create alert with invalid notification kind",
             },
             {
@@ -356,7 +432,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _modify_alert_test(self, project_name, alert1, alert_name, new_event_name):
         # modify alert with invalid data
         invalid_event_name = "not_permitted_event"
-        with pytest.raises(pydantic.error_wrappers.ValidationError):
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             self._modify_alert(
                 project_name,
                 alert_name,
@@ -478,6 +554,13 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert_summary=None,
         alert_state=None,
         alert_event_name=None,
+        alert_description=None,
+        alert_severity=None,
+        alert_trigger=None,
+        alert_criteria=None,
+        alert_reset_policy=None,
+        alert_entity=None,
+        alert_notifications=None,
     ):
         if project_name:
             assert alert.project == project_name
@@ -488,7 +571,21 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_state:
             assert alert.state == alert_state
         if alert_event_name:
-            assert alert.trigger.events == [alert_event_name]
+            assert alert.trigger["events"] == [alert_event_name]
+        if alert_description:
+            assert alert.description == alert_description
+        if alert_severity:
+            assert alert.severity == alert_severity
+        if alert_trigger:
+            assert alert.trigger == alert_trigger
+        if alert_criteria:
+            assert alert.criteria == alert_criteria
+        if alert_reset_policy:
+            assert alert.reset_policy == alert_reset_policy
+        if alert_entity:
+            assert alert.entity == alert_entity
+        if alert_notifications:
+            assert alert.notifications == alert_notifications
 
     @staticmethod
     def _generate_event_request(project, event_kind, entity_kind):
@@ -525,7 +622,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "condition": "oops",
                 },
             ]
-        return mlrun.common.schemas.AlertConfig(
+        return mlrun.alerts.alert.AlertConfig(
             project=project,
             name=name,
             summary=summary,
@@ -536,3 +633,20 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             notifications=notifications,
             reset_policy=reset_policy,
         )
+
+    @staticmethod
+    def _validate_alert_template(
+        drift_template,
+        expected_template,
+    ):
+        assert drift_template.template_id == expected_template.template_id
+        assert drift_template.template_name == expected_template.template_name
+        assert (
+            drift_template.template_description
+            == expected_template.template_description
+        )
+        assert drift_template.system_generated == expected_template.system_generated
+        assert drift_template.description == expected_template.description
+        assert drift_template.severity == expected_template.severity
+        assert drift_template.trigger == expected_template.trigger
+        assert drift_template.reset_policy == expected_template.reset_policy

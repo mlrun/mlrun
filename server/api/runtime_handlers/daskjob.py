@@ -321,7 +321,20 @@ def enrich_dask_cluster(
         or "daskdev/dask:latest"
     )
     env = spec.env
-    env.extend(function.generate_runtime_k8s_env())
+    for i, runtime_env in enumerate(function.generate_runtime_k8s_env()):
+        found = False
+        for j, function_env in enumerate(env):
+            if runtime_env["name"] == function_env["name"]:
+                # gc
+                del env[j]
+
+                # prioritize the function runtime env var over the given one
+                env[j] = function_env
+                found = True
+                break
+        if not found:
+            env.append(runtime_env)
+
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:
         env.append(spec.extra_pip)

@@ -18,11 +18,11 @@ import sqlalchemy.orm
 
 import mlrun.artifacts.base
 import mlrun.common.schemas
+import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
-from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 from mlrun.utils.helpers import validate_inline_artifact_body_size
@@ -188,7 +188,9 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         object_uid: str = None,
         producer_id: str = None,
-        deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
         secrets: dict = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
@@ -199,8 +201,8 @@ class Artifacts(
 
         # delete artifacts data by deletion strategy
         if deletion_strategy in [
-            ArtifactsDeletionStrategies.data_optional,
-            ArtifactsDeletionStrategies.data_force,
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             try:
                 server.api.crud.Files().delete_files_with_project_secrets(
@@ -213,7 +215,10 @@ class Artifacts(
                     deletion_strategy=deletion_strategy,
                     err=err_to_str(err),
                 )
-                if deletion_strategy == ArtifactsDeletionStrategies.data_force:
+                if (
+                    deletion_strategy
+                    == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+                ):
                     raise mlrun.errors.MLRunInternalServerError(
                         "Failed to delete artifact data"
                     )

@@ -19,12 +19,12 @@ from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.common.schemas
+import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 import server.api.crud
 import server.api.db.session
 from mlrun.common.db.sql_session import create_session
-from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.db import RunDBInterface
 from server.api.db.base import DBError
 from server.api.db.sqldb.db import SQLDB

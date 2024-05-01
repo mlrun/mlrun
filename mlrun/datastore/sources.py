@@ -293,7 +293,6 @@ class ParquetSource(BaseSourceDriver):
                                Each tuple should be in the format (column_name, operator, value).
                                Supported operators: "=", ">=", "<=", ">", "<".
                                Example: [("Product", "=", "Computer")]
-
                                For all supported filters, please see:
                                https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
     """

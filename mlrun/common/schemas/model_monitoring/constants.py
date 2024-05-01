@@ -121,13 +121,6 @@ class WriterEvent(MonitoringStrEnum):
     EVENT_KIND = "event_kind"  # metric or result
     DATA = "data"
 
-    # deprecated fields - TODO : delete in 1.9.0
-    RESULT_NAME = "result_name"
-    RESULT_VALUE = "result_value"
-    RESULT_KIND = "result_kind"
-    RESULT_STATUS = "result_status"
-    RESULT_EXTRA_DATA = "result_extra_data"
-
 
 class MetricData(MonitoringStrEnum):
     METRIC_NAME = "metric_name"

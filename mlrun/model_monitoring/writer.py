@@ -29,6 +29,8 @@ import mlrun.model_monitoring.db.stores
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
+    MetricData,
+    ResultData,
     ResultStatusApp,
     WriterEvent,
 )
@@ -75,20 +77,20 @@ class _Notifier:
         self._severity = severity
 
     def _should_send_event(self) -> bool:
-        return self._event[WriterEvent.RESULT_STATUS] >= ResultStatusApp.detected.value
+        return self._event[ResultData.RESULT_STATUS] >= ResultStatusApp.detected.value
 
     def _generate_message(self) -> str:
         return f"""\
 The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
-of kind `{self._event[WriterEvent.RESULT_KIND]}` \
+of kind `{self._event[ResultData.RESULT_KIND]}` \
 detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
 at time `{self._event[WriterEvent.START_INFER_TIME]}`.
 
 Result data:
-Name: `{self._event[WriterEvent.RESULT_NAME]}`
-Value: `{self._event[WriterEvent.RESULT_VALUE]}`
-Status: `{self._event[WriterEvent.RESULT_STATUS]}`
-Extra data: `{self._event[WriterEvent.RESULT_EXTRA_DATA]}`\
+Name: `{self._event[ResultData.RESULT_NAME]}`
+Value: `{self._event[ResultData.RESULT_VALUE]}`
+Status: `{self._event[ResultData.RESULT_STATUS]}`
+Extra data: `{self._event[ResultData.RESULT_EXTRA_DATA]}`\
 """
 
     def notify(self) -> None:
@@ -162,7 +164,7 @@ class ModelMonitoringWriter(StepToDict):
         event[WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
             event[WriterEvent.END_INFER_TIME]
         )
-        del event[WriterEvent.RESULT_EXTRA_DATA]
+        del event[ResultData.RESULT_EXTRA_DATA]
         try:
             self._tsdb_client.write(
                 backend=_TSDB_BE,
@@ -172,7 +174,7 @@ class ModelMonitoringWriter(StepToDict):
                     WriterEvent.END_INFER_TIME,
                     WriterEvent.ENDPOINT_ID,
                     WriterEvent.APPLICATION_NAME,
-                    WriterEvent.RESULT_NAME,
+                    ResultData.RESULT_NAME,
                 ],
             )
             logger.info("Updated V3IO TSDB successfully", table=_TSDB_TABLE)
@@ -213,29 +215,34 @@ class ModelMonitoringWriter(StepToDict):
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
-        try:
-            kind = event.pop(WriterEvent.EVENT_KIND, "result")
-            result_event = _AppResultEvent(
-                json.loads(event.pop(WriterEvent.DATA, "{}"))
-            )
-            if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
-                result_event = _AppResultEvent(
-                    {key: event[key] for key in WriterEvent.list()}
-                )
-            else:
-                result_event.update(
-                    _AppResultEvent({key: event[key] for key in event.keys()})
-                )
-            return result_event, kind
-        except KeyError as err:
-            raise _WriterEventValueError(
-                "The received event misses some keys compared to the expected "
-                "monitoring application event schema"
-            ) from err
-        except TypeError as err:
+        if not isinstance(event, dict):
             raise _WriterEventTypeError(
                 f"The event is of type: {type(event)}, expected a dictionary"
-            ) from err
+            )
+        kind = event.pop(WriterEvent.EVENT_KIND, "result")
+        result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
+        if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
+            result_event = _AppResultEvent(event)
+        else:
+            result_event.update(_AppResultEvent(event))
+
+        expected_keys = list(
+            set(WriterEvent.list()).difference(
+                [WriterEvent.EVENT_KIND, WriterEvent.DATA]
+            )
+        )
+        if kind == "metric":
+            expected_keys.extend(MetricData.list())
+        else:
+            expected_keys.extend(ResultData.list())
+        missing_keys = [key for key in expected_keys if key not in result_event]
+        if missing_keys:
+            raise _WriterEventValueError(
+                f"The received event misses some keys compared to the expected "
+                f"monitoring application event schema: {missing_keys}"
+            )
+
+        return result_event, kind
 
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)

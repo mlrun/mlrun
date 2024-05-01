@@ -231,6 +231,15 @@ async def delete_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    logger.debug(
+        "Deleting artifact",
+        project=project,
+        key=key,
+        tag=tag,
+        producer_id=tree,
+        deletion_strategy=deletion_strategy,
+    )
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,

@@ -702,3 +702,10 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     @staticmethod
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
+
+    def get_model_endpoint_metrics(
+        self, endpoint_id: str
+    ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+        """Get model monitoring results and metrics on the endpoint"""
+        # container = self.get_v3io_monitoring_apps_container(self.project)
+        raise NotImplementedError

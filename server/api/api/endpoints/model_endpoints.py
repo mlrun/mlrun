@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 from http import HTTPStatus
 from typing import Optional
@@ -21,6 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -316,4 +317,39 @@ async def get_model_endpoint(
         start=start,
         end=end,
         feature_analysis=feature_analysis,
+    )
+
+
+@router.get(
+    "/{endpoint_id}/metrics?type=results",
+    response_model=list[
+        mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
+    ],
+)
+async def get_model_endpoint_monitoring_metrics(
+    project: str,
+    endpoint_id: str,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        server.api.api.deps.authenticate_request
+    ),
+) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+    """
+    :param project:     The name of the project.
+    :param endpoint_id: The unique id of the model endpoint.
+    :param auth_info:   The auth info of the request.
+
+    :returns:           A list of the application results for this model endpoint.
+    """
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    return await run_in_threadpool(
+        mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(
+            project=project
+        ).get_model_endpoint_metrics,
+        endpoint_id=endpoint_id,
     )

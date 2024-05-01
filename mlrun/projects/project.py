@@ -207,14 +207,16 @@ def new_project(
                 "Unsupported option, cannot use subpath argument with project templates"
             )
         if from_template.endswith(".yaml"):
-            project = _load_project_file(from_template, name, secrets)
+            project = _load_project_file(
+                from_template, name, secrets, allow_cross_project=True
+            )
         elif from_template.startswith("git://"):
             clone_git(from_template, context, secrets, clone=True)
             shutil.rmtree(path.join(context, ".git"))
-            project = _load_project_dir(context, name)
+            project = _load_project_dir(context, name, allow_cross_project=True)
         elif from_template.endswith(".zip"):
             clone_zip(from_template, context, secrets)
-            project = _load_project_dir(context, name)
+            project = _load_project_dir(context, name, allow_cross_project=True)
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
@@ -296,6 +298,7 @@ def load_project(
     save: bool = True,
     sync_functions: bool = False,
     parameters: dict = None,
+    allow_cross_project: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -342,6 +345,8 @@ def load_project(
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
@@ -357,7 +362,7 @@ def load_project(
     if url:
         url = str(url)  # to support path objects
         if is_yaml_path(url):
-            project = _load_project_file(url, name, secrets)
+            project = _load_project_file(url, name, secrets, allow_cross_project)
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
@@ -384,7 +389,7 @@ def load_project(
         repo, url = init_repo(context, url, init_git)
 
     if not project:
-        project = _load_project_dir(context, name, subpath)
+        project = _load_project_dir(context, name, subpath, allow_cross_project)
 
     if not project.metadata.name:
         raise ValueError("Project name must be specified")
@@ -438,6 +443,7 @@ def get_or_create_project(
     from_template: str = None,
     save: bool = True,
     parameters: dict = None,
+    allow_cross_project: bool = False,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist
 
@@ -482,12 +488,12 @@ def get_or_create_project(
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :param parameters:   key/value pairs to add to the project.spec.params
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
     context = context or "./"
-    spec_path = path.join(context, subpath or "", "project.yaml")
-    load_from_path = url or path.isfile(spec_path)
     try:
         # load project from the DB.
         # use `name` as `url` as we load the project from the DB
@@ -503,13 +509,15 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
             parameters=parameters,
+            allow_cross_project=allow_cross_project,
         )
         logger.info("Project loaded successfully", project_name=name)
         return project
-
     except mlrun.errors.MLRunNotFoundError:
         logger.debug("Project not found in db", project_name=name)
 
+    spec_path = path.join(context, subpath or "", "project.yaml")
+    load_from_path = url or path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
@@ -525,6 +533,7 @@ def get_or_create_project(
             user_project=user_project,
             save=save,
             parameters=parameters,
+            allow_cross_project=allow_cross_project,
         )
 
         logger.info(
@@ -599,7 +608,7 @@ def _run_project_setup(
     return project
 
 
-def _load_project_dir(context, name="", subpath=""):
+def _load_project_dir(context, name="", subpath="", allow_cross_project=False):
     subpath_str = subpath or ""
 
     # support both .yaml and .yml file extensions
@@ -613,7 +622,7 @@ def _load_project_dir(context, name="", subpath=""):
         with open(project_file_path) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
-            project = _project_instance_from_struct(struct, name)
+            project = _project_instance_from_struct(struct, name, allow_cross_project)
             project.spec.context = context
     elif function_files := glob.glob(function_file_path):
         function_path = function_files[0]
@@ -686,19 +695,32 @@ def _delete_project_from_db(project_name, secrets, deletion_strategy):
     return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
-def _load_project_file(url, name="", secrets=None):
+def _load_project_file(url, name="", secrets=None, allow_cross_project=False):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"cant find project file at {url}") from exc
     struct = yaml.load(obj, Loader=yaml.FullLoader)
-    return _project_instance_from_struct(struct, name)
+    return _project_instance_from_struct(struct, name, allow_cross_project)
 
 
-def _project_instance_from_struct(struct, name):
-    struct.setdefault("metadata", {})["name"] = name or struct.get("metadata", {}).get(
-        "name", ""
-    )
+def _project_instance_from_struct(struct, name, allow_cross_project):
+    name_from_struct = struct.get("metadata", {}).get("name", "")
+    if name and name_from_struct and name_from_struct != name:
+        if allow_cross_project:
+            logger.warn(
+                "Project name is different than specified on its project yaml. Overriding.",
+                existing_name=name_from_struct,
+                overriding_name=name,
+            )
+        else:
+            raise ValueError(
+                f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
+                "1. Set the `allow_cross_project=True` when loading the project.\n"
+                f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
+                "3. Use different project context dir."
+            )
+    struct.setdefault("metadata", {})["name"] = name or name_from_struct
     return MlrunProject.from_dict(struct)
 
 
@@ -1814,10 +1836,18 @@ class MlrunProject(ModelObj):
         """
         context = context or self.spec.context
         if context:
-            project = _load_project_dir(context, self.metadata.name, self.spec.subpath)
+            project = _load_project_dir(
+                context,
+                self.metadata.name,
+                self.spec.subpath,
+                allow_cross_project=False,
+            )
         else:
             project = _load_project_file(
-                self.spec.origin_url, self.metadata.name, self._secrets
+                self.spec.origin_url,
+                self.metadata.name,
+                self._secrets,
+                allow_cross_project=False,
             )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo
@@ -2861,12 +2891,14 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        self.sync_functions(always=sync)
-        if not self.spec._function_objects:
-            raise ValueError(
-                "There are no functions in the project."
-                " Make sure you've set your functions with project.set_function()."
-            )
+        if engine not in ["remote"]:
+            # for remote runs we don't require the functions to be synced as they can be loaded dynamically during run
+            self.sync_functions(always=sync)
+            if not self.spec._function_objects:
+                raise ValueError(
+                    "There are no functions in the project."
+                    " Make sure you've set your functions with project.set_function()."
+                )
 
         if not name and not workflow_path and not workflow_handler:
             raise ValueError("Workflow name, path, or handler must be specified")

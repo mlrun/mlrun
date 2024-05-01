@@ -4878,7 +4878,7 @@ class TestFeatureStore(TestMLRunSystem):
         result = self._sort_df(result, "patient_id")
         result["department"] = result["department"].astype("str")
         if engine == "dask":
-            # Because Dask changes this column to "string[pyarrow]" type.
+            # because Dask changes this column to "string[pyarrow]" type
             result["patient_id"] = result["patient_id"].astype("str")
         assert_frame_equal(result, expected)
 

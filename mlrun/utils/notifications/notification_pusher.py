@@ -457,6 +457,12 @@ class NotificationPusher(_NotificationPusherBase):
             return steps
         except Exception:
             # If we fail to read the pipeline steps, we will return the list of runs that have the same workflow id
+            logger.warning(
+                "Failed to extract workflow steps from workflow manifest, "
+                "returning all runs with the workflow id label",
+                workflow_id=workflow_id,
+                traceback=traceback.format_exc(),
+            )
             return db.list_runs(
                 project=run.metadata.project,
                 labels=f"workflow={workflow_id}",
@@ -477,7 +483,13 @@ class NotificationPusher(_NotificationPusherBase):
         except Exception:
             return None
 
-    def _extract_function_uri(self, function_uri):
+    def _extract_function_uri(self, function_uri: str) -> tuple[str, str, str]:
+        """
+        Extract the project, name, and hash key from a function uri.
+        Examples:
+            - "project/name@hash_key" returns project, name, hash_key
+            - "project/name returns" project, name, ""
+        """
         project, name, hash_key = None, None, None
         hashed_pattern = r"^(.+)/(.+)@(.+)$"
         pattern = r"^(.+)/(.+)$"

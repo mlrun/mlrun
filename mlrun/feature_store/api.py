@@ -176,7 +176,7 @@ def get_offline_features(
                                     By default, the filter executes on the timestamp_key of each feature set.
                                     Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
-    :param additional_filters: (list of tuples, optional): List of additional_filters conditions as tuples.
+    :param additional_filters: List of additional_filters conditions as tuples.
                                 Each tuple should be in the format (column_name, operator, value).
                                 Supported operators: "=", ">=", "<=", ">", "<".
                                 Example: [("Product", "=", "Computer")]

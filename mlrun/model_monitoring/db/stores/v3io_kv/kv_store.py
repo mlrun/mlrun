@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import json
 import os
@@ -41,7 +40,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
-    def __init__(self, project: str, access_key: str):
+    def __init__(self, project: str, access_key: typing.Optional[str] = None) -> None:
         super().__init__(project=project)
         # Initialize a V3IO client instance
         self.access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")

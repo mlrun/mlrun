@@ -37,7 +37,7 @@ def test_delete_file(
     server.api.crud.Files().delete_files_with_project_secrets(
         mlrun.common.schemas.AuthInfo(), project, path
     )
-    files_mock.assert_called_once_with(url=path, secrets=full_secrets, project=project)
+    files_mock.assert_called_with(url=path, secrets=full_secrets, project=project)
     files_mock.reset_mock()
 
     # user supplied secrets - use the same key to override project secrets
@@ -47,7 +47,5 @@ def test_delete_file(
     server.api.crud.Files().delete_files_with_project_secrets(
         mlrun.common.schemas.AuthInfo(), project, path, secrets=user_secrets
     )
-    files_mock.assert_called_once_with(
-        url=path, secrets=override_secrets, project=project
-    )
+    files_mock.assert_called_with(url=path, secrets=override_secrets, project=project)
     files_mock.reset_mock()

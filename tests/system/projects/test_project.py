@@ -183,7 +183,9 @@ class TestProject(TestMLRunSystem):
         self._create_project(name)
 
         # load project from context dir and run a workflow
-        project2 = mlrun.load_project(str(self.assets_path), name=name)
+        project2 = mlrun.load_project(
+            str(self.assets_path), name=name, allow_cross_project=True
+        )
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
 
@@ -213,7 +215,9 @@ class TestProject(TestMLRunSystem):
         self._create_project(name)
 
         # load project from context dir and run a workflow
-        project = mlrun.load_project(str(self.assets_path), name=name)
+        project = mlrun.load_project(
+            str(self.assets_path), name=name, allow_cross_project=True
+        )
         # Don't provide an artifact-path, to verify that the run-id is added by default
         workflow_run = project.run("main", watch=True)
         assert workflow_run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
@@ -236,7 +240,10 @@ class TestProject(TestMLRunSystem):
         shutil.rmtree(project_dir, ignore_errors=True)
 
         project2 = mlrun.load_project(
-            project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
+            project_dir,
+            "git://github.com/mlrun/project-demo.git#main",
+            name=name,
+            allow_cross_project=True,
         )
         self._logger.info("run pipeline from git")
 
@@ -254,7 +261,10 @@ class TestProject(TestMLRunSystem):
 
         # load project from git, build the container image from source (in the workflow)
         project2 = mlrun.load_project(
-            project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
+            project_dir,
+            "git://github.com/mlrun/project-demo.git#main",
+            name=name,
+            allow_cross_project=True,
         )
         self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
@@ -296,7 +306,7 @@ class TestProject(TestMLRunSystem):
         self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
-        project2 = mlrun.load_project(project_dir)
+        project2 = mlrun.load_project(project_dir, allow_cross_project=True)
         self.custom_project_names_to_delete.append(project2.metadata.name)
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
@@ -394,19 +404,25 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.get_or_create_project(name, project_dir)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         project.spec.description = "mytest"
         project.save()
 
         # get project should read from DB
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.get_or_create_project(name, project_dir)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         project.save()
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)
 
         # get project should read from context (project.yaml)
-        project = mlrun.get_or_create_project(name, project_dir)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         assert project.spec.description == "mytest", "failed to get project"
 
     def test_new_project_overwrite(self):
@@ -566,7 +582,10 @@ class TestProject(TestMLRunSystem):
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.load_project(
-            project_dir, "git://github.com/mlrun/project-demo.git", name=name
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+            allow_cross_project=True,
         )
         run = project.run(
             workflow_name,
@@ -645,7 +664,9 @@ class TestProject(TestMLRunSystem):
         current_dirname = os.path.dirname(current_file_abspath)
         os.chdir(current_dirname)
 
-        project = mlrun.get_or_create_project(name, user_project=True, context="./")
+        project = mlrun.get_or_create_project(
+            name, user_project=True, context="./", allow_cross_project=True
+        )
 
         handler_fn = project.set_function(
             func="./assets/handler.py",
@@ -828,6 +849,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             "git://github.com/mlrun/project-demo.git",
             name=name,
+            allow_cross_project=True,
         )
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
@@ -873,6 +895,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             "git://github.com/mlrun/project-demo.git",
             name=name,
+            allow_cross_project=True,
         )
 
         args = [
@@ -936,6 +959,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             original_source,
             name=name,
+            allow_cross_project=True,
         )
         # Getting the expected source after possible enrichment:
         expected_source = project.source
@@ -1015,6 +1039,7 @@ class TestProject(TestMLRunSystem):
             url=project_source,
             subpath="./test_remote_workflow_subpath",
             name=project_name,
+            allow_cross_project=True,
         )
         project.save()
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
@@ -1188,7 +1213,9 @@ class TestProject(TestMLRunSystem):
         proj_file_path = project_dir + "/project.yaml"
         project.export(proj_file_path)
 
-        new_project = mlrun.load_project(project_dir, name=name_import)
+        new_project = mlrun.load_project(
+            project_dir, name=name_import, allow_cross_project=True
+        )
         new_project.build_image()
 
         new_project.set_function(
@@ -1301,7 +1328,9 @@ class TestProject(TestMLRunSystem):
         )
 
         context = "./load"
-        project = mlrun.get_or_create_project(project_1_name, context=context)
+        project = mlrun.get_or_create_project(
+            project_1_name, context=context, allow_cross_project=True
+        )
 
         # create artifact with an explicit db_key
         artifact_key = "artifact_key"
@@ -1321,7 +1350,9 @@ class TestProject(TestMLRunSystem):
         project.save()
 
         # create a project from the same spec
-        project2 = mlrun.load_project(context=context, name=project_2_name)
+        project2 = mlrun.load_project(
+            context=context, name=project_2_name, allow_cross_project=True
+        )
 
         # validate that the artifact was saved with the db_key
         artifacts = project2.list_artifacts(name=artifact_db_key)
@@ -1348,7 +1379,9 @@ class TestProject(TestMLRunSystem):
         project.save()
 
         # create a new project from the same spec, and validate the artifact was loaded properly
-        project3 = mlrun.load_project(context=context, name=project_3_name)
+        project3 = mlrun.load_project(
+            context=context, name=project_3_name, allow_cross_project=True
+        )
         # since it is imported from yaml, the artifact is saved with the set key
         artifacts = project3.list_artifacts(name=another_artifact_key)
         assert len(artifacts) == 1
@@ -1438,6 +1471,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             source,
             name=name,
+            allow_cross_project=True,
         )
         project.set_source(source)
 

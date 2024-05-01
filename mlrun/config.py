@@ -692,6 +692,10 @@ default_config = {
         # supported modes: "enabled", "disabled".
         "mode": "disabled"
     },
+    "auth_with_client_id": {
+        "enabled": False,
+        "request_timeout": 5,
+    },
 }
 
 _is_running_as_api = None

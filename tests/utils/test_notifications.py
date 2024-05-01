@@ -248,8 +248,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     }
                 ]
             },
@@ -264,8 +264,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     },
                     {
                         "fields": [
@@ -289,8 +289,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     },
                     {
                         "fields": [

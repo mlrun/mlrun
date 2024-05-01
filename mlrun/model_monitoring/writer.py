@@ -23,11 +23,17 @@ from v3io_frames.errors import Error as V3IOFramesError
 from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
+import mlrun.common.schemas.alert as alert_constants
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
+from mlrun.common.schemas.model_monitoring.constants import (
+    EventFieldType,
+    ResultStatusApp,
+    WriterEvent,
+)
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
+from mlrun.model_monitoring.helpers import get_endpoint_record
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
@@ -111,6 +117,7 @@ class ModelMonitoringWriter(StepToDict):
             notification_types=[NotificationKind.slack]
         )
         self._create_tsdb_table()
+        self._endpoints_records = {}
 
     @staticmethod
     def get_v3io_container(project_name: str) -> str:
@@ -172,6 +179,29 @@ class ModelMonitoringWriter(StepToDict):
             )
 
     @staticmethod
+    def _generate_event_on_drift(
+        uid: str, drift_status: str, event_value: dict, project_name: str
+    ):
+        if (
+            drift_status == ResultStatusApp.detected
+            or drift_status == ResultStatusApp.potential_detection
+        ):
+            entity = {
+                "kind": alert_constants.EventEntityKind.MODEL,
+                "project": project_name,
+                "id": uid,
+            }
+            event_kind = (
+                alert_constants.EventKind.DRIFT_DETECTED
+                if drift_status == ResultStatusApp.detected
+                else alert_constants.EventKind.DRIFT_SUSPECTED
+            )
+            event_data = mlrun.common.schemas.Event(
+                kind=event_kind, entity=entity, value_dict=event_value
+            )
+            mlrun.get_run_db().generate_event(event_kind, event_data)
+
+    @staticmethod
     def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
         """
         Modify the raw event into the expected monitoring application event
@@ -201,4 +231,24 @@ class ModelMonitoringWriter(StepToDict):
         self._update_tsdb(event)
         self._update_kv_db(event)
         _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
+
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            endpoint_record = self._endpoints_records.setdefault(
+                endpoint_id,
+                get_endpoint_record(project=self.project, endpoint_id=endpoint_id),
+            )
+            event_value = {
+                "app_name": event[WriterEvent.APPLICATION_NAME],
+                "model": endpoint_record.get(EventFieldType.MODEL),
+                "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
+                "result_name": event[WriterEvent.RESULT_NAME],
+                "result_value": event[WriterEvent.RESULT_VALUE],
+            }
+            self._generate_event_on_drift(
+                event[WriterEvent.ENDPOINT_ID],
+                event[WriterEvent.RESULT_STATUS],
+                event_value,
+                self.project,
+            )
         logger.info("Completed event DB writes")

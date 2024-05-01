@@ -1390,6 +1390,39 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
+    @property
+    def _target_path_object(self):
+        url = self.path or mlrun.mlconf.redis.url
+        if self._resource and url:
+            parsed_url = urlparse(url)
+            if not parsed_url.path or parsed_url.path == "/":
+                kind_prefix = (
+                    "sets"
+                    if self._resource.kind
+                    == mlrun.common.schemas.ObjectKind.feature_set
+                    else "vectors"
+                )
+                kind = self.kind
+                name = self._resource.metadata.name
+                project = (
+                    self._resource.metadata.project or mlrun.mlconf.default_project
+                )
+                data_prefix = get_default_prefix_for_target(kind).format(
+                    ds_profile_name=parsed_url.netloc,
+                    authority=parsed_url.netloc,
+                    project=project,
+                    kind=kind,
+                    name=name,
+                )
+                if url.startswith("rediss://"):
+                    data_prefix = data_prefix.replace("redis://", "rediss://", 1)
+                if not self.run_id:
+                    version = self._resource.metadata.tag or "latest"
+                    name = f"{name}-{version}"
+                url = f"{data_prefix}/{kind_prefix}/{name}"
+                return TargetPathObject(url, self.run_id, False)
+        return super()._target_path_object
+
     # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
     # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
     # Then look for username and password at REDIS_xxx secrets
@@ -1516,6 +1549,25 @@ class StreamTarget(BaseStoreTarget):
 
 
 class KafkaTarget(BaseStoreTarget):
+    """
+    Kafka target storage driver, used to write data into kafka topics.
+    example::
+        # define target
+        kafka_target = KafkaTarget(
+            name="kafka", path="my_topic", brokers="localhost:9092"
+        )
+        # ingest
+        stocks_set.ingest(stocks, [kafka_target])
+    :param name:                target name
+    :param path:                topic name e.g. "my_topic"
+    :param after_step:          optional, after what step in the graph to add the target
+    :param columns:             optional, which columns from data to write
+    :param bootstrap_servers:   Deprecated. Use the brokers parameter instead
+    :param producer_options:    additional configurations for kafka producer
+    :param brokers:             kafka broker as represented by a host:port pair, or a list of kafka brokers, e.g.
+        "localhost:9092", or ["kafka-broker-1:9092", "kafka-broker-2:9092"]
+    """
+
     kind = TargetTypes.kafka
     is_table = False
     is_online = False
@@ -1532,15 +1584,23 @@ class KafkaTarget(BaseStoreTarget):
         **kwargs,
     ):
         attrs = {}
+
+        # TODO: Remove this in 1.9.0
         if bootstrap_servers:
+            if brokers:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "KafkaTarget cannot be created with both the 'brokers' parameter and the deprecated "
+                    "'bootstrap_servers' parameter. Please use 'brokers' only."
+                )
             warnings.warn(
                 "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
                 "use 'brokers' instead.",
-                # TODO: Remove this in 1.9.0
                 FutureWarning,
             )
-        if bootstrap_servers is not None:
-            attrs["brokers"] = brokers or bootstrap_servers
+            brokers = bootstrap_servers
+
+        if brokers:
+            attrs["brokers"] = brokers
         if producer_options is not None:
             attrs["producer_options"] = producer_options
 

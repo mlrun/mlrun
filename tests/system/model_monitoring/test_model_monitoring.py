@@ -247,8 +247,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    @pytest.mark.parametrize("engine", ["sync", "async"])
-    def test_basic_model_monitoring(self, engine) -> None:
+    def test_basic_model_monitoring(self) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
@@ -271,11 +270,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
-
-        serving_fn.set_topology(
-            "router",
-            engine=engine,
-        )
 
         # enable model monitoring
         serving_fn.set_tracking()
@@ -826,13 +820,9 @@ class TestBatchDrift(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
 
-        controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
-        )
-
-        controller._wait_for_function_deployment(db=controller._get_db())
         # Generate a dataframe that will be written as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
         infer_results_df = pd.DataFrame(
@@ -1139,13 +1129,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         )
         return model.uri
 
-    def _wait_for_deployments(self) -> None:
-        for fn_name in mm_constants.MonitoringFunctionNames.list() + [
-            mm_constants.HistogramDataDriftApplicationConstants.NAME
-        ]:
-            fn = self.project.get_function(key=fn_name)
-            fn._wait_for_function_deployment(db=fn._get_db())
-
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
         tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
@@ -1175,9 +1158,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
-
-        self._wait_for_deployments()
 
         model_uri = self._log_model()
 

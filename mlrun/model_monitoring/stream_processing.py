@@ -40,6 +40,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ProjectSecretKeys,
     PrometheusEndpoints,
 )
+from mlrun.model_monitoring.helpers import get_endpoint_record
 from mlrun.utils import logger
 
 
@@ -352,7 +353,6 @@ class EventStreamProcessor:
                     rate="10/m",
                     time_col=EventFieldType.TIMESTAMP,
                     container=self.tsdb_container,
-                    access_key=self.v3io_access_key,
                     v3io_frames=self.v3io_framesd,
                     infer_columns_from_data=True,
                     index_cols=[
@@ -1232,13 +1232,6 @@ def update_endpoint_record(
     model_endpoint_store.update_model_endpoint(
         endpoint_id=endpoint_id, attributes=attributes
     )
-
-
-def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = mlrun.model_monitoring.get_store_object(
-        project=project,
-    )
-    return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
 
 
 def update_monitoring_feature_set(

@@ -766,6 +766,11 @@ class RunMetadata(ModelObj):
     def iteration(self, iteration):
         self._iteration = iteration
 
+    def is_workflow_runner(self):
+        if not self.labels:
+            return False
+        return self.labels.get("job-type", "") == "workflow-runner"
+
 
 class HyperParamStrategies:
     grid = "grid"
@@ -931,7 +936,7 @@ class RunSpec(ModelObj):
 
         >>> run_spec.inputs = {
         ...     "my_input": "...",
-        ...     "my_hinted_input : pandas.DataFrame": "..."
+        ...     "my_hinted_input : pandas.DataFrame": "...",
         ... }
 
         :param inputs: The inputs to set.
@@ -1218,6 +1223,19 @@ class RunStatus(ModelObj):
         self.reason = reason
         self.notifications = notifications or {}
 
+    def is_failed(self) -> Optional[bool]:
+        """
+        This method returns whether a run has failed.
+        Returns none if state has yet to be defined. callee is responsible for handling None.
+        (e.g wait for state to be defined)
+        """
+        if not self.state:
+            return None
+        return self.state.casefold() in [
+            mlrun.run.RunStatuses.failed.casefold(),
+            mlrun.run.RunStatuses.error.casefold(),
+        ]
+
 
 class RunTemplate(ModelObj):
     """Run template"""
@@ -1275,7 +1293,7 @@ class RunTemplate(ModelObj):
 
         example::
 
-            grid_params = {"p1": [2,4,1], "p2": [10,20]}
+            grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
             task = mlrun.new_task("grid-search")
             task.with_hyper_params(grid_params, selector="max.accuracy")
         """

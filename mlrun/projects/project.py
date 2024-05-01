@@ -298,7 +298,7 @@ def load_project(
     save: bool = True,
     sync_functions: bool = False,
     parameters: dict = None,
-    allow_cross_project: bool = False,
+    allow_cross_project: bool = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -443,7 +443,7 @@ def get_or_create_project(
     from_template: str = None,
     save: bool = True,
     parameters: dict = None,
-    allow_cross_project: bool = False,
+    allow_cross_project: bool = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist
 
@@ -608,7 +608,7 @@ def _run_project_setup(
     return project
 
 
-def _load_project_dir(context, name="", subpath="", allow_cross_project=False):
+def _load_project_dir(context, name="", subpath="", allow_cross_project=None):
     subpath_str = subpath or ""
 
     # support both .yaml and .yml file extensions
@@ -695,7 +695,7 @@ def _delete_project_from_db(project_name, secrets, deletion_strategy):
     return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
-def _load_project_file(url, name="", secrets=None, allow_cross_project=False):
+def _load_project_file(url, name="", secrets=None, allow_cross_project=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
@@ -707,19 +707,23 @@ def _load_project_file(url, name="", secrets=None, allow_cross_project=False):
 def _project_instance_from_struct(struct, name, allow_cross_project):
     name_from_struct = struct.get("metadata", {}).get("name", "")
     if name and name_from_struct and name_from_struct != name:
-        if allow_cross_project:
+        error_message = f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"\
+                        "1. Set the `allow_cross_project=True` when loading the project.\n"\
+                        f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"\
+                        "3. Use different project context dir."
+
+        if allow_cross_project is None:
+            # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
+            logger.warn("Project name is different than specified on its project yaml."
+                        "You should fix it until version 1.9.0", description=error_message)
+        elif allow_cross_project:
             logger.warn(
                 "Project name is different than specified on its project yaml. Overriding.",
                 existing_name=name_from_struct,
                 overriding_name=name,
             )
         else:
-            raise ValueError(
-                f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
-                "1. Set the `allow_cross_project=True` when loading the project.\n"
-                f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
-                "3. Use different project context dir."
-            )
+            raise ValueError(error_message)
     struct.setdefault("metadata", {})["name"] = name or name_from_struct
     return MlrunProject.from_dict(struct)
 
@@ -1847,7 +1851,7 @@ class MlrunProject(ModelObj):
                 self.spec.origin_url,
                 self.metadata.name,
                 self._secrets,
-                allow_cross_project=False,
+                allow_cross_project=None,
             )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo

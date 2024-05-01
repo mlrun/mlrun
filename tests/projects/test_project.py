@@ -242,6 +242,21 @@ def test_build_project_from_minimal_dict():
             / "projects"
             / "assets"
             / "project.zip",
+            "different2name",
+            ["prep_data.py", "project.yaml"],
+            True,
+            None,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
             "different1name",
             ["prep_data.py", "project.yaml"],
             True,

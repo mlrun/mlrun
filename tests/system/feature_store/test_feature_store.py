@@ -4854,7 +4854,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
         feature_set.ingest(source=parquet_source, targets=[target])
         result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
-        # We want to include patient_id in the comparison and to sort both the columns and the values.
+        # We want to include patient_id in the comparison and to sort the columns alphabetically and to sort the
+        # rows by patient_id values.
         result = self._sort_df(result, "patient_id")
         expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
         #  reset category type to string:

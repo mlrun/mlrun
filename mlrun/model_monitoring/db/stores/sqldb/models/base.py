@@ -24,6 +24,7 @@ from sqlalchemy import (
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
     FileTargetKind,
+    ResultData,
     SchedulingKeys,
     WriterEvent,
 )
@@ -114,7 +115,7 @@ class ApplicationResultBaseTable(BaseModel):
     )
 
     result_name = Column(
-        WriterEvent.RESULT_NAME,
+        ResultData.RESULT_NAME,
         String(40),
     )
 
@@ -127,10 +128,10 @@ class ApplicationResultBaseTable(BaseModel):
         TIMESTAMP(timezone=True),
     )
 
-    result_status = Column(WriterEvent.RESULT_STATUS, String(10))
-    result_kind = Column(WriterEvent.RESULT_KIND, String(40))
-    result_value = Column(WriterEvent.RESULT_VALUE, Float)
-    result_extra_data = Column(WriterEvent.RESULT_EXTRA_DATA, Text)
+    result_status = Column(ResultData.RESULT_STATUS, String(10))
+    result_kind = Column(ResultData.RESULT_KIND, String(40))
+    result_value = Column(ResultData.RESULT_VALUE, Float)
+    result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, Text)
     current_stats = Column(WriterEvent.CURRENT_STATS, Text)
 
 

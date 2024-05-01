@@ -410,7 +410,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME
         )
         metric_name = event.pop(
-            mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME
+            mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME
         )
         attributes = {metric_name: json.dumps(event)}
 
@@ -446,7 +446,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
             {
-                "name": mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME,
+                "name": mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME,
                 "type": "string",
                 "nullable": False,
             }

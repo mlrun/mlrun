@@ -264,12 +264,12 @@ class ModelMonitoringWriter(StepToDict):
                 "app_name": event[WriterEvent.APPLICATION_NAME],
                 "model": endpoint_record.get(EventFieldType.MODEL),
                 "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
-                "result_name": event[WriterEvent.RESULT_NAME],
-                "result_value": event[WriterEvent.RESULT_VALUE],
+                "result_name": event[ResultData.RESULT_NAME],
+                "result_value": event[ResultData.RESULT_VALUE],
             }
             self._generate_event_on_drift(
                 event[WriterEvent.ENDPOINT_ID],
-                event[WriterEvent.RESULT_STATUS],
+                event[ResultData.RESULT_STATUS],
                 event_value,
                 self.project,
             )

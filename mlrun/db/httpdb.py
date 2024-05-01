@@ -1158,7 +1158,13 @@ class HTTPRunDB(RunDBInterface):
                 logger.info(
                     "Function deleted", project_name=project, function_name=name
                 )
-                return
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.info(
+                    "Function deletion failed", project_name=project, function_name=name
+                )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.

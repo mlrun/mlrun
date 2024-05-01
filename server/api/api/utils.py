@@ -1327,7 +1327,7 @@ async def _delete_function(
                 for function in functions
             ]
             # delete Nuclio functions associated with the function tags in batches
-            failed_requests = await delete_nuclio_functions_in_batches(
+            failed_requests = await _delete_nuclio_functions_in_batches(
                 auth_info, project, nuclio_function_names
             )
             if failed_requests:
@@ -1343,7 +1343,7 @@ async def _delete_function(
     )
 
 
-async def delete_nuclio_functions_in_batches(
+async def _delete_nuclio_functions_in_batches(
     auth_info: mlrun.common.schemas.AuthInfo,
     project_name: str,
     function_names: list[str],
@@ -1352,34 +1352,38 @@ async def delete_nuclio_functions_in_batches(
         nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
         project: str,
         function: str,
-    ):
-        try:
-            await nuclio_client.delete_function(name=function, project_name=project)
-            return None
-        except Exception as exc:
-            # return tuple with failure info
-            return function, str(exc)
+        _semaphore: asyncio.Semaphore,
+    ) -> tuple[str, str]:
+        async with _semaphore:
+            try:
+                await nuclio_client.delete_function(name=function, project_name=project)
+                return None
+            except Exception as exc:
+                # return tuple with failure info
+                return function, str(exc)
 
-    # batch size for deleting functions in parallel
-    batch_size = mlrun.mlconf.background_tasks.function_deletion_batch_size
+    # Configure maximum concurrent deletions
+    max_concurrent_deletions = (
+        mlrun.mlconf.background_tasks.function_deletion_batch_size
+    )
+    semaphore = asyncio.Semaphore(max_concurrent_deletions)
     failed_requests = []
 
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        for i in range(0, len(function_names), batch_size):
-            # split function names into batches
-            batch_functions = function_names[i : i + batch_size]
-            tasks = []
-            for function_name in batch_functions:
-                # create tasks to delete each function in the batch
-                tasks.append(delete_function(client, project_name, function_name))
+        tasks = [
+            delete_function(client, project_name, function_name, semaphore)
+            for function_name in function_names
+        ]
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # process results to identify failed deletion requests
-            for result in results:
-                if isinstance(result, tuple):
-                    nuclio_name, error_message = result
+        # process results to identify failed deletion requests
+        for result in results:
+            if isinstance(result, tuple):
+                nuclio_name, error_message = result
+                if error_message:
                     failed_requests.append(
                         f"Failed to delete nuclio function {nuclio_name}: {error_message}"
                     )
+
     return failed_requests

@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from http import HTTPStatus
+from typing import Optional, TypedDict
+
 import pytest
+import v3io.dataplane.output
+import v3io.dataplane.response
 
 from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetric,
@@ -72,3 +78,95 @@ def test_extract_metrics_from_items(
     items: list[dict[str, str]], expected_metrics: list[ModelEndpointMonitoringMetric]
 ) -> None:
     assert KVStoreBase._extract_metrics_from_items(items) == expected_metrics
+
+
+class TestGetModelEndpointMetrics:
+    PROJECT = "demo-proj"
+    ENDPOINT = "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd"
+    CONTAINER = KVStoreBase.get_v3io_monitoring_apps_container(PROJECT)
+
+    @dataclass
+    class Entry:
+        class DecodedBody(TypedDict):
+            LastItemIncluded: str
+            NextMarker: str
+
+        decoded_body: DecodedBody
+        items: list[dict[str, str]]
+
+    _M0 = "r55ggss="
+    _M1 = "reeedkdk2="
+    _V0 = Entry(
+        decoded_body=Entry.DecodedBody(LastItemIncluded="FALSE", NextMarker=_M1),
+        items=[{"__name": "perf-app", "latency-sec": ""}],
+    )
+    _V1 = Entry(
+        decoded_body=Entry.DecodedBody(LastItemIncluded="TRUE", NextMarker=_M0),
+        items=[
+            {"__name": "model-as-a-judge-app", "distance": ""},
+            {"__name": ".#schema"},
+        ],
+    )
+    METRICS = [
+        ModelEndpointMonitoringMetric(
+            app="perf-app",
+            name="latency-sec",
+            type=ModelEndpointMonitoringMetricType.RESULT,
+            full_name="perf-app/result/latency-sec",
+        ),
+        ModelEndpointMonitoringMetric(
+            app="model-as-a-judge-app",
+            name="distance",
+            type=ModelEndpointMonitoringMetricType.RESULT,
+            full_name="model-as-a-judge-app/result/distance",
+        ),
+    ]
+
+    MARKER_TO_ENTRY_MAP: dict[Optional[str], Entry] = {None: _V0, _M0: _V0, _M1: _V1}
+
+    @classmethod
+    def scan_mock(
+        cls,
+        container: str,
+        table_path: str,
+        marker: Optional[str] = None,
+    ) -> v3io.dataplane.response.Response:
+        if (
+            container != cls.CONTAINER
+            or table_path != cls.ENDPOINT
+            or marker not in cls.MARKER_TO_ENTRY_MAP
+        ):
+            raise v3io.dataplane.response.HttpResponseError
+        entry = cls.MARKER_TO_ENTRY_MAP[marker]
+        response = v3io.dataplane.response.Response(
+            output="",
+            status_code=HTTPStatus.OK,
+            headers={},
+            body=b"",
+        )
+        response._parsed_output = v3io.dataplane.output.GetItemsOutput(
+            decoded_body=entry.decoded_body
+        )
+        response._parsed_output.items = entry.items
+        return response
+
+    @classmethod
+    @pytest.fixture
+    def store(cls, monkeypatch: pytest.MonkeyPatch) -> KVStoreBase:
+        monkeypatch.setenv("V3IO_ACCESS_KEY", "secret-value")
+        store = KVStoreBase(project=cls.PROJECT)
+        monkeypatch.setattr(store.client.kv, "scan", cls.scan_mock)
+        return store
+
+    @classmethod
+    @pytest.mark.parametrize(
+        ("endpoint_id", "expected_metrics"),
+        [("non-existent-ep", []), (ENDPOINT, METRICS)],
+    )
+    def test_metrics(
+        cls,
+        store: KVStoreBase,
+        endpoint_id: str,
+        expected_metrics: list[ModelEndpointMonitoringMetric],
+    ) -> None:
+        assert store.get_model_endpoint_metrics(endpoint_id) == expected_metrics

@@ -575,10 +575,10 @@ class DataItem:
         :param end_time:    filters out data after this time
         :param time_column: Store timestamp_key will be used if None.
                             The results will be filtered by this column and start_time & end_time.
-        :param additional_filters: (list of tuples, optional): List of filters conditions as tuples.
-                                                    Each tuple should be in the format (column_name, operator, value).
-                                                    Supported operators: "=", ">=", "<=", ">", "<".
-                                                    Example: [("Product", "=", "Computer")]
+        :param additional_filters: (list of tuples, optional): List of additional_filters conditions as tuples.
+                                    Each tuple should be in the format (column_name, operator, value).
+                                    Supported operators: "=", ">=", "<=", ">", "<".
+                                    Example: [("Product", "=", "Computer")]
 
                                     For all supported filters, please see:
                                     https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html

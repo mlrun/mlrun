@@ -707,15 +707,20 @@ def _load_project_file(url, name="", secrets=None, allow_cross_project=None):
 def _project_instance_from_struct(struct, name, allow_cross_project):
     name_from_struct = struct.get("metadata", {}).get("name", "")
     if name and name_from_struct and name_from_struct != name:
-        error_message = f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"\
-                        "1. Set the `allow_cross_project=True` when loading the project.\n"\
-                        f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"\
-                        "3. Use different project context dir."
+        error_message = (
+            f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
+            "1. Set the `allow_cross_project=True` when loading the project.\n"
+            f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
+            "3. Use different project context dir."
+        )
 
         if allow_cross_project is None:
             # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
-            logger.warn("Project name is different than specified on its project yaml."
-                        "You should fix it until version 1.9.0", description=error_message)
+            logger.warn(
+                "Project name is different than specified on its project yaml."
+                "You should fix it until version 1.9.0",
+                description=error_message,
+            )
         elif allow_cross_project:
             logger.warn(
                 "Project name is different than specified on its project yaml. Overriding.",

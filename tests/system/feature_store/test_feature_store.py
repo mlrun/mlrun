@@ -4814,7 +4814,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected_all, df, check_dtype=False)
 
     @staticmethod
-    def _get_sorted_df(df: pd.DataFrame, sort_column: str):
+    def _sort_df(df: pd.DataFrame, sort_column: str):
         return (
             df.reindex(sorted(df.columns), axis=1)
             .sort_values(by=sort_column)
@@ -4855,8 +4855,8 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set.ingest(source=parquet_source, targets=[target])
         result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
         # We want to include patient_id in the comparison and to sort both the columns and the values.
-        result = self._get_sorted_df(result, "patient_id")
-        expected = self._get_sorted_df(filtered_df.query("room == 1"), "patient_id")
+        result = self._sort_df(result, "patient_id")
+        expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
         #  reset category type to string:
         result["department"] = result["department"].astype("str")
         assert_frame_equal(result, expected)
@@ -4873,8 +4873,8 @@ class TestFeatureStore(TestMLRunSystem):
             .to_dataframe()
             .reset_index()
         )
-        expected = self._get_sorted_df(filtered_df.query("bad == 95"), "patient_id")
-        result = self._get_sorted_df(result, "patient_id")
+        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = self._sort_df(result, "patient_id")
         result["department"] = result["department"].astype("str")
         if engine == "dask":
             # Because Dask changes this column to "string[pyarrow]" type.

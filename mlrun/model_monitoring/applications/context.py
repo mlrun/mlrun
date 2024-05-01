@@ -177,7 +177,7 @@ class MonitoringApplicationContext(MLClientCtx):
         return label_names if isinstance(label_names, list) else json.loads(label_names)
 
     @property
-    def model(self) -> typing.Tuple[str, ModelArtifact, dict]:
+    def model(self) -> tuple[str, ModelArtifact, dict]:
         """return model file, model spec object, and list of extra data items"""
         return get_model(self.model_endpoint.spec.model_uri)
 

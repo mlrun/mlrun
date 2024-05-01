@@ -67,6 +67,7 @@ class MonitoringApplicationContext(MLClientCtx):
         self._sample_df: typing.Optional[pd.DataFrame] = None
         self._model_endpoint: typing.Optional[ModelEndpoint] = None
         self._feature_stats: typing.Optional[FeatureStats] = None
+        self._sample_df_stats: typing.Optional[FeatureStats] = None
 
     @classmethod
     def from_dict(
@@ -107,6 +108,12 @@ class MonitoringApplicationContext(MLClientCtx):
         )
         self.application_name = attrs.get(
             mm_constants.ApplicationEvent.APPLICATION_NAME
+        )
+        self._feature_stats = json.loads(
+            attrs.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
+        )
+        self._sample_df_stats = json.loads(
+            attrs.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
         )
 
         self.endpoint_id = attrs.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
@@ -155,7 +162,11 @@ class MonitoringApplicationContext(MLClientCtx):
     @property
     def sample_df_stats(self) -> FeatureStats:
         """calculate the current stats"""
-        return calculate_inputs_statistics(self.feature_stats, self.sample_df)
+        if not hasattr(self, "_sample_df_stats") or not self._sample_df_stats:
+            self._sample_df_stats = calculate_inputs_statistics(
+                self.feature_stats, self.sample_df
+            )
+        return self._sample_df_stats
 
     @property
     def feature_names(self) -> list[str]:

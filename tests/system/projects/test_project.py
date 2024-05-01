@@ -28,6 +28,7 @@ from kfp import dsl
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.logger
+import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
 from tests.conftest import out_path
@@ -561,8 +562,30 @@ class TestProject(TestMLRunSystem):
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
     def _test_remote_pipeline_from_github(
-        self, name, workflow_name, engine=None, local=None, watch=False
+        self, name, workflow_name, engine=None, local=None, watch=False, with_notifications=False
     ):
+        nuclio_function_url = None
+        notifications = []
+        if with_notifications:
+            # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
+            nuclio_function_url = notification_helpers.deploy_notification_nuclio(self.project, self.image)
+            notifications = [
+                {
+                    "kind": "webhook",
+                    "name": "Pipeline Completed",
+                    "message": "Pipeline Completed",
+                    "severity": "info",
+                    "when": ["completed"],
+                    "condition": "",
+                    "params": {
+                        "url": nuclio_function_url,
+                    },
+                    "secret_params": {
+                        "webhook": "some-webhook",
+                    },
+                },
+            ]
+
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.load_project(
@@ -573,11 +596,16 @@ class TestProject(TestMLRunSystem):
             watch=watch,
             local=local,
             engine=engine,
+            notifications=notifications,
         )
 
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         # run.run_id can be empty in case of a local engine:
         assert run.run_id is not None, "workflow's run id failed to fetch"
+
+        if with_notifications:
+            notifications = list(notification_helpers.get_notifications_from_nuclio(nuclio_function_url))
+            print(notifications)
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"

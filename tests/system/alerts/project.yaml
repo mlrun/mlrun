@@ -1,0 +1,7 @@
+spec:
+  conda: ''
+  source: ''
+  desired_state: online
+metadata:
+  name: alerts-test-project
+kind: project

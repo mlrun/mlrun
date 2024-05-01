@@ -31,6 +31,9 @@ def handler(context, event):
     if operation == "add":
         context.user_data.data_list.append(data)
 
+    if runs := event_data.get("runs"):
+        context.user_data.data_list.append(runs)
+
     elif operation == "get":
         if context.user_data.data_list:
             element = context.user_data.data_list[0]

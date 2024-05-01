@@ -171,7 +171,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
     def test_function_with_param(self):
         code_path = str(self.assets_path / "function_with_params.py")
 
-        proj = mlrun.get_or_create_project(self.project_name, self.results_path)
+        proj = mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
         project_param = "some value"
         local_param = "my local param"
         proj.spec.params = {"project_param": project_param}
@@ -191,7 +193,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_handler_with_args(self):
         code_path = str(self.assets_path / "function_with_args.py")
-        mlrun.get_or_create_project(self.project_name, self.results_path)
+        mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
 
         function = mlrun.code_to_function(
             name="function-with-args",
@@ -222,7 +226,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_with_args(self):
         code_path = str(self.assets_path / "function_with_args.py")
-        mlrun.get_or_create_project(self.project_name, self.results_path)
+        mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
 
         function = mlrun.code_to_function(
             name="function-with-args",
@@ -249,7 +255,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         here we upload the python code file to v3io
         """
         code_path = str(self.assets_path / "function_with_args.py")
-        project = mlrun.get_or_create_project(self.project_name, self.results_path)
+        project = mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
         art = project.log_artifact(
             "my_code_artifact", local_path=code_path, format="py"
         )
@@ -302,7 +310,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_with_kwargs(self):
         code_path = str(self.assets_path / "function_with_kwargs.py")
-        mlrun.get_or_create_project(self.project_name, self.results_path)
+        mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
 
         function = mlrun.code_to_function(
             name="function-with-kwargs",
@@ -461,7 +471,9 @@ def print_df(df):
 
     def test_function_handler_set_labels_and_annotations(self):
         code_path = str(self.assets_path / "handler.py")
-        mlrun.get_or_create_project(self.project_name, self.results_path)
+        mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
 
         function = mlrun.code_to_function(
             name="test-func",
@@ -504,7 +516,9 @@ def print_df(df):
             f"--build-arg {extra_args_env_key}={extra_args_env_val} {extra_args_flag}"
         )
         code_path = str(self.assets_path / "function_with_env_vars.py")
-        project = mlrun.get_or_create_project(self.project_name, self.results_path)
+        project = mlrun.get_or_create_project(
+            self.project_name, self.results_path, allow_cross_project=True
+        )
 
         image_name = ".test-custom-image"
         project.build_image(

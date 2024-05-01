@@ -322,7 +322,13 @@ def test_list_and_get_project_summaries(
 
     # create completed runs for the project to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
-    _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed, two_days_ago)
+    _create_runs(
+        client,
+        project_name,
+        2,
+        mlrun.runtimes.constants.RunStates.completed,
+        two_days_ago,
+    )
 
     # create completed runs for the project for less than 24 hours ago
     runs_completed_recent_count = 10

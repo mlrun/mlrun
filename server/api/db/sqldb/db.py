@@ -2302,7 +2302,11 @@ class SQLDB(DBInterface):
 
     def _calculate_runs_counters(
         self, session
-    ) -> tuple[dict[str, int], dict[str, int], dict[str, int],]:
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+    ]:
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
             .filter(
@@ -2350,8 +2354,11 @@ class SQLDB(DBInterface):
         project_to_recent_completed_runs_count = {
             result[0]: result[1] for result in recent_completed_runs_count_per_project
         }
-        return (project_to_recent_completed_runs_count, project_to_recent_failed_runs_count,
-                project_to_running_runs_count)
+        return (
+            project_to_recent_completed_runs_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        )
 
     async def generate_projects_summaries(
         self, session: Session, projects: list[str]

@@ -290,9 +290,12 @@ class ParquetSource(BaseSourceDriver):
     :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
     :param additional_filters: (list of tuples, optional): List of additional_filters conditions as tuples.
+                               Each tuple should be in the format (column_name, operator, value).
+                               Supported operators: "=", ">=", "<=", ">", "<".
+                               Example: [("Product", "=", "Computer")]
 
-                                For all supported filters, please see:
-                                https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
+                               For all supported filters, please see:
+                               https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
     """
 
     kind = "parquet"

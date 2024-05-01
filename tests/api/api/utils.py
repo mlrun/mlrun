@@ -32,11 +32,12 @@ def create_project(
     artifact_path=None,
     source="source",
     load_source_on_run=False,
+    endpoint_prefix="",
 ):
     project = _create_project_obj(
         project_name, artifact_path, source, load_source_on_run
     )
-    resp = client.post("projects", json=project.dict())
+    resp = client.post(f"{endpoint_prefix}projects", json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
 

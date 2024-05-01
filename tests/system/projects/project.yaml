@@ -1,7 +1,0 @@
-spec:
-  desired_state: online
-  conda: ''
-  source: ''
-metadata:
-  name: project-system-test-project
-kind: project

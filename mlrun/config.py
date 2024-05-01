@@ -690,7 +690,7 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "disabled"
+        "mode": "enabled"
     },
 }
 

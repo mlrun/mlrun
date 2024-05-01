@@ -20,11 +20,12 @@ import requests
 
 import mlrun.projects
 
-
 assets_path = pathlib.Path(__file__).parent.parent / "assets"
 
 
-def deploy_notification_nuclio(project: mlrun.projects.MlrunProject, image: str=None) -> str:
+def deploy_notification_nuclio(
+    project: mlrun.projects.MlrunProject, image: str = None
+) -> str:
     nuclio_function = project.set_function(
         name="notification-nuclio-function",
         func=str(assets_path / "notification_nuclio_function.py"),
@@ -35,14 +36,15 @@ def deploy_notification_nuclio(project: mlrun.projects.MlrunProject, image: str=
     return nuclio_function.spec.command
 
 
-def get_notifications_from_nuclio(nuclio_function_url: str) -> typing.Generator[dict, None, None]:
+def get_notifications_from_nuclio(
+    nuclio_function_url: str,
+) -> typing.Generator[dict, None, None]:
     response = requests.post(nuclio_function_url, json={"operation": "list"})
     response_data = json.loads(response.text)
 
     # Extract notification data from the response
     notifications = response_data["data_list"]
 
-    for notification in notifications:
-        yield notification
+    yield from notifications
 
     requests.post(nuclio_function_url, json={"operation": "reset"})

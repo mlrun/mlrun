@@ -413,6 +413,10 @@ class NotificationPusher(_NotificationPusherBase):
                         node["phase"]
                     ),
                 }
+                if isinstance(function["metadata"]["updated"], datetime.datetime):
+                    function["metadata"]["updated"] = function["metadata"][
+                        "updated"
+                    ].isoformat()
                 steps.append(function)
 
         step_methods = {

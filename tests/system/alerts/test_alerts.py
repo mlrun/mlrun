@@ -48,7 +48,9 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
-        nuclio_function_url = notification_helpers.deploy_notification_nuclio(self.project, self.image)
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with webhook notification
         alert_name = "failure_webhook"
@@ -81,7 +83,9 @@ class TestAlerts(TestMLRunSystem):
         """
 
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
-        nuclio_function_url = notification_helpers.deploy_notification_nuclio(self.project, self.image)
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with two webhook notifications
         alert_name = "drift_webhook"
@@ -228,5 +232,7 @@ class TestAlerts(TestMLRunSystem):
 
     @staticmethod
     def _validate_notifications_on_nuclio(nuclio_function_url, expected_notifications):
-        for notification in notification_helpers.get_notifications_from_nuclio(nuclio_function_url):
+        for notification in notification_helpers.get_notifications_from_nuclio(
+            nuclio_function_url
+        ):
             assert notification in expected_notifications

@@ -131,7 +131,9 @@ class SlackNotification(NotificationBase):
     def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
-        if run.get("kind", None) != "serving" and url:
+
+        # Only show the URL if the run is not a function (serving or mlrun function)
+        if run.get("kind") not in ["serving", None] and url:
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")

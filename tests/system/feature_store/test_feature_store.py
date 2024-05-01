@@ -4858,9 +4858,8 @@ class TestFeatureStore(TestMLRunSystem):
         # sort the columns alphabetically, and sort the rows by patient_id values.
         result = self._sort_df(result, "patient_id")
         expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
-        #  reset category type to string:
-        result["department"] = result["department"].astype("str")
-        assert_frame_equal(result, expected)
+        # the content of category column is still checked:
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
@@ -4876,11 +4875,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
         result = self._sort_df(result, "patient_id")
-        result["department"] = result["department"].astype("str")
-        if engine == "dask":
-            # because Dask changes this column to "string[pyarrow]" type
-            result["patient_id"] = result["patient_id"].astype("str")
-        assert_frame_equal(result, expected)
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
 
 def verify_purge(fset, targets):

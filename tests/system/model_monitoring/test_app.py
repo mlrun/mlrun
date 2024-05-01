@@ -38,9 +38,11 @@ import mlrun.feature_store as fstore
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
-    HistogramDataDriftApplication,
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationBaseV2,
+)
+from mlrun.model_monitoring.applications.histogram_data_drift import (
+    HistogramDataDriftApplication,
 )
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
@@ -180,9 +182,9 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-vvv14"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:

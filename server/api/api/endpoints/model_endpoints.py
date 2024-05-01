@@ -14,7 +14,7 @@
 
 import json
 from http import HTTPStatus
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
@@ -321,7 +321,7 @@ async def get_model_endpoint(
 
 
 @router.get(
-    "/{endpoint_id}/metrics?type=results",
+    "/{endpoint_id}/metrics",
     response_model=list[
         mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
     ],
@@ -332,11 +332,14 @@ async def get_model_endpoint_monitoring_metrics(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
+    type: Literal["results"] = "results",
 ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
     """
     :param project:     The name of the project.
     :param endpoint_id: The unique id of the model endpoint.
     :param auth_info:   The auth info of the request.
+    :param type:        The type of the metrics to return. Currently, only "results"
+                        is supported.
 
     :returns:           A list of the application results for this model endpoint.
     """

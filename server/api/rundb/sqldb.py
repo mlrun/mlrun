@@ -241,7 +241,9 @@ class SQLRunDB(RunDBInterface):
         project="",
         tree=None,
         uid=None,
-        deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
         secrets: dict = None,
     ):
         return self._transform_db_error(

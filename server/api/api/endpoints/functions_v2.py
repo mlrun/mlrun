@@ -49,7 +49,6 @@ router = APIRouter()
 @router.delete(
     "/projects/{project}/functions/{name}",
     responses={
-        http.HTTPStatus.NO_CONTENT.value: {},
         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTask},
     },
 )

@@ -289,7 +289,7 @@ class ParquetSource(BaseSourceDriver):
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
-    :param additional_filters: List of additional_filters conditions as tuples.
+    :param additional_filters: List of additional_filter conditions as tuples.
                                Each tuple should be in the format (column_name, operator, value).
                                Supported operators: "=", ">=", "<=", ">", "<".
                                Example: [("Product", "=", "Computer")]

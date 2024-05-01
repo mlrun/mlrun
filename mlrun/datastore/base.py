@@ -232,7 +232,7 @@ class DataStore:
                     ):
                         raise ex
 
-                    # TODO: fix ... (ML-6308)
+                    # TODO: fix timezone issue (ML-6308)
                     if start_time.tzinfo:
                         start_time_inner = start_time.replace(tzinfo=None)
                         end_time_inner = end_time.replace(tzinfo=None)

@@ -261,6 +261,15 @@ def test_fails_deleting_artifact_data(
 ):
     # This test attempts to delete the artifact data, but fails - the request should
     # be failed or succeeded by the deletion strategy.
+    _create_project(unversioned_client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", target_path="dummy-path")
+
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
 

@@ -703,9 +703,56 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
 
+    @staticmethod
+    def _extract_metrics_from_items(
+        items: list[dict[str, str]],
+    ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+        metrics: list[
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
+        ] = []
+        for app_item in items:
+            # See https://www.iguazio.com/docs/latest-release/services/data-layer/reference/system-attributes/#sys-attr-__name
+            app_name = app_item.pop("__name")
+            if app_name == ".#schema":
+                continue
+            for result_name in app_item:
+                metrics.append(
+                    mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric(
+                        app=app_name,
+                        name=result_name,
+                        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT,
+                        full_name=f"{app_name}/{mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT}/{result_name}",
+                    )
+                )
+        return metrics
+
     def get_model_endpoint_metrics(
         self, endpoint_id: str
     ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
         """Get model monitoring results and metrics on the endpoint"""
-        # container = self.get_v3io_monitoring_apps_container(self.project)
-        raise NotImplementedError
+        metrics: list[
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
+        ] = []
+        container = self.get_v3io_monitoring_apps_container(self.project)
+        try:
+            response = self.client.kv.scan(container=container, table_path=endpoint_id)
+        except v3io.dataplane.response.HttpResponseError:
+            logger.info(
+                "Attempt getting metrics and results - no data. Check the "
+                "project name, endpoint, or wait for the applications to start.",
+                container=container,
+                table_path=endpoint_id,
+            )
+            return []
+
+        while response.output.items:
+            metrics.extend(self._extract_metrics_from_items(response.output.items))
+            if response.output.last:
+                break
+            response = self.client.kv.scan(
+                container=container,
+                table_path=endpoint_id,
+                marker=response.output.next_marker,
+            )
+
+        return metrics

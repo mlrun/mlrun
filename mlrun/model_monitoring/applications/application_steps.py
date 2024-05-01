@@ -19,8 +19,8 @@ from typing import Optional
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
+import mlrun.datastore
 import mlrun.utils.v3io_clients
-from mlrun.datastore import get_stream_pusher
 from mlrun.model_monitoring.helpers import get_stream_path
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -102,7 +102,7 @@ class _PushToMonitoringWriter(StepToDict):
 
     def _lazy_init(self):
         if self.output_stream is None:
-            self.output_stream = get_stream_pusher(
+            self.output_stream = mlrun.datastore.get_stream_pusher(
                 self.stream_uri,
             )
 

@@ -194,7 +194,6 @@ class TestApplication:
         results = application.do_tracking(**application_kwargs)
         metrics = []
         assert len(results) == 4, "Expected four results & metrics"
-        result_by_name: dict[str, dict] = {}
         for res in results:
             if isinstance(
                 res,

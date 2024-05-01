@@ -100,20 +100,17 @@ class MonitoringApplicationContext(MLClientCtx):
             attrs.get(mm_constants.ApplicationEvent.START_INFER_TIME)
         )
         self.end_infer_time = pd.Timestamp(
-            attrs[mm_constants.ApplicationEvent.END_INFER_TIME]
+            attrs.get(mm_constants.ApplicationEvent.END_INFER_TIME)
         )
         self.latest_request = pd.Timestamp(
-            attrs[mm_constants.ApplicationEvent.LAST_REQUEST]
+            attrs.get(mm_constants.ApplicationEvent.LAST_REQUEST)
         )
-        self.application_name = attrs[mm_constants.ApplicationEvent.APPLICATION_NAME]
+        self.application_name = attrs.get(
+            mm_constants.ApplicationEvent.APPLICATION_NAME
+        )
 
-        self.endpoint_id = attrs[mm_constants.ApplicationEvent.ENDPOINT_ID]
-        self.output_stream_uri = attrs[mm_constants.ApplicationEvent.OUTPUT_STREAM_URI]
-        if self.endpoint_id in model_endpoint_dict:
-            self._model_endpoint = model_endpoint_dict[self.endpoint_id]
-        else:
-            self._model_endpoint = None
-        self.data = {}
+        self.endpoint_id = attrs.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
+        self._model_endpoint = model_endpoint_dict.get(self.endpoint_id)
 
         return self
 

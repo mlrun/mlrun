@@ -21,5 +21,4 @@ from .evidently_base import (
     EvidentlyModelMonitoringApplicationBase,
     EvidentlyModelMonitoringApplicationBaseV2,
 )
-from .histogram_data_drift import HistogramDataDriftApplication
 from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult

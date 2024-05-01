@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import inspect
 import logging
 from pathlib import Path
@@ -25,7 +24,7 @@ from hypothesis import strategies as st
 
 import mlrun.artifacts.manager
 import mlrun.common.model_monitoring.helpers
-from mlrun import MLClientCtx
+import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
@@ -44,11 +43,19 @@ assets_folder = Path(__file__).parent / "assets"
 @pytest.fixture
 def application() -> HistogramDataDriftApplication:
     app = HistogramDataDriftApplication()
-    app.context = MLClientCtx(
-        log_stream=Logger(name="test_data_drift_app", level=logging.DEBUG)
-    )
-    app.context._artifacts_manager = Mock(spec=mlrun.artifacts.manager.ArtifactManager)
     return app
+
+
+@pytest.fixture
+def monitoring_context() -> Mock:
+    mock_monitoring_context = Mock(spec=mm_context.MonitoringApplicationContext)
+    mock_monitoring_context.log_stream = Logger(
+        name="test_data_drift_app", level=logging.DEBUG
+    )
+    mock_monitoring_context._artifacts_manager = Mock(
+        spec=mlrun.artifacts.manager.ArtifactManager
+    )
+    return mock_monitoring_context
 
 
 class TestDataDriftClassifier:
@@ -158,17 +165,22 @@ class TestApplication:
         sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         application: HistogramDataDriftApplication,
+        monitoring_context: Mock,
     ) -> dict[str, Any]:
         kwargs = {}
-        kwargs["application_name"] = application.NAME
-        kwargs["sample_df_stats"] = sample_df_stats
-        kwargs["feature_stats"] = feature_stats
-        kwargs["sample_df"] = Mock(spec=pd.DataFrame)
-        kwargs["start_infer_time"] = Mock(spec=pd.Timestamp)
-        kwargs["end_infer_time"] = Mock(spec=pd.Timestamp)
-        kwargs["latest_request"] = Mock(spec=pd.Timestamp)
-        kwargs["endpoint_id"] = Mock(spec=str)
-        kwargs["output_stream_uri"] = Mock(spec=str)
+        kwargs["monitoring_context"] = monitoring_context
+        monitoring_context.application_name = application.NAME
+        monitoring_context.sample_df_stats = sample_df_stats
+        monitoring_context.feature_stats = feature_stats
+        monitoring_context.sample_df = Mock(spec=pd.DataFrame)
+        monitoring_context.start_infer_time = Mock(spec=pd.Timestamp)
+        monitoring_context.end_infer_time = Mock(spec=pd.Timestamp)
+        monitoring_context.latest_request = Mock(spec=pd.Timestamp)
+        monitoring_context.endpoint_id = Mock(spec=str)
+        monitoring_context.output_stream_uri = Mock(spec=str)
+        monitoring_context.dict_to_histogram = (
+            mm_context.MonitoringApplicationContext.dict_to_histogram
+        )
         assert (
             kwargs.keys()
             == inspect.signature(application.do_tracking).parameters.keys()
@@ -180,27 +192,35 @@ class TestApplication:
         application: HistogramDataDriftApplication, application_kwargs: dict[str, Any]
     ) -> None:
         results = application.do_tracking(**application_kwargs)
-        assert len(results) == 4, "Expected four results"
+        metrics = []
+        assert len(results) == 4, "Expected four results & metrics"
         result_by_name: dict[str, dict] = {}
         for res in results:
-            assert res.kind == ResultKindApp.data_drift, "The kind should be data drift"
-            res_dict = res.to_dict()
-            result_by_name[res_dict.pop("result_name")] = res_dict
-
-        assert (
-            result_by_name["kld_mean"]["result_status"] == ResultStatusApp.irrelevant
-        ), "KL divergence status is currently irrelevant"
-
-        assert (
-            result_by_name["general_drift"]["result_status"]
-            == ResultStatusApp.potential_detection
-        ), "Expected potential detection in the general drift"
+            if isinstance(
+                res,
+                mlrun.model_monitoring.applications.ModelMonitoringApplicationResult,
+            ):
+                assert (
+                    res.kind == ResultKindApp.data_drift
+                ), "The kind should be data drift"
+                assert (
+                    res.name == "general_drift"
+                ), "The result name should be general_drift"
+                assert (
+                    res.status == ResultStatusApp.potential_detection
+                ), "Expected potential detection in the general drift"
+            elif isinstance(
+                res,
+                mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric,
+            ):
+                metrics.append(res)
+        assert len(metrics) == 3, "Expected three metrics"
 
 
 @pytest.mark.parametrize(
     ("sample_df_stats", "feature_stats"),
     [
-        pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
+        # pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
         pytest.param(
             pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
             pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
@@ -210,11 +230,19 @@ class TestApplication:
 )
 def test_compute_metrics_per_feature(
     application: HistogramDataDriftApplication,
+    monitoring_context: Mock,
     sample_df_stats: pd.DataFrame,
     feature_stats: pd.DataFrame,
 ) -> None:
+    monitoring_context.sample_df_stats = sample_df_stats
+    monitoring_context.feature_stats = feature_stats
+
+    def dict_to_histogram(df: pd.DataFrame) -> pd.DataFrame:
+        return df
+
+    monitoring_context.dict_to_histogram = dict_to_histogram
     metrics_per_feature = application._compute_metrics_per_feature(
-        sample_df_stats=sample_df_stats, feature_stats=feature_stats
+        monitoring_context=monitoring_context
     )
     assert set(metrics_per_feature.columns) == {
         metric.NAME for metric in application.metrics

@@ -160,7 +160,11 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             [
                 metric.value
                 for metric in metrics
-                if metric.name in [HellingerDistance.NAME, TotalVarianceDistance.NAME]
+                if metric.name
+                in [
+                    f"{HellingerDistance.NAME}_mean",
+                    f"{TotalVarianceDistance.NAME}_mean",
+                ]
             ]
         )
 

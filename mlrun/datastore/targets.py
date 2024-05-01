@@ -60,6 +60,7 @@ class TargetTypes:
     custom = "custom"
     sql = "sql"
     snowflake = "snowflake"
+    dsnosql = "dsnosql"
 
     @staticmethod
     def all():
@@ -75,6 +76,7 @@ class TargetTypes:
             TargetTypes.custom,
             TargetTypes.sql,
             TargetTypes.snowflake,
+            TargetTypes.dsnosql,
         ]
 
 
@@ -656,6 +658,21 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+
+        if self._resource and self.path and self.path.startswith("ds://"):
+            parsed_url = urlparse(self.path)
+            if not parsed_url.path or parsed_url.path == "/":
+                return TargetPathObject(
+                    _get_target_path(
+                        self,
+                        self._resource,
+                        self.run_id is not None,
+                        ds_profile_name=parsed_url.netloc,
+                    ),
+                    self.run_id,
+                    is_single_file,
+                )
+
         return self.get_path() or (
             TargetPathObject(
                 _get_target_path(self, self._resource, self.run_id is not None),
@@ -2201,7 +2218,7 @@ kind_to_driver = {
 }
 
 
-def _get_target_path(driver, resource, run_id_mode=False):
+def _get_target_path(driver, resource, run_id_mode=False, ds_profile_name=None):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
@@ -2218,7 +2235,10 @@ def _get_target_path(driver, resource, run_id_mode=False):
     )
     name = resource.metadata.name
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefix = get_default_prefix_for_target(kind).format(
+    data_prefix = get_default_prefix_for_target(
+        TargetTypes.dsnosql if ds_profile_name else kind
+    ).format(
+        ds_profile_name=ds_profile_name,
         project=project,
         kind=kind,
         name=name,

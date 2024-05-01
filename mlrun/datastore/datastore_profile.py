@@ -185,6 +185,7 @@ class DatastoreProfileS3(DatastoreProfile):
     assume_role_arn: typing.Optional[str] = None
     access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
+    bucket: typing.Optional[str] = None
 
     def secrets(self) -> dict:
         res = {}
@@ -203,7 +204,10 @@ class DatastoreProfileS3(DatastoreProfile):
         return res
 
     def url(self, subpath):
-        return f"s3:/{subpath}"
+        if self.bucket:
+            return f"s3://{self.bucket}{subpath}"
+        else:
+            return f"s3:/{subpath}"
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -272,6 +276,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
     gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
+    bucket: typing.Optional[str] = None
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
     def convert_dict_to_json(cls, v):
@@ -283,7 +288,10 @@ class DatastoreProfileGCS(DatastoreProfile):
         if subpath.startswith("/"):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
-        return f"gcs://{subpath}"
+        if self.bucket:
+            return f"gcs://{self.bucket}/{subpath}"
+        else:
+            return f"gcs://{subpath}"
 
     def secrets(self) -> dict:
         res = {}
@@ -311,12 +319,16 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     client_secret: typing.Optional[str] = None
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
+    bucket: typing.Optional[str] = None
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
             #  in azure the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
-        return f"az://{subpath}"
+        if self.bucket:
+            return f"az://{self.bucket}/{subpath}"
+        else:
+            return f"az://{subpath}"
 
     def secrets(self) -> dict:
         res = {}

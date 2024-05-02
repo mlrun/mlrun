@@ -277,16 +277,16 @@ class Artifacts(
                 object_uid=object_uid,
             )
             path = artifact["spec"]["target_path"]
-            server.api.crud.Files().delete_files_with_project_secrets(
+            server.api.crud.Files().delete_artifact_data(
                 auth_info, project, path, secrets
             )
-        except Exception as err:
+        except Exception as exc:
             logger.debug(
                 "Failed delete artifact data",
                 key=key,
                 project=project,
                 deletion_strategy=deletion_strategy,
-                err=err_to_str(err),
+                err=err_to_str(exc),
             )
 
             if (
@@ -295,4 +295,4 @@ class Artifacts(
             ):
                 raise mlrun.errors.MLRunInternalServerError(
                     "Failed to delete artifact data"
-                )
+                ) from exc

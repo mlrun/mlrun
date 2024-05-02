@@ -19,7 +19,7 @@ import mlrun.common.schemas
 import server.api.crud
 
 
-def test_delete_file(
+def test_delete_atifact_data(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     files_mock,
@@ -34,7 +34,7 @@ def test_delete_file(
     full_secrets.update(env_secrets)
     k8s_secrets_mock.store_project_secrets(project, project_secrets)
 
-    server.api.crud.Files().delete_files_with_project_secrets(
+    server.api.crud.Files().delete_artifact_data(
         mlrun.common.schemas.AuthInfo(), project, path
     )
     files_mock.assert_called_once_with(url=path, secrets=full_secrets, project=project)
@@ -44,7 +44,7 @@ def test_delete_file(
     user_secrets = {"secret1": "user-secret"}
     override_secrets = full_secrets.copy()
     override_secrets.update(user_secrets)
-    server.api.crud.Files().delete_files_with_project_secrets(
+    server.api.crud.Files().delete_artifact_data(
         mlrun.common.schemas.AuthInfo(), project, path, secrets=user_secrets
     )
     files_mock.assert_called_once_with(

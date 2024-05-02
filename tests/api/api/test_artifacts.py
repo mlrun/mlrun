@@ -274,7 +274,7 @@ def test_fails_deleting_artifact_data(
     url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
 
     with unittest.mock.patch(
-        "server.api.crud.files.Files.delete_files_with_project_secrets",
+        "server.api.crud.files.Files.delete_artifact_data",
         side_effect=Exception("some error"),
     ):
         resp = unversioned_client.delete(
@@ -286,13 +286,13 @@ def test_fails_deleting_artifact_data(
 def test_delete_artifact_data_default_deletion_strategy(
     db: Session, unversioned_client: TestClient
 ):
-    server.api.crud.Files.delete_files_with_project_secrets = unittest.mock.MagicMock()
+    server.api.crud.Files.delete_artifact_data = unittest.mock.MagicMock()
 
     # checking metadata-only as default deletion_strategy
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     resp = unversioned_client.delete(url)
-    server.api.crud.Files.delete_files_with_project_secrets.assert_not_called()
-    server.api.crud.Files.delete_files_with_project_secrets.reset_mock()
+    server.api.crud.Files.delete_artifact_data.assert_not_called()
+    server.api.crud.Files.delete_artifact_data.reset_mock()
     assert resp.status_code == HTTPStatus.NO_CONTENT.value
 
 

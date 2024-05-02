@@ -119,12 +119,7 @@ class SlackNotification(NotificationBase):
             {"type": "header", "text": {"type": "plain_text", "text": header_text}}
         ]
         if section_text:
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {"type": "plain_text", "text": section_text},
-                }
-            )
+            blocks.append(self._get_slack_row(section_text))
         return blocks
 
     def _get_alert_fields(

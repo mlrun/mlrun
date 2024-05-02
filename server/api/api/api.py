@@ -29,6 +29,7 @@ from server.api.api.endpoints import (
     files,
     frontend_spec,
     functions,
+    functions_v2,
     grafana_proxy,
     healthz,
     hub,
@@ -194,5 +195,10 @@ api_v2_router.include_router(
 api_v2_router.include_router(
     projects_v2.router,
     tags=["projects"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_v2_router.include_router(
+    functions_v2.router,
+    tags=["functions"],
     dependencies=[Depends(deps.authenticate_request)],
 )

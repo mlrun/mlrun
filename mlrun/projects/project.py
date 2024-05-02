@@ -37,6 +37,7 @@ import requests
 import yaml
 
 import mlrun.common.helpers
+import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
@@ -1592,6 +1593,23 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
         return item
+
+    def delete_artifact(
+        self,
+        item: Artifact,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
+        """Delete an artifact object in the DB and optionally delete the artifact data
+
+        :param item: Artifact object (can be any type, such as dataset, model, feature store).
+        :param deletion_strategy: The artifact deletion strategy types.
+        :param secrets: Credentials needed to access the artifact data.
+        """
+        am = self._get_artifact_manager()
+        am.delete_artifact(item, deletion_strategy, secrets)
 
     def log_dataset(
         self,

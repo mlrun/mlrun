@@ -93,3 +93,18 @@ class Artifact(pydantic.BaseModel):
     metadata: ArtifactMetadata
     spec: ArtifactSpec
     status: ObjectStatus
+
+
+class ArtifactsDeletionStrategies(mlrun.common.types.StrEnum):
+    """Artifacts deletion strategies types."""
+
+    metadata_only = "metadata-only"
+    """Only removes the artifact db record, leaving all related artifact data in-place"""
+
+    data_optional = "data-optional"
+    """Delete the artifact data of the artifact as a best-effort.
+    If artifact db record deletion fails still try to delete the artifact data"""
+
+    data_force = "data-force"
+    """Delete the artifact data, and if cannot delete it fail the deletion
+    and don’t delete the artifact db record"""

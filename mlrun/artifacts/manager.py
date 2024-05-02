@@ -16,6 +16,7 @@ import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
+import mlrun.common.schemas.artifact
 import mlrun.config
 from mlrun.utils.helpers import (
     get_local_file_schema,
@@ -381,6 +382,23 @@ class ArtifactManager:
                 tag=tag,
                 project=project,
             )
+
+    def delete_artifact(
+        self,
+        item: Artifact,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
+        self.artifact_db.del_artifact(
+            key=item.db_key,
+            project=item.project,
+            tag=item.tag,
+            tree=item.tree,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
+        )
 
 
 def extend_artifact_path(artifact_path: str, default_artifact_path: str):

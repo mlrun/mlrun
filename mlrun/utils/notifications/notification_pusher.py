@@ -405,15 +405,26 @@ class NotificationPusher(_NotificationPusherBase):
                 _node_template["metadata"]["annotations"]["mlrun/function-uri"]
             )
             if name:
-                function = db.get_function(
-                    project=project, name=name, hash_key=hash_key
-                )
+                try:
+                    function = db.get_function(
+                        project=project, name=name, hash_key=hash_key
+                    )
+                except mlrun.errors.MLRunNotFoundError:
+                    # If the function is not found (if build failed for example), we will create a dummy
+                    # function object for the notification to display the function name
+                    function = {
+                        "metadata": {
+                            "name": name,
+                            "project": project,
+                            "hash_key": hash_key,
+                        },
+                    }
                 function["status"] = {
                     "state": mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
                         node["phase"]
                     ),
                 }
-                if isinstance(function["metadata"]["updated"], datetime.datetime):
+                if isinstance(function["metadata"].get("updated"), datetime.datetime):
                     function["metadata"]["updated"] = function["metadata"][
                         "updated"
                     ].isoformat()

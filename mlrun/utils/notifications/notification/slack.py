@@ -171,7 +171,7 @@ class SlackNotification(NotificationBase):
             result = mlrun.utils.helpers.dict_to_str(
                 run["status"].get("results", {}), ", "
             )
-        return self._get_slack_row(result or "None")
+        return self._get_slack_row(result or state)
 
     @staticmethod
     def _get_slack_row(text: str) -> dict:

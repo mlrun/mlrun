@@ -187,6 +187,16 @@ class DatastoreProfileS3(DatastoreProfile):
     secret_key: typing.Optional[str] = None
     bucket: typing.Optional[str] = None
 
+    @pydantic.validator("bucket")
+    def check_bucket(cls, v):
+        if v is None:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
+
     def secrets(self) -> dict:
         res = {}
         if self.access_key_id:
@@ -278,6 +288,16 @@ class DatastoreProfileGCS(DatastoreProfile):
     gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
     bucket: typing.Optional[str] = None
 
+    @pydantic.validator("bucket")
+    def check_bucket(cls, v):
+        if v is None:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
+
     @pydantic.validator("gcp_credentials", pre=True, always=True)
     def convert_dict_to_json(cls, v):
         if isinstance(v, dict):
@@ -320,6 +340,16 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
     bucket: typing.Optional[str] = None
+
+    @pydantic.validator("bucket")
+    def check_bucket(cls, v):
+        if v is None:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):

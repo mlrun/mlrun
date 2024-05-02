@@ -48,7 +48,6 @@ test_environment = TestMLRunSystem._get_env_from_file()
     not test_environment.get("AWS_BUCKET_NAME"),
     reason="AWS_BUCKET_NAME is not set",
 )
-@pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestAwsS3(TestMLRunSystem):
     project_name = "s3-system-test"
 
@@ -78,9 +77,15 @@ class TestAwsS3(TestMLRunSystem):
             "s3": self._make_target_names(
                 "s3://", self._bucket_name, object_dir, object_file
             ),
-            "ds": self._make_target_names(
-                "ds://s3ds_profile",
+            "ds_with_bucket": self._make_target_names(
+                "ds://s3ds_profile_with_bucket",
                 "",  # no bucket, since it is part of the ds profile
+                object_dir,
+                object_file,
+            ),
+            "ds_no_bucket": self._make_target_names(
+                "ds://s3ds_profile_no_bucket/",
+                self._bucket_name,
                 object_dir,
                 object_file,
             ),
@@ -88,10 +93,17 @@ class TestAwsS3(TestMLRunSystem):
 
         mlrun.get_or_create_project(self.project_name)
         profile = DatastoreProfileS3(
-            name="s3ds_profile",
+            name="s3ds_profile_with_bucket",
             access_key_id=self._access_key_id,
             secret_key=self._secret_access_key,
             bucket=self._bucket_name,
+        )
+        register_temporary_client_datastore_profile(profile)
+
+        profile = DatastoreProfileS3(
+            name="s3ds_profile_no_bucket",
+            access_key_id=self._access_key_id,
+            secret_key=self._secret_access_key,
         )
         register_temporary_client_datastore_profile(profile)
 
@@ -106,12 +118,13 @@ class TestAwsS3(TestMLRunSystem):
                 s3_fs.rm(file)
             s3_fs.rm(full_path)
 
-    def test_ingest_with_parquet_source(self, use_datastore_profile):
+    @pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket", "ds_no_bucket"])
+    def test_ingest_with_parquet_source1(self, url_type):
         #  create source
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
         )
-        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        param = self.s3[url_type]
         print(f"Using URL {param['parquet_url']}\n")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
         df = pd.DataFrame(data)
@@ -140,16 +153,12 @@ class TestAwsS3(TestMLRunSystem):
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
 
-    def test_ingest_with_parquet_source_default_target(self, use_datastore_profile):
-        # This test checks that when ds://profile path is empty, default is used
-        if not use_datastore_profile:
-            pytest.skip()
-
+    def test_ingest_ds_default_target(self):
         #  create source
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
         )
-        param = self.s3["ds"]
+        param = self.s3["ds_with_bucket"]
         print(f"Using URL {param['parquet_url']}\n")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
         df = pd.DataFrame(data)
@@ -162,7 +171,7 @@ class TestAwsS3(TestMLRunSystem):
         parquet_source = ParquetSource(name="test", path=source_path)
 
         # ingest
-        targets = [ParquetTarget(path="ds://s3ds_profile")]
+        targets = [ParquetTarget(path="ds://s3ds_profile_with_bucket")]
         fset = fstore.FeatureSet(
             name="test_fs",
             entities=[fstore.Entity("Column1")],
@@ -173,7 +182,7 @@ class TestAwsS3(TestMLRunSystem):
         expected_default_ds_data_prefix = get_default_prefix_for_target(
             "dsnosql"
         ).format(
-            ds_profile_name="s3ds_profile",
+            ds_profile_name="s3ds_profile_with_bucket",
             project=fset.metadata.project,
             kind=targets[0].kind,
             name=fset.metadata.name,

@@ -1018,9 +1018,7 @@ def get_ui_url(project, uid=None):
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
-        url = "{}/{}/{}/jobs/monitor-workflows/workflow/{}".format(
-            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project, id
-        )
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/jobs/monitor-workflows/workflow/{id}"
     return url
 
 

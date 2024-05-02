@@ -1695,7 +1695,6 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
         assert response.status_code == HTTPStatus.CREATED.value, response.json()
 
 
-
 def _mock_pipelines(project_name):
     mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
@@ -1711,9 +1710,9 @@ def _mock_pipelines(project_name):
     def list_pipelines_return_value(*args, **kwargs):
         next_page_token = "some-token"
         if kwargs["page_token"] == "":
-            return (None, next_page_token, pipelines[:len(pipelines)//2])
+            return (None, next_page_token, pipelines[: len(pipelines) // 2])
         elif kwargs["page_token"] == next_page_token:
-            return (None, None, pipelines[len(pipelines)//2:])
+            return (None, None, pipelines[len(pipelines) // 2 :])
 
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         side_effect=list_pipelines_return_value

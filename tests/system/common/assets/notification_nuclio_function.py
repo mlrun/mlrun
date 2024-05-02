@@ -27,12 +27,17 @@ def handler(context, event):
     data = event_data.get("data")
     response = {}
 
+    # Notification Requests
+    # Regular notifications send runs in their body
+    if runs := event_data.get("runs"):
+        context.user_data.data_list.append(runs)
+
+    # The Add operations is from custom notification bodies
     # Perform actions based on the provided operation
     if operation == "add":
         context.user_data.data_list.append(data)
 
-    if runs := event_data.get("runs"):
-        context.user_data.data_list.append(runs)
+    # Notification Requests End
 
     elif operation == "get":
         if context.user_data.data_list:

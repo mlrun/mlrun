@@ -50,6 +50,7 @@ from mlrun.feature_store.steps import (
 )
 from mlrun.features import Entity
 from mlrun.utils.helpers import to_parquet
+from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -81,7 +82,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = False
+    run_local = True
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -331,6 +332,72 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"stats_df: {stats_df.to_json()}")
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
         assert stats_df.equals(expected_stats_df)
+
+    def test_parquet_filters(self):
+        from pyspark.sql import SparkSession
+        spark = None
+        if self.run_local:
+            spark = (
+                SparkSession.builder.appName("snowflake_spark")
+                .config("spark.sql.session.timeZone", "UTC")
+                .getOrCreate()
+            )
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
+        parquet_source_path = self.get_pq_source_path()
+        base_path = self.get_test_output_subdir_path()
+        parquet_target_path = f"{base_path}_spark"
+
+        df.to_parquet(parquet_source_path)
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path=parquet_source_path,
+            additional_filters=[
+                ("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")
+            ],
+        )
+        result_spark_df = parquet_source.to_spark_df(session=self.spark_service or spark)
+        result_df = spark_df_to_pandas(spark_df=result_spark_df)
+        assert_frame_equal(
+            result_df.sort_values(by="patient_id").reset_index(drop=True),
+            filtered_df.sort_values(by="patient_id").reset_index(drop=True),
+            check_dtype=False
+        )
+        feature_set = fstore.FeatureSet(
+            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
+        )
+        
+        target = ParquetTarget(
+            name="department_based_target",
+            path=parquet_target_path,
+            partitioned=True,
+            partition_cols=["department"],
+        )
+        feature_set.ingest(source=parquet_source, targets=[target])
+        # result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
+        # # We want to include patient_id in the comparison,
+        # # sort the columns alphabetically, and sort the rows by patient_id values.
+        # result = self._sort_df(result, "patient_id")
+        # expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
+        # the content of category column is still checked:
+        # assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        vec = fstore.FeatureVector(
+            name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        result_spark_df = (
+            fstore.get_offline_features(
+                feature_vector=vec,
+                additional_filters=[("bad", "=", 95)],
+                with_indexes=True,
+                engine="spark",
+            ).to_dataframe(to_pandas=False))
+        result = spark_df_to_pandas(spark_df=result_spark_df).reset_index()
+        print()
+        # TODO create _sort_df for spark
+        # expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
+        # result = self._sort_df(result, "patient_id")
+        #assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"

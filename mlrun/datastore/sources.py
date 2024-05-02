@@ -15,10 +15,11 @@ import json
 import os
 import warnings
 from base64 import b64encode
-from copy import copy
+from copy import copy, deepcopy
 from datetime import datetime
 from typing import Optional, Union
 
+import numpy as np
 import pandas as pd
 import semver
 import v3io
@@ -411,6 +412,47 @@ class ParquetSource(BaseSourceDriver):
             additional_filters=additional_filters or self.additional_filters,
             **reader_args,
         )
+
+    def _get_spark_additional_filters(self):
+        none_values = [None, np.nan, np.NaN]
+        additional_filters = deepcopy(self.additional_filters)
+        is_first = True
+        spark_filter = ""
+        for filter_tuple in additional_filters:
+            if not filter_tuple:
+                continue
+            if not is_first:
+                spark_filter += " AND "
+            else:
+                is_first = False
+            col_name, op, value = filter_tuple
+            if isinstance(value, str):
+                value = rf"'{value}'"
+            if isinstance(value, (list, tuple, set, np.ndarray)) and ("in" in op.lower()):
+                none_exists = False
+                value = list(value)
+                for none_value in none_values:
+                    if none_value in value:
+                        value.remove(none_value)
+                        none_exists = True
+                value = tuple(value)
+                if len(value) == 1:
+                    value = f"({value[0]})"
+                if none_exists:
+                    if value:
+                        spark_filter += f"({str(col_name)} {str(op)} {str(value)} OR {str(col_name)} IS NULL)"
+                    else:
+                        spark_filter += f"{str(col_name)} IS NULL"
+                    continue
+
+            spark_filter += f"{str(col_name)} {str(op)} {str(value)}"
+        return spark_filter
+
+    def _filter_spark_df(self, df, time_field=None, columns=None):
+        spark_additional_filters = self._get_spark_additional_filters()
+        if spark_additional_filters:
+            df = df.filter(spark_additional_filters)
+        return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)
 
 
 class BigQuerySource(BaseSourceDriver):

@@ -27,6 +27,7 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.logger
 import tests.system.common.helpers.notifications as notification_helpers
@@ -1347,7 +1348,7 @@ class TestProject(TestMLRunSystem):
         # from the zip by the packager
         assert (
             use_artifact_run.state()
-            not in mlrun.runtimes.constants.RunStates.error_states()
+            not in mlrun.common.runtimes.constants.RunStates.error_states()
         )
 
         exported_artifact = project_2.get_artifact(new_artifact_key)

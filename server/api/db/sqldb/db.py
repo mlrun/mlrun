@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -2345,7 +2346,7 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.completed,
+                        mlrun.common.runtimes.constants.RunStates.completed,
                     ]
                 )
             )

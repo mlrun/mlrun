@@ -745,7 +745,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             )
             return []
 
-        while response.output.items:
+        while True:
             metrics.extend(self._extract_metrics_from_items(response.output.items))
             if response.output.last:
                 break

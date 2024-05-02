@@ -661,7 +661,6 @@ def code_to_function(
     :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
                          defaults to True
     :param description:  short function description, defaults to ''
-    :param requirements: list of python packages or pip requirements file path, defaults to None
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
@@ -700,7 +699,7 @@ def code_to_function(
             "nuclio-mover",
             kind="nuclio",
             filename="mover.py",
-            image="python:3.7",
+            image="python:3.9",
             description="this function moves files from one system to another",
             requirements=["pandas"],
             labels={"author": "me"},

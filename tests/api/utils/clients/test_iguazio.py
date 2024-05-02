@@ -1088,11 +1088,14 @@ def _generate_project(
     annotations=None,
     created=None,
     owner="project-owner",
+    default_function_node_selector=None,
 ) -> mlrun.common.schemas.Project:
     if labels is None:
         labels = {
             "some-label": "some-label-value",
         }
+    if default_function_node_selector is None:
+        default_function_node_selector = {"zone": "us-west-1"}
     if annotations is None:
         annotations = {
             "some-annotation": "some-annotation-value",
@@ -1110,6 +1113,7 @@ def _generate_project(
             desired_state=mlrun.common.schemas.ProjectState.online,
             owner=owner,
             some_extra_field="some value",
+            default_function_node_selector=default_function_node_selector,
         ),
         status=mlrun.common.schemas.ProjectStatus(
             some_extra_field="some value",
@@ -1135,6 +1139,7 @@ def _build_project_response(
             "updated_at": datetime.datetime.utcnow().isoformat(),
             "admin_status": project.spec.desired_state
             or mlrun.common.schemas.ProjectState.online,
+            "default_function_node_selector": [],
         },
     }
     if with_mlrun_project:
@@ -1153,6 +1158,12 @@ def _build_project_response(
         body["attributes"]["labels"] = (
             iguazio_client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.labels
+            )
+        )
+    if project.spec.default_function_node_selector:
+        body["attributes"]["default_function_node_selector"] = (
+            iguazio_client._transform_mlrun_labels_to_iguazio_labels(
+                project.spec.default_function_node_selector
             )
         )
     if project.metadata.annotations:

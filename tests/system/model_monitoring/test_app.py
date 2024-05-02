@@ -142,7 +142,7 @@ class _V3IORecordsChecker:
     ) -> None:
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
-                mlrun.get_or_create_project(cls.project_name),
+                mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
                 kind=mm_constants.FileTargetKind.APPS_PARQUET,
             )
         )
@@ -472,21 +472,13 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 image=self.image or "mlrun/mlrun"
             )
 
-        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun", wait_for_deployment=True
+        )
 
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
         )
-        writer = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.WRITER
-        )
-        stream = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.STREAM
-        )
-
-        controller._wait_for_function_deployment(db=controller._get_db())
-        writer._wait_for_function_deployment(db=writer._get_db())
-        stream._wait_for_function_deployment(db=stream._get_db())
         assert (
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"
@@ -495,13 +487,12 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         )
 
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun", base_period=1
+            image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
         )
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             ignore_cache=True,
         )
-        controller._wait_for_function_deployment(db=controller._get_db())
         assert (
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"

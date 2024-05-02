@@ -705,12 +705,12 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     @staticmethod
     def _extract_metrics_from_items(
-        items: list[dict[str, str]],
+        app_items: list[dict[str, str]],
     ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
         metrics: list[
             mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
         ] = []
-        for app_item in items:
+        for app_item in app_items:
             # See https://www.iguazio.com/docs/latest-release/services/data-layer/reference/system-attributes/#sys-attr-__name
             app_name = app_item.pop("__name")
             if app_name == ".#schema":

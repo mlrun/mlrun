@@ -142,8 +142,6 @@ class HTTPRunDB(RunDBInterface):
         self.base_url = base_url
         username = parsed_url.username or config.httpdb.user
         password = parsed_url.password or config.httpdb.password
-        self.user = username
-        self.password = password
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
@@ -160,6 +158,9 @@ class HTTPRunDB(RunDBInterface):
 
             if token:
                 self.token_provider = StaticTokenProvider(token)
+
+        self.user = username
+        self.password = password
 
     def __repr__(self):
         cls = self.__class__.__name__

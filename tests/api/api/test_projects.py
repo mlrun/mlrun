@@ -31,8 +31,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
-import mlrun.common.schemas
 import mlrun.common.runtimes.constants
+import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.utils
 import server.api.crud

@@ -1557,7 +1557,9 @@ class TestProject(TestMLRunSystem):
         time.sleep(35)
 
         notification_data = list(
-            notification_helpers.get_notifications_from_nuclio(nuclio_function_url)
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
         )[0]
         notification_data_steps = {}
         for step in notification_data:

@@ -36,7 +36,7 @@ def deploy_notification_nuclio(
     return nuclio_function.spec.command
 
 
-def get_notifications_from_nuclio(
+def get_notifications_from_nuclio_and_reset_notification_cache(
     nuclio_function_url: str,
 ) -> typing.Generator[dict, None, None]:
     response = requests.post(nuclio_function_url, json={"operation": "list"})

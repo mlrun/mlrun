@@ -77,7 +77,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         mm_context.MonitoringApplicationContext,
     ]:
         """
-        Process the monitoring event and return application results.
+        Process the monitoring event and return application results & metrics.
         :param monitoring_context:   (MonitoringApplicationContext) The monitoring application context.
         :returns:                    (list[ModelMonitoringApplicationResult], dict) The application results
                                      and the original event for the application.
@@ -238,8 +238,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
 
         :return: A tuple of:
                      [0] = (str) application name
-                     [1] = (dict) current input statistics
-                     [2] = (dict) train statistics
+                     [1] = (pd.DataFrame) current input statistics
+                     [2] = (pd.DataFrame) train statistics
                      [3] = (pd.DataFrame) current input data
                      [4] = (pd.Timestamp) start time of the monitoring schedule
                      [5] = (pd.Timestamp) end time of the monitoring schedule

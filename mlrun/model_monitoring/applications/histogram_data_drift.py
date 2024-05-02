@@ -294,7 +294,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         """
         Calculate and return the data drift metrics, averaged over the features.
 
-        Refer to `ModelMonitoringApplicationBase` for the meaning of the
+        Refer to `ModelMonitoringApplicationBaseV2` for the meaning of the
         function arguments.
         """
         monitoring_context.logger.debug("Starting to run the application")

@@ -428,7 +428,9 @@ class ParquetSource(BaseSourceDriver):
             col_name, op, value = filter_tuple
             if isinstance(value, str):
                 value = rf"'{value}'"
-            if isinstance(value, (list, tuple, set, np.ndarray)) and ("in" in op.lower()):
+            if isinstance(value, (list, tuple, set, np.ndarray)) and (
+                "in" in op.lower()
+            ):
                 none_exists = False
                 value = list(value)
                 for none_value in none_values:

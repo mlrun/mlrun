@@ -42,6 +42,7 @@ from mlrun.datastore.targets import (
     RedisNoSqlTarget,
 )
 from mlrun.feature_store import FeatureSet
+from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
 from mlrun.feature_store.steps import (
     DateExtractor,
     DropFeatures,
@@ -50,7 +51,6 @@ from mlrun.feature_store.steps import (
 )
 from mlrun.features import Entity
 from mlrun.utils.helpers import to_parquet
-from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -335,6 +335,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_parquet_filters(self):
         from pyspark.sql import SparkSession
+
         spark = None
         if self.run_local:
             spark = (
@@ -357,17 +358,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 ("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")
             ],
         )
-        result_spark_df = parquet_source.to_spark_df(session=self.spark_service or spark)
+        result_spark_df = parquet_source.to_spark_df(
+            session=self.spark_service or spark
+        )
         result_df = spark_df_to_pandas(spark_df=result_spark_df)
         assert_frame_equal(
             result_df.sort_values(by="patient_id").reset_index(drop=True),
             filtered_df.sort_values(by="patient_id").reset_index(drop=True),
-            check_dtype=False
+            check_dtype=False,
         )
         feature_set = fstore.FeatureSet(
             "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
         )
-        
+
         target = ParquetTarget(
             name="department_based_target",
             path=parquet_target_path,
@@ -385,19 +388,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
-        result_spark_df = (
-            fstore.get_offline_features(
-                feature_vector=vec,
-                additional_filters=[("bad", "=", 95)],
-                with_indexes=True,
-                engine="spark",
-            ).to_dataframe(to_pandas=False))
+        result_spark_df = fstore.get_offline_features(
+            feature_vector=vec,
+            additional_filters=[("bad", "=", 95)],
+            with_indexes=True,
+            engine="spark",
+        ).to_dataframe(to_pandas=False)
         result = spark_df_to_pandas(spark_df=result_spark_df).reset_index()
-        print()
+        print(result)
         # TODO create _sort_df for spark
         # expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
         # result = self._sort_df(result, "patient_id")
-        #assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        # assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"

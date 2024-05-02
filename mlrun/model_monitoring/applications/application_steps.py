@@ -107,7 +107,7 @@ class _PushToMonitoringWriter(StepToDict):
             )
 
 
-class _PrepareMonitoringEvent:
+class _PrepareMonitoringEvent(StepToDict):
     def __init__(self, application_name: str):
         """
         Class for preparing the application event for the application step.

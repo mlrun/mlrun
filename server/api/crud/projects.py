@@ -399,9 +399,8 @@ class Projects(
             return project_to_running_pipelines_count
 
         try:
-            should_continue_next_page = True
             next_page_token = ""
-            while should_continue_next_page:
+            while True:
                 (
                     _,
                     next_page_token,
@@ -411,13 +410,16 @@ class Projects(
                     self._list_pipelines,
                     page_token=next_page_token,
                 )
-                should_continue_next_page = bool(next_page_token)
+
                 for pipeline in pipelines:
                     if (
                         pipeline["status"]
                         not in mlrun.run.RunStatuses.stable_statuses()
                     ):
                         project_to_running_pipelines_count[pipeline["project"]] += 1
+
+                if not next_page_token:
+                    break
 
         except Exception as exc:
             # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information

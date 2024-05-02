@@ -65,10 +65,10 @@ def toPandas(spark_df):
                 msg = (
                     "toPandas attempted Arrow optimization because "
                     "'spark.sql.execution.arrow.pyspark.enabled' is set to true; however, "
-                    "failed by the reason below:\n  %s\n"
+                    f"failed by the reason below:\n  {str(e)}\n"
                     "Attempting non-optimization as "
                     "'spark.sql.execution.arrow.pyspark.fallback.enabled' is set to "
-                    "true." % str(e)
+                    "true."
                 )
                 warnings.warn(msg)
                 use_arrow = False
@@ -78,7 +78,7 @@ def toPandas(spark_df):
                     "'spark.sql.execution.arrow.pyspark.enabled' is set to true, but has "
                     "reached the error below and will not continue because automatic fallback "
                     "with 'spark.sql.execution.arrow.pyspark.fallback.enabled' has been set to "
-                    "false.\n  %s" % str(e)
+                    f"false.\n  {str(e)}"
                 )
                 warnings.warn(msg)
                 raise
@@ -144,7 +144,7 @@ def toPandas(spark_df):
                     "reached the error below and can not continue. Note that "
                     "'spark.sql.execution.arrow.pyspark.fallback.enabled' does not have an "
                     "effect on failures in the middle of "
-                    "computation.\n  %s" % str(e)
+                    f"computation.\n  {str(e)}"
                 )
                 warnings.warn(msg)
                 raise

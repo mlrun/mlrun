@@ -296,6 +296,7 @@ class Projects(
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
+            project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
             project_to_running_pipelines_count,
@@ -309,6 +310,9 @@ class Projects(
                     schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
+                    runs_completed_recent_count=project_to_recent_completed_runs_count.get(
+                        project, 0
+                    ),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(
                         project, 0
                     ),
@@ -323,6 +327,7 @@ class Projects(
     async def _get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -350,6 +355,7 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ) = results[0]
@@ -359,6 +365,7 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
                 project_to_running_pipelines_count,

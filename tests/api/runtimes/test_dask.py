@@ -445,7 +445,9 @@ class TestDaskRuntime(TestRuntimeBase):
                 nthreads=1,
                 worker_resources={"limits": {"memory": "1Gi"}},
                 scheduler_resources={"limits": {"memory": "1Gi"}},
-                env=[],
+                env=[
+                    {"name": "MLRUN_NAMESPACE", "value": "other-namespace"},
+                ],
             ),
         )
 
@@ -460,9 +462,26 @@ class TestDaskRuntime(TestRuntimeBase):
         # do it to verify later on it is not duplicated and appears only once
         function.spec.env.extend(function.generate_runtime_k8s_env())
 
+        expected_resources = {
+            "limits": {"memory": "1Gi"},
+            "requests": {},
+        }
+        expected_env = [
+            {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
+            {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
+        ]
+        expected_labels = {
+            "mlrun/project": "project",
+            "mlrun/class": "dask",
+            "mlrun/function": "test",
+            "label1": "val1",
+            "mlrun/scrape-metrics": "True",
+            "mlrun/tag": "latest",
+        }
+
         secrets = []
         client_version = "1.6.0"
-        client_python_version = "3.8"
+        client_python_version = "3.9"
         scheduler_pod, worker_pod, function, namespace = (
             server.api.runtime_handlers.daskjob.enrich_dask_cluster(
                 function, secrets, client_version, client_python_version
@@ -471,22 +490,8 @@ class TestDaskRuntime(TestRuntimeBase):
 
         assert scheduler_pod.metadata.namespace == namespace
         assert worker_pod.metadata.namespace == namespace
-        assert scheduler_pod.metadata.labels == {
-            "mlrun/project": "project",
-            "mlrun/class": "dask",
-            "mlrun/function": "test",
-            "label1": "val1",
-            "mlrun/scrape-metrics": "True",
-            "mlrun/tag": "latest",
-        }
-        assert worker_pod.metadata.labels == {
-            "mlrun/project": "project",
-            "mlrun/class": "dask",
-            "mlrun/function": "test",
-            "label1": "val1",
-            "mlrun/scrape-metrics": "True",
-            "mlrun/tag": "latest",
-        }
+        assert scheduler_pod.metadata.labels == expected_labels
+        assert worker_pod.metadata.labels == expected_labels
         assert scheduler_pod.spec.containers[0].args == ["dask", "scheduler"]
         assert worker_pod.spec.containers[0].args == [
             "dask",
@@ -496,22 +501,10 @@ class TestDaskRuntime(TestRuntimeBase):
             "--memory-limit",
             "1Gi",
         ]
-        assert worker_pod.spec.containers[0].resources == {
-            "limits": {"memory": "1Gi"},
-            "requests": {},
-        }
-        assert scheduler_pod.spec.containers[0].resources == {
-            "limits": {"memory": "1Gi"},
-            "requests": {},
-        }
-        assert worker_pod.spec.containers[0].env == [
-            {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
-            {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
-        ]
-        assert scheduler_pod.spec.containers[0].env == [
-            {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
-            {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
-        ]
+        assert worker_pod.spec.containers[0].resources == expected_resources
+        assert scheduler_pod.spec.containers[0].resources == expected_resources
+        assert worker_pod.spec.containers[0].env == expected_env
+        assert scheduler_pod.spec.containers[0].env == expected_env
 
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2

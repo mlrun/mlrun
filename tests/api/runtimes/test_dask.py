@@ -20,6 +20,7 @@ import unittest.mock
 
 from dask import distributed
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -447,6 +448,7 @@ class TestDaskRuntime(TestRuntimeBase):
                 scheduler_resources={"limits": {"memory": "1Gi"}},
                 env=[
                     {"name": "MLRUN_NAMESPACE", "value": "other-namespace"},
+                    k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
                 ],
             ),
         )
@@ -469,6 +471,7 @@ class TestDaskRuntime(TestRuntimeBase):
         expected_env = [
             {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
+            k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
         ]
         expected_labels = {
             "mlrun/project": "project",

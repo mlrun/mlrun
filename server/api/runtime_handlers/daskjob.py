@@ -326,17 +326,20 @@ def enrich_dask_cluster(
     # in other words, dont let spec.env override env (or not even duplicate it)
     # we dont want to override env to ensure k8s runtime envs are enforced and correct
     # leaving no room for human mistakes
+    def get_env_name(env_: Union[client.V1EnvVar, Dict]) -> str:
+        if isinstance(env_, client.V1EnvVar):
+            return env_.name
+        return env_.get("name", "")
+
     env.extend(
         filter(
-            lambda spec_env: isinstance(spec_env, dict)
-            and not any(
+            lambda spec_env: not any(
                 [
                     True
                     for _env in env
                     # spec_env might be V1EnvVar or a dict
                     # _env is just a dict
-                    if getattr(spec_env, "name", spec_env.get("name", ""))
-                    == _env["name"]
+                    if get_env_name(spec_env) == get_env_name(_env)
                 ]
             ),
             spec.env,

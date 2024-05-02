@@ -99,6 +99,7 @@ def notification_pusher() -> CustomNotificationPusher:
     [
         ("key1:val1,key2:val2", _WriterEventTypeError),
         ({WriterEvent.ENDPOINT_ID: "ep2211"}, _WriterEventValueError),
+        ({WriterEvent.EVENT_KIND: "special"}, _WriterEventValueError),
     ],
 )
 def test_reconstruct_event_error(event: _RawEvent, exception: type[Exception]) -> None:

@@ -122,6 +122,11 @@ class WriterEvent(MonitoringStrEnum):
     DATA = "data"
 
 
+class WriterEventKind(MonitoringStrEnum):
+    METRIC = "metric"
+    RESULT = "result"
+
+
 class MetricData(MonitoringStrEnum):
     METRIC_NAME = "metric_name"
     METRIC_VALUE = "metric_value"

@@ -33,6 +33,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultData,
     ResultStatusApp,
     WriterEvent,
+    WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.model_monitoring.helpers import get_endpoint_record
@@ -219,7 +220,7 @@ class ModelMonitoringWriter(StepToDict):
             raise _WriterEventTypeError(
                 f"The event is of type: {type(event)}, expected a dictionary"
             )
-        kind = event.pop(WriterEvent.EVENT_KIND, "result")
+        kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
         result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
         if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
             result_event = _AppResultEvent(event)
@@ -231,10 +232,14 @@ class ModelMonitoringWriter(StepToDict):
                 [WriterEvent.EVENT_KIND, WriterEvent.DATA]
             )
         )
-        if kind == "metric":
+        if kind == WriterEventKind.METRIC:
             expected_keys.extend(MetricData.list())
-        else:
+        elif kind == WriterEventKind.RESULT:
             expected_keys.extend(ResultData.list())
+        else:
+            raise _WriterEventValueError(
+                f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
+            )
         missing_keys = [key for key in expected_keys if key not in result_event]
         if missing_keys:
             raise _WriterEventValueError(
@@ -253,7 +258,7 @@ class ModelMonitoringWriter(StepToDict):
 
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
-            and kind == "result"
+            and kind == WriterEventKind.RESULT
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             endpoint_record = self._endpoints_records.setdefault(

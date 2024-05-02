@@ -90,9 +90,9 @@ class _PushToMonitoringWriter(StepToDict):
         for result in application_results:
             data = result.to_dict()
             writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                "result"
+                mm_constant.WriterEventKind.RESULT
                 if type(result) == ModelMonitoringApplicationResult
-                else "metric"
+                else mm_constant.WriterEventKind.METRIC
             )
             writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             logger.info(

@@ -38,7 +38,7 @@ class Pusher:
     def __init__(self, stream_uri):
         self.stream_uri = stream_uri
 
-    def push(self, data: list[dict[str : typing.Any]]):
+    def push(self, data: list[dict[str, typing.Any]]):
         data = data[0]
         with open(self.stream_uri, "w") as json_file:
             json.dump(data, json_file)
@@ -75,7 +75,7 @@ def monitoring_context() -> Mock:
 
 
 @patch("mlrun.datastore.get_stream_pusher")
-def test_push_result_to_monitoring_writer(
+def test_push_result_to_monitoring_writer_stream(
     mock_get_stream_pusher,
     push_to_monitoring_writer: _PushToMonitoringWriter,
     monitoring_context: Mock,
@@ -121,5 +121,5 @@ def test_push_result_to_monitoring_writer(
                 else "metric",
                 "data": json.dumps(results[2 - i].to_dict()),
             }
-        with open(STREAM_PATH, "w") as json_file:
-            json_file.truncate(0)
+    with open(STREAM_PATH, "w") as json_file:
+        json_file.truncate(0)

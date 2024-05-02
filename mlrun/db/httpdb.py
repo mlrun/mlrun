@@ -1524,16 +1524,15 @@ class HTTPRunDB(RunDBInterface):
         """
 
         try:
+            normalized_name = normalize_name(func.metadata.name)
             params = {
-                "name": normalize_name(func.metadata.name),
+                "name": normalized_name,
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            _path = (
-                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
-            )
+            _path = f"projects/{func.metadata.project}/nuclio/{normalized_name}/deploy"
             resp = self.api_call("GET", _path, params=params)
         except OSError as err:
             logger.error(f"error getting deploy status: {err_to_str(err)}")

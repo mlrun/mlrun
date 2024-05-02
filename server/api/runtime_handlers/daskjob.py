@@ -328,8 +328,16 @@ def enrich_dask_cluster(
     # leaving no room for human mistakes
     env.extend(
         filter(
-            lambda spec_env: not any(
-                [True for _env in env if _env["name"] == spec_env["name"]]
+            lambda spec_env: isinstance(spec_env, dict)
+            and not any(
+                [
+                    True
+                    for _env in env
+                    # spec_env might be V1EnvVar or a dict
+                    # _env is just a dict
+                    if getattr(spec_env, "name", spec_env.get("name", ""))
+                    == _env["name"]
+                ]
             ),
             spec.env,
         )

@@ -48,7 +48,6 @@ from mlrun.utils import (
     generate_artifact_uri,
     generate_object_uri,
     get_in,
-    is_legacy_artifact,
     logger,
     update_in,
     validate_artifact_key_name,
@@ -1179,10 +1178,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
-        if is_legacy_artifact(artifact):
-            artifact["tag"] = tag
-        else:
-            artifact["metadata"]["tag"] = tag
+        artifact["metadata"]["tag"] = tag
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)
@@ -1357,14 +1353,9 @@ class SQLDB(DBInterface):
 
         project = project or config.default_project
         artifact = deepcopy(artifact)
-        if is_legacy_artifact(artifact):
-            updated, key, labels = self._process_legacy_artifact_v1_dict_to_store(
-                artifact, key, iter
-            )
-        else:
-            updated, key, labels = self._process_artifact_v1_dict_to_store(
-                artifact, key, iter
-            )
+        updated, key, labels = self._process_artifact_v1_dict_to_store(
+            artifact, key, iter
+        )
         existed = True
         art = _get_artifact(uid, project, key)
         if not art:

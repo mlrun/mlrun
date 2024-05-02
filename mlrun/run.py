@@ -47,7 +47,6 @@ from .runtimes import (
     KubejobRuntime,
     LocalRuntime,
     MpiRuntimeV1,
-    MpiRuntimeV1Alpha1,
     RemoteRuntime,
     RemoteSparkRuntime,
     RuntimeKinds,
@@ -606,7 +605,6 @@ def code_to_function(
     ignored_tags: Optional[str] = None,
     requirements_file: Optional[str] = "",
 ) -> Union[
-    MpiRuntimeV1Alpha1,
     MpiRuntimeV1,
     RemoteRuntime,
     ServingRuntime,

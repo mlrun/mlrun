@@ -24,7 +24,6 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts
 import mlrun.common.schemas
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
-from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
 KEY = "some-key"
@@ -303,7 +302,6 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         )
         == {}
     )
-    assert not is_legacy_artifact(artifacts[0])
 
     # request legacy format - expect failure (legacy format is not supported anymore)
     artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=legacy"
@@ -324,7 +322,6 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         )
         == {}
     )
-    assert not is_legacy_artifact(artifacts[0])
 
 
 def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None:
@@ -342,9 +339,6 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     resp = client.get(artifact_path)
     assert resp.status_code == HTTPStatus.OK.value
 
-    artifact = resp.json()
-    assert not is_legacy_artifact(artifact["data"])
-
     # request legacy format - expect failure (legacy format is not supported anymore)
     artifact_path = f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy"
     resp = client.get(artifact_path)
@@ -356,9 +350,6 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     )
     resp = client.get(artifact_path)
     assert resp.status_code == HTTPStatus.OK.value
-
-    artifact = resp.json()
-    assert not is_legacy_artifact(artifact["data"])
 
 
 def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
@@ -457,7 +448,6 @@ def test_legacy_get_artifact_with_tree_as_tag_fallback(
     assert resp.status_code == HTTPStatus.OK.value
 
     artifact = resp.json()
-    assert not is_legacy_artifact(artifact["data"])
     assert artifact["data"]["metadata"]["key"] == KEY
     assert artifact["data"]["metadata"]["tree"] == tree
 
@@ -483,7 +473,6 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
     assert resp.status_code == HTTPStatus.OK.value
 
     artifact = resp.json()["artifacts"][0]
-    assert not is_legacy_artifact(artifact)
     assert artifact["metadata"]["key"] == KEY
     assert artifact["metadata"]["tree"] == tree
 

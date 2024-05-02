@@ -645,12 +645,10 @@ def build_runtime(
         build.base_image or runtime.spec.image or config.default_base_image
     )
     if base_image:
-        # TODO: ml-models was removed in 1.5.0. remove it from here in 1.7.0.
         mlrun_images = [
             "mlrun/mlrun",
             "mlrun/mlrun-gpu",
             "mlrun/ml-base",
-            "mlrun/ml-models",
         ]
         if any([image in base_image for image in mlrun_images]):
             # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later

@@ -736,14 +736,16 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         container = self.get_v3io_monitoring_apps_container(self.project)
         try:
             response = self.client.kv.scan(container=container, table_path=endpoint_id)
-        except v3io.dataplane.response.HttpResponseError:
-            logger.info(
-                "Attempt getting metrics and results - no data. Check the "
-                "project name, endpoint, or wait for the applications to start.",
-                container=container,
-                table_path=endpoint_id,
-            )
-            return []
+        except v3io.dataplane.response.HttpResponseError as err:
+            if err.status_code == HTTPStatus.NOT_FOUND:
+                logger.info(
+                    "Attempt getting metrics and results - no data. Check the "
+                    "project name, endpoint, or wait for the applications to start.",
+                    container=container,
+                    table_path=endpoint_id,
+                )
+                return []
+            raise
 
         while True:
             metrics.extend(self._extract_metrics_from_items(response.output.items))

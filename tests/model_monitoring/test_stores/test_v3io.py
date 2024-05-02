@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Optional, TypedDict
+from unittest.mock import Mock, patch
 
 import pytest
 import v3io.dataplane.output
@@ -136,7 +138,9 @@ class TestGetModelEndpointMetrics:
             or table_path != cls.ENDPOINT
             or marker not in cls.MARKER_TO_ENTRY_MAP
         ):
-            raise v3io.dataplane.response.HttpResponseError
+            raise v3io.dataplane.response.HttpResponseError(
+                status_code=HTTPStatus.NOT_FOUND
+            )
         entry = cls.MARKER_TO_ENTRY_MAP[marker]
         response = v3io.dataplane.response.Response(
             output="",
@@ -158,6 +162,21 @@ class TestGetModelEndpointMetrics:
         monkeypatch.setattr(store.client.kv, "scan", cls.scan_mock)
         return store
 
+    @staticmethod
+    @pytest.fixture
+    def response_error() -> v3io.dataplane.response.HttpResponseError:
+        return v3io.dataplane.response.HttpResponseError(
+            status_code=HTTPStatus.NETWORK_AUTHENTICATION_REQUIRED
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def store_with_err(
+        store: KVStoreBase, response_error: v3io.dataplane.response.HttpResponseError
+    ) -> Iterator[KVStoreBase]:
+        with patch.object(store.client.kv, "scan", Mock(side_effect=response_error)):
+            yield store
+
     @classmethod
     @pytest.mark.parametrize(
         ("endpoint_id", "expected_metrics"),
@@ -170,3 +189,9 @@ class TestGetModelEndpointMetrics:
         expected_metrics: list[ModelEndpointMonitoringMetric],
     ) -> None:
         assert store.get_model_endpoint_metrics(endpoint_id) == expected_metrics
+
+    @classmethod
+    def test_response_error(cls, store_with_err: KVStoreBase) -> None:
+        """Test that non 404 errors are not silenced"""
+        with pytest.raises(v3io.dataplane.response.HttpResponseError):
+            store_with_err.get_model_endpoint_metrics(cls.ENDPOINT)

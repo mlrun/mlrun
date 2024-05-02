@@ -39,7 +39,7 @@ class _CommonParams:
 
     def __post_init__(self) -> None:
         if not mlrun.mlconf.is_ce_mode():
-            # Generate V3IO Access Key
+            # Get V3IO Access Key
             self.model_monitoring_access_key = process_model_monitoring_secret(
                 self.db_session,
                 self.project,

@@ -13,6 +13,12 @@
 # limitations under the License.
 #
 
+import tempfile
+
+from kfp.compiler import Compiler
+
 
 def compile_pipeline(pipeline, **kwargs):
-    raise NotImplementedError
+    pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
+    Compiler().compile(pipeline, pipe_file, type_check=False)
+    return pipe_file

@@ -385,7 +385,7 @@ class Pipelines(
         return None
 
     def resolve_project_from_pipeline(self, pipeline: PipelineRun):
-        return self.resolve_project_from_workflow_manifest(pipeline._workflow_manifest)
+        return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
     @staticmethod
     def _get_experiment_id_from_run(run: dict) -> str:

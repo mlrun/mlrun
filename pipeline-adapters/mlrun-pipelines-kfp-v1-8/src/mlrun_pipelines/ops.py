@@ -245,7 +245,7 @@ def add_function_node_selection_attributes(
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):
-    workflow = run._workflow_manifest
+    workflow = run.workflow_manifest()
     if not workflow:
         return None, project, None
 

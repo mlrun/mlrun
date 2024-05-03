@@ -32,6 +32,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
+from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -131,17 +132,28 @@ class HTTPRunDB(RunDBInterface):
             endpoint += f":{parsed_url.port}"
         base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
 
+        self.base_url = base_url
         username = parsed_url.username or config.httpdb.user
         password = parsed_url.password or config.httpdb.password
+        self.token_provider = None
 
-        username, password, token = mlrun.platforms.add_or_refresh_credentials(
-            parsed_url.hostname, username, password, config.httpdb.token
-        )
+        if config.auth_with_client_id.enabled:
+            self.token_provider = OAuthClientIDTokenProvider(
+                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                timeout=config.auth_with_client_id.request_timeout,
+            )
+        else:
+            username, password, token = mlrun.platforms.add_or_refresh_credentials(
+                parsed_url.hostname, username, password, config.httpdb.token
+            )
 
-        self.base_url = base_url
+            if token:
+                self.token_provider = StaticTokenProvider(token)
+
         self.user = username
         self.password = password
-        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -211,17 +223,19 @@ class HTTPRunDB(RunDBInterface):
 
         if self.user:
             kw["auth"] = (self.user, self.password)
-        elif self.token:
-            # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-            if mlrun.platforms.iguazio.is_iguazio_session(self.token):
-                session_cookie = f'j:{{"sid": "{self.token}"}}'
-                cookies = {
-                    "session": session_cookie,
-                }
-                kw["cookies"] = cookies
-            else:
-                if "Authorization" not in kw.setdefault("headers", {}):
-                    kw["headers"].update({"Authorization": "Bearer " + self.token})
+        elif self.token_provider:
+            token = self.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.token_provider.is_iguazio_session():
+                    session_cookie = f'j:{{"sid": "{token}"}}'
+                    cookies = {
+                        "session": session_cookie,
+                    }
+                    kw["cookies"] = cookies
+                else:
+                    if "Authorization" not in kw.setdefault("headers", {}):
+                        kw["headers"].update({"Authorization": "Bearer " + token})
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}

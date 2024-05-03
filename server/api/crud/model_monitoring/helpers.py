@@ -139,14 +139,16 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_stream_path(project: str = None, application_name: str = None):
+def get_stream_path(
+    project: str = None, application_name: str = None
+) -> typing.Union[list[str]]:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
     :param application_name:    Application name, None for model_monitoring_stream.
 
-    :return:                    Monitoring stream path to the relevant application.
+    :return:                    Monitoring stream paths to the relevant application.
     """
 
     stream_uri = server.api.crud.secrets.Secrets().get_project_secret(
@@ -162,7 +164,19 @@ def get_stream_path(project: str = None, application_name: str = None):
         target="online",
         application_name=application_name,
     )
-
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, application_name=application_name
-    )
+    if isinstance(
+        stream_uri, list
+    ):  # ML-6043 - server side gets the new  and the old stream uris.
+        return [
+            mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+                stream_uri=stream_uri_item,
+                project=project,
+                application_name=application_name,
+            )
+            for stream_uri_item in stream_uri
+        ]
+    return [
+        mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+            stream_uri=stream_uri, project=project, application_name=application_name
+        )
+    ]

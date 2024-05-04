@@ -225,7 +225,12 @@ class SparkFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
+
         source_kwargs = {}
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:

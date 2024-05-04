@@ -192,8 +192,8 @@ class ModelMonitoringWriter(StepToDict):
         uid: str, drift_status: str, event_value: dict, project_name: str
     ):
         if (
-            drift_status == ResultStatusApp.detected
-            or drift_status == ResultStatusApp.potential_detection
+            drift_status == ResultStatusApp.detected.value
+            or drift_status == ResultStatusApp.potential_detection.value
         ):
             entity = {
                 "kind": alert_constants.EventEntityKind.MODEL,
@@ -202,7 +202,7 @@ class ModelMonitoringWriter(StepToDict):
             }
             event_kind = (
                 alert_constants.EventKind.DRIFT_DETECTED
-                if drift_status == ResultStatusApp.detected
+                if drift_status == ResultStatusApp.detected.value
                 else alert_constants.EventKind.DRIFT_SUSPECTED
             )
             event_data = mlrun.common.schemas.Event(

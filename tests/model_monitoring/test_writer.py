@@ -47,7 +47,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
                 ResultData.RESULT_VALUE: 0.32,
                 ResultData.RESULT_STATUS: request.param[0],
                 ResultData.RESULT_EXTRA_DATA: "",
-                WriterEvent.CURRENT_STATS: "",
+                ResultData.CURRENT_STATS: "",
             }
         )
     elif request.param[2] == "result":
@@ -57,7 +57,6 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
                 WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
                 WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
                 WriterEvent.APPLICATION_NAME: "dummy-app",
-                WriterEvent.CURRENT_STATS: "",
                 WriterEvent.EVENT_KIND: request.param[2],
                 WriterEvent.DATA: json.dumps(
                     {
@@ -66,6 +65,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
                         ResultData.RESULT_VALUE: 0.32,
                         ResultData.RESULT_STATUS: request.param[0],
                         ResultData.RESULT_EXTRA_DATA: "",
+                        ResultData.CURRENT_STATS: "",
                     }
                 ),
             }
@@ -77,7 +77,6 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
                 WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
                 WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
                 WriterEvent.APPLICATION_NAME: "dummy-app",
-                WriterEvent.CURRENT_STATS: "",
                 WriterEvent.EVENT_KIND: request.param[2],
                 WriterEvent.DATA: json.dumps(
                     {

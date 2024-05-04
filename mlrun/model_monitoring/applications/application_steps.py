@@ -83,18 +83,28 @@ class _PushToMonitoringWriter(StepToDict):
             mm_constant.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mm_constant.WriterEvent.CURRENT_STATS: json.dumps(
-                application_context.sample_df_stats
-            ),
         }
         for result in application_results:
             data = result.to_dict()
+            if isinstance(result, ModelMonitoringApplicationResult):
+                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
+                    mm_constant.WriterEventKind.RESULT
+                )
+                data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
+                    application_context.sample_df_stats
+                )
+                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
+            else:
+                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
+                    mm_constant.WriterEventKind.METRIC
+                )
+                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
+
             writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                 mm_constant.WriterEventKind.RESULT
                 if type(result) == ModelMonitoringApplicationResult
                 else mm_constant.WriterEventKind.METRIC
             )
-            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             logger.info(
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )

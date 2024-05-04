@@ -758,6 +758,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             metrics.extend(self._extract_metrics_from_items(response.output.items))
             if response.output.last:
                 break
+            # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
             response = self.client.kv.scan(
                 container=container,
                 table_path=endpoint_id,

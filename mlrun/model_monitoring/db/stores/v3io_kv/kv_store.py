@@ -703,9 +703,8 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
 
-    @staticmethod
     def _extract_metrics_from_items(
-        app_items: list[dict[str, str]],
+        self, app_items: list[dict[str, str]]
     ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
         metrics: list[
             mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
@@ -718,10 +717,18 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             for result_name in app_item:
                 metrics.append(
                     mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric(
+                        project=self.project,
                         app=app_name,
-                        name=result_name,
                         type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT,
-                        full_name=f"{app_name}/{mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT}/{result_name}",
+                        name=result_name,
+                        full_name=".".join(
+                            [
+                                self.project,
+                                app_name,
+                                mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT,
+                                result_name,
+                            ]
+                        ),
                     )
                 )
         return metrics

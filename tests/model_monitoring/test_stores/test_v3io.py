@@ -29,12 +29,22 @@ from mlrun.common.schemas.model_monitoring import (
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 
 
+@pytest.fixture
+def store(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> KVStoreBase:
+    monkeypatch.setenv("V3IO_ACCESS_KEY", "secret-value")
+    store = KVStoreBase(project=request.param)
+    return store
+
+
 @pytest.mark.parametrize(
-    ("items", "expected_metrics"),
+    ("store", "items", "expected_metrics"),
     [
-        ([], []),
-        ([{"__name": ".#schema"}], []),
+        ("", [], []),
+        ("default", [{"__name": ".#schema"}], []),
         (
+            "default",
             [
                 {
                     "__name": "some-app-name",
@@ -44,20 +54,23 @@ from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
             ],
             [
                 ModelEndpointMonitoringMetric(
+                    project="default",
                     app="some-app-name",
-                    name="some-metric-name1",
                     type=ModelEndpointMonitoringMetricType.RESULT,
-                    full_name="some-app-name/result/some-metric-name1",
+                    name="some-metric-name1",
+                    full_name="default.some-app-name.result.some-metric-name1",
                 ),
                 ModelEndpointMonitoringMetric(
+                    project="default",
                     app="some-app-name",
-                    name="some-metric-name2",
                     type=ModelEndpointMonitoringMetricType.RESULT,
-                    full_name="some-app-name/result/some-metric-name2",
+                    name="some-metric-name2",
+                    full_name="default.some-app-name.result.some-metric-name2",
                 ),
             ],
         ),
         (
+            "project-1",
             [
                 {
                     "__name": "app1",
@@ -67,19 +80,23 @@ from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
             ],
             [
                 ModelEndpointMonitoringMetric(
+                    project="project-1",
                     app="app1",
-                    name="drift-res",
                     type=ModelEndpointMonitoringMetricType.RESULT,
-                    full_name="app1/result/drift-res",
+                    name="drift-res",
+                    full_name="project-1.app1.result.drift-res",
                 )
             ],
         ),
     ],
+    indirect=["store"],
 )
 def test_extract_metrics_from_items(
-    items: list[dict[str, str]], expected_metrics: list[ModelEndpointMonitoringMetric]
+    store: KVStoreBase,
+    items: list[dict[str, str]],
+    expected_metrics: list[ModelEndpointMonitoringMetric],
 ) -> None:
-    assert KVStoreBase._extract_metrics_from_items(items) == expected_metrics
+    assert store._extract_metrics_from_items(items) == expected_metrics
 
 
 class TestGetModelEndpointMetrics:
@@ -111,16 +128,18 @@ class TestGetModelEndpointMetrics:
     )
     METRICS = [
         ModelEndpointMonitoringMetric(
+            project=PROJECT,
             app="perf-app",
-            name="latency-sec",
             type=ModelEndpointMonitoringMetricType.RESULT,
-            full_name="perf-app/result/latency-sec",
+            name="latency-sec",
+            full_name="demo-proj.perf-app.result.latency-sec",
         ),
         ModelEndpointMonitoringMetric(
+            project=PROJECT,
             app="model-as-a-judge-app",
-            name="distance",
             type=ModelEndpointMonitoringMetricType.RESULT,
-            full_name="model-as-a-judge-app/result/distance",
+            name="distance",
+            full_name="demo-proj.model-as-a-judge-app.result.distance",
         ),
     ]
 

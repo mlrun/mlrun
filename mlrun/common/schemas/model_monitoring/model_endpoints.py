@@ -297,9 +297,10 @@ class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
 
 
 class ModelEndpointMonitoringMetric(BaseModel):
+    project: str
     app: str
-    name: str
     type: ModelEndpointMonitoringMetricType
+    name: str
     full_name: str
 
 

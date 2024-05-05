@@ -189,7 +189,7 @@ class DatastoreProfileS3(DatastoreProfile):
 
     @pydantic.validator("bucket")
     def check_bucket(cls, v):
-        if v is None:
+        if not v:
             warnings.warn(
                 "The 'bucket' attribute will be mandatory starting from version 1.9",
                 DeprecationWarning,
@@ -290,7 +290,7 @@ class DatastoreProfileGCS(DatastoreProfile):
 
     @pydantic.validator("bucket")
     def check_bucket(cls, v):
-        if v is None:
+        if not v:
             warnings.warn(
                 "The 'bucket' attribute will be mandatory starting from version 1.9",
                 DeprecationWarning,
@@ -343,7 +343,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
 
     @pydantic.validator("bucket")
     def check_bucket(cls, v):
-        if v is None:
+        if not v:
             warnings.warn(
                 "The 'bucket' attribute will be mandatory starting from version 1.9",
                 DeprecationWarning,

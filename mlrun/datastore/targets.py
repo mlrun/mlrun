@@ -679,18 +679,6 @@ class BaseStoreTarget(DataTargetBase):
                     is_single_file,
                 )
 
-                return TargetPathObject(
-                    _get_target_path(
-                        self,
-                        self._resource,
-                        self.run_id is not None,
-                        netloc=parsed_url.netloc,
-                        scheme=parsed_url.scheme,
-                    ),
-                    self.run_id,
-                    is_single_file,
-                )
-
         return self.get_path() or (
             TargetPathObject(
                 _get_target_path(self, self._resource, self.run_id is not None),

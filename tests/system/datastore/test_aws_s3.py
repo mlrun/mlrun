@@ -119,7 +119,7 @@ class TestAwsS3(TestMLRunSystem):
             s3_fs.rm(full_path)
 
     @pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket", "ds_no_bucket"])
-    def test_ingest_with_parquet_source1(self, url_type):
+    def test_ingest_with_parquet_source(self, url_type):
         #  create source
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
@@ -154,7 +154,6 @@ class TestAwsS3(TestMLRunSystem):
         )
 
     def test_ingest_ds_default_target(self):
-        #  create source
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
         )
@@ -170,7 +169,6 @@ class TestAwsS3(TestMLRunSystem):
 
         parquet_source = ParquetSource(name="test", path=source_path)
 
-        # ingest
         targets = [ParquetTarget(path="ds://s3ds_profile_with_bucket")]
         fset = fstore.FeatureSet(
             name="test_fs",
@@ -189,3 +187,12 @@ class TestAwsS3(TestMLRunSystem):
         )
 
         assert fset.get_target_path().startswith(expected_default_ds_data_prefix)
+
+        result = ParquetSource(path=fset.get_target_path()).to_dataframe(
+            columns=("Column1", "Column2")
+        )
+        result.reset_index(inplace=True, drop=False)
+
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )

@@ -692,7 +692,7 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "disabled"
+        "mode": "enabled"
     },
     "auth_with_client_id": {
         "enabled": False,

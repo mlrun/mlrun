@@ -15,6 +15,7 @@
 
 import fastapi
 from sqlalchemy.orm import Session
+
 import mlrun.common.schemas
 import server.api.utils.auth.verifier
 from server.api.api import deps
@@ -29,8 +30,8 @@ router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
     "/model-monitoring-controller",
     deprecated=True,
     description="/projects/{project}/jobs/model-monitoring-controller "
-                "is deprecated in 1.7.0 and will be removed in 1.9.0, "
-                "use /projects/{project}/model-monitoring/enable-model-monitoring instead",
+    "is deprecated in 1.7.0 and will be removed in 1.9.0, "
+    "use /projects/{project}/model-monitoring/enable-model-monitoring instead",
 )
 async def create_model_monitoring_controller(
     project: str,
@@ -78,5 +79,9 @@ async def create_model_monitoring_controller(
     ).deploy_monitoring_functions(
         image=default_controller_image,
         base_period=base_period,
-        deploy_histogram_data_drift_app=True,
+        deploy_histogram_data_drift_app=False,  # mlrun client < 1.7.0
     )
+
+    return {
+        "func": "Submitted the model-monitoring controller, writer and stream deployment"
+    }

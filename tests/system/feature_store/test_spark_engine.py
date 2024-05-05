@@ -81,7 +81,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = True
+    run_local = False
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase

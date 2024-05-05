@@ -219,7 +219,7 @@ class TestApplication:
 @pytest.mark.parametrize(
     ("sample_df_stats", "feature_stats"),
     [
-        # pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
+        pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
         pytest.param(
             pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
             pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),

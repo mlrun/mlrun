@@ -14,6 +14,7 @@
 import json
 import logging
 import typing
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -26,7 +27,7 @@ from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
 )
-from mlrun.model_monitoring.applications.application_steps import (
+from mlrun.model_monitoring.applications._application_steps import (
     _PushToMonitoringWriter,
 )
 from mlrun.utils import Logger
@@ -79,8 +80,9 @@ def test_push_result_to_monitoring_writer_stream(
     mock_get_stream_pusher,
     push_to_monitoring_writer: _PushToMonitoringWriter,
     monitoring_context: Mock,
+    tmp_path: Path,
 ):
-    mock_get_stream_pusher.return_value = Pusher(stream_uri=STREAM_PATH)
+    mock_get_stream_pusher.return_value = Pusher(stream_uri=f"{tmp_path}/{STREAM_PATH}")
     results = [
         ModelMonitoringApplicationResult(
             name="res1",
@@ -107,7 +109,7 @@ def test_push_result_to_monitoring_writer_stream(
             monitoring_context,
         )
     )
-    with open(STREAM_PATH) as json_file:
+    with open(f"{tmp_path}/{STREAM_PATH}") as json_file:
         for i, line in enumerate(json_file):
             loaded_data = json.loads(line.strip())
             result = results[2 - i].to_dict()
@@ -124,5 +126,3 @@ def test_push_result_to_monitoring_writer_stream(
                 "event_kind": event_kind,
                 "data": json.dumps(result),
             }
-    with open(STREAM_PATH, "w") as json_file:
-        json_file.truncate(0)

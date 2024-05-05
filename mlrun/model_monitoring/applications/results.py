@@ -15,6 +15,7 @@
 import dataclasses
 import json
 import re
+from abc import ABC, abstractmethod
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
@@ -22,8 +23,23 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
 
 
+class _ModelMonitoringApplicationDataRes(ABC):
+    name: str
+
+    def __post_init__(self):
+        pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
+        if not re.fullmatch(pat, self.name):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
+            )
+
+    @abstractmethod
+    def to_dict(self):
+        raise NotImplementedError
+
+
 @dataclasses.dataclass
-class ModelMonitoringApplicationResult:
+class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
     """
     Class representing the result of a custom model monitoring application.
 
@@ -42,13 +58,6 @@ class ModelMonitoringApplicationResult:
     status: mm_constant.ResultStatusApp
     extra_data: dict = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
-        pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
-        if not re.fullmatch(pat, self.name):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
-            )
-
     def to_dict(self):
         """
         Convert the object to a dictionary format suitable for writing.
@@ -65,7 +74,7 @@ class ModelMonitoringApplicationResult:
 
 
 @dataclasses.dataclass
-class ModelMonitoringApplicationMetric:
+class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
     """
     Class representing the result of a custom model monitoring application.
 
@@ -77,13 +86,6 @@ class ModelMonitoringApplicationMetric:
 
     name: str
     value: float
-
-    def __post_init__(self):
-        pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
-        if not re.fullmatch(pat, self.name):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
-            )
 
     def to_dict(self):
         """

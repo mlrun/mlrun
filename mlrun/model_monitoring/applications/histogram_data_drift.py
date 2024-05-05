@@ -313,11 +313,16 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             metrics_per_feature=metrics_per_feature,
         )
         monitoring_context.logger.debug("Computing average per metric")
-        results_and_metrics = self._get_metrics(metrics_per_feature)
+        metrics_and_result: list[
+            typing.Union[
+                mm_results.ModelMonitoringApplicationMetric,
+                mm_results.ModelMonitoringApplicationResult,
+            ]
+        ] = self._get_metrics(metrics_per_feature)
         self._add_general_drift_result(
-            metrics=results_and_metrics,
+            metrics=metrics_and_result,
         )
         monitoring_context.logger.debug(
-            "Finished running the application", results=results_and_metrics
+            "Finished running the application", results=metrics_and_result
         )
-        return results_and_metrics
+        return metrics_and_result

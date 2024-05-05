@@ -161,7 +161,7 @@ class MonitoringApplicationContext(MLClientCtx):
 
     @property
     def sample_df_stats(self) -> FeatureStats:
-        """calculate the current stats"""
+        """statistics of the sample dataframe"""
         if not hasattr(self, "_sample_df_stats") or not self._sample_df_stats:
             self._sample_df_stats = calculate_inputs_statistics(
                 self.feature_stats, self.sample_df
@@ -170,7 +170,7 @@ class MonitoringApplicationContext(MLClientCtx):
 
     @property
     def feature_names(self) -> list[str]:
-        """from the model endpoint"""
+        """The feature names of the model"""
         feature_names = self.model_endpoint.spec.feature_names
         return (
             feature_names
@@ -180,7 +180,7 @@ class MonitoringApplicationContext(MLClientCtx):
 
     @property
     def label_names(self) -> list[str]:
-        """from the model endpoint"""
+        """The label names of the model"""
         label_names = self.model_endpoint.spec.label_names
         return label_names if isinstance(label_names, list) else json.loads(label_names)
 
@@ -188,11 +188,6 @@ class MonitoringApplicationContext(MLClientCtx):
     def model(self) -> tuple[str, ModelArtifact, dict]:
         """return model file, model spec object, and list of extra data items"""
         return get_model(self.model_endpoint.spec.model_uri)
-
-    def update_model_endpoint_status_from_db(self) -> ModelEndpoint:
-        """update the model endpoint status from db"""
-        self._model_endpoint = None
-        return self.model_endpoint
 
     @staticmethod
     def dict_to_histogram(

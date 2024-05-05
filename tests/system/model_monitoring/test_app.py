@@ -209,22 +209,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.apps_data: list[_AppData] = [
             _DefaultDataDriftAppData,
             _AppData(
-                class_=DemoMonitoringApp,
-                rel_path="assets/application.py",
-                results={"data_drift_test", "model_perf"},
-            ),  # TODO : delete in 1.9.0
-            _AppData(
-                class_=CustomEvidentlyMonitoringApp,
-                rel_path="assets/custom_evidently_app.py",
-                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
-                kwargs={
-                    "evidently_workspace_path": cls.evidently_workspace_path,
-                    "evidently_project_id": cls.evidently_project_id,
-                    "with_training_set": True,
-                },
-                results={"data_drift_test"},
-            ),  # TODO : delete in 1.9.0
-            _AppData(
                 class_=DemoMonitoringAppV2,
                 rel_path="assets/application.py",
                 results={"data_drift_test", "model_perf"},
@@ -343,8 +327,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 self.apps_data[i].kwargs["with_training_set"] = with_training_set
 
         # workaround for ML-5997
-        if not with_training_set:
-            self.apps_data.pop(0)
+        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
+            self.apps_data.remove(_DefaultDataDriftAppData)
 
         with ThreadPoolExecutor() as executor:
             executor.submit(
@@ -371,6 +355,37 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(
             ep_id=self._get_model_endpoint_id(), inputs=inputs, outputs=outputs
         )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
+    # TODO : delete in 1.9.0
+    project_name = "test-app-flow"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        super().custom_setup_class()
+        cls.apps_data: list[_AppData] = [
+            _AppData(
+                class_=DemoMonitoringApp,
+                rel_path="assets/application.py",
+                results={"data_drift_test", "model_perf"},
+            ),
+            _AppData(
+                class_=CustomEvidentlyMonitoringApp,
+                rel_path="assets/custom_evidently_app.py",
+                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
+                kwargs={
+                    "evidently_workspace_path": cls.evidently_workspace_path,
+                    "evidently_project_id": cls.evidently_project_id,
+                    "with_training_set": True,
+                },
+                results={"data_drift_test"},
+            ),
+        ]
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

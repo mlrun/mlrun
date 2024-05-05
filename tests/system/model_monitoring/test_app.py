@@ -387,6 +387,11 @@ class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
             ),
         ]
 
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_app_flow(self, with_training_set) -> None:
+        super().test_app_flow(with_training_set)
+
+
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise

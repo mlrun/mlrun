@@ -67,9 +67,14 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
     ]:
         """
         Process the monitoring event and return application results & metrics.
+
         :param monitoring_context:   (MonitoringApplicationContext) The monitoring application context.
-        :returns:                    (list[ModelMonitoringApplicationResult], dict) The application results
-                                     and the original event for the application.
+        :returns:                    A tuple of:
+                                        [0] = list of application results that can be either from type
+                                        `ModelMonitoringApplicationResult`
+                                        or from type `ModelMonitoringApplicationResult`.
+                                        [1] = the original application event, wrapped in `MonitoringApplicationContext`
+                                         object
         """
         results = self.do_tracking(monitoring_context=monitoring_context)
         if isinstance(results, dict):
@@ -103,7 +108,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
                                         (list[Union[ModelMonitoringApplicationResult,
                                         ModelMonitoringApplicationMetric]])
                                         or dict that contains the application metrics only (in this case the name of
-                                        each metric is the key and the value is the corresponding value).
+                                        each metric name is the key and the metric value is the corresponding value).
         """
         raise NotImplementedError
 
@@ -146,7 +151,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     kind = "monitoring_application"
 
     def do(
-        self, event: mm_context.MonitoringApplicationContext
+        self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> tuple[
         list[mm_results.ModelMonitoringApplicationResult],
         mm_context.MonitoringApplicationContext,
@@ -154,18 +159,22 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         """
         Process the monitoring event and return application results.
 
-        :param event:   (dict) The monitoring event to process.
-        :returns:       (list[ModelMonitoringApplicationResult], dict) The application results
-                        and the original event for the application.
+        :param monitoring_context:   (MonitoringApplicationContext) The monitoring context to process.
+        :returns:                    A tuple of:
+                                        [0] = list of application results that can be either from type
+                                        `ModelMonitoringApplicationResult` or from type
+                                        `ModelMonitoringApplicationResult`.
+                                        [1] = the original application event, wrapped in `MonitoringApplicationContext`
+                                         object
         """
-        resolved_event = self._resolve_event(event)
+        resolved_event = self._resolve_event(monitoring_context)
         if not (
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
-            self._lazy_init(event)
+            self._lazy_init(monitoring_context)
         results = self.do_tracking(*resolved_event)
         results = results if isinstance(results, list) else [results]
-        return results, event
+        return results, monitoring_context
 
     def _lazy_init(self, monitoring_context: mm_context.MonitoringApplicationContext):
         self.context = cast(mlrun.MLClientCtx, monitoring_context)
@@ -223,7 +232,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         Converting the event into a single tuple that will be used for passing the event arguments to the running
         application
 
-        :param event: dictionary with all the incoming data
+        :param monitoring_context: (MonitoringApplicationContext) The monitoring context to process.
 
         :return: A tuple of:
                      [0] = (str) application name

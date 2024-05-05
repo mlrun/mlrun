@@ -102,7 +102,7 @@ class _PushToMonitoringWriter(StepToDict):
 
             writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                 mm_constant.WriterEventKind.RESULT
-                if type(result) == ModelMonitoringApplicationResult
+                if isinstance(result, ModelMonitoringApplicationResult)
                 else mm_constant.WriterEventKind.METRIC
             )
             logger.info(

@@ -76,7 +76,7 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
 @dataclasses.dataclass
 class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
     """
-    Class representing the result of a custom model monitoring application.
+    Class representing a single metric of a custom model monitoring application.
 
     :param name:           (str) Name of the application metric. This name must be
                             unique for each metric in a single application

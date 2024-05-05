@@ -158,8 +158,8 @@ class EvidentlyModelMonitoringApplicationBaseV2(
             evidently_project_id
         )
 
+    @staticmethod
     def log_evidently_object(
-        self,
         monitoring_context: mm_context.MonitoringApplicationContext,
         evidently_object: Union["Report", "Suite"],
         artifact_name: str,

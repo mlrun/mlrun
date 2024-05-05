@@ -148,12 +148,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
 
     def _add_general_drift_result(
         self,
-        metrics: list[
-            typing.Union[
-                mm_results.ModelMonitoringApplicationMetric,
-                mm_results.ModelMonitoringApplicationResult,
-            ]
-        ],
+        metrics: list[mm_results.ModelMonitoringApplicationMetric],
     ) -> None:
         """Add the general drift result to the results list and log it"""
         value = np.mean(

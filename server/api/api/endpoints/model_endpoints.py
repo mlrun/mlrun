@@ -260,6 +260,18 @@ async def list_model_endpoints(
     return endpoints
 
 
+async def _verify_model_endpoint_read_permission(
+    *, project: str, endpoint_id: str, auth_info: mlrun.common.schemas.AuthInfo
+) -> None:
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+
+
 @router.get(
     "/{endpoint_id}",
     response_model=mlrun.common.schemas.ModelEndpoint,
@@ -300,12 +312,8 @@ async def get_model_endpoint(
 
     :return:  A `ModelEndpoint` object.
     """
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
 
     return await run_in_threadpool(
@@ -343,12 +351,8 @@ async def get_model_endpoint_monitoring_metrics(
 
     :returns:           A list of the application results for this model endpoint.
     """
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project_name=project,
-        resource_name=endpoint_id,
-        action=mlrun.common.schemas.AuthorizationAction.read,
-        auth_info=auth_info,
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
     return await run_in_threadpool(
         mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(

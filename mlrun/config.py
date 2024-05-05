@@ -188,6 +188,7 @@ default_config = {
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
+        "function_deletion_batch_size": 10,
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
             "operations": {
@@ -196,6 +197,7 @@ default_config = {
                 "run_abortion": "600",
                 "abort_grace_period": "10",
                 "delete_project": "900",
+                "delete_function": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -693,6 +695,10 @@ default_config = {
     "alerts": {
         # supported modes: "enabled", "disabled".
         "mode": "disabled"
+    },
+    "auth_with_client_id": {
+        "enabled": False,
+        "request_timeout": 5,
     },
 }
 
@@ -1399,7 +1405,11 @@ def read_env(env=None, prefix=env_prefix):
         log_formatter = mlrun.utils.create_formatter_instance(
             mlrun.utils.FormatterKinds(log_formatter_name)
         )
-        mlrun.utils.logger.get_handler("default").setFormatter(log_formatter)
+        current_handler = mlrun.utils.logger.get_handler("default")
+        current_formatter_name = current_handler.formatter.__class__.__name__
+        desired_formatter_name = log_formatter.__class__.__name__
+        if current_formatter_name != desired_formatter_name:
+            current_handler.setFormatter(log_formatter)
 
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.

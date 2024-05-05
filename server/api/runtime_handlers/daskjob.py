@@ -320,8 +320,32 @@ def enrich_dask_cluster(
         # TODO: we might never enter here, since running a function requires defining an image
         or "daskdev/dask:latest"
     )
-    env = spec.env
-    env.extend(function.generate_runtime_k8s_env())
+    env = function.generate_runtime_k8s_env()
+
+    # filter any spec.env that already exists in env
+    # in other words, dont let spec.env override env (or not even duplicate it)
+    # we dont want to override env to ensure k8s runtime envs are enforced and correct
+    # leaving no room for human mistakes
+    def get_env_name(env_: Union[client.V1EnvVar, dict]) -> str:
+        if isinstance(env_, client.V1EnvVar):
+            return env_.name
+        return env_.get("name", "")
+
+    env.extend(
+        filter(
+            lambda spec_env: not any(
+                [
+                    True
+                    for _env in env
+                    # spec_env might be V1EnvVar or a dict
+                    # _env is just a dict
+                    if get_env_name(spec_env) == get_env_name(_env)
+                ]
+            ),
+            spec.env,
+        )
+    )
+
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:
         env.append(spec.extra_pip)

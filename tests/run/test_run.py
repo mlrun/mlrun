@@ -58,7 +58,7 @@ def captured_output():
 
 
 def test_noparams(rundb_mock):
-    mlrun.get_or_create_project("default")
+    mlrun.get_or_create_project("default", allow_cross_project=True)
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
         params={"input_name": str(input_file_path)}, handler=my_func
@@ -103,7 +103,7 @@ def test_invalid_name():
 
 
 def test_with_params(rundb_mock):
-    mlrun.get_or_create_project("default")
+    mlrun.get_or_create_project("default", allow_cross_project=True)
     spec = tag_test(base_spec, "test_with_params")
     result = new_function().run(spec, handler=my_func)
 
@@ -163,7 +163,7 @@ def test_local_runtime_with_kwargs(
 
 
 def test_local_runtime_with_kwargs_with_code_to_function(rundb_mock):
-    mlrun.get_or_create_project("default")
+    mlrun.get_or_create_project("default", allow_cross_project=True)
     function = mlrun.code_to_function(
         "kwarg",
         filename=f"{assets_path}/kwargs.py",

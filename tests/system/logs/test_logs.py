@@ -38,7 +38,9 @@ class TestLogCollector(tests.system.base.TestMLRunSystem):
 
         project_name = "test-log-collector"
         self.custom_project_names_to_delete.append(project_name)
-        proj = mlrun.get_or_create_project(project_name, self.assets_path)
+        proj = mlrun.get_or_create_project(
+            project_name, self.assets_path, allow_cross_project=True
+        )
         function = mlrun.code_to_function(
             name="function-with-logs",
             kind="job",

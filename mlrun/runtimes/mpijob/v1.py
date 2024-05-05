@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1CleanPodPolicies
+from mlrun.common.runtimes.constants import MPIJobCRDVersions, MPIJobV1CleanPodPolicies
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime, MPIResourceSpec
 
 

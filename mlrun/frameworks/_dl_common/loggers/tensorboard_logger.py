@@ -547,9 +547,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                     "inputs",
                     "parameters",
                 ]:
-                    text += "\n  * **{}**: {}".format(
-                        property_name.capitalize(),
-                        self._markdown_print(value=property_value, tabs=2),
+                    text += (
+                        f"\n  * **{property_name.capitalize()}**: "
+                        f"{self._markdown_print(value=property_value, tabs=2)}"
                     )
         else:
             for property_name, property_value in self._extract_epoch_results().items():
@@ -614,13 +614,8 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         :return: The generated link.
         """
         return (
-            '<a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank">{}</a>'.format(
-                config.resolve_ui_url(),
-                config.ui.projects_prefix,
-                context.project,
-                context.uid,
-                link_text,
-            )
+            f'<a href="{config.resolve_ui_url()}/{config.ui.projects_prefix}/{context.project}'
+            f'/jobs/monitor/{context.uid}/overview" target="_blank">{link_text}</a>'
         )
 
     @staticmethod

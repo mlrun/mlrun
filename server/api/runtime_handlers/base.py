@@ -36,10 +36,10 @@ import server.api.common.runtime_handlers
 import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
+from mlrun.common.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
-from mlrun.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.utils import logger, now_date
 from server.api.constants import LogSources
 from server.api.db.base import DBInterface

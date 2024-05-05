@@ -610,6 +610,8 @@ def validate_iguazio_version_compatibility(*min_versions):
     ]
     try:
         parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+        if not parsed_current_version:
+            return True
     except ValueError:
         # only log when version is set but invalid
         if mlconf.igz_version:

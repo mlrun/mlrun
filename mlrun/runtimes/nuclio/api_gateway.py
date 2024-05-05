@@ -18,6 +18,7 @@ from urllib.parse import urljoin
 
 import requests
 from requests.auth import HTTPBasicAuth
+from nuclio.auth import AuthInfo as NuclioAuthInfo
 
 import mlrun
 import mlrun.common.schemas
@@ -29,6 +30,7 @@ from .serving import ServingRuntime
 
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE = "none"
+NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY = "accessKey"
 PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
@@ -50,6 +52,11 @@ class APIGatewayAuthenticator(typing.Protocol):
                 )
             else:
                 return BasicAuth()
+        elif (
+            api_gateway_spec.authenticationMode
+            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY
+        ):
+            return AccessKeyAuth()
         else:
             return NoneAuth()
 
@@ -91,6 +98,16 @@ class BasicAuth(APIGatewayAuthenticator):
                 username=self._username, password=self._password
             )
         }
+
+
+class AccessKeyAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with access key authentication.
+    """
+
+    @property
+    def authentication_mode(self) -> str:
+        return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY
 
 
 class APIGatewayMetadata(ModelObj):
@@ -312,7 +329,7 @@ class APIGateway(ModelObj):
     def invoke(
         self,
         method="POST",
-        headers: dict = {},
+        headers: dict = None,
         auth: Optional[tuple[str, str]] = None,
         **kwargs,
     ):
@@ -341,17 +358,26 @@ class APIGateway(ModelObj):
         if (
             self.spec.authentication.authentication_mode
             == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
-            and not auth
         ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "API Gateway invocation requires authentication. Please pass credentials"
-            )
+            if not auth:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please pass credentials"
+                )
+            auth = HTTPBasicAuth(*auth)
+
+        if (
+            self.spec.authentication.authentication_mode
+            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY
+        ):
+            # inject access key from env
+            auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+
         return requests.request(
             method=method,
             url=self.invoke_url,
-            headers=headers,
+            headers=headers or {},
             **kwargs,
-            auth=HTTPBasicAuth(*auth) if auth else None,
+            auth=auth,
         )
 
     def wait_for_readiness(self, max_wait_time=90):
@@ -406,6 +432,12 @@ class APIGateway(ModelObj):
         :param password: (str) The password for basic authentication.
         """
         self.spec.authentication = BasicAuth(username=username, password=password)
+
+    def with_access_key_auth(self):
+        """
+        Set access key authentication for the API gateway.
+        """
+        self.spec.authentication = AccessKeyAuth()
 
     def with_canary(
         self,

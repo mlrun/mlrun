@@ -214,6 +214,9 @@ class DatastoreProfileS3(DatastoreProfile):
         return res
 
     def url(self, subpath):
+        # TODO: There is an inconsistency with DatastoreProfileGCS. In DatastoreProfileGCS,
+        # we assume that the subpath can begin without a '/' character,
+        # while here we assume it always starts with one.
         if self.bucket:
             return f"s3://{self.bucket}{subpath}"
         else:

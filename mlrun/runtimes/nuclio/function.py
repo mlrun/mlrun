@@ -778,7 +778,7 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
             runtime_env[
-                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key
         return runtime_env
 

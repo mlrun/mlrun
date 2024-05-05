@@ -152,7 +152,9 @@ class SlackNotification(NotificationBase):
     def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
-        if url:
+
+        # Only show the URL if the run is not a function (serving or mlrun function)
+        if run.get("kind") not in ["serving", None] and url:
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")
@@ -169,7 +171,7 @@ class SlackNotification(NotificationBase):
             result = mlrun.utils.helpers.dict_to_str(
                 run["status"].get("results", {}), ", "
             )
-        return self._get_slack_row(result or "None")
+        return self._get_slack_row(result or state)
 
     @staticmethod
     def _get_slack_row(text: str) -> dict:

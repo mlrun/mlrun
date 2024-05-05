@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.utils
@@ -317,7 +318,7 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         running_runs_count,
-        mlrun.runtimes.constants.RunStates.running,
+        mlrun.common.runtimes.constants.RunStates.running,
     )
 
     # create completed runs for the project to make sure we're not mistakenly counting them
@@ -326,7 +327,7 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         2,
-        mlrun.runtimes.constants.RunStates.completed,
+        mlrun.common.runtimes.constants.RunStates.completed,
         two_days_ago,
     )
 
@@ -337,7 +338,7 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         runs_completed_recent_count,
-        mlrun.runtimes.constants.RunStates.completed,
+        mlrun.common.runtimes.constants.RunStates.completed,
         one_hour_ago,
     )
 
@@ -348,7 +349,7 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         recent_failed_runs_count,
-        mlrun.runtimes.constants.RunStates.error,
+        mlrun.common.runtimes.constants.RunStates.error,
         one_hour_ago,
     )
 
@@ -359,14 +360,18 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         recent_failed_runs_count,
-        mlrun.runtimes.constants.RunStates.aborted,
+        mlrun.common.runtimes.constants.RunStates.aborted,
         one_hour_ago,
     )
 
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
-        client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
+        client,
+        project_name,
+        3,
+        mlrun.common.runtimes.constants.RunStates.error,
+        two_days_ago,
     )
 
     # create schedules for the project
@@ -1706,7 +1711,15 @@ def _mock_pipelines(project_name):
     for status, count in status_count_map.items():
         for index in range(count):
             pipelines.append({"status": status, "project": project_name})
+
+    def list_pipelines_return_value(*args, **kwargs):
+        next_page_token = "some-token"
+        if kwargs["page_token"] == "":
+            return (None, next_page_token, pipelines[: len(pipelines) // 2])
+        elif kwargs["page_token"] == next_page_token:
+            return (None, None, pipelines[len(pipelines) // 2 :])
+
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
-        return_value=(None, None, pipelines)
+        side_effect=list_pipelines_return_value
     )
     return status_count_map[mlrun.run.RunStatuses.running]

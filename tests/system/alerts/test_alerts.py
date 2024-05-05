@@ -17,12 +17,12 @@ import time
 import typing
 
 import pytest
-import requests
 
 import mlrun
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
+import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.datastore import get_stream_pusher
 from mlrun.model_monitoring.helpers import get_stream_path
 from tests.system.base import TestMLRunSystem
@@ -48,7 +48,9 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
-        nuclio_function_url = self._deploy_notification_nuclio()
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with webhook notification
         alert_name = "failure_webhook"
@@ -81,7 +83,9 @@ class TestAlerts(TestMLRunSystem):
         """
 
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
-        nuclio_function_url = self._deploy_notification_nuclio()
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with two webhook notifications
         alert_name = "drift_webhook"
@@ -138,16 +142,6 @@ class TestAlerts(TestMLRunSystem):
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
-
-    def _deploy_notification_nuclio(self):
-        nuclio_function = self.project.set_function(
-            name="nuclio",
-            func="assets/notification_nuclio_function.py",
-            image="mlrun/mlrun" if self.image is None else self.image,
-            kind="nuclio",
-        )
-        nuclio_function.deploy()
-        return nuclio_function.spec.command
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
@@ -238,13 +232,7 @@ class TestAlerts(TestMLRunSystem):
 
     @staticmethod
     def _validate_notifications_on_nuclio(nuclio_function_url, expected_notifications):
-        response = requests.post(nuclio_function_url, json={"operation": "list"})
-        response_data = json.loads(response.text)
-
-        # Extract notification data from the response
-        notifications = response_data["data_list"]
-
-        for expected_notification in expected_notifications:
-            assert expected_notification in notifications
-
-        requests.post(nuclio_function_url, json={"operation": "reset"})
+        for notification in notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+            nuclio_function_url
+        ):
+            assert notification in expected_notifications

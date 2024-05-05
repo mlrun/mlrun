@@ -201,8 +201,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     @pytest.mark.parametrize(
         "run_state",
         [
-            mlrun.runtimes.constants.RunStates.running,
-            mlrun.runtimes.constants.RunStates.pending,
+            mlrun.common.runtimes.constants.RunStates.running,
+            mlrun.common.runtimes.constants.RunStates.pending,
         ],
     )
     async def test_delete_run_failure(self, db: sqlalchemy.orm.Session, run_state):
@@ -257,5 +257,5 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         assert "BOOM" == str(exc.value)
 
         run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
-        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error
+        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"

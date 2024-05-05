@@ -745,7 +745,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             response = self.client.kv.scan(container=container, table_path=endpoint_id)
         except v3io.dataplane.response.HttpResponseError as err:
             if err.status_code == HTTPStatus.NOT_FOUND:
-                logger.info(
+                logger.warning(
                     "Attempt getting metrics and results - no data. Check the "
                     "project name, endpoint, or wait for the applications to start.",
                     container=container,

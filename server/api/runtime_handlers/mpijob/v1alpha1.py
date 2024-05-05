@@ -20,7 +20,7 @@ from kubernetes import client
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun import mlconf
-from mlrun.runtimes.constants import MPIJobV1Alpha1States, RunStates
+from mlrun.common.runtimes.constants import MPIJobV1Alpha1States, RunStates
 from mlrun.runtimes.mpijob import AbstractMPIJobRuntime, MpiRuntimeV1Alpha1
 from mlrun.utils import update_in
 from server.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler

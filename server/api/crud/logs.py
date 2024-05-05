@@ -26,7 +26,7 @@ import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.utils.clients.log_collector as log_collector
 import server.api.utils.singletons.k8s
-from mlrun.runtimes.constants import PodPhases
+from mlrun.common.runtimes.constants import PodPhases
 from mlrun.utils import logger
 from server.api.constants import LogSources
 from server.api.utils.singletons.db import get_db

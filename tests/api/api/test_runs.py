@@ -24,9 +24,9 @@ import fastapi
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.runtimes.constants
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
@@ -61,7 +61,7 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-1",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
     run_completed = {
@@ -69,7 +69,7 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-2",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.completed},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.completed},
     }
     run_completed_uid = "completed-uid"
     run_aborted = {
@@ -77,7 +77,7 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-3",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.aborted},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.aborted},
     }
     run_aborted_uid = "aborted-uid"
     run_dask = {
@@ -85,7 +85,7 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-4",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.dask},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_dask_uid = "dask-uid"
     for run, run_uid in [
@@ -98,7 +98,7 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
 
     runtime_resources = server.api.crud.RuntimeResources()
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
-    abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}
+    abort_body = {"status.state": mlrun.common.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
     response = client.patch(f"run/{project}/{run_completed_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.CONFLICT.value
@@ -121,7 +121,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-1",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
     run_completed = {
@@ -129,7 +129,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-2",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.completed},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.completed},
     }
     run_completed_uid = "completed-uid"
     run_aborted = {
@@ -137,7 +137,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-3",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.aborted},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.aborted},
     }
     run_aborted_uid = "aborted-uid"
     run_dask = {
@@ -145,7 +145,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
             "name": "run-name-4",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.dask},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_dask_uid = "dask-uid"
     for run, run_uid in [
@@ -157,7 +157,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         server.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
     abort_body = {
-        "status.state": mlrun.runtimes.constants.RunStates.aborted,
+        "status.state": mlrun.common.runtimes.constants.RunStates.aborted,
         "status.error": "Run was aborted by user",
     }
     runtime_resources = server.api.crud.RuntimeResources()
@@ -224,7 +224,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     runtime_resources.delete_runtime_resources.assert_called_once()
 
     run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-    assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+    assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
     assert run["status"]["error"] == "Run was aborted by user"
 
 
@@ -732,7 +732,7 @@ def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
         "status": {
-            "state": mlrun.runtimes.constants.RunStates.aborting,
+            "state": mlrun.common.runtimes.constants.RunStates.aborting,
             "abort_task_id": background_task_name,
         },
     }
@@ -773,7 +773,7 @@ def test_abort_aborted_run_with_background_task(
             "name": "run-name-1",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
     server.api.crud.Runs().store_run(
@@ -796,7 +796,9 @@ def test_abort_aborted_run_with_background_task(
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
         # abort again should return the same background task
@@ -823,7 +825,7 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
             "name": "run-name-1",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
     server.api.crud.Runs().store_run(
@@ -847,7 +849,9 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
         # abort again should create a new failed background task
@@ -878,7 +882,7 @@ def test_abort_run_background_task_not_found(db: Session, client: TestClient) ->
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
         "status": {
-            "state": mlrun.runtimes.constants.RunStates.aborting,
+            "state": mlrun.common.runtimes.constants.RunStates.aborting,
             # add a background task id that doesn't exist
             "abort_task_id": "background-task-name",
         },
@@ -904,7 +908,9 @@ def test_abort_run_background_task_not_found(db: Session, client: TestClient) ->
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
-        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
 
@@ -915,7 +921,7 @@ def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
             "name": "run-name-1",
             "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
         },
-        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+        "status": {"state": mlrun.common.runtimes.constants.RunStates.running},
     }
     run_in_progress_uid = "in-progress-uid"
     server.api.crud.Runs().store_run(

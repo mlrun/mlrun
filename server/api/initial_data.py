@@ -268,7 +268,7 @@ def _align_runs_table(
 
         # State field used to have a bug causing only the body to be updated, align the column
         run.state = run_dict.get("status", {}).get(
-            "state", mlrun.runtimes.constants.RunStates.created
+            "state", mlrun.common.runtimes.constants.RunStates.created
         )
         # in case no name was in the body, we defaulted to created, let's make sure the body will have it as well
         run_dict.setdefault("status", {})["state"] = run.state

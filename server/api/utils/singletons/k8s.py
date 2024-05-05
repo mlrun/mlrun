@@ -264,7 +264,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace = self.resolve_namespace(namespace)
         mpijob_crd_version = server.api.runtime_handlers.resolve_mpijob_crd_version()
         mpijob_role_label = (
-            mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+            mlrun.common.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version
             )
         )

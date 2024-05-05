@@ -24,7 +24,6 @@ from .manager import (
     ArtifactProducer,
     artifact_types,
     dict_to_artifact,
-    legacy_artifact_types,
 )
 from .model import ModelArtifact, get_model, update_model
-from .plots import BokehArtifact, ChartArtifact, PlotArtifact, PlotlyArtifact
+from .plots import PlotArtifact, PlotlyArtifact

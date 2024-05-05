@@ -457,6 +457,17 @@ class APIGateway(ModelObj):
             project=self.spec.project, functions=functions, canary=canary
         )
 
+    def with_ports(self, ports: list[int]):
+        """
+        Set ports for the API gateway
+
+        :param ports: The ports of the API gateway, as a list of integers that correspond to the functions in the
+            functions list. for instance: [8050] or [8050, 8081]
+        """
+        self.spec.validate(
+            project=self.spec.project, functions=self.spec.functions, ports=ports
+        )
+
     @classmethod
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)

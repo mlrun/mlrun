@@ -701,7 +701,14 @@ endif
 ifndef MLRUN_RELEASE_BRANCH
 	$(error MLRUN_RELEASE_BRANCH is undefined)
 endif
-	python ./automation/release_notes/generate.py run $(MLRUN_VERSION) $(MLRUN_OLD_VERSION) $(MLRUN_RELEASE_BRANCH) $(MLRUN_RAISE_ON_ERROR) $(MLRUN_RELEASE_NOTES_OUTPUT_FILE) $(MLRUN_SKIP_CLONE)
+	python ./automation/release_notes/generate.py \
+		run \
+		--release $(MLRUN_VERSION) \
+		--previous-release $(MLRUN_OLD_VERSION) \
+		--release-branch $(MLRUN_RELEASE_BRANCH) \
+		--raise-on-failed-parsing $(MLRUN_RAISE_ON_ERROR) \
+		--tmp-file-path $(MLRUN_RELEASE_NOTES_OUTPUT_FILE) \
+		--skip-clone $(MLRUN_SKIP_CLONE)
 
 
 .PHONY: pull-cache

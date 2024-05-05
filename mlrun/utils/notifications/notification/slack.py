@@ -72,12 +72,7 @@ class SlackNotification(NotificationBase):
         event_data: mlrun.common.schemas.Event = None,
     ) -> dict:
         data = {
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {"type": "plain_text", "text": f"[{severity}] {message}"},
-                },
-            ]
+            "blocks": self._generate_slack_header_blocks(severity, message),
         }
         if self.name:
             data["blocks"].append(
@@ -106,6 +101,32 @@ class SlackNotification(NotificationBase):
 
         return data
 
+    def _generate_slack_header_blocks(self, severity: str, message: str):
+        header_text = block_text = f"[{severity}] {message}"
+        section_text = None
+
+        # Slack doesn't allow headers to be longer than 150 characters
+        # If there's a comma in the message, split the message at the comma
+        # Otherwise, split the message at 150 characters
+        if len(block_text) > 150:
+            if ", " in block_text and block_text.index(", ") < 149:
+                header_text = block_text.split(",")[0]
+                section_text = block_text[len(header_text) + 2 :]
+            else:
+                header_text = block_text[:150]
+                section_text = block_text[150:]
+        blocks = [
+            {"type": "header", "text": {"type": "plain_text", "text": header_text}}
+        ]
+        if section_text:
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": self._get_slack_row(section_text),
+                }
+            )
+        return blocks
+
     def _get_alert_fields(
         self,
         alert: mlrun.common.schemas.AlertConfig,
@@ -131,7 +152,9 @@ class SlackNotification(NotificationBase):
     def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
-        if url:
+
+        # Only show the URL if the run is not a function (serving or mlrun function)
+        if run.get("kind") not in ["serving", None] and url:
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")
@@ -148,7 +171,7 @@ class SlackNotification(NotificationBase):
             result = mlrun.utils.helpers.dict_to_str(
                 run["status"].get("results", {}), ", "
             )
-        return self._get_slack_row(result or "None")
+        return self._get_slack_row(result or state)
 
     @staticmethod
     def _get_slack_row(text: str) -> dict:

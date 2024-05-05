@@ -13,7 +13,7 @@
 # limitations under the License.
 from deprecated import deprecated
 
-from mlrun.runtimes.constants import MPIJobCRDVersions
+from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 
 

@@ -110,6 +110,7 @@ class ProjectSummary(pydantic.BaseModel):
     files_count: int
     feature_sets_count: int
     models_count: int
+    runs_completed_recent_count: int
     runs_failed_recent_count: int
     runs_running_count: int
     schedules_count: int

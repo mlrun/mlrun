@@ -239,12 +239,12 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return endpoint_list
 
-    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
+    def delete_model_endpoints_resources(self):
         """
-        Delete all model endpoints resources in both KV and the time series DB.
+        Delete all model endpoints resources in V3IO KV.
+        """
 
-        :param endpoints: A list of model endpoints flattened dictionaries.
-        """
+        endpoints = self.list_model_endpoints()
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
@@ -281,82 +281,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 key=record,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
-
-        # Cleanup TSDB
-
-        # Generate the required tsdb paths
-        tsdb_path, filtered_path = self._generate_tsdb_paths()
-
-        # Delete time series DB resources
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project,
-            access_key=self.access_key,
-            container=self.container,
-        )
-        tsdb_connector.delete_tsdb_resources()
-
-        if mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type == "v3io-tsdb":
-            # Final cleanup of tsdb path
-            tsdb_path.replace("://u", ":///u")
-            store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
-            store.rm(tsdb_path, recursive=True)
-
-    def get_endpoint_real_time_metrics(
-        self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
-        access_key: str = None,
-    ) -> dict[str, list[tuple[str, float]]]:
-        """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
-                                 provided, the access key will be retrieved from the environment variables.
-
-        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
-                 includes timestamps and the values.
-        """
-
-        # Getting the path for the time series DB
-        events_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=self.project,
-                kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS,
-            )
-        )
-        (
-            _,
-            container,
-            events_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            events_path
-        )
-
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project,
-            access_key=access_key,
-            container=container,
-        )
-
-        return tsdb_connector.get_model_endpoint_real_time_metrics(
-            endpoint_id=endpoint_id,
-            metrics=metrics,
-            start=start,
-            end=end,
-        )
 
     def write_application_result(self, event: dict[str, typing.Any]):
         """

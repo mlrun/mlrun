@@ -34,7 +34,7 @@ _TSDB_RATE = "1/s"
 
 class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
     """
-    Handles the TSDB operations when the TSDB connector is from type V3IO. To manage these operations we use V3IO Frames
+    Handles the TSDB operations when the TSDB connector is of type V3IO. To manage these operations we use V3IO Frames
     Client that provides API for executing commands on the V3IO TSDB table.
     """
 
@@ -132,10 +132,10 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         In that case, we generate 3 different key  metric dictionaries:
         - base_metrics (average latency and predictions over time)
         - endpoint_features (Prediction and feature names and values)
-        - custom_metrics (user-defined metrics
+        - custom_metrics (user-defined metrics)
         """
 
-        # Step 12 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
+        # Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
         # stats and details about the events
 
         def apply_process_before_tsdb():
@@ -147,7 +147,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
 
         apply_process_before_tsdb()
 
-        # Steps 13-19: - Unpacked keys from each dictionary and write to TSDB target
+        # Unpacked keys from each dictionary and write to TSDB target
         def apply_filter_and_unpacked_keys(name, keys):
             graph.add_step(
                 "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.FilterAndUnpackKeys",
@@ -177,21 +177,21 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                 key=mm_constants.EventFieldType.ENDPOINT_ID,
             )
 
-        # Steps 13-14 - unpacked base_metrics dictionary
+        # unpacked base_metrics dictionary
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys1",
             keys=mm_constants.EventKeyMetrics.BASE_METRICS,
         )
         apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
 
-        # Steps 15-16 - unpacked endpoint_features dictionary
+        # unpacked endpoint_features dictionary
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys2",
             keys=mm_constants.EventKeyMetrics.ENDPOINT_FEATURES,
         )
         apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
 
-        # Steps 17-19 - unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
+        # unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys3",
             keys=mm_constants.EventKeyMetrics.CUSTOM_METRICS,
@@ -208,7 +208,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
-    def write_application_event(self, event: dict):
+    def write_application_result(self, event: dict):
         """
         Write a single application result event to TSDB.
         """
@@ -242,6 +242,10 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                 event=event,
             )
 
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Failed to write application result to TSDB: {err}"
+            )
+
     def delete_tsdb_resources(self, table: str = None):
         if table:
             # Delete a specific table
@@ -261,8 +265,13 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                         f"Failed to delete TSDB table '{table}'",
                         err=mlrun.errors.err_to_str(e),
                     )
+        # Final cleanup of tsdb path
+        tsdb_path = self._get_v3io_source_directory()
+        tsdb_path.replace("://u", ":///u")
+        store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
+        store.rm(tsdb_path, recursive=True)
 
-    def get_endpoint_real_time_metrics(
+    def get_model_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
         metrics: list[str],
@@ -276,12 +285,12 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         :param metrics:          A list of real-time metrics to return for the model endpoint.
         :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
+                                 `'s'` = seconds), or 0 for the earliest time.
         :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days, and
+                                 `'s'` = seconds), or 0 for the earliest time.
         :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
                  includes timestamps and the values.
         """
@@ -335,13 +344,14 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                                  divided by ' AND '.
         :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
+                                 `'s'` = seconds), or 0 for the earliest time.
         :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
+                                 `'s'` = seconds), or 0 for the earliest time.
         :return: DataFrame with the provided attributes from the data collection.
+        :raise:  MLRunInvalidArgumentError if the provided table wasn't found.
         """
         if table not in self.tables:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -356,6 +366,27 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
             start=start,
             end=end,
         )
+
+    def _get_v3io_source_directory(self) -> str:
+        """
+        Get the V3IO source directory for the current project. Usually the source directory will
+        be under 'v3io:///users/pipelines/<project>'
+
+        :return: The V3IO source directory for the current project.
+        """
+        events_table_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mm_constants.FileTargetKind.EVENTS,
+        )
+
+        # Generate the main directory with the V3IO resources
+        source_directory = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(
+                events_table_full_path, self.project
+            )
+        )
+
+        return source_directory
 
     @staticmethod
     def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:

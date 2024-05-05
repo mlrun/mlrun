@@ -22,8 +22,18 @@ import pandas as pd
 class TSDBConnector(ABC):
     def __init__(self, project: str):
         """
-        Initialize a new TSDB connector.
+        Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.
+        At the moment we have 3 different types of monitoring data:
+        - real time performance metrics: real time performance metrics that are being calculated by the model monitoring stream pod.
+        Among these metrics are the base metrics (average latency and predictions over time), endpoint features (data samples),
+        and custom metrics (user-defined metrics).
+        - app_results: a detailed results that include status, kind, extra data, etc. These results are being calculated
+        through the monitoring applications and stored in the TSDB using the model monitoring writer.
+        - metrics: a basic key value that represents a numeric metric. Similar to the app_results, these metrics are being
+        calculated through the monitoring applications and stored in the TSDB using the model monitoring writer.
+
         :param project: the name of the project.
+
         """
         self.project = project
 
@@ -39,9 +49,11 @@ class TSDBConnector(ABC):
         """
         pass
 
-    def write_application_event(self, event: dict):
+    def write_application_result(self, event: dict):
         """
         Write a single application result event to TSDB.
+
+        :raise mlrun.errors.MLRunInvalidArgumentError: If an error occurred while writing the application result.
         """
         pass
 
@@ -49,6 +61,7 @@ class TSDBConnector(ABC):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
         """
+
         pass
 
     def get_model_endpoint_real_time_metrics(
@@ -63,14 +76,8 @@ class TSDBConnector(ABC):
         `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
         :param endpoint_id:      The unique id of the model endpoint.
         :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
+        :param start:            The start time of the metrics.
+        :param end:              The end time of the metrics.
         :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
                  includes timestamps and the values.
         """
@@ -86,13 +93,15 @@ class TSDBConnector(ABC):
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
-        :param table:            Path to the collection to query.
+        :param table:            Table name, e.g. 'metrics', 'app_results'.
         :param columns:          Columns to include in the result.
-        :param filter_query:     Filter expression.
+        :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
+                                 connector type.
         :param start:            The start time of the metrics.
         :param end:              The end time of the metrics.
 
         :return: DataFrame with the provided attributes from the data collection.
+        :raise:  MLRunInvalidArgumentError if the provided table wasn't found.
         """
         pass
 

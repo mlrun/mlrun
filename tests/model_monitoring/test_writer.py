@@ -13,8 +13,7 @@
 # limitations under the License.
 import datetime
 import os
-from functools import partial
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 import v3io_frames.client
@@ -122,10 +121,12 @@ class TestTSDB:
 
     @staticmethod
     @pytest.fixture
-    def writer() -> ModelMonitoringWriter:
+    def writer(
+        tsdb_connector: tsdb_connector,
+    ) -> ModelMonitoringWriter:
         writer = Mock(spec=ModelMonitoringWriter)
-        writer._update_tsdb = partial(ModelMonitoringWriter._update_tsdb, writer)
         writer.project = TEST_PROJECT
+        writer._tsdb_connector = tsdb_connector
         return writer
 
     @staticmethod
@@ -136,21 +137,16 @@ class TestTSDB:
     def test_tsdb_writer(
         event: _AppResultEvent,
         writer: ModelMonitoringWriter,
-        tsdb_connector: tsdb_connector,
     ) -> None:
-        with patch(
-            "mlrun.model_monitoring.get_tsdb_connector", return_value=tsdb_connector
-        ):
-            writer._update_tsdb(event)
+        writer._tsdb_connector.write_application_result(event=event.copy())
+        record_from_tsdb = writer._tsdb_connector.get_records(
+            table=mm_constants.V3IOTSDBTables.APP_RESULTS,
+            filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
+            start="now-1d",
+            end="now+1d",
+        )
 
-            # Compare stored TSDB record and provided event
-            record_from_tsdb = tsdb_connector.get_records(
-                table=mm_constants.V3IOTSDBTables.APP_RESULTS,
-                filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
-                start="now-1d",
-                end="now+1d",
-            )
-            actual_columns = list(record_from_tsdb.columns)
+        actual_columns = list(record_from_tsdb.columns)
 
         assert (
             WriterEvent.RESULT_EXTRA_DATA not in actual_columns
@@ -164,10 +160,10 @@ class TestTSDB:
         assert sorted(expected_columns) == sorted(actual_columns)
 
         # Cleanup the resources and verify that the data was deleted
-        tsdb_connector.delete_tsdb_resources()
+        writer._tsdb_connector.delete_tsdb_resources()
 
         with pytest.raises(v3io_frames.errors.ReadError):
-            tsdb_connector.get_records(
+            writer._tsdb_connector.get_records(
                 table=mm_constants.V3IOTSDBTables.APP_RESULTS,
                 filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
                 start="now-1d",

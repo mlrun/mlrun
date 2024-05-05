@@ -62,11 +62,9 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
+    def delete_model_endpoints_resources(self):
         """
         Delete all model endpoints resources.
-
-        :param endpoints: A list of model endpoints flattened dictionaries.
 
         """
         pass
@@ -109,38 +107,6 @@ class StoreBase(ABC):
 
         :return: A list of model endpoint dictionaries.
         """
-        pass
-
-    @abstractmethod
-    def get_endpoint_real_time_metrics(
-        self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
-        access_key: str = None,
-    ) -> dict[str, list[tuple[str, float]]]:
-        """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
-                                 provided, the access key will be retrieved from the environment variables.
-
-        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
-                 includes timestamps and the values.
-        """
-
         pass
 
     @abstractmethod

@@ -106,19 +106,12 @@ class ModelMonitoringWriter(StepToDict):
         )
         self._endpoints_records = {}
 
-    def _update_kv_db(self, event: _AppResultEvent) -> None:
-        event = _AppResultEvent(event.copy())
-        application_result_store = mlrun.model_monitoring.get_store_object(
+        self._app_result_store = mlrun.model_monitoring.get_store_object(
             project=self.project
         )
-        application_result_store.write_application_result(event=event)
-
-    def _update_tsdb(self, event: _AppResultEvent) -> None:
-        event = _AppResultEvent(event.copy())
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+        self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project,
         )
-        tsdb_connector.write_application_event(event=event)
 
     @staticmethod
     def _generate_event_on_drift(
@@ -170,8 +163,9 @@ class ModelMonitoringWriter(StepToDict):
     def do(self, event: _RawEvent) -> None:
         event = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
-        self._update_tsdb(event)
-        self._update_kv_db(event)
+
+        self._tsdb_connector.write_application_result(event=event.copy())
+        self._app_result_store.write_application_result(event=event.copy())
         _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
         if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:

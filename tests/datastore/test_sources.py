@@ -19,7 +19,7 @@ import pytest
 
 import mlrun.config
 from mlrun import new_function
-from mlrun.datastore import CSVSource, KafkaSource
+from mlrun.datastore import CSVSource, KafkaSource, ParquetSource
 
 
 def test_kafka_source_with_old_nuclio():
@@ -104,3 +104,22 @@ def test_timestamp_format_inference(rundb_mock):
         )
     )
     pd.testing.assert_frame_equal(result_df, expected_result_df)
+
+
+@pytest.mark.parametrize(
+    "pandas_filters, expected_result",
+    [
+        (
+            [("name", "in", ["Henry", "Isaac", "Jasmine"])],
+            "name in ('Henry', 'Isaac', 'Jasmine')",
+        ),
+        ([("age", ">", 30), ("name", "=", "Isaac")], "age > 30 AND name = 'Isaac'"),
+        ([("age", "in", {None, 31, 32})], "(age in (32, 31) OR age IS NULL)"),
+    ],
+)
+def test_get_spark_additional_filters(pandas_filters, expected_result):
+    parquet_source = ParquetSource(
+        name="parquet_source", path="/path/to/file", additional_filters=pandas_filters
+    )
+    spark_filters = parquet_source._get_spark_additional_filters()
+    assert spark_filters == expected_result

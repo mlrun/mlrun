@@ -110,16 +110,19 @@ def test_push_result_to_monitoring_writer_stream(
     with open(STREAM_PATH) as json_file:
         for i, line in enumerate(json_file):
             loaded_data = json.loads(line.strip())
+            result = results[2 - i].to_dict()
+            if isinstance(results[2 - i], ModelMonitoringApplicationResult):
+                event_kind = mm_constants.WriterEventKind.RESULT
+                result["current_stats"] = {}
+            else:
+                event_kind = mm_constants.WriterEventKind.METRIC
             assert loaded_data == {
                 "application_name": "test_data_drift_app",
                 "endpoint_id": "test_endpoint_id",
                 "start_infer_time": "2022-01-01 00:00:00.000000",
                 "end_infer_time": "2022-01-01 00:00:00.000000",
-                "current_stats": "{}",
-                "event_kind": "result"
-                if isinstance(results[2 - i], ModelMonitoringApplicationResult)
-                else "metric",
-                "data": json.dumps(results[2 - i].to_dict()),
+                "event_kind": event_kind,
+                "data": json.dumps(result),
             }
     with open(STREAM_PATH, "w") as json_file:
         json_file.truncate(0)

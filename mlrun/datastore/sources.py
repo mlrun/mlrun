@@ -428,7 +428,7 @@ class ParquetSource(BaseSourceDriver):
             else:
                 is_first = False
             col_name, op, value = filter_tuple
-            if isinstance(value, str):
+            if isinstance(value, (str, datetime)):
                 value = rf"'{value}'"
             if isinstance(value, (list, tuple, set, np.ndarray)) and (
                 "in" in op.lower()

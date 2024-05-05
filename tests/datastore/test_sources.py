@@ -13,9 +13,11 @@
 # limitations under the License.
 import pathlib
 import re
+from datetime import datetime
 
 import pandas as pd
 import pytest
+import pytz
 
 import mlrun.config
 from mlrun import new_function
@@ -115,6 +117,14 @@ def test_timestamp_format_inference(rundb_mock):
         ),
         ([("age", ">", 30), ("name", "=", "Isaac")], "age > 30 AND name = 'Isaac'"),
         ([("age", "in", {None, 31, 32})], "(age in (32, 31) OR age IS NULL)"),
+        (
+            [("license_date", ">", datetime(2022, 2, 1))],
+            "license_date > '2022-02-01 00:00:00'",
+        ),
+        (
+            [("license_date", ">", datetime(2022, 2, 1, tzinfo=pytz.UTC))],
+            "license_date > '2022-02-01 00:00:00+00:00'",
+        ),
     ],
 )
 def test_get_spark_additional_filters(pandas_filters, expected_result):

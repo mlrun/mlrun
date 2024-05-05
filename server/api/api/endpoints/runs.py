@@ -415,8 +415,8 @@ async def abort_run(
 
     current_run_state = run.get("status", {}).get("state")
     if current_run_state in [
-        mlrun.runtimes.constants.RunStates.aborting,
-        mlrun.runtimes.constants.RunStates.aborted,
+        mlrun.common.runtimes.constants.RunStates.aborting,
+        mlrun.common.runtimes.constants.RunStates.aborted,
     ]:
         background_task_id = run.get("status", {}).get("abort_task_id")
         if background_task_id:

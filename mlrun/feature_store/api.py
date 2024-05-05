@@ -113,6 +113,7 @@ def get_offline_features(
     order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    additional_filters: list = None,
 ):
     """retrieve offline feature vector results
 
@@ -175,6 +176,13 @@ def get_offline_features(
                                     By default, the filter executes on the timestamp_key of each feature set.
                                     Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
+    :param additional_filters: List of additional_filter conditions as tuples.
+                                Each tuple should be in the format (column_name, operator, value).
+                                Supported operators: "=", ">=", "<=", ">", "<".
+                                Example: [("Product", "=", "Computer")]
+                                For all supported filters, please see:
+                                https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
+
 
     """
     return _get_offline_features(
@@ -194,6 +202,7 @@ def get_offline_features(
         order_by,
         spark_service,
         timestamp_for_filtering,
+        additional_filters,
     )
 
 
@@ -214,6 +223,7 @@ def _get_offline_features(
     order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    additional_filters=None,
 ) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -252,6 +262,7 @@ def _get_offline_features(
             start_time=start_time,
             end_time=end_time,
             timestamp_for_filtering=timestamp_for_filtering,
+            additional_filters=additional_filters,
         )
 
     merger = merger_engine(feature_vector, **(engine_args or {}))
@@ -267,6 +278,7 @@ def _get_offline_features(
         update_stats=update_stats,
         query=query,
         order_by=order_by,
+        additional_filters=additional_filters,
     )
 
 

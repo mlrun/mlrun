@@ -706,6 +706,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "end_time": None,
                 "timestamp_for_filtering": "timestamp",
                 "engine_args": None,
+                "additional_filters": None,
             },
             "output_path": "v3io:///mypath",
             "function": "None/my-vector-merger@349f744e83e1a71d8b1faf4bbf3723dc0625daed",

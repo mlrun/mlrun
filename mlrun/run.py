@@ -1150,7 +1150,7 @@ def wait_for_runs_completion(
         running = []
         for run in runs:
             state = run.state()
-            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+            if state in mlrun.common.runtimes.constants.RunStates.terminal_states():
                 completed.append(run)
             else:
                 running.append(run)

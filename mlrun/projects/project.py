@@ -3678,9 +3678,7 @@ class MlrunProject(ModelObj):
         :returns: List of function objects.
         """
 
-        model_monitoring_labels_list = [
-            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-        ]
+        model_monitoring_labels_list = [str(mm_constants.ModelMonitoringAppLabel())]
         if labels:
             model_monitoring_labels_list += labels
         return self.list_functions(

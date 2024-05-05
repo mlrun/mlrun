@@ -502,6 +502,29 @@ def print_df(df):
         # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
         assert run.metadata.name == "asc-merger"
 
+    def test_function_with_place_holders_in_artifact_path(self):
+        code_path = str(
+            self.assets_path / "function_with_artifact_path_using_place_holders.py"
+        )
+
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-env-vars",
+            kind="job",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        function.set_env("SUB_PATH", "sub_path")
+        run = function.run(
+            params={"artifact_path": "v3io:///projects/{{project}}/{{SUB_PATH}}"}
+        )
+        assert run.status.results["results"].startswith(
+            f"v3io:///projects/{self.project_name}/sub_path"
+        )
+
     def test_function_with_builder_env(self):
         name = "test-build-env-vars"
         builder_env_key = "ARG1"

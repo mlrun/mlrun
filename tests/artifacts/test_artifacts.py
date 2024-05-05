@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os.path
 import os
+import os.path
 import pathlib
 import tempfile
 import typing
@@ -608,11 +608,11 @@ def test_artifact_with_additional_place_holders_in_artifact_path():
     os.environ["SUB_FOLDER"] = "my-sub-folder"
 
     artifact = project.log_artifact(
-        "res", body="123", artifact_path=artifact_path,
+        "res",
+        body="123",
+        artifact_path=artifact_path,
     )
-
     assert artifact.spec.target_path == f"{results_dir}/my-folder/my-sub-folder/res"
-    print(artifact.spec.target_path, "!!!!!!!")
 
 
 def test_producer_in_exported_artifact():

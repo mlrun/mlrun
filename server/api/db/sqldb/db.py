@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -2310,7 +2311,9 @@ class SQLDB(DBInterface):
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
             .filter(
-                Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states())
+                Run.state.in_(
+                    mlrun.common.runtimes.constants.RunStates.non_terminal_states()
+                )
             )
             .group_by(Run.project)
             .all()
@@ -2325,8 +2328,8 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.error,
-                        mlrun.runtimes.constants.RunStates.aborted,
+                        mlrun.common.runtimes.constants.RunStates.error,
+                        mlrun.common.runtimes.constants.RunStates.aborted,
                     ]
                 )
             )
@@ -2343,7 +2346,7 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.completed,
+                        mlrun.common.runtimes.constants.RunStates.completed,
                     ]
                 )
             )

@@ -37,6 +37,7 @@ from server.api.api.endpoints import (
     logs,
     model_endpoints,
     model_monitoring,
+    jobs,
     nuclio,
     operations,
     pipelines,
@@ -134,6 +135,7 @@ api_router.include_router(
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(model_monitoring.router, tags=["model-monitoring"])
+api_router.include_router(jobs.router, tags=["jobs"])
 api_router.include_router(
     hub.router,
     tags=["hub"],

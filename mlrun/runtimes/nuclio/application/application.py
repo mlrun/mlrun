@@ -178,6 +178,14 @@ class ApplicationRuntime(RemoteRuntime):
     def status(self, status):
         self._status = self._verify_dict(status, "status", ApplicationStatus)
 
+    @property
+    def api_gateway(self):
+        return self.status.api_gateway
+
+    @api_gateway.setter
+    def api_gateway(self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway):
+        self.status.api_gateway = api_gateway
+
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 

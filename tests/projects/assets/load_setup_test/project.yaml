@@ -21,5 +21,7 @@ spec:
     p1: xyz
   artifacts:
   - kind: ''
-    target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv
-    key: data
+    metadata:
+      key: data
+    spec:
+      target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv

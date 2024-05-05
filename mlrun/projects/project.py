@@ -61,7 +61,6 @@ from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
-    is_legacy_artifact,
     is_relative_path,
     is_yaml_path,
     logger,
@@ -989,13 +988,9 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                # Support legacy artifacts
-                if is_legacy_artifact(artifact) or _is_imported_artifact(artifact):
-                    key = artifact.get("key")
-                else:
-                    key = artifact.get("metadata").get("key", "")
+                key = artifact.get("metadata", {}).get("key", "")
                 if not key:
-                    raise ValueError('artifacts "key" must be specified')
+                    raise ValueError('artifacts "metadata.key" must be specified')
             else:
                 key = artifact.key
                 artifact = artifact.to_dict()
@@ -3348,7 +3343,6 @@ class MlrunProject(ModelObj):
         image: str = None,
         set_as_default: bool = True,
         with_mlrun: bool = None,
-        skip_deployed: bool = False,
         base_image: str = None,
         commands: list = None,
         secret_name: str = None,
@@ -3369,7 +3363,6 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it) defaults to
                                 mlrun.mlconf.default_base_image
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
@@ -3392,14 +3385,6 @@ class MlrunProject(ModelObj):
             logger.info(
                 "Base image not specified, using default base image",
                 base_image=base_image,
-            )
-
-        if skip_deployed:
-            warnings.warn(
-                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
-                "This parameter is ignored.",
-                # TODO: remove in 1.7.0
-                FutureWarning,
             )
 
         if not overwrite_build_params:

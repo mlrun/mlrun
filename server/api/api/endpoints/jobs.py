@@ -43,9 +43,13 @@ async def create_model_monitoring_controller(
     base_period: int = 10,
 ):
     """
-    Submit model monitoring application controller job along with deploying the model monitoring writer function.
-    While the main goal of the controller job is to handle the monitoring processing and he monitoring application results to the
-    databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+    Deploy model monitoring application controller, writer and stream functions.
+    While the main goal of the controller function is to handle the monitoring processing and triggering
+    applications, the goal of the model monitoring writer function is to write all the monitoring
+    application results to the databases.
+    And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+    is detected. It processes the new events into statistics that are then written to statistics databases.
+
     :param project:                  Project name.
     :param auth_info:                The auth info of the request.
     :param db_session:               A session that manages the current dialog with the database.

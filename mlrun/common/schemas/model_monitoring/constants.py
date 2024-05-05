@@ -303,6 +303,9 @@ class ModelMonitoringAppLabel:
     KEY = "mlrun__type"
     VAL = "mlrun__model-monitoring-application"
 
+    def __str__(self) -> str:
+        return f"{self.KEY}={self.VAL}"
+
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"

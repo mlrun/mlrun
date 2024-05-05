@@ -48,10 +48,11 @@ import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.serving
 import mlrun.utils.regex
+from mlrun.alerts.alert import AlertConfig
+from mlrun.common.schemas.alert import AlertTemplate
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 
-from ..alerts.alert import AlertConfig
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
@@ -3876,7 +3877,9 @@ class MlrunProject(ModelObj):
 
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
-    def store_alert_config(self, alert_data: AlertConfig, alert_name=None):
+    def store_alert_config(
+        self, alert_data: AlertConfig, alert_name=None
+    ) -> AlertConfig:
         """
         Create/modify an alert.
         :param alert_data: The data of the alert.
@@ -3886,9 +3889,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
-        return db.store_alert_config(
-            alert_name, alert_data.to_dict(), self.metadata.name
-        )
+        return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """
@@ -3899,7 +3900,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_config(alert_name, self.metadata.name)
 
-    def list_alerts_configs(self):
+    def list_alerts_configs(self) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
         :return: All the alerts objects of the project.
@@ -3945,7 +3946,7 @@ class MlrunProject(ModelObj):
             alert_name = alert_data.name
         db.reset_alert_config(alert_name, self.metadata.name)
 
-    def get_alert_template(self, template_name: str):
+    def get_alert_template(self, template_name: str) -> AlertTemplate:
         """
         Retrieve a specific alert template.
         :param template_name: The name of the template to retrieve.
@@ -3954,10 +3955,10 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_template(template_name)
 
-    def list_alert_templates(self):
+    def list_alert_templates(self) -> list[AlertTemplate]:
         """
         Retrieve list of all alert templates.
-        :return: All the alert templates objects in the database.
+        :return: All the alert template objects in the database.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_alert_templates()

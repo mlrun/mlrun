@@ -301,7 +301,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "alert_entity_kind",
                 "param_value": "endpoint",
-                "exception": mlrun.errors.MLRunInvalidArgumentError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid entity kind",
             },
             {
@@ -313,7 +313,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "severity",
                 "param_value": "critical",
-                "exception": mlrun.errors.MLRunInvalidArgumentError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid severity",
             },
             {
@@ -325,19 +325,19 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "reset_policy",
                 "param_value": "scheduled",
-                "exception": mlrun.errors.MLRunInvalidArgumentError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid reset policy",
             },
             {
                 "param_name": "notifications",
                 "param_value": invalid_notification,
-                "exception": mlrun.errors.MLRunInvalidArgumentError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid notification kind",
             },
             {
                 "param_name": "notifications",
                 "param_value": duplicated_names_notifications,
-                "exception": mlrun.errors.MLRunBadRequestError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with two notifications with the same name",
             },
         ]
@@ -432,7 +432,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _modify_alert_test(self, project_name, alert1, alert_name, new_event_name):
         # modify alert with invalid data
         invalid_event_name = "not_permitted_event"
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        with pytest.raises(mlrun.errors.MLRunHTTPError):
             self._modify_alert(
                 project_name,
                 alert_name,

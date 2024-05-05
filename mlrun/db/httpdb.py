@@ -27,7 +27,6 @@ from typing import Optional, Union
 from urllib.parse import urlparse
 
 import kfp
-import pydantic.error_wrappers
 import requests
 import semver
 
@@ -39,10 +38,10 @@ import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
+from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
-from ..alerts.alert import AlertConfig
 from ..artifacts import Artifact
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
@@ -3947,7 +3946,7 @@ class HTTPRunDB(RunDBInterface):
         alert_name: str,
         alert_data: Union[dict, AlertConfig],
         project="",
-    ):
+    ) -> AlertConfig:
         """
         Create/modify an alert.
         :param alert_name: The name of the alert.
@@ -3960,21 +3959,11 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"put alert {project}/alerts/{alert_name}"
         if isinstance(alert_data, AlertConfig):
             alert_data = alert_data.to_dict()
-        self._validate_alert(alert_data)
         body = _as_json(alert_data)
         response = self.api_call("PUT", endpoint_path, error_message, body=body)
         return AlertConfig(**response.json())
 
-    @staticmethod
-    def _validate_alert(data):
-        try:
-            mlrun.common.schemas.AlertConfig(**data)
-        except pydantic.error_wrappers.ValidationError as exc:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid alert object"
-            ) from exc
-
-    def get_alert_config(self, alert_name: str, project=""):
+    def get_alert_config(self, alert_name: str, project="") -> AlertConfig:
         """
         Retrieve an alert.
         :param alert_name: The name of the alert to retrieve.
@@ -3987,7 +3976,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return AlertConfig(**response.json())
 
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(self, project="") -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
         :param project: The project name.
@@ -4024,7 +4013,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"post alert {project}/alerts/{alert_name}/reset"
         self.api_call("POST", endpoint_path, error_message)
 
-    def get_alert_template(self, template_name: str):
+    def get_alert_template(
+        self, template_name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
         """
         Retrieve a specific alert template.
         :param template_name: The name of the template to retrieve.
@@ -4035,10 +4026,10 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.AlertTemplate(**response.json())
 
-    def list_alert_templates(self):
+    def list_alert_templates(self) -> list[mlrun.common.schemas.AlertTemplate]:
         """
         Retrieve list of all alert templates.
-        :return: All the alert templates objects in the database.
+        :return: All the alert template objects in the database.
         """
         endpoint_path = "alert-templates"
         error_message = "get alert templates"

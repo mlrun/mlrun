@@ -21,7 +21,9 @@ import requests
 
 import mlrun
 import mlrun.errors
+from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
+from mlrun.platforms.iguazio import min_iguazio_versions
 
 
 def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
@@ -227,3 +229,23 @@ def test_is_iguazio_session_cookie():
         is True
     )
     assert mlrun.platforms.is_iguazio_session_cookie("dummy") is False
+
+
+def test_min_iguazio_version():
+    mlconf.igz_version = "3.5.4"
+
+    for case in [
+        ["3.5.5"],
+        ["3.6.0"],
+        ["3.5.5-b25.20231224135202"],
+        ["4.0.0"],
+        ["3.2.0", "3.6.0"],
+    ]:
+        print(f"Testing case: {case}")
+
+        @min_iguazio_versions(*case)
+        def fail():
+            pytest.fail("Should not enter this function")
+
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            fail()

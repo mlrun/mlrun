@@ -24,6 +24,7 @@ import mlrun
 import mlrun.common.schemas
 
 from ...model import ModelObj
+from ...platforms.iguazio import min_iguazio_versions
 from ..utils import logger
 from .function import RemoteRuntime, get_fullname, min_nuclio_versions
 from .serving import ServingRuntime
@@ -433,6 +434,7 @@ class APIGateway(ModelObj):
         """
         self.spec.authentication = BasicAuth(username=username, password=password)
 
+    @min_iguazio_versions("3.5.5")
     def with_access_key_auth(self):
         """
         Set access key authentication for the API gateway.

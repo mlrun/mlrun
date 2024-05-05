@@ -37,6 +37,7 @@ from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
 from mlrun.utils import (
+    is_legacy_artifact,
     is_link_artifact,
     logger,
 )
@@ -554,6 +555,13 @@ def _migrate_artifacts_batch(
 
         artifact_dict = artifact.struct
 
+        if is_legacy_artifact(artifact_dict):
+            # convert the legacy artifact to the new format, by setting a metadata field and spec field
+            # and copying the old fields to the spec
+            artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact_dict
+            ).to_dict()
+
         # if it is a link artifact, keep its id. we will use it later to update the best iteration artifacts
         if is_link_artifact(artifact_dict):
             link_artifact_ids.append(artifact.id)
@@ -723,6 +731,13 @@ def _mark_best_iteration_artifacts(
     # get all the artifacts that are attached to the link artifacts
     for link_artifact in link_artifacts:
         link_artifact_dict = link_artifact.struct
+        if is_legacy_artifact(link_artifact_dict):
+            # convert the legacy artifact to the new format, so we can use the same logic
+            link_artifact_dict = (
+                mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                    link_artifact_dict
+                ).to_dict()
+            )
 
         # get the artifacts attached to the link artifact
         # if the link key was set explicitly, we should use it to find the artifacts, otherwise use the artifact's key

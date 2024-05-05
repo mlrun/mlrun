@@ -48,6 +48,7 @@ from mlrun.utils import (
     generate_artifact_uri,
     generate_object_uri,
     get_in,
+    is_legacy_artifact,
     logger,
     update_in,
     validate_artifact_key_name,
@@ -1353,9 +1354,14 @@ class SQLDB(DBInterface):
 
         project = project or config.default_project
         artifact = deepcopy(artifact)
-        updated, key, labels = self._process_artifact_v1_dict_to_store(
-            artifact, key, iter
-        )
+        if is_legacy_artifact(artifact):
+            updated, key, labels = self._process_legacy_artifact_v1_dict_to_store(
+                artifact, key, iter
+            )
+        else:
+            updated, key, labels = self._process_artifact_v1_dict_to_store(
+                artifact, key, iter
+            )
         existed = True
         art = _get_artifact(uid, project, key)
         if not art:

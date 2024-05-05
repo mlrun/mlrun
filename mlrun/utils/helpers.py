@@ -119,6 +119,14 @@ def get_artifact_target(item: dict, project=None):
     return item["spec"].get("target_path")
 
 
+# TODO: left for migrations testing purposes. Remove in 1.8.0.
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")
+
+
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 

@@ -238,6 +238,7 @@ class ApplicationRuntime(RemoteRuntime):
         is_kfp=False,
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
+        skip_access_key_auth: bool = False,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -279,7 +280,7 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env,
         )
 
-        self.create_api_gateway()
+        self.create_api_gateway(skip_access_key_auth=skip_access_key_auth)
 
     def with_source_archive(
         self, source, workdir=None, pull_at_runtime=True, target_dir=None
@@ -307,7 +308,12 @@ class ApplicationRuntime(RemoteRuntime):
         reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
         return str(reverse_proxy_file_path), "Handler"
 
-    def create_api_gateway(self, authentication_mode=None, path=None, port=None):
+    def create_api_gateway(
+        self,
+        path: str = None,
+        ports: list[int] = None,
+        skip_access_key_auth: bool = False,
+    ):
         api_gateway_config = mlrun.runtimes.nuclio.api_gateway.APIGateway(
             mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
                 name=self.metadata.name,
@@ -318,12 +324,14 @@ class ApplicationRuntime(RemoteRuntime):
             mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
                 functions=[self],
                 project=self.metadata.project,
-                authentication=authentication_mode,
                 path=path,
                 # TODO: Uncomment once it is merged
-                # ports=[port] if port else None,
+                # ports=ports if port else None,
             ),
         )
+
+        if not skip_access_key_auth:
+            api_gateway_config.with_access_key_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(

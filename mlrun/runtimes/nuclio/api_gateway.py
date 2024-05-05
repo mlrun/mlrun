@@ -328,6 +328,7 @@ class APIGateway(ModelObj):
         :param method: (str, optional) The HTTP method for the invocation.
         :param headers: (dict, optional) The HTTP headers for the invocation.
         :param auth: (Optional[tuple[str, str]], optional) The authentication creds for the invocation if required.
+        :param path: (str, optional) The sub-path for the invocation.
         :param kwargs: (dict) Additional keyword arguments.
 
         :return: The response from the API gateway invocation.

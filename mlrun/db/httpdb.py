@@ -38,6 +38,7 @@ import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
+from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -138,17 +139,28 @@ class HTTPRunDB(RunDBInterface):
             endpoint += f":{parsed_url.port}"
         base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
 
+        self.base_url = base_url
         username = parsed_url.username or config.httpdb.user
         password = parsed_url.password or config.httpdb.password
+        self.token_provider = None
 
-        username, password, token = mlrun.platforms.add_or_refresh_credentials(
-            parsed_url.hostname, username, password, config.httpdb.token
-        )
+        if config.auth_with_client_id.enabled:
+            self.token_provider = OAuthClientIDTokenProvider(
+                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                timeout=config.auth_with_client_id.request_timeout,
+            )
+        else:
+            username, password, token = mlrun.platforms.add_or_refresh_credentials(
+                parsed_url.hostname, username, password, config.httpdb.token
+            )
 
-        self.base_url = base_url
+            if token:
+                self.token_provider = StaticTokenProvider(token)
+
         self.user = username
         self.password = password
-        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -218,17 +230,19 @@ class HTTPRunDB(RunDBInterface):
 
         if self.user:
             kw["auth"] = (self.user, self.password)
-        elif self.token:
-            # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-            if mlrun.platforms.iguazio.is_iguazio_session(self.token):
-                session_cookie = f'j:{{"sid": "{self.token}"}}'
-                cookies = {
-                    "session": session_cookie,
-                }
-                kw["cookies"] = cookies
-            else:
-                if "Authorization" not in kw.setdefault("headers", {}):
-                    kw["headers"].update({"Authorization": "Bearer " + self.token})
+        elif self.token_provider:
+            token = self.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.token_provider.is_iguazio_session():
+                    session_cookie = f'j:{{"sid": "{token}"}}'
+                    cookies = {
+                        "session": session_cookie,
+                    }
+                    kw["cookies"] = cookies
+                else:
+                    if "Authorization" not in kw.setdefault("headers", {}):
+                        kw["headers"].update({"Authorization": "Bearer " + token})
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}
@@ -1142,7 +1156,29 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
-        self.api_call("DELETE", path, error_message)
+        response = self.api_call("DELETE", path, error_message, version="v2")
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            logger.info(
+                "Function is being deleted", project_name=project, function_name=name
+            )
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Function deleted", project_name=project, function_name=name
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.info(
+                    "Function deletion failed", project_name=project, function_name=name
+                )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.
@@ -1488,16 +1524,15 @@ class HTTPRunDB(RunDBInterface):
         """
 
         try:
+            normalized_name = normalize_name(func.metadata.name)
             params = {
-                "name": normalize_name(func.metadata.name),
+                "name": normalized_name,
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            _path = (
-                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
-            )
+            _path = f"projects/{func.metadata.project}/nuclio/{normalized_name}/deploy"
             resp = self.api_call("GET", _path, params=params)
         except OSError as err:
             logger.error(f"error getting deploy status: {err_to_str(err)}")

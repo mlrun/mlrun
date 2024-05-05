@@ -13,6 +13,7 @@
 # limitations under the License.
 import abc
 import builtins
+import http
 import importlib.util as imputil
 import os
 import tempfile
@@ -521,7 +522,7 @@ class _PipelineRunner(abc.ABC):
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
         if not (workflow_handler and callable(workflow_handler)):
-            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
             workflow_handler = create_pipeline(
                 project,
                 workflow_file,
@@ -553,7 +554,7 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         pipeline_context.set(project, workflow_spec)
-        workflow_file = workflow_spec.get_source_file(project.spec.context)
+        workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
             project,
@@ -882,17 +883,33 @@ class _RemoteRunner(_PipelineRunner):
                 get_workflow_id_timeout=get_workflow_id_timeout,
             )
 
+            def _get_workflow_id_or_bail():
+                try:
+                    return run_db.get_workflow_id(
+                        project=project.name,
+                        name=workflow_response.name,
+                        run_id=workflow_response.run_id,
+                        engine=workflow_spec.engine,
+                    )
+                except mlrun.errors.MLRunHTTPStatusError as get_wf_exc:
+                    # fail fast on specific errors
+                    if get_wf_exc.error_status_code in [
+                        http.HTTPStatus.PRECONDITION_FAILED
+                    ]:
+                        raise mlrun.errors.MLRunFatalFailureError(
+                            original_exception=get_wf_exc
+                        )
+
+                    # raise for a retry (on other errors)
+                    raise
+
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
                 get_workflow_id_timeout,
                 logger,
                 False,
-                run_db.get_workflow_id,
-                project=project.name,
-                name=workflow_response.name,
-                run_id=workflow_response.run_id,
-                engine=workflow_spec.engine,
+                _get_workflow_id_or_bail,
             )
             workflow_id = response.workflow_id
             # After fetching the workflow_id the workflow executed successfully

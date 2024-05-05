@@ -4813,14 +4813,6 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
-    @staticmethod
-    def _sort_df(df: pd.DataFrame, sort_column: str):
-        return (
-            df.reindex(sorted(df.columns), axis=1)
-            .sort_values(by=sort_column)
-            .reset_index(drop=True)
-        )
-
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_parquet_filters(self, engine):
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))

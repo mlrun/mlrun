@@ -18,6 +18,7 @@ import sys
 import typing
 
 import igz_mgmt
+import pandas as pd
 import pytest
 import yaml
 from deepdiff import DeepDiff
@@ -348,3 +349,11 @@ class TestMLRunSystem:
                     source_path
                 )
         self.uploaded_code = True
+
+    @staticmethod
+    def _sort_df(df: pd.DataFrame, sort_column: str):
+        return (
+            df.reindex(sorted(df.columns), axis=1)
+            .sort_values(by=sort_column)
+            .reset_index(drop=True)
+        )

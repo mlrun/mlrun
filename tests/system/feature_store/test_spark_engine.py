@@ -394,12 +394,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             with_indexes=True,
             engine="spark",
         ).to_dataframe(to_pandas=False)
-        result = spark_df_to_pandas(spark_df=result_spark_df).reset_index()
-        print(result)
-        # TODO create _sort_df for spark
-        # expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
-        # result = self._sort_df(result, "patient_id")
-        # assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        result = spark_df_to_pandas(spark_df=result_spark_df)
+        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = self._sort_df(result, "patient_id")
+        assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"

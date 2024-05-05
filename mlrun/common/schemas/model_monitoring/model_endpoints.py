@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import enum
 import json
@@ -21,6 +20,7 @@ from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
 
 import mlrun.common.model_monitoring
+import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
@@ -290,6 +290,18 @@ class ModelEndpoint(BaseModel):
 
 class ModelEndpointList(BaseModel):
     endpoints: list[ModelEndpoint] = []
+
+
+class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
+    RESULT = "result"
+
+
+class ModelEndpointMonitoringMetric(BaseModel):
+    project: str
+    app: str
+    type: ModelEndpointMonitoringMetricType
+    name: str
+    full_name: str
 
 
 def _mapping_attributes(

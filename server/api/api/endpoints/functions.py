@@ -813,6 +813,15 @@ def _deploy_serving_monitoring(
     model_monitoring_access_key,
     client_version,
 ):
+    if (
+        fn.spec.image.startswith("mlrun/")
+        and client_version
+        and semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
+    ):
+        raise mlrun.errors.MLRunBadRequestError(
+            "On deploy of serving-functions which is based on mlrun image "
+            "('mlrun/') and with set-tracking enabled, client version must be >= 1.6.3"
+        )
     try:
         # Handle model monitoring
         logger.info("Tracking enabled, initializing model monitoring")
@@ -831,15 +840,6 @@ def _deploy_serving_monitoring(
 
         overwrite_stream = False
         if not mlrun.mlconf.is_ce_mode():
-            if (
-                fn.spec.image.startswith("mlrun/")
-                and client_version
-                and semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
-            ):
-                raise mlrun.errors.MLRunBadRequestError(
-                    "On deploy of serving-functions which is based on mlrun image "
-                    "('mlrun/') and with set-tracking enabled, client version must be >= 1.6.3"
-                )
             if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger(
                 project=fn.metadata.project,
                 db_session=db_session,

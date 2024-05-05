@@ -161,7 +161,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                 "storey.TSDBTarget",
                 name=name,
                 after=after,
-                path=self.tables[mm_constants.V3IOTSDBTables.EVENTS],
+                path=f"{self.container}/{self.tables[mm_constants.V3IOTSDBTables.EVENTS]}",
                 rate="10/m",
                 time_col=mm_constants.EventFieldType.TIMESTAMP,
                 container=self.container,
@@ -329,7 +329,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
-        :param table:            Table key to query. The table key should exist in the class tables dictionary.
+        :param table:            Path to the collection to query.
         :param columns:          Columns to include in the result.
         :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
                                  divided by ' AND '.

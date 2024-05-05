@@ -106,7 +106,7 @@ class ApplicationEvent:
     OUTPUT_STREAM_URI = "output_stream_uri"
     MLRUN_CONTEXT = "mlrun_context"
 
-    # Deprecated fields - TODO : delete in 1.9.0
+    # Deprecated fields - TODO : delete in 1.9.0  (V1 app deprecation)
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
     CURRENT_STATS = "current_stats"
     FEATURE_STATS = "feature_stats"

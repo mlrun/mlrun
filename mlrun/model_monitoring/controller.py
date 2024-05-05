@@ -457,7 +457,7 @@ class MonitoringApplicationController:
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
-                    # start - TODO : delete in 1.9.0
+                    # start - TODO : delete in 1.9.0 (V1 app deprecation)
                     try:
                         # Get application sample data
                         offline_response = cls._get_sample_df(
@@ -505,7 +505,7 @@ class MonitoringApplicationController:
                     current_stats = calculate_inputs_statistics(
                         sample_set_statistics=feature_stats, inputs=df
                     )
-                    # end - TODO : delete in 1.9.0
+                    # end - TODO : delete in 1.9.0 (V1 app deprecation)
                     cls._push_to_applications(
                         current_stats=current_stats,
                         feature_stats=feature_stats,

@@ -150,7 +150,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_apps_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
-    ) -> None:  # TODO : delete in 1.9.0
+    ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
@@ -360,7 +360,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
-    # TODO : delete in 1.9.0
+    # TODO : delete in 1.9.0 (V1 app deprecation)
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None

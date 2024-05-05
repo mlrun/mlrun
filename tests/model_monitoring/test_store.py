@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import string
 import time
 import typing
@@ -25,7 +24,7 @@ import pytest
 import mlrun.common.schemas
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores.sqldb.sql_store
-from mlrun.common.schemas.model_monitoring import WriterEvent
+from mlrun.common.schemas.model_monitoring import ResultData, WriterEvent
 from mlrun.model_monitoring.db.stores import (  # noqa: F401
     StoreBase,
 )
@@ -74,11 +73,11 @@ class TestSQLStore:
                 WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
                 WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
                 WriterEvent.APPLICATION_NAME: "dummy-app",
-                WriterEvent.RESULT_NAME: "data-drift-0",
-                WriterEvent.RESULT_KIND: 0,
-                WriterEvent.RESULT_VALUE: 0.32,
-                WriterEvent.RESULT_STATUS: 0,
-                WriterEvent.RESULT_EXTRA_DATA: "",
+                ResultData.RESULT_NAME: "data-drift-0",
+                ResultData.RESULT_KIND: 0,
+                ResultData.RESULT_VALUE: 0.32,
+                ResultData.RESULT_STATUS: 0,
+                ResultData.RESULT_EXTRA_DATA: "",
             }
         )
 
@@ -93,11 +92,11 @@ class TestSQLStore:
                 WriterEvent.START_INFER_TIME: "2023-09-20 14:26:06.501084",
                 WriterEvent.END_INFER_TIME: "2023-09-20 16:26:06.501084",
                 WriterEvent.APPLICATION_NAME: "dummy-app",
-                WriterEvent.RESULT_NAME: "data-drift-0",
-                WriterEvent.RESULT_KIND: 1,
-                WriterEvent.RESULT_VALUE: 5.15,
-                WriterEvent.RESULT_STATUS: 1,
-                WriterEvent.RESULT_EXTRA_DATA: "",
+                ResultData.RESULT_NAME: "data-drift-0",
+                ResultData.RESULT_KIND: 1,
+                ResultData.RESULT_VALUE: 5.15,
+                ResultData.RESULT_STATUS: 1,
+                ResultData.RESULT_EXTRA_DATA: "",
             }
         )
 
@@ -223,7 +222,7 @@ class TestSQLStore:
 
         assert (
             application_record.result_value
-            == event[mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_VALUE]
+            == event[mlrun.common.schemas.model_monitoring.ResultData.RESULT_VALUE]
         )
 
         assert application_record.uid == new_sql_store._generate_application_result_uid(

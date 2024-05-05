@@ -414,6 +414,8 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def _get_spark_additional_filters(self):
+        if not self.additional_filters:
+            return None
         none_values = [None, np.nan, np.NaN]
         additional_filters = deepcopy(self.additional_filters)
         is_first = True

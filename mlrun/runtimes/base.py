@@ -23,6 +23,7 @@ from typing import Callable, Optional, Union
 import requests.exceptions
 from nuclio.build import mlrun_footer
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -468,7 +469,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun.runtimes.constants.RunLabels.owner]
+            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
@@ -579,9 +580,9 @@ class BaseRuntime(ModelObj):
 
         elif (
             not was_none
-            and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state != mlrun.common.runtimes.constants.RunStates.completed
             and last_state
-            not in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)
@@ -634,7 +635,9 @@ class BaseRuntime(ModelObj):
         image = image or self.spec.image or ""
 
         image = enrich_image_url(image, client_version, client_python_version)
-        if not image.startswith("."):
+        if not image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
             return image
         registry, repository = get_parsed_docker_registry()
         if registry:

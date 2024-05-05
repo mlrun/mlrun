@@ -42,7 +42,7 @@ class _BatchDict(typing.TypedDict):
 def get_stream_path(
     project: str = None,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-):
+) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
@@ -61,6 +61,8 @@ def get_stream_path(
         function_name=function_name,
     )
 
+    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
+        stream_uri = stream_uri[1]  # get new stream path, under projects
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
         stream_uri=stream_uri, project=project, function_name=function_name
     )
@@ -251,3 +253,10 @@ def calculate_inputs_statistics(
             )
 
     return inputs_statistics
+
+
+def get_endpoint_record(project: str, endpoint_id: str):
+    model_endpoint_store = mlrun.model_monitoring.get_store_object(
+        project=project,
+    )
+    return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)

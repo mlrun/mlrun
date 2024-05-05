@@ -41,20 +41,24 @@ Tech Preview
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
+For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
+See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
 ```
 {py:meth}`~mlrun.datastore.SQLSource` can be used for both batch ingestion and real time ingestion. It supports storey but does not support Spark. To configure 
-either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
+either, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
 ```
-source = SQLSource(table_name='my_table', 
-                     db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
-                     key_field='key',
-                     parse_dates=['timestamp'])
+source = SQLSource(
+    table_name="my_table", 
+    db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
+    key_field="key",
+    parse_dates=["timestamp"],
+)
  
- feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
- feature_set.set_targets([])
- df = fs.ingest(feature_set, source=source)
+feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
+feature_set.set_targets([])
+df = fs.ingest(feature_set, source=source)
 ```
   
 ## Apache Kafka source
@@ -231,21 +235,23 @@ Tech Preview
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
+For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
+See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
 ```
 The {py:meth}`~mlrun.datastore.SQLSource` online target supports storey but does not support Spark. Aggregations are not supported.<br>
-To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
+To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 
 You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
 
 ```
- target = SQLTarget(
-            table_name='my_table',
-            schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
-            create_table=True,
-            primary_key_column='id',
-            parse_dates=["time"],
-        )
+target = SQLTarget(
+    table_name="my_table",
+    schema= {"id": string, "age": int, "time": pd.Timestamp, ...}
+    create_table=True,
+    primary_key_column="id",
+    parse_dates=["time"],
+)
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
 fs.ingest(feature_set, source=df, targets=[target])
 ```
@@ -255,20 +261,20 @@ fs.ingest(feature_set, source=df, targets=[target])
 ## Kafka data store profile 
 
 ```python
-profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+profile = DatastoreProfileKafkaTarget(name="profile-name", brokers="localhost", topic="topic_name")
 target = KafkaTarget(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:
 - `name` &mdash; Name of the profile
-- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
+- `brokers` &mdash; A comma-separated list of kafka brokers. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
 - `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
 - `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
 - `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
 
 
 ```python
-profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+profile = DatastoreProfileKafkaSource(name="profile-name", brokers="localhost", topic="topic_name")
 target = KafkaSource(path="ds://profile-name")
 ```
 

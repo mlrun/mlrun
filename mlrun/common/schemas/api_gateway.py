@@ -36,6 +36,13 @@ class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
             )
 
 
+class APIGatewayState(mlrun.common.types.StrEnum):
+    none = ""
+    ready = "ready"
+    error = "error"
+    waiting_for_provisioning = "waitingForProvisioning"
+
+
 class _APIGatewayBaseModel(pydantic.BaseModel):
     class Config:
         extra = pydantic.Extra.allow
@@ -72,7 +79,7 @@ class APIGatewaySpec(_APIGatewayBaseModel):
 
 class APIGatewayStatus(_APIGatewayBaseModel):
     name: Optional[str]
-    state: Optional[str]
+    state: Optional[APIGatewayState]
 
 
 class APIGateway(_APIGatewayBaseModel):

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ import mlrun.common.schemas
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 from server.api.api import deps
-from server.api.api.endpoints.functions import process_model_monitoring_secret
+from server.api.api.endpoints.nuclio import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
@@ -35,6 +35,29 @@ class _CommonParams:
     project: str
     auth_info: mlrun.common.schemas.AuthInfo
     db_session: Session
+    model_monitoring_access_key: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if not mlrun.mlconf.is_ce_mode():
+            # Get V3IO Access Key
+            self.model_monitoring_access_key = process_model_monitoring_secret(
+                self.db_session,
+                self.project,
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+            )
+
+
+async def _verify_authorization(
+    project: str, auth_info: mlrun.common.schemas.AuthInfo
+) -> None:
+    """Verify project authorization"""
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
+        project_name=project,
+        resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        action=mlrun.common.schemas.AuthorizationAction.store,
+        auth_info=auth_info,
+    )
 
 
 async def _common_parameters(
@@ -52,13 +75,7 @@ async def _common_parameters(
     :param db_session: A session that manages the current dialog with the database.
     :returns:          A `_CommonParameters` object that contains the input data.
     """
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project_name=project,
-        resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        action=mlrun.common.schemas.AuthorizationAction.store,
-        auth_info=auth_info,
-    )
+    await _verify_authorization(project=project, auth_info=auth_info)
     return _CommonParams(
         project=project,
         auth_info=auth_info,
@@ -89,21 +106,11 @@ async def enable_model_monitoring(
                         By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
     """
-
-    model_monitoring_access_key = None
-    if not mlrun.mlconf.is_ce_mode():
-        # Generate V3IO Access Key
-        model_monitoring_access_key = process_model_monitoring_secret(
-            commons.db_session,
-            commons.project,
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-        )
-
     MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
-        model_monitoring_access_key=model_monitoring_access_key,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
     ).deploy_monitoring_functions(
         image=image,
         base_period=base_period,
@@ -128,15 +135,6 @@ async def update_model_monitoring_controller(
                         function, which is a real time nuclio functino, will be deployed with the same
                         image. By default, the image is mlrun/mlrun.
     """
-
-    model_monitoring_access_key = None
-    if not mlrun.mlconf.is_ce_mode():
-        # Generate V3IO Access Key
-        model_monitoring_access_key = process_model_monitoring_secret(
-            commons.db_session,
-            commons.project,
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-        )
     try:
         # validate that the model monitoring stream has not yet been deployed
         mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
@@ -156,7 +154,7 @@ async def update_model_monitoring_controller(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
-        model_monitoring_access_key=model_monitoring_access_key,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
     ).deploy_model_monitoring_controller(
         controller_image=image,
         base_period=base_period,
@@ -175,18 +173,9 @@ def deploy_histogram_data_drift_app(
     :param commons: The common parameters of the request.
     :param image:   The image of the application, defaults to "mlrun/mlrun".
     """
-    model_monitoring_access_key = None
-    if not mlrun.mlconf.is_ce_mode():
-        # Generate V3IO Access Key
-        model_monitoring_access_key = process_model_monitoring_secret(
-            commons.db_session,
-            commons.project,
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-        )
-
     MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
-        model_monitoring_access_key=model_monitoring_access_key,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
     ).deploy_histogram_data_drift_app(image=image)

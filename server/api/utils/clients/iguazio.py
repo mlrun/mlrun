@@ -628,7 +628,7 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         response = self._session.request(
-            method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs
+            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
             try:
@@ -755,6 +755,13 @@ class Client(
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
+
+        if project.spec.default_function_node_selector is not None:
+            body["data"]["attributes"]["default_function_node_selector"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.spec.default_function_node_selector
+                )
+            )
         return body
 
     @staticmethod

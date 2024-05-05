@@ -35,7 +35,7 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
-        self._api_url = mlrun.config.config.nuclio_dashboard_url
+        self._api_url = mlrun.mlconf.nuclio_dashboard_url
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
@@ -240,7 +240,7 @@ class Client(
         response = self._session.request(
             method,
             url,
-            verify=mlrun.config.config.httpdb.http.verify,
+            verify=mlrun.mlconf.httpdb.http.verify,
             auth=auth,
             **kwargs,
         )

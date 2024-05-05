@@ -27,10 +27,10 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
+from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.runtimes.constants import RunLabels
 from mlrun.runtimes.generators import selector
 from mlrun.utils import get_in, helpers, logger, verify_field_regex
 
@@ -415,34 +415,6 @@ def get_func_selector(project, name=None, tag=None):
         s.append(f"{mlrun_key}function={name}")
         s.append(f"{mlrun_key}tag={tag or 'latest'}")
     return s
-
-
-class k8s_resource:
-    kind = ""
-    per_run = False
-    per_function = False
-    k8client = None
-
-    def deploy_function(self, function):
-        pass
-
-    def release_function(self, function):
-        pass
-
-    def submit_run(self, function, runobj):
-        pass
-
-    def get_object(self, name, namespace=None):
-        return None
-
-    def get_status(self, name, namespace=None):
-        return None
-
-    def del_object(self, name, namespace=None):
-        pass
-
-    def get_pods(self, name, namespace=None, master=False):
-        return {}
 
 
 def enrich_function_from_dict(function, function_dict):

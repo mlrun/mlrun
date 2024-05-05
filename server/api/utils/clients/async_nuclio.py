@@ -20,7 +20,6 @@ import aiohttp
 
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
 from mlrun.common.constants import MLRUN_CREATED_LABEL
 from mlrun.utils import logger
@@ -28,6 +27,7 @@ from mlrun.utils import logger
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
+NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
@@ -120,6 +120,19 @@ class Client:
         return await self._send_request_to_api(
             method="DELETE",
             path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=""),
+            headers=headers,
+            json={"metadata": {"name": name}},
+        )
+
+    async def delete_function(self, name: str, project_name: str = None):
+        headers = {}
+
+        if project_name:
+            headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
+
+        return await self._send_request_to_api(
+            method="DELETE",
+            path=NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE.format(function=""),
             headers=headers,
             json={"metadata": {"name": name}},
         )

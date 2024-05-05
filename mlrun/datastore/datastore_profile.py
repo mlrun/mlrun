@@ -16,6 +16,7 @@ import ast
 import base64
 import json
 import typing
+import warnings
 from urllib.parse import ParseResult, urlparse, urlunparse
 
 import pydantic
@@ -82,13 +83,37 @@ class DatastoreProfileBasic(DatastoreProfile):
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.Field("kafka_target")
     _private_attributes = "kwargs_private"
-    bootstrap_servers: str
+    bootstrap_servers: typing.Optional[str] = None
+    brokers: typing.Optional[str] = None
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        if not self.brokers and not self.bootstrap_servers:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DatastoreProfileKafkaTarget requires the 'brokers' field to be set"
+            )
+
+        if self.bootstrap_servers:
+            if self.brokers:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "DatastoreProfileKafkaTarget cannot be created with both 'brokers' and 'bootstrap_servers'"
+                )
+            else:
+                self.brokers = self.bootstrap_servers
+                self.bootstrap_servers = None
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                # TODO: Remove this in 1.9.0
+                FutureWarning,
+            )
+
     def attributes(self):
-        attributes = {"bootstrap_servers": self.bootstrap_servers}
+        attributes = {"brokers": self.brokers or self.bootstrap_servers}
         if self.kwargs_public:
             attributes = merge(attributes, self.kwargs_public)
         if self.kwargs_private:

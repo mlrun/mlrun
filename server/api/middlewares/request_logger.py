@@ -132,4 +132,4 @@ class RequestLoggerMiddleware:
         for name, values in headers.items():
             if name in headers_to_omit:
                 del headers_to_log[name]
-        return headers_to_log
+        return dict(headers_to_log.items())

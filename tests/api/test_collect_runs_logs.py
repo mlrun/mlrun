@@ -131,7 +131,7 @@ class TestCollectRunSLogs:
                     name=run_uid,
                     iteration=i,
                     kind="job",
-                    state=mlrun.runtimes.constants.RunStates.completed,
+                    state=mlrun.common.runtimes.constants.RunStates.completed,
                 )
 
         runs = server.api.utils.singletons.db.get_db().list_distinct_runs_uids(
@@ -187,7 +187,7 @@ class TestCollectRunSLogs:
             uid=old_uid,
             name=old_uid,
             kind="job",
-            state=mlrun.runtimes.constants.RunStates.completed,
+            state=mlrun.common.runtimes.constants.RunStates.completed,
         )
 
         # sleep for 3 seconds to make sure the runs are not created at the same time
@@ -200,7 +200,7 @@ class TestCollectRunSLogs:
             uid=new_uid,
             name=new_uid,
             kind="job",
-            state=mlrun.runtimes.constants.RunStates.completed,
+            state=mlrun.common.runtimes.constants.RunStates.completed,
         )
 
         # verify that we have 2 runs
@@ -212,7 +212,7 @@ class TestCollectRunSLogs:
         assert len(runs) == 2
 
         # change mlrun config so that the old run will be considered as old
-        mlrun.config.config.runtime_resources_deletion_grace_period = 2
+        mlrun.mlconf.runtime_resources_deletion_grace_period = 2
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -253,7 +253,7 @@ class TestCollectRunSLogs:
                 uid=run_uid,
                 name=run_uid,
                 kind="job",
-                state=mlrun.runtimes.constants.RunStates.completed,
+                state=mlrun.common.runtimes.constants.RunStates.completed,
             )
 
         # verify that we have 2 runs
@@ -269,8 +269,8 @@ class TestCollectRunSLogs:
         #         int(config.log_collector.failed_runs_grace_period)
         #         / int(config.log_collector.periodic_start_log_interval)
         #     )
-        mlrun.config.config.log_collector.failed_runs_grace_period = 20
-        mlrun.config.config.log_collector.periodic_start_log_interval = 10
+        mlrun.mlconf.log_collector.failed_runs_grace_period = 20
+        mlrun.mlconf.log_collector.periodic_start_log_interval = 10
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             side_effect=[
@@ -466,12 +466,12 @@ class TestCollectRunSLogs:
 
         # iterate over some runs, for each run assign different state
         run_uids_to_state = [
-            ("some_uid", mlrun.runtimes.constants.RunStates.completed),
-            ("some_uid2", mlrun.runtimes.constants.RunStates.unknown),
-            ("some_uid3", mlrun.runtimes.constants.RunStates.completed),
-            ("some_uid4", mlrun.runtimes.constants.RunStates.completed),
+            ("some_uid", mlrun.common.runtimes.constants.RunStates.completed),
+            ("some_uid2", mlrun.common.runtimes.constants.RunStates.unknown),
+            ("some_uid3", mlrun.common.runtimes.constants.RunStates.completed),
+            ("some_uid4", mlrun.common.runtimes.constants.RunStates.completed),
             # keep it last, as we later on omit it from the run_uids list
-            ("some_uid5", mlrun.runtimes.constants.RunStates.running),
+            ("some_uid5", mlrun.common.runtimes.constants.RunStates.running),
         ]
         for run_uid, state in run_uids_to_state:
             _create_new_run(
@@ -572,7 +572,7 @@ def _create_new_run(
     iteration=0,
     kind="",
     function="",
-    state=mlrun.runtimes.constants.RunStates.created,
+    state=mlrun.common.runtimes.constants.RunStates.created,
     store: bool = True,
 ):
     labels = {"kind": kind}

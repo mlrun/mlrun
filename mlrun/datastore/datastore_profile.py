@@ -192,7 +192,7 @@ class DatastoreProfileS3(DatastoreProfile):
         if not v:
             warnings.warn(
                 "The 'bucket' attribute will be mandatory starting from version 1.9",
-                DeprecationWarning,
+                FutureWarning,
                 stacklevel=2,
             )
         return v
@@ -293,7 +293,7 @@ class DatastoreProfileGCS(DatastoreProfile):
         if not v:
             warnings.warn(
                 "The 'bucket' attribute will be mandatory starting from version 1.9",
-                DeprecationWarning,
+                FutureWarning,
                 stacklevel=2,
             )
         return v
@@ -305,6 +305,8 @@ class DatastoreProfileGCS(DatastoreProfile):
         return v
 
     def url(self, subpath) -> str:
+        # TODO: but there's something wrong with the subpath being assumed to not start with a slash here,
+        # but the opposite assumption is made in S3.
         if subpath.startswith("/"):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
@@ -346,7 +348,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
         if not v:
             warnings.warn(
                 "The 'bucket' attribute will be mandatory starting from version 1.9",
-                DeprecationWarning,
+                FutureWarning,
                 stacklevel=2,
             )
         return v

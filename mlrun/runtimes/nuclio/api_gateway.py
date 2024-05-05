@@ -24,6 +24,7 @@ import mlrun.common.schemas
 
 from ...model import ModelObj
 from ..utils import logger
+from .application import ApplicationRuntime
 from .function import RemoteRuntime, get_fullname, min_nuclio_versions
 from .serving import ServingRuntime
 
@@ -144,10 +145,12 @@ class APIGatewaySpec(ModelObj):
                     Union[
                         RemoteRuntime,
                         ServingRuntime,
+                        ApplicationRuntime,
                     ]
                 ],
                 RemoteRuntime,
                 ServingRuntime,
+                ApplicationRuntime,
             ],
         ],
         project: str = None,
@@ -191,10 +194,12 @@ class APIGatewaySpec(ModelObj):
                     Union[
                         RemoteRuntime,
                         ServingRuntime,
+                        ApplicationRuntime,
                     ]
                 ],
                 RemoteRuntime,
                 ServingRuntime,
+                ApplicationRuntime,
             ],
         ],
         canary: Optional[list[int]] = None,
@@ -314,6 +319,7 @@ class APIGateway(ModelObj):
         method="POST",
         headers: dict = {},
         auth: Optional[tuple[str, str]] = None,
+        path: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -346,9 +352,10 @@ class APIGateway(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway invocation requires authentication. Please pass credentials"
             )
+        url = urljoin(self.invoke_url, path or "")
         return requests.request(
             method=method,
-            url=self.invoke_url,
+            url=url,
             headers=headers,
             **kwargs,
             auth=HTTPBasicAuth(*auth) if auth else None,

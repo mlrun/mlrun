@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 
 import nuclio
 
@@ -151,6 +152,7 @@ class ApplicationStatus(NuclioStatus):
         )
         self.application_image = application_image or None
         self.sidecar_name = sidecar_name or None
+        self.api_gateway = None
 
 
 class ApplicationRuntime(RemoteRuntime):
@@ -269,6 +271,8 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env,
         )
 
+        self.create_api_gateway()
+
     def with_source_archive(
         self, source, workdir=None, pull_at_runtime=True, target_dir=None
     ):
@@ -288,6 +292,70 @@ class ApplicationRuntime(RemoteRuntime):
             workdir=workdir,
             pull_at_runtime=pull_at_runtime,
             target_dir=target_dir,
+        )
+
+    @classmethod
+    def get_filename_and_handler(cls) -> (str, str):
+        reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
+        return str(reverse_proxy_file_path), "Handler"
+
+    def create_api_gateway(self, authentication_mode=None, path=None, port=None):
+        api_gateway_config = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name=self.metadata.name,
+                namespace=self.metadata.namespace,
+                labels=self.metadata.labels,
+                annotations=self.metadata.annotations,
+            ),
+            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=[self],
+                project=self.metadata.project,
+                authentication=authentication_mode,
+                path=path,
+                # TODO: Uncomment once it is merged
+                # ports=[port] if port else None,
+            ),
+        )
+
+        db = self._get_db()
+        api_gateway_scheme = db.store_api_gateway(
+            self.metadata.project, api_gateway_config
+        )
+        self.status.api_gateway = (
+            mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(api_gateway_scheme)
+        )
+
+    def invoke(
+        self,
+        path: str,
+        body: typing.Union[str, bytes, dict] = None,
+        method: str = None,
+        headers: dict = None,
+        dashboard: str = "",
+        force_external_address: bool = False,
+        auth_info: AuthInfo = None,
+        mock: bool = None,
+        **http_client_kwargs,
+    ):
+        # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
+        if not self.status.api_gateway:
+            super().invoke(
+                path,
+                body,
+                method,
+                headers,
+                dashboard,
+                force_external_address,
+                auth_info,
+                mock,
+                **http_client_kwargs,
+            )
+
+        return self.status.api_gateway.invoke(
+            method,
+            headers,
+            auth_info,
+            path,
         )
 
     def _build_application_image(
@@ -354,8 +422,3 @@ class ApplicationRuntime(RemoteRuntime):
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
-
-    @classmethod
-    def get_filename_and_handler(cls) -> (str, str):
-        reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
-        return str(reverse_proxy_file_path), "Handler"

@@ -302,10 +302,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
             return
 
         for state, threshold in state_thresholds.items():
-            if state not in mlrun.runtimes.constants.ThresholdStates.all():
+            if state not in mlrun.common.runtimes.constants.ThresholdStates.all():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Invalid state {state} for state threshold, must be one of "
-                    f"{mlrun.runtimes.constants.ThresholdStates.all()}"
+                    f"{mlrun.common.runtimes.constants.ThresholdStates.all()}"
                 )
 
             if threshold is None:

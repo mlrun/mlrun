@@ -15,7 +15,7 @@
 
 import mlrun
 import tests.system.base
-from mlrun.runtimes.constants import RunStates
+from mlrun.common.runtimes.constants import RunStates
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

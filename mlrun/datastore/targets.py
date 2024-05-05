@@ -714,9 +714,13 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
@@ -961,6 +965,7 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
@@ -971,6 +976,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            additional_filters=additional_filters,
             **kwargs,
         )
         if not columns:
@@ -1101,8 +1107,12 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         df = super().as_df(
             columns=columns,
             df_module=df_module,
@@ -1209,6 +1219,7 @@ class SnowflakeTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1275,7 +1286,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1544,7 +1565,17 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
 
@@ -1649,7 +1680,17 @@ class KafkaTarget(BaseStoreTarget):
             **attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def purge(self):
@@ -1696,7 +1737,17 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1807,11 +1858,16 @@ class DFTarget(BaseStoreTarget):
         self,
         columns=None,
         df_module=None,
+        entities=None,
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return select_columns_from_df(
             filter_df_start_end_time(
                 self._df,
@@ -1986,6 +2042,7 @@ class SQLTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         try:
@@ -1993,6 +2050,10 @@ class SQLTarget(BaseStoreTarget):
 
         except (ModuleNotFoundError, ImportError) as exc:
             self._raise_sqlalchemy_import_error(exc)
+
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)

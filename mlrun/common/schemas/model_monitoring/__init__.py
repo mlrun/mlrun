@@ -53,6 +53,8 @@ from .model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
     ModelEndpointMetadata,
+    ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricType,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )

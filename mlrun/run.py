@@ -661,7 +661,6 @@ def code_to_function(
     :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
                          defaults to True
     :param description:  short function description, defaults to ''
-    :param requirements: list of python packages or pip requirements file path, defaults to None
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
@@ -1151,7 +1150,7 @@ def wait_for_runs_completion(
         running = []
         for run in runs:
             state = run.state()
-            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+            if state in mlrun.common.runtimes.constants.RunStates.terminal_states():
                 completed.append(run)
             else:
                 running.append(run)

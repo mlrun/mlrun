@@ -25,7 +25,7 @@ import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
-from mlrun.utils import dict_to_json, logger
+from mlrun.utils import dict_to_json
 
 _cached_control_session = None
 
@@ -587,43 +587,17 @@ def sanitize_username(username: str):
 def min_iguazio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
-            if validate_iguazio_version_compatibility(*versions):
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", *versions
+            ):
                 return function(*args, **kwargs)
 
             message = (
                 f"{function.__name__} is supported since Iguazio {' or '.join(versions)}, currently using "
-                f"Iguazio {mlconf.nuclio_version}."
+                f"Iguazio {mlconf.igz_version}."
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
         return wrapper
 
     return decorator
-
-
-def validate_iguazio_version_compatibility(*min_versions):
-    """
-    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
-    """
-    parsed_min_versions = [
-        semver.VersionInfo.parse(min_version) for min_version in min_versions
-    ]
-    try:
-        parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
-        if not parsed_current_version:
-            return True
-    except ValueError:
-        # only log when version is set but invalid
-        if mlconf.igz_version:
-            logger.warning(
-                "Unable to parse Iguazio version, assuming compatibility",
-                iguazio_version=mlconf.igz_version,
-                min_versions=min_versions,
-            )
-        return True
-
-    parsed_min_versions.sort(reverse=True)
-    for parsed_min_version in parsed_min_versions:
-        if parsed_current_version <= parsed_min_version:
-            return False
-    return True

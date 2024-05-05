@@ -22,9 +22,9 @@ from requests.auth import HTTPBasicAuth
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.platforms.iguazio import min_iguazio_versions
 
 from ...model import ModelObj
-from ...platforms.iguazio import min_iguazio_versions
 from ..utils import logger
 from .function import RemoteRuntime, get_fullname, min_nuclio_versions
 from .serving import ServingRuntime

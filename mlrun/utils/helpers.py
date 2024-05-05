@@ -1607,3 +1607,44 @@ def additional_filters_warning(additional_filters, class_name):
             f"additional_filters parameter is not supported in {class_name},"
             f" parameter has been ignored."
         )
+
+
+def validate_component_version_compatibility(
+    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+):
+    """
+    :param component_name: Name of the component to validate compatibility for.
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
+    parsed_current_version = None
+    component_current_version = None
+    try:
+        if component_name == "iguazio":
+            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+            component_current_version = mlrun.mlconf.igz_version
+        if component_name == "nuclio":
+            parsed_current_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
+            component_current_version = mlrun.mlconf.nuclio_version
+        if not parsed_current_version:
+            return True
+    except ValueError:
+        # only log when version is set but invalid
+        if component_current_version:
+            logger.warning(
+                "Unable to parse current version, assuming compatibility",
+                component_name=component_name,
+                current_version=component_current_version,
+                min_versions=min_versions,
+            )
+        return True
+
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if parsed_current_version <= parsed_min_version:
+            return False
+    return True

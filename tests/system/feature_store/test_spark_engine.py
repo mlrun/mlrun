@@ -343,14 +343,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 .config("spark.sql.session.timeZone", "UTC")
                 .getOrCreate()
             )
-        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
-        df = pd.read_parquet(parquet_path)
-        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
         parquet_source_path = self.get_pq_source_path()
+        df = pd.read_parquet(parquet_source_path)
+        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
+
         base_path = self.get_test_output_subdir_path()
         parquet_target_path = f"{base_path}_spark"
-
-        df.to_parquet(parquet_source_path)
         parquet_source = ParquetSource(
             "parquet_source",
             path=parquet_source_path,

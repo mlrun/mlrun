@@ -566,7 +566,9 @@ def print_df(df):
         )
 
         run = db.read_run(run.metadata.uid)
-        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
 
         # list background tasks
         background_tasks = db.list_project_background_tasks()

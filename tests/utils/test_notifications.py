@@ -258,7 +258,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             [
                 {
                     "metadata": {"name": "test-run", "uid": "test-run-uid"},
-                    "status": {"state": "success"},
+                    "status": {"state": "completed"},
                 }
             ],
             {
@@ -271,8 +271,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
                         "fields": [
                             {"text": "*Runs*", "type": "mrkdwn"},
                             {"text": "*Results*", "type": "mrkdwn"},
-                            {"text": ":question:  test-run", "type": "mrkdwn"},
-                            {"text": "None", "type": "mrkdwn"},
+                            {"text": ":smiley:  test-run", "type": "mrkdwn"},
+                            {"text": "completed", "type": "mrkdwn"},
                         ],
                         "type": "section",
                     },

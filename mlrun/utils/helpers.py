@@ -1346,7 +1346,9 @@ def format_run(run: dict, with_project=False) -> dict:
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
     if run["status"] is None:
-        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
+        run["status"] = inflection.titleize(
+            mlrun.common.runtimes.constants.RunStates.unknown
+        )
 
     return run
 

@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
-from mlrun.runtimes.constants import MPIJobCRDVersions
+from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtimes.base import TestRuntimeBase
 

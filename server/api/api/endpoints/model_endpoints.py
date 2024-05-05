@@ -419,10 +419,21 @@ async def _get_metrics_values_data(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Provided only one of start time, end time. Provide both or none of them"
         )
+    if name is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Providing metric name(s) is currently a must."
+        )
+    metrics = [
+        mlrun.common.schemas.model_monitoring.model_endpoints._parse_metric_fqn_to_monitoring_metric(
+            fqn
+        )
+        for fqn in name
+    ]
+    names = [(metric.app, metric.name) for metric in metrics]
     return _MetricsValuesParams(
         project=project,
         endpoint_id=endpoint_id,
-        names=[],
+        names=names,
         start=start,
         end=end,
     )

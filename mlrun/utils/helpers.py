@@ -39,7 +39,6 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
-from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -76,19 +75,6 @@ class OverwriteBuildParamsWarning(FutureWarning):
     pass
 
 
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'parse_versioned_object_uri' will be removed from this file in 1.7.0, use "
-    "'mlrun.common.helpers.parse_versioned_object_uri' instead",
-    category=FutureWarning,
-)
-def parse_versioned_object_uri(uri: str, default_project: str = ""):
-    return mlrun.common.helpers.parse_versioned_object_uri(
-        uri=uri, default_project=default_project
-    )
-
-
 class StorePrefix:
     """map mlrun store objects to prefixes"""
 
@@ -119,14 +105,9 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    if is_legacy_artifact(item):
-        db_key = item.get("db_key")
-        project_str = project or item.get("project")
-        tree = item.get("tree")
-    else:
-        db_key = item["spec"].get("db_key")
-        project_str = project or item["metadata"].get("project")
-        tree = item["metadata"].get("tree")
+    db_key = item["spec"].get("db_key")
+    project_str = project or item["metadata"].get("project")
+    tree = item["metadata"].get("tree")
 
     kind = item.get("kind")
     if kind in ["dataset", "model", "artifact"] and db_key:
@@ -135,11 +116,15 @@ def get_artifact_target(item: dict, project=None):
             target = f"{target}@{tree}"
         return target
 
-    return (
-        item.get("target_path")
-        if is_legacy_artifact(item)
-        else item["spec"].get("target_path")
-    )
+    return item["spec"].get("target_path")
+
+
+# TODO: left for migrations testing purposes. Remove in 1.8.0.
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -1292,13 +1277,6 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     return Timestamp(time_str)
 
 
-def is_legacy_artifact(artifact):
-    if isinstance(artifact, dict):
-        return "metadata" not in artifact
-    else:
-        return not hasattr(artifact, "metadata")
-
-
 def is_link_artifact(artifact):
     if isinstance(artifact, dict):
         return (
@@ -1355,9 +1333,7 @@ def format_run(run: dict, with_project=False) -> dict:
 
 def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
     """artifact can be dict or Artifact object"""
-    if is_legacy_artifact(artifact):
-        return artifact.get(key, default)
-    elif key == "kind":
+    if key == "kind":
         return artifact.get(key, default)
     else:
         for block in ["metadata", "spec", "status"]:

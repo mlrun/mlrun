@@ -656,6 +656,29 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+
+        if self._resource and self.path:
+            parsed_url = urlparse(self.path)
+            # When the URL consists only from scheme and endpoint and no path,
+            # make a default path for DS and redis targets.
+            # Also ignore KafkaTarget when it uses the ds scheme (no default path for KafkaTarget)
+            if (
+                not isinstance(self, KafkaTarget)
+                and parsed_url.scheme in ["ds", "redis", "rediss"]
+                and (not parsed_url.path or parsed_url.path == "/")
+            ):
+                return TargetPathObject(
+                    _get_target_path(
+                        self,
+                        self._resource,
+                        self.run_id is not None,
+                        netloc=parsed_url.netloc,
+                        scheme=parsed_url.scheme,
+                    ),
+                    self.run_id,
+                    is_single_file,
+                )
+
         return self.get_path() or (
             TargetPathObject(
                 _get_target_path(self, self._resource, self.run_id is not None),
@@ -1410,39 +1433,6 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
-
-    @property
-    def _target_path_object(self):
-        url = self.path or mlrun.mlconf.redis.url
-        if self._resource and url:
-            parsed_url = urlparse(url)
-            if not parsed_url.path or parsed_url.path == "/":
-                kind_prefix = (
-                    "sets"
-                    if self._resource.kind
-                    == mlrun.common.schemas.ObjectKind.feature_set
-                    else "vectors"
-                )
-                kind = self.kind
-                name = self._resource.metadata.name
-                project = (
-                    self._resource.metadata.project or mlrun.mlconf.default_project
-                )
-                data_prefix = get_default_prefix_for_target(kind).format(
-                    ds_profile_name=parsed_url.netloc,
-                    authority=parsed_url.netloc,
-                    project=project,
-                    kind=kind,
-                    name=name,
-                )
-                if url.startswith("rediss://"):
-                    data_prefix = data_prefix.replace("redis://", "rediss://", 1)
-                if not self.run_id:
-                    version = self._resource.metadata.tag or "latest"
-                    name = f"{name}-{version}"
-                url = f"{data_prefix}/{kind_prefix}/{name}"
-                return TargetPathObject(url, self.run_id, False)
-        return super()._target_path_object
 
     # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
     # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
@@ -2201,7 +2191,7 @@ kind_to_driver = {
 }
 
 
-def _get_target_path(driver, resource, run_id_mode=False):
+def _get_target_path(driver, resource, run_id_mode=False, netloc=None, scheme=""):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
@@ -2218,11 +2208,27 @@ def _get_target_path(driver, resource, run_id_mode=False):
     )
     name = resource.metadata.name
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefix = get_default_prefix_for_target(kind).format(
+
+    default_kind_name = kind
+    if scheme == "ds":
+        # "dsnosql" is not an actual target like Parquet or Redis; rather, it serves
+        # as a placeholder that can be used in any specified target
+        default_kind_name = "dsnosql"
+    if scheme == "redis" or scheme == "rediss":
+        default_kind_name = TargetTypes.redisnosql
+
+    netloc = netloc or ""
+    data_prefix = get_default_prefix_for_target(default_kind_name).format(
+        ds_profile_name=netloc,  # In case of ds profile, set its the name
+        authority=netloc,  # In case of redis, replace {authority} with netloc
         project=project,
         kind=kind,
         name=name,
     )
+
+    if scheme == "rediss":
+        data_prefix = data_prefix.replace("redis://", "rediss://", 1)
+
     # todo: handle ver tag changes, may need to copy files?
     if not run_id_mode:
         version = resource.metadata.tag

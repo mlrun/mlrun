@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import json
 import os
@@ -41,7 +40,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
-    def __init__(self, project: str, access_key: str):
+    def __init__(self, project: str, access_key: typing.Optional[str] = None) -> None:
         super().__init__(project=project)
         # Initialize a V3IO client instance
         self.access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
@@ -410,7 +409,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME
         )
         metric_name = event.pop(
-            mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME
+            mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME
         )
         attributes = {metric_name: json.dumps(event)}
 
@@ -446,7 +445,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
             {
-                "name": mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME,
+                "name": mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME,
                 "type": "string",
                 "nullable": False,
             }
@@ -703,3 +702,67 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     @staticmethod
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
+
+    def _extract_metrics_from_items(
+        self, app_items: list[dict[str, str]]
+    ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+        metrics: list[
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
+        ] = []
+        for app_item in app_items:
+            # See https://www.iguazio.com/docs/latest-release/services/data-layer/reference/system-attributes/#sys-attr-__name
+            app_name = app_item.pop("__name")
+            if app_name == ".#schema":
+                continue
+            for result_name in app_item:
+                metrics.append(
+                    mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric(
+                        project=self.project,
+                        app=app_name,
+                        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT,
+                        name=result_name,
+                        full_name=".".join(
+                            [
+                                self.project,
+                                app_name,
+                                mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.RESULT,
+                                result_name,
+                            ]
+                        ),
+                    )
+                )
+        return metrics
+
+    def get_model_endpoint_metrics(
+        self, endpoint_id: str
+    ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+        """Get model monitoring results and metrics on the endpoint"""
+        metrics: list[
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
+        ] = []
+        container = self.get_v3io_monitoring_apps_container(self.project)
+        try:
+            response = self.client.kv.scan(container=container, table_path=endpoint_id)
+        except v3io.dataplane.response.HttpResponseError as err:
+            if err.status_code == HTTPStatus.NOT_FOUND:
+                logger.warning(
+                    "Attempt getting metrics and results - no data. Check the "
+                    "project name, endpoint, or wait for the applications to start.",
+                    container=container,
+                    table_path=endpoint_id,
+                )
+                return []
+            raise
+
+        while True:
+            metrics.extend(self._extract_metrics_from_items(response.output.items))
+            if response.output.last:
+                break
+            # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
+            response = self.client.kv.scan(
+                container=container,
+                table_path=endpoint_id,
+                marker=response.output.next_marker,
+            )
+
+        return metrics

@@ -33,7 +33,6 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_artifact_target,
-    is_legacy_artifact,
     logger,
     template_artifact_path,
 )
@@ -1480,7 +1479,7 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                key = a["key"] if is_legacy_artifact(a) else a["metadata"]["key"]
+                key = a["metadata"]["key"]
                 outputs[key] = get_artifact_target(a, self.metadata.project)
         return outputs
 

@@ -24,7 +24,6 @@ from mlrun.utils.helpers import (
 )
 
 from ..utils import (
-    is_legacy_artifact,
     is_relative_path,
     logger,
     validate_artifact_key_name,
@@ -33,56 +32,28 @@ from ..utils import (
 from .base import (
     Artifact,
     DirArtifact,
-    LegacyArtifact,
-    LegacyDirArtifact,
-    LegacyLinkArtifact,
     LinkArtifact,
 )
 from .dataset import (
     DatasetArtifact,
-    LegacyDatasetArtifact,
-    LegacyTableArtifact,
     TableArtifact,
 )
-from .model import LegacyModelArtifact, ModelArtifact
+from .model import ModelArtifact
 from .plots import (
-    BokehArtifact,
-    ChartArtifact,
-    LegacyBokehArtifact,
-    LegacyChartArtifact,
-    LegacyPlotArtifact,
-    LegacyPlotlyArtifact,
     PlotArtifact,
     PlotlyArtifact,
 )
 
-# TODO - Remove deprecated types when deleted in 1.7.0
 artifact_types = {
     "": Artifact,
     "artifact": Artifact,
     "dir": DirArtifact,
     "link": LinkArtifact,
     "plot": PlotArtifact,
-    "chart": ChartArtifact,
     "table": TableArtifact,
     "model": ModelArtifact,
     "dataset": DatasetArtifact,
     "plotly": PlotlyArtifact,
-    "bokeh": BokehArtifact,
-}
-
-# TODO - Remove this when legacy types are deleted in 1.7.0
-legacy_artifact_types = {
-    "": LegacyArtifact,
-    "dir": LegacyDirArtifact,
-    "link": LegacyLinkArtifact,
-    "plot": LegacyPlotArtifact,
-    "chart": LegacyChartArtifact,
-    "table": LegacyTableArtifact,
-    "model": LegacyModelArtifact,
-    "dataset": LegacyDatasetArtifact,
-    "plotly": LegacyPlotlyArtifact,
-    "bokeh": LegacyBokehArtifact,
 }
 
 
@@ -102,15 +73,8 @@ class ArtifactProducer:
 
 
 def dict_to_artifact(struct: dict) -> Artifact:
-    # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
-    # property to make this distinction
     kind = struct.get("kind", "")
-
-    if is_legacy_artifact(struct):
-        return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
-
     artifact_class = artifact_types[kind]
-
     return artifact_class.from_dict(struct)
 
 
@@ -308,10 +272,7 @@ class ArtifactManager:
             # before uploading the item, we want to ensure that its tags are valid,
             # so that we don't upload something that won't be stored later
             validate_tag_name(item.metadata.tag, "artifact.metadata.tag")
-            if is_legacy_artifact(item):
-                item.upload()
-            else:
-                item.upload(artifact_path=artifact_path)
+            item.upload(artifact_path=artifact_path)
 
         if db_key:
             self._log_to_db(db_key, project, producer.inputs, item)

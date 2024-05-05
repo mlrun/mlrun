@@ -990,9 +990,9 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                key = artifact.get("metadata").get("key", "")
+                key = artifact.get("metadata", {}).get("key", "")
                 if not key:
-                    raise ValueError('artifacts "key" must be specified')
+                    raise ValueError('artifacts "metadata.key" must be specified')
             else:
                 key = artifact.key
                 artifact = artifact.to_dict()

@@ -182,7 +182,7 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow"
+    project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
@@ -333,7 +333,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         with ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=with_training_set,  # workaround for ML-5997
+                deploy_histogram_data_drift_app=_DefaultDataDriftAppData
+                in self.apps_data,
+                # workaround for ML-5997
             )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)
@@ -361,7 +363,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @pytest.mark.enterprise
 class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
     # TODO : delete in 1.9.0 (V1 app deprecation)
-    project_name = "test-app-flow"
+    project_name = "test-app-flow-v1"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
@@ -390,7 +392,6 @@ class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set) -> None:
         super().test_app_flow(with_training_set)
-
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

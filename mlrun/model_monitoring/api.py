@@ -637,7 +637,7 @@ def _create_model_monitoring_function_base(
     )
     graph = func_obj.set_topology(mlrun.serving.states.StepKinds.flow)
     prepare_step = graph.to(
-        class_name="mlrun.model_monitoring.applications.application_steps._PrepareMonitoringEvent",
+        class_name="mlrun.model_monitoring.applications._application_steps._PrepareMonitoringEvent",
         name="PrepareMonitoringEvent",
         application_name=name,
     )
@@ -646,7 +646,7 @@ def _create_model_monitoring_function_base(
     else:
         app_step = prepare_step.to(class_name=application_class)
     app_step.to(
-        class_name="mlrun.model_monitoring.applications.application_steps._PushToMonitoringWriter",
+        class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",
         project=project,
         writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,

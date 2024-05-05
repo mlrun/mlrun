@@ -1795,11 +1795,14 @@ def test_load_project_from_yaml_with_function(context):
         ),
     ],
 )
-@pytest.mark.parametrize("authentication_mode", [
-    mlrun.common.schemas.APIGatewayAuthenticationMode.none,
-    mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
-    mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
-])
+@pytest.mark.parametrize(
+    "authentication_mode",
+    [
+        mlrun.common.schemas.APIGatewayAuthenticationMode.none,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+    ],
+)
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
 def test_create_api_gateway_valid(
     patched_create_api_gateway,
@@ -1859,7 +1862,10 @@ def test_create_api_gateway_valid(
     )
     if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         api_gateway.with_basic_auth("test_username", "test_password")
-    elif authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key:
+    elif (
+        authentication_mode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
+    ):
         api_gateway.with_access_key_auth()
 
     gateway = project.store_api_gateway(api_gateway)
@@ -1871,7 +1877,10 @@ def test_create_api_gateway_valid(
     assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
     if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         assert gateway.authentication.authentication_mode == "basicAuth"
-    elif authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key:
+    elif (
+        authentication_mode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
+    ):
         assert gateway.authentication.authentication_mode == "accessKey"
     else:
         assert gateway.authentication.authentication_mode == "none"

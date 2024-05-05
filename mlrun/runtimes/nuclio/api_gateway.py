@@ -17,8 +17,8 @@ from typing import Optional, Union
 from urllib.parse import urljoin
 
 import requests
-from requests.auth import HTTPBasicAuth
 from nuclio.auth import AuthInfo as NuclioAuthInfo
+from requests.auth import HTTPBasicAuth
 
 import mlrun
 import mlrun.common.schemas

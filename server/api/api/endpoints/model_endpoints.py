@@ -13,15 +13,19 @@
 # limitations under the License.
 
 import json
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
+import mlrun.utils.helpers
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -360,3 +364,84 @@ async def get_model_endpoint_monitoring_metrics(
         ).get_model_endpoint_metrics,
         endpoint_id=endpoint_id,
     )
+
+
+@dataclass
+class _MetricsValuesParams:
+    project: str
+    endpoint_id: str
+    names: list[tuple[str, str]]
+    start: datetime
+    end: datetime
+
+
+async def _get_metrics_values_data(
+    project: str,
+    endpoint_id: str,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        server.api.api.deps.authenticate_request
+    ),
+    name: Annotated[
+        Optional[list[str]],
+        Query(
+            pattern=mlrun.common.schemas.model_monitoring.model_endpoints._FQN_PATTERN
+        ),
+    ] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+) -> _MetricsValuesParams:
+    """
+    Verify authorization, validate parameters and initialize the parameters.
+
+    :param project:     The name of the project.
+    :param endpoint_id: The unique id of the model endpoint.
+    :param auth_info:   The auth info of the request.
+    :param name:        The full names of the requested results.
+
+    :return:            _MetricsValuesData object with the validated data.
+    """
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
+    )
+    if start is None and end is None:
+        end = mlrun.utils.helpers.datetime_now()
+        start = end - timedelta(days=1)
+    elif start is not None and end is not None:
+        if start.tzinfo is None or end.tzinfo is None:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                "Custom start and end times must contain the timezone."
+            )
+        if start > end:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The start time must precede the end time."
+            )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Provided only one of start time, end time. Provide both or none of them"
+        )
+    return _MetricsValuesParams(
+        project=project,
+        endpoint_id=endpoint_id,
+        names=[],
+        start=start,
+        end=end,
+    )
+
+
+@router.get(
+    "/{endpoint_id}/metrics-values",
+    response_model=list[
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues
+    ],
+)
+async def get_model_endpoint_monitoring_metrics_values(
+    params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
+) -> list[
+    mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues
+]:
+    """
+    :param params: A combined object with all the request parameters.
+
+    :returns:      A list of the results values for this model endpoint.
+    """
+    return []

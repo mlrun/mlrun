@@ -14,6 +14,7 @@
 
 import enum
 import json
+import re
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, validator
@@ -302,6 +303,24 @@ class ModelEndpointMonitoringMetric(BaseModel):
     type: ModelEndpointMonitoringMetricType
     name: str
     full_name: str
+
+
+_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_FQN_PATTERN = re.compile(
+    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"(?P<app>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{_FQN_PART_PATTERN})\."
+    rf"(?P<name>{_FQN_PART_PATTERN})$"
+)
+
+
+def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
+    match = _FQN_PATTERN.fullmatch(fqn)
+    if match is None:
+        raise ValueError("The fully qualified name is not in the expected format")
+    return ModelEndpointMonitoringMetric.parse_obj(
+        match.groupdict() | {"full_name": fqn}
+    )
 
 
 def _mapping_attributes(

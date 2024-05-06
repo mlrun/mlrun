@@ -108,7 +108,6 @@ class ModelMonitoringWriter(StepToDict):
         self._custom_notifier = CustomNotificationPusher(
             notification_types=[NotificationKind.slack]
         )
-        self._endpoints_records = {}
 
         self._app_result_store = mlrun.model_monitoring.get_store_object(
             project=self.project

@@ -27,6 +27,7 @@ from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetricType,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
+from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query
 
 
 @pytest.fixture
@@ -214,3 +215,33 @@ class TestGetModelEndpointMetrics:
         """Test that non 404 errors are not silenced"""
         with pytest.raises(v3io.dataplane.response.HttpResponseError):
             store_with_err.get_model_endpoint_metrics(cls.ENDPOINT)
+
+
+@pytest.mark.parametrize(
+    ("endpoint_id", "names", "expected_query"),
+    [
+        ("ddw2lke", [], "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';"),
+        (
+            "ep123",
+            [("app1", "res1")],
+            (
+                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' "
+                "AND ((application_name='app1' AND result_name='res1'));"
+            ),
+        ),
+        (
+            "ep123",
+            [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
+            (
+                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
+                "((application_name='app1' AND result_name='res1') OR "
+                "(application_name='app1' AND result_name='res2') OR "
+                "(application_name='app2' AND result_name='res1'));"
+            ),
+        ),
+    ],
+)
+def test_tsdb_query(
+    endpoint_id: str, names: list[tuple[str, str]], expected_query: str
+) -> None:
+    assert _get_sql_query(endpoint_id, names) == expected_query

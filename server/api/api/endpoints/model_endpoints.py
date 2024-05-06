@@ -402,7 +402,7 @@ async def _get_metrics_values_data(
     :param project:     The name of the project.
     :param endpoint_id: The unique id of the model endpoint.
     :param inputs:      The full names of the requested results. At least one is required.
-                        Start and end times are optional.
+                        Start and end times are optional, and must be timezone aware.
     :param auth_info:   The auth info of the request.
 
     :return:            _MetricsValuesData object with the validated data.

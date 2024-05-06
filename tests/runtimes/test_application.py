@@ -88,14 +88,14 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             "Application sidecar port spec must include a containerPort",
         ),
         (
-            [{"image": "my/web-app:latest", "ports": [{"containerPort": 8080}]}],
+            [{"image": "my/web-app:latest", "ports": [{"containerPort": 8050}]}],
             "Application sidecar port spec must include a name",
         ),
         (
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
+                    "ports": [{"containerPort": 8050, "name": "sidecar-port"}],
                     "args": ["--help"],
                 }
             ],
@@ -105,7 +105,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
+                    "ports": [{"containerPort": 8050, "name": "sidecar-port"}],
                 }
             ],
             None,
@@ -114,7 +114,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
+                    "ports": [{"containerPort": 8050, "name": "sidecar-port"}],
                     "command": ["echo"],
                 }
             ],
@@ -124,7 +124,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
+                    "ports": [{"containerPort": 8050, "name": "sidecar-port"}],
                     "command": ["echo"],
                     "args": ["--help"],
                 }
@@ -169,6 +169,21 @@ def test_application_image_build(remote_builder_mock):
     )
 
 
+def test_application_api_gateway(rundb_mock):
+    function_name = "application-test"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+    fn.deploy()
+    api_gateway = fn.status.api_gateway
+    assert api_gateway is not None
+    assert api_gateway.name == function_name
+    assert len(api_gateway.spec.functions) == 1
+    assert function_name in api_gateway.spec.functions[0]
+
+
 def _assert_function_code(fn, file_path=None):
     file_path = (
         file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]
@@ -197,13 +212,13 @@ def _assert_application_post_deploy_spec(fn, image):
             "name": "application-test-sidecar",
             "ports": [
                 {
-                    "containerPort": 8080,
+                    "containerPort": 8050,
                     "name": "application-test-sidecar-0",
                     "protocol": "TCP",
                 }
             ],
         }
     ]
-    assert fn.get_env("SIDECAR_PORT") == "8080"
+    assert fn.get_env("SIDECAR_PORT") == "8050"
     assert fn.status.application_image == image
     assert not fn.spec.image

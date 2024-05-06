@@ -424,6 +424,13 @@ class RunDBMock:
     ):
         return "ready", last_log_timestamp
 
+    def store_api_gateway(
+        self,
+        project: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
+    ):
+        return api_gateway
+
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
             update_in(self._runs[uid], key, value)
@@ -643,6 +650,16 @@ class RemoteBuilderMock:
         self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
         self.deploy_nuclio_function = unittest.mock.Mock(
             side_effect=_remote_builder_handler
+        )
+
+        def _store_api_gateway_handler(
+            project: str,
+            api_gateway: mlrun.common.schemas.APIGateway,
+        ):
+            return api_gateway
+
+        self.store_api_gateway = unittest.mock.Mock(
+            side_effect=_store_api_gateway_handler
         )
 
     def get_build_config_and_target_dir(self):

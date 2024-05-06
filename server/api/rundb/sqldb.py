@@ -797,7 +797,10 @@ class SQLRunDB(RunDBInterface):
     def store_api_gateway(
         self,
         project: str,
-        api_gateway: mlrun.common.schemas.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
     ):
         raise NotImplementedError()
 

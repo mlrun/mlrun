@@ -21,12 +21,10 @@ from requests.auth import HTTPBasicAuth
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.model import ModelObj
+from mlrun.utils import logger
 
-from ...model import ModelObj
-from ..utils import logger
-from .application import ApplicationRuntime
-from .function import RemoteRuntime, get_fullname, min_nuclio_versions
-from .serving import ServingRuntime
+from .function import get_fullname, min_nuclio_versions
 
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
 NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE = "none"
@@ -139,19 +137,17 @@ class APIGatewaySpec(ModelObj):
     def __init__(
         self,
         functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                        ApplicationRuntime,
-                    ]
-                ],
-                RemoteRuntime,
-                ServingRuntime,
-                ApplicationRuntime,
+            list[
+                Union[
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
+                ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
         project: str = None,
         description: str = "",
@@ -166,7 +162,8 @@ class APIGatewaySpec(ModelObj):
             Can be a list of function names (["my-func1", "my-func2"])
             or a list or a single entity of
             :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
-            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.application.ApplicationRuntime`
         :param project: The project name
         :param description: Optional description of the API gateway
         :param path: Optional path of the API gateway, default value is "/"
@@ -192,19 +189,17 @@ class APIGatewaySpec(ModelObj):
         self,
         project: str,
         functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                        ApplicationRuntime,
-                    ]
-                ],
-                RemoteRuntime,
-                ServingRuntime,
-                ApplicationRuntime,
+            list[
+                Union[
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
+                ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
         canary: Optional[list[int]] = None,
         ports: Optional[list[int]] = None,
@@ -247,16 +242,17 @@ class APIGatewaySpec(ModelObj):
     def _validate_functions(
         project: str,
         functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                Union[RemoteRuntime, ServingRuntime],
+            list[
+                Union[
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
+                ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
     ):
         if not isinstance(functions, list):
@@ -435,13 +431,17 @@ class APIGateway(ModelObj):
     def with_canary(
         self,
         functions: Union[
-            list[str],
             list[
                 Union[
-                    RemoteRuntime,
-                    ServingRuntime,
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
                 ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
         canary: list[int],
     ):
@@ -452,7 +452,8 @@ class APIGateway(ModelObj):
             Can be a list of function names (["my-func1", "my-func2"])
             or a list of nuclio functions of types
             :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
-            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.application.ApplicationRuntime`
         :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
 
         """

@@ -20,6 +20,11 @@ import mlrun.errors
 from mlrun.common.schemas import AuthInfo
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
+from mlrun.runtimes.nuclio.api_gateway import (
+    APIGateway,
+    APIGatewayMetadata,
+    APIGatewaySpec,
+)
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
 
 
@@ -183,7 +188,7 @@ class ApplicationRuntime(RemoteRuntime):
         return self.status.api_gateway
 
     @api_gateway.setter
-    def api_gateway(self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway):
+    def api_gateway(self, api_gateway: APIGateway):
         self.status.api_gateway = api_gateway
 
     def set_internal_application_port(self, port: int):
@@ -239,6 +244,7 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
         skip_access_key_auth: bool = False,
+        direct_port_access: bool = False,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -255,6 +261,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param is_kfp:                  Deploy as part of a kfp pipeline
         :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param show_on_failure:         Show logs only in case of build failure
+        :param skip_access_key_auth:    Skip adding access key auth to the API Gateway
+        :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
@@ -280,7 +288,8 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env,
         )
 
-        self.create_api_gateway(skip_access_key_auth=skip_access_key_auth)
+        ports = self.spec.internal_application_port if direct_port_access else []
+        self.create_api_gateway(skip_access_key_auth=skip_access_key_auth, ports=ports)
 
     def with_source_archive(
         self, source, workdir=None, pull_at_runtime=True, target_dir=None
@@ -314,32 +323,31 @@ class ApplicationRuntime(RemoteRuntime):
         ports: list[int] = None,
         skip_access_key_auth: bool = False,
     ):
-        api_gateway_config = mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+        api_gateway_config = APIGateway(
+            APIGatewayMetadata(
                 name=self.metadata.name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels,
                 annotations=self.metadata.annotations,
             ),
-            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            APIGatewaySpec(
                 functions=[self],
                 project=self.metadata.project,
                 path=path,
                 # TODO: Uncomment once it is merged
-                # ports=ports if port else None,
+                ports=mlrun.utils.helpers.as_list(ports) if ports else None,
             ),
         )
 
-        if not skip_access_key_auth:
-            api_gateway_config.with_access_key_auth()
+        # TODO: Uncomment once https://github.com/mlrun/mlrun/pull/5509 is merged
+        # if not skip_access_key_auth:
+        #     api_gateway_config.with_access_key_auth()
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
-            self.metadata.project, api_gateway_config
+            self.metadata.project, api_gateway_config.to_scheme()
         )
-        self.status.api_gateway = (
-            mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(api_gateway_scheme)
-        )
+        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
 
     def invoke(
         self,

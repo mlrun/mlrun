@@ -259,7 +259,7 @@ import os
 os.environ["HADOOP_USER_NAME"] = "..."
 ```
 
-To register an HDFS datastore profile and use it as described in [Data store profiles](#data-store-profiles), use:
+To register an HDFS data store profile and use it as described in [Data store profiles](#data-store-profiles), use:
 ```python
 DatastoreProfileHdfs(
     name="my-hdfs",

@@ -418,7 +418,11 @@ class Projects(
         project_to_recent_failed_pipelines_count = collections.defaultdict(lambda: 0)
         if not mlrun.mlconf.resolve_kfp_url():
             # If KFP is not configured, return dict with 0 counters (no running pipelines)
-            return project_to_running_pipelines_count
+            return (
+                project_to_recent_completed_pipelines_count,
+                project_to_recent_failed_pipelines_count,
+                project_to_running_pipelines_count,
+            )
 
         try:
             next_page_token = ""

@@ -184,7 +184,7 @@ class TestSQLStore:
         assert endpoint_dict["model"] == "test_model"
         assert endpoint_dict["error_count"] == 2
 
-    def test_sql_write_application_result(
+    def test_sql_write_application_event(
         cls,
         event: _AppResultEvent,
         event_v2: _AppResultEvent,
@@ -195,12 +195,12 @@ class TestSQLStore:
         new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
 
         # Write a dummy application result event
-        new_sql_store.write_application_result(event=event)
+        new_sql_store.write_application_event(event=event)
 
         cls.assert_application_record(event=event, new_sql_store=new_sql_store)
 
         # Write a 2nd application result event - we expect it to overwrite the existing record
-        new_sql_store.write_application_result(event=event_v2)
+        new_sql_store.write_application_event(event=event_v2)
 
         cls.assert_application_record(event=event_v2, new_sql_store=new_sql_store)
 

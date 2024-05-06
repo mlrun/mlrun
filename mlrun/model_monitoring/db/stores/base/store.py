@@ -15,6 +15,8 @@
 import typing
 from abc import ABC, abstractmethod
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+
 
 class StoreBase(ABC):
     """
@@ -110,11 +112,13 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def write_application_result(
-        self, event: dict[str, typing.Any], kind: str = "result"
+    def write_application_event(
+        self,
+        event: dict[str, typing.Any],
+        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
     ):
         """
-        Write a new application result event in the target table.
+        Write a new event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
                       schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`

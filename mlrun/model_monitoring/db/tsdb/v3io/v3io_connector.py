@@ -208,9 +208,13 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
-    def write_application_result(self, event: dict, kind: str = "result"):
+    def write_application_event(
+        self,
+        event: dict,
+        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+    ):
         """
-        Write a single application result or metric to TSDB.
+        Write a single result or metric to TSDB.
         """
 
         event[mm_constants.WriterEvent.END_INFER_TIME] = (

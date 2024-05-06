@@ -18,6 +18,8 @@ from abc import ABC
 
 import pandas as pd
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+
 
 class TSDBConnector(ABC):
     def __init__(self, project: str):
@@ -51,11 +53,15 @@ class TSDBConnector(ABC):
         """
         pass
 
-    def write_application_result(self, event: dict, kind: str = "result"):
+    def write_application_event(
+        self,
+        event: dict,
+        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+    ):
         """
-        Write a single application result event to TSDB.
+        Write a single application or metric to TSDB.
 
-        :raise mlrun.errors.MLRunInvalidArgumentError: If an error occurred while writing the application result.
+        :raise mlrun.errors.MLRunInvalidArgumentError: If an error occurred while writing the event.
         """
         pass
 

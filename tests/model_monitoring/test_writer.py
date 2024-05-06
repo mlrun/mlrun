@@ -175,7 +175,7 @@ class TestTSDB:
         writer: ModelMonitoringWriter,
     ) -> None:
         event, kind = ModelMonitoringWriter._reconstruct_event(event)
-        writer._tsdb_connector.write_application_result(event=event.copy(), kind=kind)
+        writer._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
         record_from_tsdb = writer._tsdb_connector.get_records(
             table=mm_constants.V3IOTSDBTables.APP_RESULTS,
             filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
@@ -241,4 +241,4 @@ class TestTSDB:
         writer: ModelMonitoringWriter,
     ) -> None:
         event, kind = ModelMonitoringWriter._reconstruct_event(event)
-        writer._tsdb_connector.write_application_result(event, kind)
+        writer._tsdb_connector.write_application_event(event, kind)

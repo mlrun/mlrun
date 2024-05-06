@@ -24,13 +24,15 @@ class TSDBConnector(ABC):
         """
         Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.
         At the moment we have 3 different types of monitoring data:
-        - real time performance metrics: real time performance metrics that are being calculated by the model monitoring stream pod.
-        Among these metrics are the base metrics (average latency and predictions over time), endpoint features (data samples),
-        and custom metrics (user-defined metrics).
+        - real time performance metrics: real time performance metrics that are being calculated by the model
+        monitoring stream pod.
+        Among these metrics are the base metrics (average latency and predictions over time), endpoint features
+        (data samples), and custom metrics (user-defined metrics).
         - app_results: a detailed results that include status, kind, extra data, etc. These results are being calculated
         through the monitoring applications and stored in the TSDB using the model monitoring writer.
-        - metrics: a basic key value that represents a numeric metric. Similar to the app_results, these metrics are being
-        calculated through the monitoring applications and stored in the TSDB using the model monitoring writer.
+        - metrics: a basic key value that represents a numeric metric. Similar to the app_results, these metrics
+        are being calculated through the monitoring applications and stored in the TSDB using the model monitoring
+        writer.
 
         :param project: the name of the project.
 

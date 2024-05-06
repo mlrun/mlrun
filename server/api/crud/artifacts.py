@@ -185,7 +185,7 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         object_uid: str = None,
         producer_id: str = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (

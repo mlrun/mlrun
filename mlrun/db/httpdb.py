@@ -3957,11 +3957,17 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
-        if isinstance(alert_data, AlertConfig):
-            alert_data = alert_data.to_dict()
+        alert_instance = (
+            alert_data
+            if isinstance(alert_data, AlertConfig)
+            else AlertConfig.from_dict(alert_data)
+        )
+        alert_instance.validate_required_fields()
+
+        alert_data = alert_instance.to_dict()
         body = _as_json(alert_data)
         response = self.api_call("PUT", endpoint_path, error_message, body=body)
-        return AlertConfig(**response.json())
+        return AlertConfig.from_dict(response.json())
 
     def get_alert_config(self, alert_name: str, project="") -> AlertConfig:
         """
@@ -3974,7 +3980,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"get alert {project}/alerts/{alert_name}"
         response = self.api_call("GET", endpoint_path, error_message)
-        return AlertConfig(**response.json())
+        return AlertConfig.from_dict(response.json())
 
     def list_alerts_configs(self, project="") -> list[AlertConfig]:
         """
@@ -4032,7 +4038,7 @@ class HTTPRunDB(RunDBInterface):
         :return: All the alert template objects in the database.
         """
         endpoint_path = "alert-templates"
-        error_message = "get alert templates"
+        error_message = "get templates /alert-templates"
         response = self.api_call("GET", endpoint_path, error_message).json()
         results = []
         for item in response:

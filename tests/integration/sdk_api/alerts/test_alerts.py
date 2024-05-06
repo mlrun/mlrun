@@ -20,6 +20,7 @@ import mlrun.alerts
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.utils
+import server.api.constants
 import tests.integration.sdk_api.base
 from mlrun.utils import logger
 
@@ -181,19 +182,14 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         project = mlrun.new_project(project_name)
 
         # one of the pre-defined system templates
-        drift_system_template = mlrun.common.schemas.AlertTemplate(
-            template_id=2,
-            template_name="DriftDetected",
-            template_description="Generic template for drift detected alerts",
-            system_generated=True,
-            description="Model drift has been detected",
-            severity=alert_constants.AlertSeverity.HIGH,
-            trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
-            reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+        drift_system_template = self._get_template_by_name(
+            server.api.constants.pre_defined_templates, "DriftDetected"
         )
 
         drift_template = project.get_alert_template("DriftDetected")
-        self._validate_alert_template(drift_template, drift_system_template)
+        assert not drift_template.templates_differ(
+            drift_system_template
+        ), "Templates are different"
 
         all_system_templates = project.list_alert_templates()
         assert len(all_system_templates) == 3
@@ -292,6 +288,18 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         ]
 
         expectations = [
+            {
+                "param_name": "project_name",
+                "param_value": "",
+                "exception": mlrun.errors.MLRunBadRequestError,
+                "case": "testing create alert without passing project",
+            },
+            {
+                "param_name": "alert_name",
+                "param_value": "",
+                "exception": mlrun.errors.MLRunBadRequestError,
+                "case": "testing create alert without passing alert name",
+            },
             {
                 "param_name": "project_name",
                 "param_value": "no_such_project",
@@ -571,7 +579,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_state:
             assert alert.state == alert_state
         if alert_event_name:
-            assert alert.trigger["events"] == [alert_event_name]
+            assert alert.trigger.events == [alert_event_name]
         if alert_description:
             assert alert.description == alert_description
         if alert_severity:
@@ -635,18 +643,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
     @staticmethod
-    def _validate_alert_template(
-        drift_template,
-        expected_template,
-    ):
-        assert drift_template.template_id == expected_template.template_id
-        assert drift_template.template_name == expected_template.template_name
-        assert (
-            drift_template.template_description
-            == expected_template.template_description
-        )
-        assert drift_template.system_generated == expected_template.system_generated
-        assert drift_template.description == expected_template.description
-        assert drift_template.severity == expected_template.severity
-        assert drift_template.trigger == expected_template.trigger
-        assert drift_template.reset_policy == expected_template.reset_policy
+    def _get_template_by_name(templates, name):
+        for template in templates:
+            if template.template_name == name:
+                return template
+        return None

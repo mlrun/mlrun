@@ -29,12 +29,13 @@ class AlertConfig(ModelObj):
         "severity",
         "criteria",
         "reset_policy",
+        "state",
     ]
 
     def __init__(
         self,
-        project: str,
-        name: str,
+        project: str = None,
+        name: str = None,
         template: Union[alert_constants.AlertTemplate, str] = None,
         description: str = None,
         summary: str = None,
@@ -67,6 +68,10 @@ class AlertConfig(ModelObj):
         if template:
             self._apply_template(template)
 
+    def validate_required_fields(self):
+        if not self.project or not self.name:
+            raise mlrun.errors.MLRunBadRequestError("Project and name must be provided")
+
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         data = super().to_dict(self._dict_fields)
 
@@ -82,8 +87,9 @@ class AlertConfig(ModelObj):
         )
         return data
 
-    def from_dict(self, struct=None, fields=None, deprecated_fields: dict = None):
-        new_obj = super().from_dict(struct, self._dict_fields)
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super().from_dict(struct, fields=fields)
 
         entity_data = struct.get("entity")
         if entity_data:
@@ -116,7 +122,7 @@ class AlertConfig(ModelObj):
 
     def with_entity(self, entity: alert_constants.EventEntity):
         if not isinstance(entity, alert_constants.EventEntity):
-            raise ValueError("entity parameter must be of type: EventEntity")
+            raise ValueError("Entity parameter must be of type: EventEntity")
         self.entity = entity
         return self
 

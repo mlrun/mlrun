@@ -43,7 +43,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
             tasks = []
             for notification_data in alert.notifications:
                 notification_object = mlrun.model.Notification.from_dict(
-                    notification_data.dict()
+                    notification_data.notification.dict()
                 )
 
                 notification_object = (
@@ -64,7 +64,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                     self._push_notification_async(
                         notification,
                         alert,
-                        notification_data,
+                        notification_data.notification,
                         event_data,
                     )
                 )

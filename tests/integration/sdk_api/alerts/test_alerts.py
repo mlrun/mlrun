@@ -251,38 +251,44 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _create_alerts_test(self, project_name, alert1, alert2):
         invalid_notification = [
             {
-                "kind": "invalid",
-                "name": "invalid_notification",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
+                "notification": {
+                    "kind": "invalid",
+                    "name": "invalid_notification",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
                 },
-            },
+            }
         ]
         duplicated_names_notifications = [
             {
-                "kind": "slack",
-                "name": "slack_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
+                "notification": {
+                    "kind": "slack",
+                    "name": "slack_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
                 },
             },
             {
-                "kind": "git",
-                "name": "slack_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
+                "notification": {
+                    "kind": "git",
+                    "name": "slack_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
                 },
             },
         ]
@@ -392,26 +398,30 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # create another alert with no errors
         notifications = [
             {
-                "kind": "slack",
-                "name": "slack_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
-                },
+                "notification": {
+                    "kind": "slack",
+                    "name": "slack_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
+                }
             },
             {
-                "kind": "git",
-                "name": "git_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
-                },
+                "notification": {
+                    "kind": "git",
+                    "name": "git_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
+                }
             },
         ]
 
@@ -619,16 +629,18 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if notifications is None:
             notifications = [
                 {
-                    "kind": "slack",
-                    "name": "slack_drift",
-                    "message": "Ay caramba!",
-                    "severity": "warning",
-                    "when": ["now"],
-                    "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
-                    },
-                    "condition": "oops",
-                },
+                    "notification": {
+                        "kind": "slack",
+                        "name": "slack_drift",
+                        "message": "Ay caramba!",
+                        "severity": "warning",
+                        "when": ["now"],
+                        "secret_params": {
+                            "webhook": "https://hooks.slack.com/services/",
+                        },
+                        "condition": "oops",
+                    }
+                }
             ]
         return mlrun.alerts.alert.AlertConfig(
             project=project,

@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -1179,10 +1180,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
-        if is_legacy_artifact(artifact):
-            artifact["tag"] = tag
-        else:
-            artifact["metadata"]["tag"] = tag
+        artifact["metadata"]["tag"] = tag
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)
@@ -2310,7 +2308,9 @@ class SQLDB(DBInterface):
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
             .filter(
-                Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states())
+                Run.state.in_(
+                    mlrun.common.runtimes.constants.RunStates.non_terminal_states()
+                )
             )
             .group_by(Run.project)
             .all()
@@ -2325,8 +2325,8 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.error,
-                        mlrun.runtimes.constants.RunStates.aborted,
+                        mlrun.common.runtimes.constants.RunStates.error,
+                        mlrun.common.runtimes.constants.RunStates.aborted,
                     ]
                 )
             )
@@ -2343,7 +2343,7 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.completed,
+                        mlrun.common.runtimes.constants.RunStates.completed,
                     ]
                 )
             )

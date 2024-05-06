@@ -142,8 +142,6 @@ class HTTPRunDB(RunDBInterface):
         self.base_url = base_url
         username = parsed_url.username or config.httpdb.user
         password = parsed_url.password or config.httpdb.password
-        self.user = username
-        self.password = password
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
@@ -160,6 +158,9 @@ class HTTPRunDB(RunDBInterface):
 
             if token:
                 self.token_provider = StaticTokenProvider(token)
+
+        self.user = username
+        self.password = password
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -658,10 +659,10 @@ class HTTPRunDB(RunDBInterface):
                 nil_resp += 1
 
             if watch and state in [
-                mlrun.runtimes.constants.RunStates.pending,
-                mlrun.runtimes.constants.RunStates.running,
-                mlrun.runtimes.constants.RunStates.created,
-                mlrun.runtimes.constants.RunStates.aborting,
+                mlrun.common.runtimes.constants.RunStates.pending,
+                mlrun.common.runtimes.constants.RunStates.running,
+                mlrun.common.runtimes.constants.RunStates.created,
+                mlrun.common.runtimes.constants.RunStates.aborting,
             ]:
                 continue
             else:
@@ -1523,16 +1524,15 @@ class HTTPRunDB(RunDBInterface):
         """
 
         try:
+            normalized_name = normalize_name(func.metadata.name)
             params = {
-                "name": normalize_name(func.metadata.name),
+                "name": normalized_name,
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            _path = (
-                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
-            )
+            _path = f"projects/{func.metadata.project}/nuclio/{normalized_name}/deploy"
             resp = self.api_call("GET", _path, params=params)
         except OSError as err:
             logger.error(f"error getting deploy status: {err_to_str(err)}")

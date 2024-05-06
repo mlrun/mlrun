@@ -171,7 +171,7 @@ def test_submit_job_ensure_function_has_auth_set(
 
     secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     expected_env_vars = {
-        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
             secret_name,
             mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
         ),

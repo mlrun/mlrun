@@ -63,6 +63,7 @@ class APIGatewayUpstream(_APIGatewayBaseModel):
     kind: Optional[str] = "nucliofunction"
     nucliofunction: dict[str, str]
     percentage: Optional[int] = 0
+    port: Optional[int] = 0
 
 
 class APIGatewaySpec(_APIGatewayBaseModel):

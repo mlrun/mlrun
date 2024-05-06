@@ -17,12 +17,12 @@ import time
 import typing
 
 import pytest
-import requests
 
 import mlrun
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
+import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.datastore import get_stream_pusher
 from mlrun.model_monitoring.helpers import get_stream_path
 from tests.system.base import TestMLRunSystem
@@ -48,7 +48,9 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
-        nuclio_function_url = self._deploy_notification_nuclio()
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with webhook notification
         alert_name = "failure_webhook"
@@ -79,9 +81,12 @@ class TestAlerts(TestMLRunSystem):
         """
         validate that an alert is sent in case of a model drift detection
         """
-
+        # enable model monitoring - deploy writer function
+        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
-        nuclio_function_url = self._deploy_notification_nuclio()
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with two webhook notifications
         alert_name = "drift_webhook"
@@ -96,12 +101,12 @@ class TestAlerts(TestMLRunSystem):
             notifications,
         )
 
-        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
-
+        # waits for the writer function to be deployed
         writer = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.WRITER
         )
         writer._wait_for_function_deployment(db=writer._get_db())
+
         endpoint_id = "demo-endpoint"
         mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=self.project.metadata.name,
@@ -119,14 +124,19 @@ class TestAlerts(TestMLRunSystem):
         data = {
             mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            mm_constants.WriterEvent.RESULT_NAME: "data_drift_test",
-            mm_constants.WriterEvent.RESULT_VALUE: 0.5,
-            mm_constants.WriterEvent.RESULT_STATUS: mm_constants.ResultStatusApp.detected,
-            mm_constants.WriterEvent.RESULT_KIND: mm_constants.ResultKindApp.data_drift,
-            mm_constants.WriterEvent.RESULT_EXTRA_DATA: {"threshold": 0.3},
             mm_constants.WriterEvent.START_INFER_TIME: "2023-09-11T12:00:00",
             mm_constants.WriterEvent.END_INFER_TIME: "2023-09-11T12:01:00",
-            mm_constants.WriterEvent.CURRENT_STATS: json.dumps("a"),
+            mm_constants.WriterEvent.EVENT_KIND: "result",
+            mm_constants.WriterEvent.DATA: json.dumps(
+                {
+                    mm_constants.ResultData.RESULT_NAME: "data_drift_test",
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.data_drift.value,
+                    mm_constants.ResultData.RESULT_VALUE: 0.5,
+                    mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: {"threshold": 0.3},
+                    mm_constants.ResultData.CURRENT_STATS: "",
+                }
+            ),
         }
         output_stream.push([data])
 
@@ -138,16 +148,6 @@ class TestAlerts(TestMLRunSystem):
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
-
-    def _deploy_notification_nuclio(self):
-        nuclio_function = self.project.set_function(
-            name="nuclio",
-            func="assets/notification_nuclio_function.py",
-            image="mlrun/mlrun" if self.image is None else self.image,
-            kind="nuclio",
-        )
-        nuclio_function.deploy()
-        return nuclio_function.spec.command
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
@@ -238,13 +238,7 @@ class TestAlerts(TestMLRunSystem):
 
     @staticmethod
     def _validate_notifications_on_nuclio(nuclio_function_url, expected_notifications):
-        response = requests.post(nuclio_function_url, json={"operation": "list"})
-        response_data = json.loads(response.text)
-
-        # Extract notification data from the response
-        notifications = response_data["data_list"]
-
-        for expected_notification in expected_notifications:
-            assert expected_notification in notifications
-
-        requests.post(nuclio_function_url, json={"operation": "reset"})
+        for notification in notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+            nuclio_function_url
+        ):
+            assert notification in expected_notifications

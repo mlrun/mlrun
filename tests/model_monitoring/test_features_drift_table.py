@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +19,8 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
 import mlrun.utils
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
@@ -75,19 +77,25 @@ def plot_produce(context: mlrun.MLClientCtx):
             inputs=inputs,
         )
     )
-
+    context.__class__ = mm_context.MonitoringApplicationContext
+    monitoring_context = mm_context.MonitoringApplicationContext().from_dict(
+        {
+            mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(inputs_statistics),
+            mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(
+                sample_data_statistics
+            ),
+        },
+        context=context,
+        model_endpoint_dict={},
+    )
     # Initialize the app
     application = histogram_data_drift.HistogramDataDriftApplication()
-    application.context = context
-
     # Calculate drift
     metrics_per_feature = application._compute_metrics_per_feature(
-        sample_df_stats=application.dict_to_histogram(sample_data_statistics),
-        feature_stats=application.dict_to_histogram(inputs_statistics),
+        monitoring_context=monitoring_context,
     )
     application._log_drift_artifacts(
-        sample_set_statistics=sample_data_statistics,
-        inputs_statistics=inputs_statistics,
+        monitoring_context=monitoring_context,
         metrics_per_feature=metrics_per_feature,
         log_json_artifact=False,
     )

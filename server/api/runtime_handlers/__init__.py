@@ -19,10 +19,8 @@ from server.api.runtime_handlers.kubejob import (
     DatabricksRuntimeHandler,
     KubeRuntimeHandler,
 )
-from server.api.runtime_handlers.mpijob import (
-    MpiRuntimeHandlerContainer,
-    resolve_mpijob_crd_version,
-)
+from server.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
+from server.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 from server.api.runtime_handlers.remotesparkjob import RemoteSparkRuntimeHandler
 from server.api.runtime_handlers.sparkjob.spark3job import Spark3RuntimeHandler
 
@@ -34,12 +32,11 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
     global runtime_handler_instances_cache
     if kind == RuntimeKinds.mpijob:
         mpijob_crd_version = resolve_mpijob_crd_version()
-        runtime_handler_class = MpiRuntimeHandlerContainer.handler_selector()
         if not runtime_handler_instances_cache.setdefault(RuntimeKinds.mpijob, {}).get(
             mpijob_crd_version
         ):
             runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version] = (
-                runtime_handler_class()
+                MpiV1RuntimeHandler()
             )
         return runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version]
 

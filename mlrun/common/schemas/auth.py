@@ -59,6 +59,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     hub_source = "hub-source"
     workflow = "workflow"
     alert = "alert"
+    alert_templates = "alert-templates"
     event = "event"
     datastore_profile = "datastore-profile"
     api_gateway = "api-gateway"
@@ -87,6 +88,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
             AuthorizationResourceTypes.event: "/projects/{project_name}/events/{resource_name}",
             AuthorizationResourceTypes.alert: "/projects/{project_name}/alerts/{resource_name}",
+            AuthorizationResourceTypes.alert_templates: "/alert-templates/{resource_name}",
             # runtime resource doesn't have an identifier, we don't need any auth granularity behind project level
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",

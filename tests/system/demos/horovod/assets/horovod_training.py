@@ -28,7 +28,6 @@ from tensorflow.keras.optimizers import Adadelta
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from mlrun import get_or_create_ctx
-from mlrun.artifacts import ChartArtifact
 
 # Acquire MLRun context and parameters:
 mlctx = get_or_create_ctx("horovod-trainer")
@@ -203,22 +202,6 @@ if hvd.rank() == 0:
 
     # Save the model file
     model.save("model.h5")
-    # Produce training chart artifact
-    chart = ChartArtifact("summary.html")
-    chart.header = ["epoch", "accuracy", "val_accuracy", "loss", "val_loss"]
-    for i in range(EPOCHS):
-        chart.add_row(
-            [
-                i + 1,
-                history.history["accuracy"][i],
-                history.history["val_accuracy"][i],
-                history.history["loss"][i],
-                history.history["val_loss"][i],
-            ]
-        )
-    summary = mlctx.log_artifact(
-        chart, local_path="training-summary.html", artifact_path=model_artifacts
-    )
 
     # Save weights
     model.save_weights("model-weights.h5")
@@ -240,7 +223,6 @@ if hvd.rank() == 0:
         labels={"framework": "tensorflow"},
         metrics=mlctx.results,
         extra_data={
-            "training-summary": summary,
             "model-architecture.json": bytes(model.to_json(), encoding="utf8"),
             "model-weights.h5": weights,
             "categories_map": mlctx.get_input("categories_map").url,

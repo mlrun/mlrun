@@ -33,7 +33,6 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_artifact_target,
-    is_legacy_artifact,
     logger,
     template_artifact_path,
 )
@@ -1435,11 +1434,14 @@ class RunObject(RunTemplate):
             unknown_error = ""
             if (
                 self.status.state
-                in mlrun.runtimes.constants.RunStates.abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.abortion_states()
             ):
                 unknown_error = "Run was aborted"
 
-            elif self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            elif (
+                self.status.state
+                in mlrun.common.runtimes.constants.RunStates.error_states()
+            ):
                 unknown_error = "Unknown error"
 
             return (
@@ -1477,7 +1479,7 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                key = a["key"] if is_legacy_artifact(a) else a["metadata"]["key"]
+                key = a["metadata"]["key"]
                 outputs[key] = get_artifact_target(a, self.metadata.project)
         return outputs
 
@@ -1520,7 +1522,10 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
-        if self.status.state in mlrun.runtimes.constants.RunStates.terminal_states():
+        if (
+            self.status.state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
             return self.status.state
         self.refresh()
         return self.status.state or "unknown"
@@ -1582,7 +1587,7 @@ class RunObject(RunTemplate):
         last_pull_log_time = None
         logs_enabled = show_logs is not False
         state = self.state()
-        if state not in mlrun.runtimes.constants.RunStates.terminal_states():
+        if state not in mlrun.common.runtimes.constants.RunStates.terminal_states():
             logger.info(
                 f"run {self.metadata.name} is not completed yet, waiting for it to complete",
                 current_state=state,
@@ -1592,7 +1597,8 @@ class RunObject(RunTemplate):
             if (
                 logs_enabled
                 and logs_interval
-                and state not in mlrun.runtimes.constants.RunStates.terminal_states()
+                and state
+                not in mlrun.common.runtimes.constants.RunStates.terminal_states()
                 and (
                     last_pull_log_time is None
                     or (datetime.now() - last_pull_log_time).seconds > logs_interval
@@ -1601,7 +1607,7 @@ class RunObject(RunTemplate):
                 last_pull_log_time = datetime.now()
                 state, offset = self.logs(watch=False, offset=offset)
 
-            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+            if state in mlrun.common.runtimes.constants.RunStates.terminal_states():
                 if logs_enabled and logs_interval:
                     self.logs(watch=False, offset=offset)
                 break
@@ -1613,7 +1619,10 @@ class RunObject(RunTemplate):
                 )
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
-        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+        if (
+            raise_on_failure
+            and state != mlrun.common.runtimes.constants.RunStates.completed
+        ):
             raise mlrun.errors.MLRunRuntimeError(
                 f"Task {self.metadata.name} did not complete (state={state})"
             )

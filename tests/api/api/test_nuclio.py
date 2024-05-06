@@ -80,6 +80,7 @@ def test_list_api_gateways(
                             "kind": "nucliofunction",
                             "nucliofunction": {"name": "test-func"},
                             "percentage": 0,
+                            "port": 0,
                         }
                     ],
                     "host": "http://my-api-gateway.com",

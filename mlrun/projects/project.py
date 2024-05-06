@@ -41,13 +41,15 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.serving
 import mlrun.utils.regex
-from mlrun.common.schemas import AlertConfig
+from mlrun.alerts.alert import AlertConfig
+from mlrun.common.schemas.alert import AlertTemplate
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 
@@ -56,14 +58,10 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
-from ..model_monitoring.application import (
-    ModelMonitoringApplicationBase,
-)
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
-    is_legacy_artifact,
     is_relative_path,
     is_yaml_path,
     logger,
@@ -991,13 +989,9 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                # Support legacy artifacts
-                if is_legacy_artifact(artifact) or _is_imported_artifact(artifact):
-                    key = artifact.get("key")
-                else:
-                    key = artifact.get("metadata").get("key", "")
+                key = artifact.get("metadata", {}).get("key", "")
                 if not key:
-                    raise ValueError('artifacts "key" must be specified')
+                    raise ValueError('artifacts "metadata.key" must be specified')
             else:
                 key = artifact.key
                 artifact = artifact.to_dict()
@@ -1885,7 +1879,11 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1923,11 +1921,6 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
-        if name in mm_constants.MonitoringFunctionNames.list():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"An application cannot have the following names: "
-                f"{mm_constants.MonitoringFunctionNames.list()}"
-            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -1953,7 +1946,11 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -2006,7 +2003,10 @@ class MlrunProject(ModelObj):
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         application_class: typing.Union[
-            str, ModelMonitoringApplicationBase, None
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+            None,
         ] = None,
         name: typing.Optional[str] = None,
         image: typing.Optional[str] = None,
@@ -3344,7 +3344,6 @@ class MlrunProject(ModelObj):
         image: str = None,
         set_as_default: bool = True,
         with_mlrun: bool = None,
-        skip_deployed: bool = False,
         base_image: str = None,
         commands: list = None,
         secret_name: str = None,
@@ -3365,7 +3364,6 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it) defaults to
                                 mlrun.mlconf.default_base_image
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
@@ -3388,14 +3386,6 @@ class MlrunProject(ModelObj):
             logger.info(
                 "Base image not specified, using default base image",
                 base_image=base_image,
-            )
-
-        if skip_deployed:
-            warnings.warn(
-                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
-                "This parameter is ignored.",
-                # TODO: remove in 1.7.0
-                FutureWarning,
             )
 
         if not overwrite_build_params:
@@ -3660,9 +3650,7 @@ class MlrunProject(ModelObj):
         :returns: List of function objects.
         """
 
-        model_monitoring_labels_list = [
-            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-        ]
+        model_monitoring_labels_list = [str(mm_constants.ModelMonitoringAppLabel())]
         if labels:
             model_monitoring_labels_list += labels
         return self.list_functions(
@@ -3889,7 +3877,9 @@ class MlrunProject(ModelObj):
 
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
-    def store_alert_config(self, alert_data: AlertConfig, alert_name=None):
+    def store_alert_config(
+        self, alert_data: AlertConfig, alert_name=None
+    ) -> AlertConfig:
         """
         Create/modify an alert.
         :param alert_data: The data of the alert.
@@ -3899,7 +3889,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
-        return db.store_alert_config(alert_name, alert_data.dict(), self.metadata.name)
+        return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """
@@ -3910,7 +3900,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_config(alert_name, self.metadata.name)
 
-    def list_alerts_configs(self):
+    def list_alerts_configs(self) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
         :return: All the alerts objects of the project.
@@ -3955,6 +3945,23 @@ class MlrunProject(ModelObj):
         if alert_data:
             alert_name = alert_data.name
         db.reset_alert_config(alert_name, self.metadata.name)
+
+    def get_alert_template(self, template_name: str) -> AlertTemplate:
+        """
+        Retrieve a specific alert template.
+        :param template_name: The name of the template to retrieve.
+        :return: The template object.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_alert_template(template_name)
+
+    def list_alert_templates(self) -> list[AlertTemplate]:
+        """
+        Retrieve list of all alert templates.
+        :return: All the alert template objects in the database.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_alert_templates()
 
     def _run_authenticated_git_action(
         self,

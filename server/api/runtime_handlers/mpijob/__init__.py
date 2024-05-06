@@ -11,15 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dependency_injector import containers, providers
-
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 import server.api.utils.singletons.k8s
+from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from mlrun.config import config
-from mlrun.runtimes.constants import MPIJobCRDVersions
 from server.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
-from server.api.runtime_handlers.mpijob.v1alpha1 import MpiV1Alpha1RuntimeHandler
 
 cached_mpijob_crd_version = None
 
@@ -70,17 +67,3 @@ def _resolve_mpijob_crd_version_best_effort():
 
     mpi_operator_pod = res[0]
     return mpi_operator_pod.metadata.labels.get("crd-version")
-
-
-# overrides the way we resolve the mpijob crd version by querying the k8s API
-@containers.override(mlrun.runtimes.mpijob.MpiRuntimeContainer)
-class MpiRuntimeHandlerContainer(containers.DeclarativeContainer):
-    resolver = providers.Callable(
-        resolve_mpijob_crd_version,
-    )
-
-    handler_selector = providers.Selector(
-        resolver,
-        v1=providers.Object(MpiV1RuntimeHandler),
-        v1alpha1=providers.Object(MpiV1Alpha1RuntimeHandler),
-    )

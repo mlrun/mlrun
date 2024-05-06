@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
+import mlrun.model_monitoring.db.v3io_tsdb_reader
 import mlrun.utils.helpers
 import server.api.api.deps
 import server.api.crud
@@ -455,4 +456,11 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     :returns:      A list of the results values for this model endpoint.
     """
-    return []
+    return await run_in_threadpool(
+        mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
+        project=params.project,
+        endpoint_id=params.endpoint_id,
+        names=params.names,
+        start=params.start,
+        end=params.end,
+    )

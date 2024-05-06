@@ -39,7 +39,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ProjectSecretKeys,
     PrometheusEndpoints,
 )
-from mlrun.model_monitoring.helpers import get_endpoint_record
 from mlrun.utils import logger
 
 
@@ -671,7 +670,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # left them
         if endpoint_id not in self.endpoints:
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
-            endpoint_record = get_endpoint_record(
+            endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
             )
@@ -804,7 +803,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         label_values = event[EventFieldType.PREDICTION]
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
-            endpoint_record = get_endpoint_record(
+            endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
             )

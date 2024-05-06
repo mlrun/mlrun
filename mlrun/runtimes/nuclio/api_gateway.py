@@ -156,6 +156,7 @@ class APIGatewaySpec(ModelObj):
         path: str = "/",
         authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
         canary: Optional[list[int]] = None,
+        ports: Optional[list[int]] = None,
     ):
         """
         :param functions: The list of functions associated with the API gateway
@@ -169,7 +170,9 @@ class APIGatewaySpec(ModelObj):
         :param authentication: The authentication for the API gateway of type
                 :py:class:`~mlrun.runtimes.nuclio.api_gateway.BasicAuth`
         :param host:  The host of the API gateway (optional). If not set, it will be automatically generated
-        :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
+        :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80] (optional)
+        :param ports: The ports of the API gateway, as a list of integers that correspond to the functions in the
+            functions list. for instance: [8050] or [8050, 8081] (optional)
         """
         self.description = description
         self.host = host
@@ -178,8 +181,9 @@ class APIGatewaySpec(ModelObj):
         self.functions = functions
         self.canary = canary
         self.project = project
+        self.ports = ports
 
-        self.validate(project=project, functions=functions, canary=canary)
+        self.validate(project=project, functions=functions, canary=canary, ports=ports)
 
     def validate(
         self,
@@ -198,12 +202,17 @@ class APIGatewaySpec(ModelObj):
             ],
         ],
         canary: Optional[list[int]] = None,
+        ports: Optional[list[int]] = None,
     ):
         self.functions = self._validate_functions(project=project, functions=functions)
 
         # validating canary
         if canary:
             self.canary = self._validate_canary(canary)
+
+        # validating ports
+        if ports:
+            self.ports = self._validate_ports(ports)
 
     def _validate_canary(self, canary: list[int]):
         if len(self.functions) != len(canary):
@@ -220,6 +229,14 @@ class APIGatewaySpec(ModelObj):
                 "The sum of canary function percents should be equal to 100"
             )
         return canary
+
+    def _validate_ports(self, ports):
+        if len(self.functions) != len(ports):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function and port lists lengths do not match"
+            )
+
+        return ports
 
     @staticmethod
     def _validate_functions(
@@ -440,6 +457,17 @@ class APIGateway(ModelObj):
             project=self.spec.project, functions=functions, canary=canary
         )
 
+    def with_ports(self, ports: list[int]):
+        """
+        Set ports for the API gateway
+
+        :param ports: The ports of the API gateway, as a list of integers that correspond to the functions in the
+            functions list. for instance: [8050] or [8050, 8081]
+        """
+        self.spec.validate(
+            project=self.spec.project, functions=self.spec.functions, ports=ports
+        )
+
     @classmethod
     def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
@@ -487,6 +515,10 @@ class APIGateway(ModelObj):
                 for function_name in self.spec.functions
             ]
         )
+        if self.spec.ports:
+            for i, port in enumerate(self.spec.ports):
+                upstreams[i].port = port
+
         api_gateway = mlrun.common.schemas.APIGateway(
             metadata=mlrun.common.schemas.APIGatewayMetadata(
                 name=self.metadata.name, labels={}

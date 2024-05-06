@@ -457,6 +457,7 @@ class MonitoringApplicationController:
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
+                    # start - TODO : delete in 1.9.0 (V1 app deprecation)
                     try:
                         # Get application sample data
                         offline_response = cls._get_sample_df(
@@ -504,7 +505,7 @@ class MonitoringApplicationController:
                     current_stats = calculate_inputs_statistics(
                         sample_set_statistics=feature_stats, inputs=df
                     )
-
+                    # end - TODO : delete in 1.9.0 (V1 app deprecation)
                     cls._push_to_applications(
                         current_stats=current_stats,
                         feature_stats=feature_stats,
@@ -613,6 +614,7 @@ class MonitoringApplicationController:
                 project=project,
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
+            mm_constants.ApplicationEvent.MLRUN_CONTEXT: {},  # TODO : for future use by ad-hoc batch infer
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})

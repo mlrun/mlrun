@@ -118,7 +118,6 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     def _generate_runtime(
         self,
     ) -> typing.Union[
-        mlrun.runtimes.MpiRuntimeV1Alpha1,
         mlrun.runtimes.MpiRuntimeV1,
         mlrun.runtimes.RemoteRuntime,
         mlrun.runtimes.ServingRuntime,

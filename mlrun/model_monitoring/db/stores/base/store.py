@@ -110,13 +110,16 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def write_application_result(self, event: dict[str, typing.Any]):
+    def write_application_result(
+        self, event: dict[str, typing.Any], kind: str = "result"
+    ):
         """
         Write a new application result event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
                       schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
                       object.
+        :param kind: The type of the event, can be either "result" or "metric".
         """
         pass
 

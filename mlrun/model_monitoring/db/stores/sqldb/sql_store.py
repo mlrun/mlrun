@@ -349,14 +349,22 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return endpoint_list
 
-    def write_application_result(self, event: dict[str, typing.Any]):
+    def write_application_result(
+        self, event: dict[str, typing.Any], kind: str = "result"
+    ):
         """
         Write a new application result event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
                       schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
                       object.
+        :param kind: The type of the event, can be either "result" or "metric".
         """
+
+        if kind == mlrun.common.schemas.model_monitoring.WriterEventKind.METRIC:
+            # TODO : Implement the logic for writing metrics to MySQL
+            return
+
         self._init_application_results_table()
 
         application_filter_dict = {
@@ -408,7 +416,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             + "_"
             + event[mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME]
             + "_"
-            + event[mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME]
+            + event[mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME]
         )
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:

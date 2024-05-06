@@ -994,11 +994,11 @@ class RemoteRuntime(KubeResource):
         ports = mlrun.utils.helpers.as_list(ports)
         sidecar["ports"] = [
             {
-                "name": "http",
+                "name": f"{name}-{i}",
                 "containerPort": port,
                 "protocol": "TCP",
             }
-            for port in ports
+            for i, port in enumerate(ports)
         ]
 
         if command:

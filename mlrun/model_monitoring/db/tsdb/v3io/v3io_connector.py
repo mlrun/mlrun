@@ -208,16 +208,22 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
-    def write_application_result(self, event: dict):
+    def write_application_result(self, event: dict, kind: str = "result"):
         """
-        Write a single application result event to TSDB.
+        Write a single application result or metric to TSDB.
         """
+
         event[mm_constants.WriterEvent.END_INFER_TIME] = (
             datetime.datetime.fromisoformat(
                 event[mm_constants.WriterEvent.END_INFER_TIME]
             )
         )
-        del event[mm_constants.WriterEvent.RESULT_EXTRA_DATA]
+
+        if kind == mm_constants.WriterEventKind.METRIC:
+            # TODO : Implement the logic for writing metrics to V3IO TSDB
+            return
+
+        del event[mm_constants.ResultData.RESULT_EXTRA_DATA]
         try:
             self._frames_client.write(
                 backend=_TSDB_BE,
@@ -227,7 +233,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                     mm_constants.WriterEvent.END_INFER_TIME,
                     mm_constants.WriterEvent.ENDPOINT_ID,
                     mm_constants.WriterEvent.APPLICATION_NAME,
-                    mm_constants.WriterEvent.RESULT_NAME,
+                    mm_constants.ResultData.RESULT_NAME,
                 ],
             )
             logger.info(

@@ -16,13 +16,17 @@ import json
 from typing import Any, NewType
 
 import mlrun.common.model_monitoring
+import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
+    MetricData,
+    ResultData,
     ResultStatusApp,
     WriterEvent,
+    WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.model_monitoring.helpers import get_endpoint_record
@@ -64,20 +68,20 @@ class _Notifier:
         self._severity = severity
 
     def _should_send_event(self) -> bool:
-        return self._event[WriterEvent.RESULT_STATUS] >= ResultStatusApp.detected
+        return self._event[ResultData.RESULT_STATUS] >= ResultStatusApp.detected.value
 
     def _generate_message(self) -> str:
         return f"""\
 The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
-of kind `{self._event[WriterEvent.RESULT_KIND]}` \
+of kind `{self._event[ResultData.RESULT_KIND]}` \
 detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
 at time `{self._event[WriterEvent.START_INFER_TIME]}`.
 
 Result data:
-Name: `{self._event[WriterEvent.RESULT_NAME]}`
-Value: `{self._event[WriterEvent.RESULT_VALUE]}`
-Status: `{self._event[WriterEvent.RESULT_STATUS]}`
-Extra data: `{self._event[WriterEvent.RESULT_EXTRA_DATA]}`\
+Name: `{self._event[ResultData.RESULT_NAME]}`
+Value: `{self._event[ResultData.RESULT_VALUE]}`
+Status: `{self._event[ResultData.RESULT_STATUS]}`
+Extra data: `{self._event[ResultData.RESULT_EXTRA_DATA]}`\
 """
 
     def notify(self) -> None:
@@ -112,23 +116,25 @@ class ModelMonitoringWriter(StepToDict):
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project,
         )
+        self._endpoints_records = {}
 
     @staticmethod
     def _generate_event_on_drift(
-        uid: str, drift_status: str, event_value: dict, project_name: str
-    ):
+        model_endpoint: str, drift_status: str, event_value: dict, project_name: str
+    ) -> None:
         if (
-            drift_status == ResultStatusApp.detected
-            or drift_status == ResultStatusApp.potential_detection
+            drift_status == ResultStatusApp.detected.value
+            or drift_status == ResultStatusApp.potential_detection.value
         ):
+            logger.info("Sending an alert")
             entity = {
                 "kind": alert_constants.EventEntityKind.MODEL,
                 "project": project_name,
-                "id": uid,
+                "model_endpoint": model_endpoint,
             }
             event_kind = (
                 alert_constants.EventKind.DRIFT_DETECTED
-                if drift_status == ResultStatusApp.detected
+                if drift_status == ResultStatusApp.detected.value
                 else alert_constants.EventKind.DRIFT_SUSPECTED
             )
             event_data = mlrun.common.schemas.Event(
@@ -137,38 +143,58 @@ class ModelMonitoringWriter(StepToDict):
             mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
-    def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
+    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, str]:
         """
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
-        try:
-            result_event = _AppResultEvent(
-                {key: event[key] for key in WriterEvent.list()}
-            )
-            result_event[WriterEvent.CURRENT_STATS] = json.loads(
-                event[WriterEvent.CURRENT_STATS]
-            )
-            return result_event
-        except KeyError as err:
-            raise _WriterEventValueError(
-                "The received event misses some keys compared to the expected "
-                "monitoring application event schema"
-            ) from err
-        except TypeError as err:
+        if not isinstance(event, dict):
             raise _WriterEventTypeError(
                 f"The event is of type: {type(event)}, expected a dictionary"
-            ) from err
+            )
+        kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
+        result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
+        if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
+            result_event = _AppResultEvent(event)
+        else:
+            result_event.update(_AppResultEvent(event))
+
+        expected_keys = list(
+            set(WriterEvent.list()).difference(
+                [WriterEvent.EVENT_KIND, WriterEvent.DATA]
+            )
+        )
+        if kind == WriterEventKind.METRIC:
+            expected_keys.extend(MetricData.list())
+        elif kind == WriterEventKind.RESULT:
+            expected_keys.extend(ResultData.list())
+        else:
+            raise _WriterEventValueError(
+                f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
+            )
+        missing_keys = [key for key in expected_keys if key not in result_event]
+        if missing_keys:
+            raise _WriterEventValueError(
+                f"The received event misses some keys compared to the expected "
+                f"monitoring application event schema: {missing_keys}"
+            )
+
+        return result_event, kind
 
     def do(self, event: _RawEvent) -> None:
-        event = self._reconstruct_event(event)
+        event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
 
-        self._tsdb_connector.write_application_result(event=event.copy())
-        self._app_result_store.write_application_result(event=event.copy())
+        self._tsdb_connector.write_application_result(event=event.copy(), kind=kind)
+        self._app_result_store.write_application_result(event=event.copy(), kind=kind)
+        logger.info("Completed event DB writes")
+
         _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
-        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
+        if (
+            mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
+            and kind == WriterEventKind.RESULT
+        ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             endpoint_record = self._endpoints_records.setdefault(
                 endpoint_id,
@@ -178,13 +204,12 @@ class ModelMonitoringWriter(StepToDict):
                 "app_name": event[WriterEvent.APPLICATION_NAME],
                 "model": endpoint_record.get(EventFieldType.MODEL),
                 "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
-                "result_name": event[WriterEvent.RESULT_NAME],
-                "result_value": event[WriterEvent.RESULT_VALUE],
+                "result_name": event[ResultData.RESULT_NAME],
+                "result_value": event[ResultData.RESULT_VALUE],
             }
             self._generate_event_on_drift(
                 event[WriterEvent.ENDPOINT_ID],
-                event[WriterEvent.RESULT_STATUS],
+                event[ResultData.RESULT_STATUS],
                 event_value,
                 self.project,
             )
-        logger.info("Completed event DB writes")

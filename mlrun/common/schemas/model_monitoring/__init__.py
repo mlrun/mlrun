@@ -25,6 +25,7 @@ from .constants import (
     FeatureSetFeatures,
     FileTargetKind,
     FunctionURI,
+    MetricData,
     ModelEndpointTarget,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
@@ -32,12 +33,14 @@ from .constants import (
     ProjectSecretKeys,
     PrometheusEndpoints,
     PrometheusMetric,
+    ResultData,
     SchedulingKeys,
     TimeSeriesConnector,
     TSDBTarget,
     V3IOTSDBTables,
     VersionedModel,
     WriterEvent,
+    WriterEventKind,
 )
 from .grafana import (
     GrafanaColumn,
@@ -53,6 +56,8 @@ from .model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
     ModelEndpointMetadata,
+    ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricType,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )

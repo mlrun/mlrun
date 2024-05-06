@@ -236,6 +236,10 @@ class TestTSDB:
         [(0, "1.7.0", "metric")],
         indirect=["event"],
     )
+    @pytest.mark.skipif(
+        os.getenv("V3IO_FRAMESD") is None or os.getenv("V3IO_ACCESS_KEY") is None,
+        reason="Configure Framsed to access V3IO store targets",
+    )
     def test_metric_write(
         event: _AppResultEvent,
         writer: ModelMonitoringWriter,

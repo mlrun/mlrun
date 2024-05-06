@@ -118,7 +118,6 @@ class Files(
 
     @staticmethod
     def _verify_and_get_project_secrets(project):
-        # If running on Docker or locally, we cannot retrieve project secrets, so skip.
         if not server.api.utils.singletons.k8s.get_k8s_helper(
             silent=True
         ).is_running_inside_kubernetes_cluster():

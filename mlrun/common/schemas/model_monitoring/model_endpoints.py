@@ -339,6 +339,7 @@ def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringM
 
 class ModelEndpointMonitoringResultValues(BaseModel):
     full_name: str
+    type: ModelEndpointMonitoringMetricType
     result_kind: ResultKindApp
     timestamps: list[datetime]
     values: list[float]

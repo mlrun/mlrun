@@ -188,6 +188,7 @@ class DatastoreProfileS3(DatastoreProfile):
     bucket: typing.Optional[str] = None
 
     @pydantic.validator("bucket")
+    @classmethod
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
@@ -292,6 +293,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     bucket: typing.Optional[str] = None
 
     @pydantic.validator("bucket")
+    @classmethod
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
@@ -347,6 +349,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     container: typing.Optional[str] = None
 
     @pydantic.validator("container")
+    @classmethod
     def check_container(cls, v):
         if not v:
             warnings.warn(

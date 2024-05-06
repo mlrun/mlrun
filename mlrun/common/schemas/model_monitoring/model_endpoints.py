@@ -16,7 +16,7 @@ import enum
 import json
 import re
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
@@ -337,13 +337,17 @@ def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringM
     )
 
 
+class _ResultPoint(NamedTuple):
+    timestamp: datetime
+    value: float
+    status: ResultStatusApp
+
+
 class ModelEndpointMonitoringResultValues(BaseModel):
     full_name: str
     type: ModelEndpointMonitoringMetricType
     result_kind: ResultKindApp
-    timestamps: list[datetime]
-    values: list[float]
-    statuses: list[ResultStatusApp]
+    values: list[_ResultPoint]
 
 
 def _mapping_attributes(

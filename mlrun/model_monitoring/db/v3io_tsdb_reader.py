@@ -99,9 +99,13 @@ def read_data(
                 ),
                 type=ModelEndpointMonitoringMetricType.RESULT,
                 result_kind=result_kind,
-                timestamps=list(sub_df.index),
-                values=list(sub_df[mm_writer.ResultData.RESULT_VALUE]),
-                statuses=list(sub_df[mm_writer.ResultData.RESULT_STATUS]),
+                values=list(
+                    zip(
+                        list(sub_df.index),
+                        list(sub_df[mm_writer.ResultData.RESULT_VALUE]),
+                        list(sub_df[mm_writer.ResultData.RESULT_STATUS]),
+                    )
+                ),  # pyright: ignore[reportArgumentType]
             )
         )
     return metrics_values

@@ -20,6 +20,7 @@ from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, conlist, constr
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -376,43 +377,48 @@ class _MetricsValuesParams:
     end: datetime
 
 
+class _MetricsValuesInput(BaseModel):
+    name: conlist(
+        constr(
+            regex=mlrun.common.schemas.model_monitoring.model_endpoints._FQN_PATTERN
+        ),
+        min_items=1,
+    )  # pyright: ignore[reportInvalidTypeForm]
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+
+
 async def _get_metrics_values_data(
     project: str,
     endpoint_id: str,
+    inputs: _MetricsValuesInput,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
-    name: Annotated[
-        Optional[list[str]],
-        Query(
-            pattern=mlrun.common.schemas.model_monitoring.model_endpoints._FQN_PATTERN
-        ),
-    ] = None,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
 ) -> _MetricsValuesParams:
     """
     Verify authorization, validate parameters and initialize the parameters.
 
     :param project:     The name of the project.
     :param endpoint_id: The unique id of the model endpoint.
+    :param inputs:      The full names of the requested results. At least one is required.
+                        Start and end times are optional.
     :param auth_info:   The auth info of the request.
-    :param name:        The full names of the requested results.
 
     :return:            _MetricsValuesData object with the validated data.
     """
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
-    if start is None and end is None:
+    if inputs.start is None and inputs.end is None:
         end = mlrun.utils.helpers.datetime_now()
         start = end - timedelta(days=1)
-    elif start is not None and end is not None:
-        if start.tzinfo is None or end.tzinfo is None:
+    elif inputs.start is not None and inputs.end is not None:
+        if inputs.start.tzinfo is None or inputs.end.tzinfo is None:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 "Custom start and end times must contain the timezone."
             )
-        if start > end:
+        if inputs.start > inputs.end:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The start time must precede the end time."
             )
@@ -420,15 +426,11 @@ async def _get_metrics_values_data(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Provided only one of start time, end time. Provide both or none of them"
         )
-    if name is None:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "Providing metric name(s) is currently a must."
-        )
     metrics = [
         mlrun.common.schemas.model_monitoring.model_endpoints._parse_metric_fqn_to_monitoring_metric(
             fqn
         )
-        for fqn in name
+        for fqn in inputs.name
     ]
     names = [(metric.app, metric.name) for metric in metrics]
     return _MetricsValuesParams(

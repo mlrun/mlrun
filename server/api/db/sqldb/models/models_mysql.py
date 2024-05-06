@@ -702,6 +702,29 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class AlertTemplate(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_templates"
+        __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
+        _full_object = Column("object", JSON)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

@@ -17,6 +17,7 @@ from typing import Any, Optional, Union
 
 from deprecated import deprecated
 
+import mlrun.alerts
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.model
@@ -696,6 +697,26 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def delete_alert_template(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        pass
+
+    @abstractmethod
     def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
         pass
 
@@ -827,7 +848,7 @@ class DBInterface(ABC):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass

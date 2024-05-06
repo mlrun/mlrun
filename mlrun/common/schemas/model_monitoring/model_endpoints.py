@@ -343,11 +343,24 @@ class _ResultPoint(NamedTuple):
     status: ResultStatusApp
 
 
-class ModelEndpointMonitoringResultValues(BaseModel):
+class _ModelEndpointMonitoringResultValuesBase(BaseModel):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    data: bool
+
+
+class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringResultValuesBase):
     full_name: str
     type: ModelEndpointMonitoringMetricType
     result_kind: ResultKindApp
     values: list[_ResultPoint]
+    data: bool = True
+
+
+class ModelEndpointMonitoringResultNoData(_ModelEndpointMonitoringResultValuesBase):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    data: bool = False
 
 
 def _mapping_attributes(

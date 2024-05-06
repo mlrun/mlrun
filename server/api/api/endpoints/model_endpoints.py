@@ -443,13 +443,13 @@ async def _get_metrics_values_data(
 @router.get(
     "/{endpoint_id}/metrics-values",
     response_model=list[
-        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues
+        mlrun.common.schemas.model_monitoring.model_endpoints._ModelEndpointMonitoringResultValuesBase
     ],
 )
 async def get_model_endpoint_monitoring_metrics_values(
     params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
 ) -> list[
-    mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues
+    mlrun.common.schemas.model_monitoring.model_endpoints._ModelEndpointMonitoringResultValuesBase
 ]:
     """
     :param params: A combined object with all the request parameters.

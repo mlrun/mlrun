@@ -24,8 +24,10 @@ import mlrun.model_monitoring.writer as mm_writer
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetricType,
+    ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
+    _ModelEndpointMonitoringResultValuesBase,
 )
 from mlrun.utils import logger
 
@@ -74,7 +76,7 @@ def read_data(
     start: datetime,
     end: datetime,
     names: list[tuple[str, str]],
-) -> list:
+) -> list[_ModelEndpointMonitoringResultValuesBase]:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
         container=mm_writer.ModelMonitoringWriter.get_v3io_container(project),
@@ -85,7 +87,7 @@ def read_data(
         start=start,
         end=end,
     )
-    metrics_values: list[ModelEndpointMonitoringResultValues] = []
+    metrics_values: list[_ModelEndpointMonitoringResultValuesBase] = []
     if df.empty:
         return metrics_values
     grouped = df.groupby(

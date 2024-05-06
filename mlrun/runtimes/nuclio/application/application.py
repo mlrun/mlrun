@@ -245,6 +245,7 @@ class ApplicationRuntime(RemoteRuntime):
         show_on_failure: bool = False,
         skip_access_key_auth: bool = False,
         direct_port_access: bool = False,
+        enable_http_trigger: bool = False,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -280,6 +281,9 @@ class ApplicationRuntime(RemoteRuntime):
 
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
+        if not enable_http_trigger:
+            self.spec.disable_default_http_trigger = True
+
         super().deploy(
             project,
             tag,
@@ -323,7 +327,7 @@ class ApplicationRuntime(RemoteRuntime):
         ports: list[int] = None,
         skip_access_key_auth: bool = False,
     ):
-        api_gateway_config = APIGateway(
+        api_gateway = APIGateway(
             APIGatewayMetadata(
                 name=self.metadata.name,
                 namespace=self.metadata.namespace,
@@ -334,19 +338,19 @@ class ApplicationRuntime(RemoteRuntime):
                 functions=[self],
                 project=self.metadata.project,
                 path=path,
-                # TODO: Uncomment once it is merged
                 ports=mlrun.utils.helpers.as_list(ports) if ports else None,
             ),
         )
 
-        # TODO: Uncomment once https://github.com/mlrun/mlrun/pull/5509 is merged
-        # if not skip_access_key_auth:
-        #     api_gateway_config.with_access_key_auth()
+        if not skip_access_key_auth:
+            api_gateway.with_access_key_auth()
 
         db = self._get_db()
-        api_gateway_scheme = api_gateway_config.to_scheme()
-        api_gateway = db.store_api_gateway(self.metadata.project, api_gateway_scheme)
-        self.status.api_gateway = APIGateway.from_scheme(api_gateway)
+        api_gateway_scheme = db.store_api_gateway(
+            api_gateway.to_scheme(), self.metadata.project
+        )
+        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        self.status.api_gateway.wait_for_readiness()
 
     def invoke(
         self,
@@ -374,11 +378,13 @@ class ApplicationRuntime(RemoteRuntime):
                 **http_client_kwargs,
             )
 
+        auth = (auth_info.username, auth_info.password) if auth_info else None
+
         return self.status.api_gateway.invoke(
-            method,
-            headers,
-            auth_info,
-            path,
+            method=method or "POST",
+            headers=headers,
+            auth=auth,
+            path=path,
         )
 
     def _build_application_image(

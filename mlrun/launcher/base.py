@@ -403,7 +403,7 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
-                in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
             ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(

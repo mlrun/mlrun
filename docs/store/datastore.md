@@ -4,6 +4,7 @@
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
 MLRun supports multiple data stores. Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.
+
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
@@ -179,6 +180,8 @@ The equivalent to this parameter in environment authentication is "AZURE_STORAGE
 Credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
+- `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
+This parameter will become mandatory starting with version 1.9.
 
 ## Databricks file system 
 ### DBFS credentials and parameters
@@ -229,6 +232,8 @@ The equivalent to this parameter in environment authentication is "GOOGLE_APPLIC
 - `gcp_credentials` &mdash; A JSON in a string format representing the authentication parameters required by GCS API. 
 For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
 The equivalent to this parameter in environment authentication is "GCP_CREDENTIALS".
+- `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user. 
+This parameter will become mandatory starting with version 1.9.
 
 The code prioritizes `gcp_credentials` over `credentials_path`.
 
@@ -318,6 +323,9 @@ ParquetTarget(path="ds://profile-name/aws_bucket/path/to/parquet.pq")
 - `assume_role_arn` &mdash; A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`. The equivalent to this parameter in environment authentication is env["MLRUN_AWS_ROLE_ARN"]
 - `access_key_id` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_ACCESS_KEY_ID"].
 - `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
+- `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user. 
+This parameter will become mandatory starting with version 1.9.
+
 
 ## V3IO 
 

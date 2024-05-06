@@ -274,7 +274,7 @@ async def _verify_log_collection_started_on_startup(
         db_session,
         requested_logs_modes=[None, False],
         only_uids=False,
-        states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
+        states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
     )
     logger.debug(
         "Getting all runs which might have reached terminal state while the API was down",
@@ -296,7 +296,7 @@ async def _verify_log_collection_started_on_startup(
                     int(config.runtime_resources_deletion_grace_period),
                 )
             ),
-            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
         )
     )
     if runs:
@@ -322,8 +322,8 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
         # we don't want initiate logs collection for aborted runs
-        run_states = mlrun.runtimes.constants.RunStates.all()
-        run_states.remove(mlrun.runtimes.constants.RunStates.aborted)
+        run_states = mlrun.common.runtimes.constants.RunStates.all()
+        run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
 
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
@@ -572,11 +572,11 @@ async def _verify_log_collection_stopped_on_startup():
             db_session,
             requested_logs_modes=[True],
             only_uids=False,
-            states=mlrun.runtimes.constants.RunStates.terminal_states()
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states()
             + [
                 # add unknown state as well, as it's possible that the run reached such state
                 # usually it happens when run pods get preempted
-                mlrun.runtimes.constants.RunStates.unknown,
+                mlrun.common.runtimes.constants.RunStates.unknown,
             ],
             specific_uids=run_uids_in_progress,
         )
@@ -737,7 +737,7 @@ def _push_terminal_run_notifications(
     runs = db.list_runs(
         db_session,
         project="*",
-        states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
         last_update_time_from=last_update_time,
         with_notifications=True,
     )
@@ -770,7 +770,7 @@ def _generate_event_on_failed_runs(
     runs = db.list_runs(
         db_session,
         project="*",
-        states=[mlrun.runtimes.constants.RunStates.error],
+        states=[mlrun.common.runtimes.constants.RunStates.error],
         last_update_time_from=last_update_time,
     )
 
@@ -840,7 +840,7 @@ async def _stop_logs():
             db_session,
             requested_logs_modes=[True],
             only_uids=False,
-            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
         )

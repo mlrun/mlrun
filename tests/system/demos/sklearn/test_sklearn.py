@@ -29,7 +29,10 @@ class TestSKLearn(TestDemo):
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
         self._logger.debug("Creating sklearn project")
         demo_project = mlrun.get_or_create_project(
-            self.project_name, str(self.assets_path), init_git=True
+            self.project_name,
+            str(self.assets_path),
+            init_git=True,
+            allow_cross_project=True,
         )
 
         self._logger.debug("Creating iris-generator function")

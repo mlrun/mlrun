@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -1179,10 +1180,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
-        if is_legacy_artifact(artifact):
-            artifact["tag"] = tag
-        else:
-            artifact["metadata"]["tag"] = tag
+        artifact["metadata"]["tag"] = tag
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)
@@ -2188,6 +2186,7 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -2217,6 +2216,7 @@ class SQLDB(DBInterface):
             project_to_feature_set_count,
             project_to_models_count,
             (
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ),
@@ -2226,6 +2226,7 @@ class SQLDB(DBInterface):
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
+            project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
         )
@@ -2299,11 +2300,17 @@ class SQLDB(DBInterface):
 
     def _calculate_runs_counters(
         self, session
-    ) -> tuple[dict[str, int], dict[str, int]]:
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+    ]:
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
             .filter(
-                Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states())
+                Run.state.in_(
+                    mlrun.common.runtimes.constants.RunStates.non_terminal_states()
+                )
             )
             .group_by(Run.project)
             .all()
@@ -2318,8 +2325,8 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.error,
-                        mlrun.runtimes.constants.RunStates.aborted,
+                        mlrun.common.runtimes.constants.RunStates.error,
+                        mlrun.common.runtimes.constants.RunStates.aborted,
                     ]
                 )
             )
@@ -2330,7 +2337,28 @@ class SQLDB(DBInterface):
         project_to_recent_failed_runs_count = {
             result[0]: result[1] for result in recent_failed_runs_count_per_project
         }
-        return project_to_recent_failed_runs_count, project_to_running_runs_count
+
+        recent_completed_runs_count_per_project = (
+            session.query(Run.project, func.count(distinct(Run.name)))
+            .filter(
+                Run.state.in_(
+                    [
+                        mlrun.common.runtimes.constants.RunStates.completed,
+                    ]
+                )
+            )
+            .filter(Run.start_time >= one_day_ago)
+            .group_by(Run.project)
+            .all()
+        )
+        project_to_recent_completed_runs_count = {
+            result[0]: result[1] for result in recent_completed_runs_count_per_project
+        }
+        return (
+            project_to_recent_completed_runs_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        )
 
     async def generate_projects_summaries(
         self, session: Session, projects: list[str]
@@ -2377,6 +2405,9 @@ class SQLDB(DBInterface):
         project_record.source = project.spec.source
         project_record.owner = project.spec.owner
         project_record.state = project.status.state
+        project_record.default_function_node_selector = (
+            project.spec.default_function_node_selector
+        )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
         self._upsert(session, [project_record])
@@ -3904,6 +3935,7 @@ class SQLDB(DBInterface):
                 spec=mlrun.common.schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
+                    default_function_node_selector=project_record.default_function_node_selector,
                 ),
                 status=mlrun.common.schemas.ObjectStatus(
                     state=project_record.state,

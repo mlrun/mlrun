@@ -152,7 +152,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         os.remove(tempfile_2_path)
         object_path = urlparse(self._object_url).path
         start_time = time.monotonic()
-        data_item.store._upload(object_path, tempfile_1_path, max_chunk_size=100 * 1024)
+        data_item.store._upload(object_path, tempfile_1_path, max_chunk_size=500 * 1024)
         self._logger.debug(
             f"test_v3io_large_object_upload - finished to upload with store directly in"
             f" {time.monotonic() - start_time} seconds"
@@ -195,7 +195,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         )
         assert returned_buffer == generated_buffer
         start_time = time.monotonic()
-        data_item.store._put(object_path, generated_buffer, max_chunk_size=100 * 1024)
+        data_item.store._put(object_path, generated_buffer, max_chunk_size=500 * 1024)
         self._logger.debug(
             f"test_v3io_large_object_put: store put finished in : {time.monotonic() - start_time} seconds"
         )

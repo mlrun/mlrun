@@ -469,7 +469,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun.runtimes.constants.RunLabels.owner]
+            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
@@ -580,9 +580,9 @@ class BaseRuntime(ModelObj):
 
         elif (
             not was_none
-            and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state != mlrun.common.runtimes.constants.RunStates.completed
             and last_state
-            not in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)

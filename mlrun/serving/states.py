@@ -19,7 +19,7 @@ import pathlib
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Union
+from typing import Any, Union
 
 import mlrun
 
@@ -327,7 +327,7 @@ class BaseStep(ModelObj):
             parent = self._parent
         else:
             raise GraphError(
-                f"step {self.name} parent is not set or its not part of a graph"
+                f"step {self.name} parent is not set or it's not part of a graph"
             )
 
         name, step = params_to_step(
@@ -348,6 +348,36 @@ class BaseStep(ModelObj):
             step.after_step(self.name)
         parent._last_added = step
         return step
+
+    def set_flow(
+        self,
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
+        force: bool = False,
+    ):
+        """set list of steps as downstream from this step, in the order specified. This will overwrite any existing
+        downstream steps.
+
+        :param steps: list of steps to follow this one
+        :param force: whether to overwrite existing downstream steps. If False, this method will fail if any downstream
+        steps have already been defined. Defaults to False.
+        :return: the last step added to the flow
+
+        example:
+            The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
+            single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
+            Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
+            graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
+            are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
+
+            step1.set_flow(
+                [
+                    dict(name="step2", handler="step2_handler"),
+                    dict(name="step3", class_name="Step3Class"),
+                ],
+                force=True,
+            ).to(dict(name="step4", class_name="Step4Class"))
+        """
+        raise NotImplementedError("set_flow() can only be called on a FlowStep")
 
 
 class TaskStep(BaseStep):
@@ -1257,6 +1287,27 @@ class FlowStep(BaseStep):
                     f"cant set before, there is no step named {step_name}"
                 )
             self[step_name].after_step(name)
+
+    def set_flow(
+        self,
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
+        force: bool = False,
+    ):
+        if not force and self.steps:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "set_flow() called on a step that already has downstream steps. "
+                "If you want to overwrite existing steps, set force=True."
+            )
+
+        self.steps = None
+        step = self
+        for next_step in steps:
+            if isinstance(next_step, dict):
+                step = step.to(**next_step)
+            else:
+                step = step.to(next_step)
+
+        return step
 
 
 class RootFlowStep(FlowStep):

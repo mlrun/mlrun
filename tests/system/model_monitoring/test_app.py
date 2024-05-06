@@ -37,7 +37,10 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications import (
+    ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationBaseV2,
+)
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
@@ -49,19 +52,26 @@ from tests.system.base import TestMLRunSystem
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
+    DemoMonitoringAppV2,
     NoCheckDemoMonitoringApp,
 )
-from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+from .assets.custom_evidently_app import (
+    CustomEvidentlyMonitoringApp,
+    CustomEvidentlyMonitoringAppV2,
+)
 
 
 @dataclass
 class _AppData:
-    class_: type[ModelMonitoringApplicationBase]
+    class_: type[
+        typing.Union[ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2]
+    ]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
     results: typing.Optional[set[str]] = None  # only for testing
+    metrics: typing.Optional[set[str]] = None  # only for testing (future use)
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -76,7 +86,8 @@ _DefaultDataDriftAppData = _AppData(
     class_=HistogramDataDriftApplication,
     rel_path="",
     deploy=False,
-    results={"hellinger_mean", "kld_mean", "tvd_mean", "general_drift"},
+    results={"general_drift"},
+    metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
 )
 
 
@@ -139,10 +150,10 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_apps_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
-    ) -> None:
+    ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
-                mlrun.get_or_create_project(cls.project_name),
+                mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
                 kind=mm_constants.FileTargetKind.APPS_PARQUET,
             )
         )
@@ -171,7 +182,7 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow"
+    project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
@@ -198,18 +209,17 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.apps_data: list[_AppData] = [
             _DefaultDataDriftAppData,
             _AppData(
-                class_=DemoMonitoringApp,
+                class_=DemoMonitoringAppV2,
                 rel_path="assets/application.py",
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringApp,
+                class_=CustomEvidentlyMonitoringAppV2,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
-                    "with_training_set": True,
                 },
                 results={"data_drift_test"},
             ),
@@ -317,13 +327,15 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 self.apps_data[i].kwargs["with_training_set"] = with_training_set
 
         # workaround for ML-5997
-        if not with_training_set:
-            self.apps_data.pop(0)
+        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
+            self.apps_data.remove(_DefaultDataDriftAppData)
 
         with ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=with_training_set,  # workaround for ML-5997
+                deploy_histogram_data_drift_app=_DefaultDataDriftAppData
+                in self.apps_data,
+                # workaround for ML-5997
             )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)
@@ -345,6 +357,41 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(
             ep_id=self._get_model_endpoint_id(), inputs=inputs, outputs=outputs
         )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
+    # TODO : delete in 1.9.0 (V1 app deprecation)
+    project_name = "test-app-flow-v1"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        super().custom_setup_class()
+        cls.apps_data: list[_AppData] = [
+            _AppData(
+                class_=DemoMonitoringApp,
+                rel_path="assets/application.py",
+                results={"data_drift_test", "model_perf"},
+            ),
+            _AppData(
+                class_=CustomEvidentlyMonitoringApp,
+                rel_path="assets/custom_evidently_app.py",
+                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
+                kwargs={
+                    "evidently_workspace_path": cls.evidently_workspace_path,
+                    "evidently_project_id": cls.evidently_project_id,
+                    "with_training_set": True,
+                },
+                results={"data_drift_test"},
+            ),
+        ]
+
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_app_flow(self, with_training_set) -> None:
+        super().test_app_flow(with_training_set)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -472,21 +519,13 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 image=self.image or "mlrun/mlrun"
             )
 
-        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun", wait_for_deployment=True
+        )
 
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
         )
-        writer = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.WRITER
-        )
-        stream = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.STREAM
-        )
-
-        controller._wait_for_function_deployment(db=controller._get_db())
-        writer._wait_for_function_deployment(db=writer._get_db())
-        stream._wait_for_function_deployment(db=stream._get_db())
         assert (
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"
@@ -495,13 +534,12 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         )
 
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun", base_period=1
+            image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
         )
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             ignore_cache=True,
         )
-        controller._wait_for_function_deployment(db=controller._get_db())
         assert (
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"

@@ -1645,6 +1645,6 @@ def validate_component_version_compatibility(
 
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
-        if parsed_current_version <= parsed_min_version:
+        if parsed_current_version < parsed_min_version:
             return False
     return True

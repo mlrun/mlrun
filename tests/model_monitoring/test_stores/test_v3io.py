@@ -14,20 +14,23 @@
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import Optional, TypedDict
 from unittest.mock import Mock, patch
 
+import pandas as pd
 import pytest
 import v3io.dataplane.output
 import v3io.dataplane.response
 
+import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query
+from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_data
 
 
 @pytest.fixture
@@ -245,3 +248,68 @@ def test_tsdb_query(
     endpoint_id: str, names: list[tuple[str, str]], expected_query: str
 ) -> None:
     assert _get_sql_query(endpoint_id, names) == expected_query
+
+
+@pytest.fixture
+def tsdb_df() -> pd.DataFrame:
+    return pd.DataFrame.from_records(
+        [
+            (
+                pd.Timestamp("2024-04-02 18:00:28+0000", tz="UTC"),
+                "histogram-data-drift",
+                "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+                "ResultKindApp.data_drift",
+                "kld_mean",
+                -1.0,
+                0.06563064,
+                "2024-04-02 17:59:28.000000+00:00",
+            ),
+            (
+                pd.Timestamp("2024-04-02 18:00:28+0000", tz="UTC"),
+                "histogram-data-drift",
+                "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+                "ResultKindApp.data_drift",
+                "general_drift",
+                0.0,
+                0.04651495,
+                "2024-04-02 17:59:28.000000+00:00",
+            ),
+        ],
+        index="time",
+        columns=[
+            "time",
+            "application_name",
+            "endpoint_id",
+            "result_kind",
+            "result_name",
+            "result_status",
+            "result_value",
+            "start_infer_time",
+        ],
+    )
+
+
+@pytest.fixture
+def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
+    frames_client_mock = Mock()
+    frames_client_mock.read = Mock(return_value=tsdb_df)
+
+    with patch.object(
+        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("_mock_frames_client")
+def test_read_data() -> None:
+    data = read_data(
+        project="fictitious-one",
+        endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+        start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
+        end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
+        names=[
+            ("histogram-data-drift", "kld_mean"),
+            ("histogram-data-drift", "general_drift"),
+        ],
+    )
+    assert len(data) == 2

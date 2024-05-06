@@ -45,9 +45,20 @@ You can modify the frequency with the parameter `base_period`.
 To change the `base_period`, first run `disable_model_monitoring`, then run `enable_model_monitoring`  
 with the new `base_period` value. 
 
+```python
+project.enable_model_monitoring(base_period=1)
+```
+
 ### Log the model with training data
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`.
-
+```python
+model_name = "RandomForestClassifier"
+project.log_model(
+    model_name,
+    model_file="./assets/model.pkl",
+    training_set=train_set,
+    framework="sklearn",
+```
 
 ### Import, enable monitoring, and deploy the serving function
 
@@ -56,22 +67,71 @@ Use the [v2_model_server serving](https://www.mlrun.org/hub/functions/master/v2-
 Add the model to the serving function's routing spec ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`), 
 enable monitoring on the serving function ({py:meth}`~mlrun.runtimes.ServingRuntime.set_tracking`),
 and then deploy the function ({py:meth}`~mlrun.projects.MlrunProject.deploy_function`).
+```python
+# Import the serving function
+serving_fn = import_function(
+    "hub://v2_model_server", project=project_name, new_name="serving"
+)
+
+serving_fn.add_model(
+    model_name, model_path=f"store://models/{project_name}/{model_name}:latest"
+)
+
+# enable monitoring on this serving function
+serving_fn.set_tracking()
+
+serving_fn.spec.build.requirements = ["scikit-learn"]
+
+# Deploy the serving function
+project.deploy_function(serving_fn)
+```
 
 ### Invoke the model
 
 Invoke the function with {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke`; after invoking, you can see results.
-
+```python
+model_name = "RandomForestClassifier"
+serving_1 = project.get_function("serving")
+0
+for i in range(150):
+    # data_point = choice(iris_data)
+    data_point = [0.5, 0.5, 0.5, 0.5]
+    serving_1.invoke(
+        f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
+    )
+    sleep(choice([0.01, 0.04]))
+```
 ### Register and deploy the model-monitoring function
 
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
 Then, deploy the function using {py:meth}`~mlrun.projects.MlrunProject.deploy_function`.
 
 You can use the MLRun built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) as an MLRun function and create MLRun artifacts.
+```python
+my_app = project.set_model_monitoring_function(
+    func="./assets/demo_app.py",
+    application_class="DemoMonitoringApp",
+    name="myApp",
+)
 
+project.deploy_function(my_app)
+```
 ### Invoke the model again
 
 Monitoring uses datasets defined by the parameter `base_period`. Invoking the model a second time ensures that the 
 data includes the full monitoring window.
+```python
+model_name = "RandomForestClassifier"
+serving_1 = project.get_function("serving")
+
+for i in range(150):
+    data_point = choice(iris_data)
+    # data_point = [0.5,0.5,0.5,0.5]
+    serving_1.invoke(
+        f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
+    )
+    sleep(choice([0.01, 0.04]))
+```
 
 ### View model monitoring artifacts and drift
  

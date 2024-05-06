@@ -308,6 +308,16 @@ class ModelEndpointMonitoringMetric(BaseModel):
     full_name: str
 
 
+def _compose_full_name(
+    *,
+    project: str,
+    app: str,
+    name: str,
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT,
+) -> str:
+    return ".".join([project, app, type, name])
+
+
 _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
 _FQN_PATTERN = (
     rf"^(?P<project>{_FQN_PART_PATTERN})\."

@@ -263,9 +263,9 @@ To register an HDFS datastore profile and use it as described in [Data store pro
 ```python
 DatastoreProfileHdfs(
     name="my-hdfs",
-    host=os.getenv("HDFS_HOST"),
-    port=int(os.getenv("HDFS_PORT")),
-    http_port=int(os.getenv("HDFS_HTTP_PORT")),
+    host="localhost",
+    port=9000,
+    http_port=9870,
 )
 ```
 

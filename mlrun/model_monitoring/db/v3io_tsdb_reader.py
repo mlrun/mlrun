@@ -101,9 +101,9 @@ def read_data(
                 result_kind=result_kind,
                 values=list(
                     zip(
-                        list(sub_df.index),
-                        list(sub_df[mm_writer.ResultData.RESULT_VALUE]),
-                        list(sub_df[mm_writer.ResultData.RESULT_STATUS]),
+                        sub_df.index,
+                        sub_df[mm_writer.ResultData.RESULT_VALUE],
+                        sub_df[mm_writer.ResultData.RESULT_STATUS],
                     )
                 ),  # pyright: ignore[reportArgumentType]
             )

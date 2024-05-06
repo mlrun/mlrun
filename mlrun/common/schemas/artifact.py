@@ -103,7 +103,7 @@ class ArtifactsDeletionStrategies(mlrun.common.types.StrEnum):
 
     data_optional = "data-optional"
     """Delete the artifact data of the artifact as a best-effort.
-    If artifact db record deletion fails still try to delete the artifact data"""
+    If artifact data deletion fails still try to delete the artifact db record"""
 
     data_force = "data-force"
     """Delete the artifact data, and if cannot delete it fail the deletion

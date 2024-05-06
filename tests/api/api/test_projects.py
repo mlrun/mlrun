@@ -378,7 +378,11 @@ def test_list_and_get_project_summaries(
     )
 
     # mock pipelines for the project
-    running_pipelines_count = _mock_pipelines(
+    (
+        pipelines_completed_recent_count,
+        pipelines_failed_recent_count,
+        running_pipelines_count,
+    ) = _mock_pipelines(
         project_name,
     )
 
@@ -389,7 +393,7 @@ def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -400,6 +404,8 @@ def test_list_and_get_project_summaries(
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
                 schedules_count,
+                pipelines_completed_recent_count,
+                pipelines_failed_recent_count,
                 running_pipelines_count,
             )
         else:
@@ -417,6 +423,8 @@ def test_list_and_get_project_summaries(
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
         schedules_count,
+        pipelines_completed_recent_count,
+        pipelines_failed_recent_count,
         running_pipelines_count,
     )
 
@@ -459,6 +467,8 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -474,6 +484,8 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
         0,
         0,
         0,
@@ -505,6 +517,8 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -520,6 +534,8 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
         0,
         0,
         0,
@@ -1571,6 +1587,8 @@ def _assert_project_summary(
     runs_failed_recent_count: int,
     runs_running_count: int,
     schedules_count: int,
+    pipelines_completed_recent_count: int,
+    pipelines_failed_recent_count: int,
     pipelines_running_count: int,
 ):
     assert project_summary.files_count == files_count
@@ -1581,6 +1599,13 @@ def _assert_project_summary(
     assert project_summary.runs_running_count == runs_running_count
     assert project_summary.schedules_count == schedules_count
     assert project_summary.pipelines_running_count == pipelines_running_count
+    assert (
+        project_summary.pipelines_completed_recent_count
+        == pipelines_completed_recent_count
+    )
+    assert (
+        project_summary.pipelines_failed_recent_count == pipelines_failed_recent_count
+    )
 
 
 def _assert_project(
@@ -1698,23 +1723,39 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
 def _mock_pipelines(project_name):
     mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
-        mlrun.run.RunStatuses.running: 4,
-        mlrun.run.RunStatuses.succeeded: 3,
-        mlrun.run.RunStatuses.failed: 2,
+        mlrun.run.RunStatuses.running: 5,
+        mlrun.run.RunStatuses.succeeded: 2,
+        mlrun.run.RunStatuses.failed: 3,
     }
+
     pipelines = []
     for status, count in status_count_map.items():
         for index in range(count):
-            pipelines.append({"status": status, "project": project_name})
+            pipeline = {"status": status, "project": project_name}
+            pipelines.append(pipeline)
+            if status != mlrun.run.RunStatuses.running:
+                # here we want to append a pipeline with a finished_at field for recent count
+                new_pipeline = copy.deepcopy(pipeline)
+                finished_at = datetime.datetime.now().astimezone(
+                    tz=datetime.timezone.utc
+                ) - datetime.timedelta(hours=3)
+                new_pipeline["finished_at"] = finished_at.strftime(
+                    "%Y-%m-%d %H:%M:%S%z"
+                )
+                pipelines.append(new_pipeline)
 
     def list_pipelines_return_value(*args, **kwargs):
         next_page_token = "some-token"
         if kwargs["page_token"] == "":
-            return (None, next_page_token, pipelines[: len(pipelines) // 2])
+            return None, next_page_token, pipelines[: len(pipelines) // 2]
         elif kwargs["page_token"] == next_page_token:
-            return (None, None, pipelines[len(pipelines) // 2 :])
+            return None, None, pipelines[len(pipelines) // 2 :]
 
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         side_effect=list_pipelines_return_value
     )
-    return status_count_map[mlrun.run.RunStatuses.running]
+    return (
+        status_count_map[mlrun.run.RunStatuses.succeeded],
+        status_count_map[mlrun.run.RunStatuses.failed],
+        status_count_map[mlrun.run.RunStatuses.running],
+    )

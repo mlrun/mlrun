@@ -96,6 +96,13 @@ class RunStatuses:
         ]
 
     @staticmethod
+    def failed_statuses():
+        return [
+            RunStatuses.failed,
+            RunStatuses.error,
+        ]
+
+    @staticmethod
     def transient_statuses():
         return [
             status

@@ -213,7 +213,7 @@ def _assert_application_post_deploy_spec(fn, image):
             "ports": [
                 {
                     "containerPort": 8050,
-                    "name": "application-test-sidecar-0",
+                    "name": "application-t-0",
                     "protocol": "TCP",
                 }
             ],

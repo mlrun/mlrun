@@ -119,7 +119,7 @@ class ApplicationSpec(NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
-        self.internal_application_port = internal_application_port or 8080
+        self.internal_application_port = internal_application_port or 8050
 
     @property
     def internal_application_port(self):
@@ -344,10 +344,9 @@ class ApplicationRuntime(RemoteRuntime):
         #     api_gateway_config.with_access_key_auth()
 
         db = self._get_db()
-        api_gateway_scheme = db.store_api_gateway(
-            self.metadata.project, api_gateway_config.to_scheme()
-        )
-        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        api_gateway_scheme = api_gateway_config.to_scheme()
+        api_gateway = db.store_api_gateway(self.metadata.project, api_gateway_scheme)
+        self.status.api_gateway = APIGateway.from_scheme(api_gateway)
 
     def invoke(
         self,

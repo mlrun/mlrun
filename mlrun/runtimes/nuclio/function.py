@@ -967,9 +967,12 @@ class RemoteRuntime(KubeResource):
             sidecar["image"] = image
 
         ports = mlrun.utils.helpers.as_list(ports)
+        # according to RFC-6335, port name should be less than 15 characters,
+        # so we truncate it if needed and leave room for the index
+        port_name = name[:13].rstrip("-_") if len(name) > 13 else name
         sidecar["ports"] = [
             {
-                "name": f"{name}-{i}",
+                "name": f"{port_name}-{i}",
                 "containerPort": port,
                 "protocol": "TCP",
             }

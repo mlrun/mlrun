@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 import unittest.mock
 
 from fastapi.testclient import TestClient
@@ -102,9 +101,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
             status=k8s_client.V1PodStatus(phase=phase),
         )
 
-    def _generate_runtime(
-        self, kind=None, labels=None
-    ) -> typing.Union[mlrun.runtimes.MpiRuntimeV1, mlrun.runtimes.MpiRuntimeV1Alpha1]:
+    def _generate_runtime(self, kind=None, labels=None) -> mlrun.runtimes.MpiRuntimeV1:
         runtime = code_to_function(
             name=self.name,
             project=self.project,

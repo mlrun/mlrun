@@ -121,16 +121,8 @@ def artifacts_html(
     html = ""
 
     for artifact in artifacts:
-        # TODO: remove this in 1.7.0 once we no longer support legacy format
-        if mlrun.utils.is_legacy_artifact(artifact):
-            attribute_value = artifact.get(attribute_name)
-        else:
-            attribute_value = artifact["spec"].get(attribute_name)
-
-        if mlrun.utils.is_legacy_artifact(artifact):
-            key = artifact["key"]
-        else:
-            key = artifact["metadata"]["key"]
+        attribute_value = artifact["spec"].get(attribute_name)
+        key = artifact["metadata"]["key"]
 
         if not attribute_value:
             mlrun.utils.logger.warning(

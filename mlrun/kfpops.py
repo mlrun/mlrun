@@ -33,7 +33,6 @@ from .utils import (
     get_in,
     get_workflow_url,
     is_ipython,
-    is_legacy_artifact,
     logger,
     run_keys,
     version,
@@ -121,14 +120,8 @@ def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
-        if is_legacy_artifact(output):
-            key = output["key"]
-            # The spec in a legacy artifact is contained in the main object, so using this assignment saves us a lot
-            # of if/else in the rest of this function.
-            output_spec = output
-        else:
-            key = output.get("metadata")["key"]
-            output_spec = output.get("spec", {})
+        key = output.get("metadata")["key"]
+        output_spec = output.get("spec", {})
 
         target = output_spec.get("target_path", "")
         target = output_spec.get("inline", target)

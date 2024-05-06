@@ -85,11 +85,13 @@ def read_data(
         start=start,
         end=end,
     )
+    metrics_values: list[ModelEndpointMonitoringResultValues] = []
+    if df.empty:
+        return metrics_values
     grouped = df.groupby(
         [mm_writer.WriterEvent.APPLICATION_NAME, mm_writer.ResultData.RESULT_NAME],
         observed=False,
     )
-    metrics_values: list[ModelEndpointMonitoringResultValues] = []
     for (app_name, result_name), sub_df in grouped:
         result_kind = _get_result_kind(sub_df)
         metrics_values.append(

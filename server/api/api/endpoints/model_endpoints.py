@@ -379,15 +379,15 @@ class _MetricsValuesParams:
 async def _get_metrics_values_data(
     project: str,
     endpoint_id: str,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
     name: Annotated[
-        Optional[list[str]],
+        list[str],
         Query(
             pattern=mlrun.common.schemas.model_monitoring.model_endpoints._FQN_PATTERN
         ),
-    ] = None,
+    ],
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        server.api.api.deps.authenticate_request
+    ),
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> _MetricsValuesParams:
@@ -398,12 +398,18 @@ async def _get_metrics_values_data(
     :param endpoint_id: The unique id of the model endpoint.
     :param auth_info:   The auth info of the request.
     :param name:        The full names of the requested results.
+    :param start:       Optional start time, timezone aware.
+    :param end:         Optional end time, timezone aware.
 
     :return:            _MetricsValuesData object with the validated data.
     """
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
+    if name is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "At least one metric name is required."
+        )
     if start is None and end is None:
         end = mlrun.utils.helpers.datetime_now()
         start = end - timedelta(days=1)
@@ -419,10 +425,6 @@ async def _get_metrics_values_data(
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Provided only one of start time, end time. Provide both or none of them"
-        )
-    if name is None:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "Providing metric name(s) is currently a must."
         )
     metrics = [
         mlrun.common.schemas.model_monitoring.model_endpoints._parse_metric_fqn_to_monitoring_metric(

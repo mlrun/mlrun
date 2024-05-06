@@ -80,8 +80,9 @@ class TSDBConnector(ABC):
         end: str = "now",
     ) -> dict[str, list[tuple[str, float]]]:
         """
-        Getting metrics from the TSDB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
+        Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
+        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user. Note that these
+        metrics are being calculated by the model monitoring stream pod.
         :param endpoint_id:      The unique id of the model endpoint.
         :param metrics:          A list of real-time metrics to return for the model endpoint.
         :param start:            The start time of the metrics.

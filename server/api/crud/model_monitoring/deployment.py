@@ -594,17 +594,13 @@ class MonitoringDeployment:
         """Each project writer service writes the application results into a single TSDB table and therefore the
         target table is created during the writer deployment"""
 
-        if (
-            mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
-            == mm_constants.TSDBTarget.V3IO_TSDB
-        ):
-            tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
-                mlrun.model_monitoring.get_tsdb_connector(
-                    project=project,
-                )
+        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
+            mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
             )
+        )
 
-            tsdb_connector.create_tsdb_application_tables()
+        tsdb_connector.create_tsdb_application_tables()
 
 
 def get_endpoint_features(

@@ -124,7 +124,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
         df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.V3IOTSDBTables.APP_RESULTS,
+            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
             start=f"now-{5 * cls.app_interval}m",
             end="now",
         )

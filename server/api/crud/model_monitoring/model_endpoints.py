@@ -550,7 +550,7 @@ class ModelEndpoints:
 
         # Delete model monitoring TSDB resources
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name, access_key=auth_info.data_session
+            project=project_name,
         )
         tsdb_connector.delete_tsdb_resources()
 

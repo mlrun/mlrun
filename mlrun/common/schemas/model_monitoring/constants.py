@@ -229,7 +229,7 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     WRITER = "model-monitoring-writer"
 
 
-class V3IOTSDBTables(MonitoringStrEnum):
+class MonitoringTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"

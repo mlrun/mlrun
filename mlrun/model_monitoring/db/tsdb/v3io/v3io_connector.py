@@ -78,7 +78,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             events_table_full_path
         )
-        self.tables[mm_constants.V3IOTSDBTables.EVENTS] = events_path
+        self.tables[mm_constants.MonitoringTSDBTables.EVENTS] = events_path
 
         monitoring_application_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -93,11 +93,11 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_application_full_path
         )
-        self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS] = (
-            monitoring_application_path + mm_constants.V3IOTSDBTables.APP_RESULTS
+        self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS] = (
+            monitoring_application_path + mm_constants.MonitoringTSDBTables.APP_RESULTS
         )
-        self.tables[mm_constants.V3IOTSDBTables.METRICS] = (
-            monitoring_application_path + mm_constants.V3IOTSDBTables.METRICS
+        self.tables[mm_constants.MonitoringTSDBTables.METRICS] = (
+            monitoring_application_path + mm_constants.MonitoringTSDBTables.METRICS
         )
 
     def create_tsdb_application_tables(self):
@@ -107,8 +107,8 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         - metrics: a basic key value that represents a single numeric metric.
         """
         application_tables = [
-            mm_constants.V3IOTSDBTables.APP_RESULTS,
-            mm_constants.V3IOTSDBTables.METRICS,
+            mm_constants.MonitoringTSDBTables.APP_RESULTS,
+            mm_constants.MonitoringTSDBTables.METRICS,
         ]
         for table in application_tables:
             logger.info("Creating table in V3IO TSDB", table=table)
@@ -161,7 +161,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                 "storey.TSDBTarget",
                 name=name,
                 after=after,
-                path=f"{self.container}/{self.tables[mm_constants.V3IOTSDBTables.EVENTS]}",
+                path=f"{self.container}/{self.tables[mm_constants.MonitoringTSDBTables.EVENTS]}",
                 rate="10/m",
                 time_col=mm_constants.EventFieldType.TIMESTAMP,
                 container=self.container,
@@ -231,7 +231,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         try:
             self._frames_client.write(
                 backend=_TSDB_BE,
-                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
+                table=self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS],
                 dfs=pd.DataFrame.from_records([event]),
                 index_cols=[
                     mm_constants.WriterEvent.END_INFER_TIME,
@@ -242,13 +242,13 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
             )
             logger.info(
                 "Updated V3IO TSDB successfully",
-                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
+                table=self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS],
             )
         except v3io_frames.errors.Error as err:
             logger.warn(
                 "Could not write drift measures to TSDB",
                 err=err,
-                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
+                table=self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS],
                 event=event,
             )
 
@@ -262,7 +262,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
             tables = [table]
         else:
             # Delete all tables
-            tables = mm_constants.V3IOTSDBTables.list()
+            tables = mm_constants.MonitoringTSDBTables.list()
         for table in tables:
             try:
                 self._frames_client.delete(
@@ -289,8 +289,9 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         end: str = "now",
     ) -> dict[str, list[tuple[str, float]]]:
         """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
+        Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
+        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user. Note that these
+        metrics are being calculated by the model monitoring stream pod.
         :param endpoint_id:      The unique id of the model endpoint.
         :param metrics:          A list of real-time metrics to return for the model endpoint.
         :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
@@ -314,7 +315,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
 
         try:
             data = self.get_records(
-                table=mm_constants.V3IOTSDBTables.EVENTS,
+                table=mm_constants.MonitoringTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,

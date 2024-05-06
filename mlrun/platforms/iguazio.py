@@ -582,3 +582,22 @@ def sanitize_username(username: str):
     So simply replace it with dash
     """
     return username.replace("_", "-")
+
+
+def min_iguazio_versions(*versions):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", *versions
+            ):
+                return function(*args, **kwargs)
+
+            message = (
+                f"{function.__name__} is supported since Iguazio {' or '.join(versions)}, currently using "
+                f"Iguazio {mlconf.igz_version}."
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
+
+        return wrapper
+
+    return decorator

@@ -1180,10 +1180,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
-        if is_legacy_artifact(artifact):
-            artifact["tag"] = tag
-        else:
-            artifact["metadata"]["tag"] = tag
+        artifact["metadata"]["tag"] = tag
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)

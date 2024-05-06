@@ -185,6 +185,17 @@ class DatastoreProfileS3(DatastoreProfile):
     assume_role_arn: typing.Optional[str] = None
     access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
+    bucket: typing.Optional[str] = None
+
+    @pydantic.validator("bucket")
+    def check_bucket(cls, v):
+        if not v:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return v
 
     def secrets(self) -> dict:
         res = {}
@@ -203,7 +214,13 @@ class DatastoreProfileS3(DatastoreProfile):
         return res
 
     def url(self, subpath):
-        return f"s3:/{subpath}"
+        # TODO: There is an inconsistency with DatastoreProfileGCS. In DatastoreProfileGCS,
+        # we assume that the subpath can begin without a '/' character,
+        # while here we assume it always starts with one.
+        if self.bucket:
+            return f"s3://{self.bucket}{subpath}"
+        else:
+            return f"s3:/{subpath}"
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -272,6 +289,17 @@ class DatastoreProfileGCS(DatastoreProfile):
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
     gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
+    bucket: typing.Optional[str] = None
+
+    @pydantic.validator("bucket")
+    def check_bucket(cls, v):
+        if not v:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return v
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
     def convert_dict_to_json(cls, v):
@@ -280,10 +308,15 @@ class DatastoreProfileGCS(DatastoreProfile):
         return v
 
     def url(self, subpath) -> str:
+        # TODO: but there's something wrong with the subpath being assumed to not start with a slash here,
+        # but the opposite assumption is made in S3.
         if subpath.startswith("/"):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
-        return f"gcs://{subpath}"
+        if self.bucket:
+            return f"gcs://{self.bucket}/{subpath}"
+        else:
+            return f"gcs://{subpath}"
 
     def secrets(self) -> dict:
         res = {}
@@ -311,12 +344,26 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     client_secret: typing.Optional[str] = None
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
+    bucket: typing.Optional[str] = None
+
+    @pydantic.validator("bucket")
+    def check_bucket(cls, v):
+        if not v:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return v
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
             #  in azure the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
-        return f"az://{subpath}"
+        if self.bucket:
+            return f"az://{self.bucket}/{subpath}"
+        else:
+            return f"az://{subpath}"
 
     def secrets(self) -> dict:
         res = {}

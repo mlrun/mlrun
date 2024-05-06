@@ -74,8 +74,9 @@ class Member(
         if self._is_chief:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
-                # chief-worker model.
-                # TODO: remove full_sync=True in 1.7.0 if no issues arise
+                # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
+                # we don't necessarily need to archive projects that are not in the leader.
+                # TODO: Discuss maybe removing full_sync=True in 1.8.0
                 self._sync_projects(full_sync=True)
             except Exception as exc:
                 logger.warning(

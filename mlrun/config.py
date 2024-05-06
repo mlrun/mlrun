@@ -554,7 +554,7 @@ default_config = {
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
             "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/nosql",
-            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/nosql",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -692,7 +692,7 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "disabled"
+        "mode": "enabled"
     },
     "auth_with_client_id": {
         "enabled": False,

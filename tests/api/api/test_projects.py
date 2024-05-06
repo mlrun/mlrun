@@ -294,7 +294,7 @@ def test_list_and_get_project_summaries(
     # create files for the project
     files_count = 5
     _create_artifacts(
-        client, project_name, files_count, mlrun.artifacts.ChartArtifact.kind
+        client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
 
     # create feature sets for the project

@@ -20,7 +20,7 @@ import pytest
 import semver
 
 from mlrun.errors import MLRunIncompatibleVersionError
-from mlrun.model_monitoring.evidently_application import _check_evidently_version
+from mlrun.model_monitoring.applications.evidently_base import _check_evidently_version
 
 
 @pytest.mark.parametrize(

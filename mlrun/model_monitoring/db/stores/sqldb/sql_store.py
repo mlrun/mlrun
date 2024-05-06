@@ -409,7 +409,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             + "_"
             + event[mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME]
             + "_"
-            + event[mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME]
+            + event[mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME]
         )
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:

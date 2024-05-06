@@ -36,7 +36,7 @@ from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
-from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
+from .mpijob import MpiRuntimeV1  # noqa
 from .nuclio import (
     RemoteRuntime,
     ServingRuntime,
@@ -264,7 +264,7 @@ class RuntimeKinds:
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
-        return MpiRuntimeContainer.selector()
+        return MpiRuntimeV1
 
     if kind == RuntimeKinds.spark:
         return Spark3Runtime

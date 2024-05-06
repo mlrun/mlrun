@@ -118,8 +118,7 @@ class TestSQLStore:
                 project=cls._TEST_PROJECT
             )
             yield sql_store
-            list_of_endpoints = sql_store.list_model_endpoints()
-            sql_store.delete_model_endpoints_resources(list_of_endpoints)
+            sql_store.delete_model_endpoints_resources()
             list_of_endpoints = sql_store.list_model_endpoints()
             assert (len(list_of_endpoints)) == 0
 

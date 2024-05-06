@@ -22,9 +22,8 @@ from requests.auth import HTTPBasicAuth
 
 import mlrun
 import mlrun.common.schemas
-from mlrun.platforms.iguazio import min_iguazio_versions
-
 from mlrun.model import ModelObj
+from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
 from .function import get_fullname, min_nuclio_versions

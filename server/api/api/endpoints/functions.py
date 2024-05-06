@@ -816,7 +816,7 @@ def _deploy_serving_monitoring(
     if (
         fn.spec.image.startswith("mlrun/")
         and client_version
-        and semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
+        and semver.Version.parse(client_version) <= semver.Version.parse("1.6.2")
     ):
         raise mlrun.errors.MLRunBadRequestError(
             "On deploy of serving-functions which is based on mlrun image "

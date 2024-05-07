@@ -15,7 +15,7 @@ import json
 import os
 import warnings
 from base64 import b64encode
-from copy import copy, deepcopy
+from copy import copy
 from datetime import datetime
 from typing import Optional, Union
 
@@ -417,9 +417,8 @@ class ParquetSource(BaseSourceDriver):
         if not self.additional_filters:
             return None
         none_values = [None, np.nan]
-        additional_filters = deepcopy(self.additional_filters)
         spark_filter = ""
-        for filter_tuple in additional_filters:
+        for filter_tuple in self.additional_filters:
             if not filter_tuple:
                 continue
             if spark_filter:

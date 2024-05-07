@@ -363,7 +363,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
         if table not in self.tables:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunNotFoundError(
                 f"Table '{table}' does not exist in the tables list of the TSDB connector."
                 f"Available tables: {list(self.tables.keys())}"
             )

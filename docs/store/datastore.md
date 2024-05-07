@@ -79,7 +79,7 @@ remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
   
 ## Data store profiles
 
-```{admonition} Notes
+```{admonition} Note
 Datastore profiles are not part of a project export/import.
 ```
 
@@ -116,8 +116,8 @@ local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.en
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
 
-```{admonition} Notes
-- Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+```{admonition} Note
+Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
 
 ## Azure data store
@@ -264,7 +264,7 @@ import os
 os.environ["HADOOP_USER_NAME"] = "..."
 ```
 
-To register an HDFS data store profile and use it as described in [Data store profiles](#data-store-profiles), use:
+An example of registering an HDFS data store profile and using it as described in [Data store profiles](#data-store-profiles):
 ```python
 DatastoreProfileHdfs(
     name="my-hdfs",
@@ -357,7 +357,7 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 
 * `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
   parameters
-* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use. example: "https://oss-cn-hangzhou.aliyuncs.com"
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

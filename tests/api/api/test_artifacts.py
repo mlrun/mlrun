@@ -23,6 +23,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
+import server.api.api.endpoints.artifacts_v2
+import server.api.crud.files
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
@@ -34,11 +36,11 @@ API_ARTIFACTS_PATH = "projects/{project}/artifacts"
 STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{uid}/{key}?tag={tag}"
 GET_API_ARTIFACT_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 LIST_API_ARTIFACTS_PATH_WITH_TAG = API_ARTIFACTS_PATH + "?tag={tag}"
-DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
+DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}"
 
 # V2 endpoints
 V2_PREFIX = "v2/"
-STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
+DELETE_API_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_ARTIFACTS_PATH
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
@@ -188,7 +190,7 @@ def test_create_artifact(db: Session, unversioned_client: TestClient):
         },
         "status": {},
     }
-    url = f"v2/projects/{PROJECT}/artifacts"
+    url = V2_PREFIX + API_ARTIFACTS_PATH.format(project=PROJECT)
     resp = unversioned_client.post(
         url,
         json=data,
@@ -238,6 +240,59 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
 
     resp = client.get(API_ARTIFACTS_PATH.format(project=PROJECT, key=KEY))
     assert len(resp.json()["artifacts"]) == 0
+
+
+@pytest.mark.parametrize(
+    "deletion_strategy, expected_status_code",
+    [
+        (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
+            HTTPStatus.NO_CONTENT.value,
+        ),
+        (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
+            HTTPStatus.INTERNAL_SERVER_ERROR.value,
+        ),
+    ],
+)
+def test_fails_deleting_artifact_data(
+    deletion_strategy, expected_status_code, db: Session, unversioned_client: TestClient
+):
+    # This test attempts to delete the artifact data, but fails - the request should
+    # be failed or succeeded by the deletion strategy.
+    _create_project(unversioned_client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", target_path="dummy-path")
+
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
+
+    with unittest.mock.patch(
+        "server.api.crud.files.Files.delete_artifact_data",
+        side_effect=Exception("some error"),
+    ):
+        resp = unversioned_client.delete(
+            url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)
+        )
+    assert resp.status_code == expected_status_code
+
+
+def test_delete_artifact_data_default_deletion_strategy(
+    db: Session, unversioned_client: TestClient
+):
+    server.api.crud.Files.delete_artifact_data = unittest.mock.MagicMock()
+
+    # checking metadata-only as default deletion_strategy
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    resp = unversioned_client.delete(url)
+    server.api.crud.Files.delete_artifact_data.assert_not_called()
+    server.api.crud.Files.delete_artifact_data.reset_mock()
+    assert resp.status_code == HTTPStatus.NO_CONTENT.value
 
 
 def test_list_artifacts(db: Session, client: TestClient) -> None:

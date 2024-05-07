@@ -15,6 +15,7 @@
 # TODO: Move this module into the TSDB abstraction once it is in.
 
 from datetime import datetime
+from io import StringIO
 
 import pandas as pd
 
@@ -30,31 +31,33 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _compose_full_name,
     _ModelEndpointMonitoringResultValuesBase,
 )
+from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
+from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import _TSDB_BE
 from mlrun.utils import logger
 
 
 def _get_sql_query(endpoint_id: str, names: list[tuple[str, str]]) -> str:
-    query = (
-        f"SELECT * FROM '{mm_writer._TSDB_TABLE}' "
-        f"WHERE {mm_writer.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
-    )
+    with StringIO() as query:
+        query.write(
+            f"SELECT * FROM '{mm_constants.MonitoringTSDBTables.APP_RESULTS}' "
+            f"WHERE {mm_writer.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
+        )
+        if names:
+            query.write(" AND (")
 
-    if names:
-        query += " AND ("
+            for i, (app_name, result_name) in enumerate(names):
+                sub_cond = (
+                    f"({mm_writer.WriterEvent.APPLICATION_NAME}='{app_name}' "
+                    f"AND {mm_writer.ResultData.RESULT_NAME}='{result_name}')"
+                )
+                if i != 0:  # not first sub condition
+                    query.write(" OR ")
+                query.write(sub_cond)
 
-        for i, (app_name, result_name) in enumerate(names):
-            sub_cond = (
-                f"({mm_writer.WriterEvent.APPLICATION_NAME}='{app_name}' "
-                f"AND {mm_writer.ResultData.RESULT_NAME}='{result_name}')"
-            )
-            if i != 0:  # not first sub condition
-                query += " OR "
-            query += sub_cond
+            query.write(")")
 
-        query += ")"
-
-    query += ";"
-    return query
+        query.write(";")
+        return query.getvalue()
 
 
 def _get_result_kind(result_df: pd.DataFrame) -> mm_constants.ResultKindApp:
@@ -81,10 +84,10 @@ def read_data(
 ) -> list[_ModelEndpointMonitoringResultValuesBase]:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
-        container=mm_writer.ModelMonitoringWriter.get_v3io_container(project),
+        container=KVStoreBase.get_v3io_monitoring_apps_container(project),
     )
     df: pd.DataFrame = client.read(
-        backend=mm_writer._TSDB_BE,
+        backend=_TSDB_BE,
         query=_get_sql_query(
             endpoint_id, [(metric.app, metric.name) for metric in metrics]
         ),

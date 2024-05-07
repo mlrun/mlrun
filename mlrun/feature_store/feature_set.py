@@ -365,6 +365,10 @@ class FeatureSet(ModelObj):
         self._api_client = None
         self._run_db = None
 
+        import tempfile
+
+        checkpoint_path = tempfile.TemporaryDirectory().name
+
         self.spec = FeatureSetSpec(
             description=description,
             entities=entities,

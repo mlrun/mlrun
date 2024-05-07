@@ -430,7 +430,7 @@ class ParquetSource(BaseSourceDriver):
             col_name, op, value = filter_tuple
             if isinstance(value, (str, datetime)):
                 value = f"'{value}'"
-            if isinstance(value, (list, tuple, set, np.ndarray)) and (
+            if isinstance(value, (list, tuple, set)) and (
                 "in" in op.lower()
             ):
                 none_exists = False

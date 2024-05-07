@@ -15,6 +15,8 @@
 import typing
 from abc import ABC, abstractmethod
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+
 
 class StoreBase(ABC):
     """
@@ -62,11 +64,9 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
+    def delete_model_endpoints_resources(self):
         """
         Delete all model endpoints resources.
-
-        :param endpoints: A list of model endpoints flattened dictionaries.
 
         """
         pass
@@ -112,45 +112,18 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def get_endpoint_real_time_metrics(
+    def write_application_event(
         self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
-        access_key: str = None,
-    ) -> dict[str, list[tuple[str, float]]]:
+        event: dict[str, typing.Any],
+        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+    ):
         """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
-                                 provided, the access key will be retrieved from the environment variables.
-
-        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
-                 includes timestamps and the values.
-        """
-
-        pass
-
-    @abstractmethod
-    def write_application_result(self, event: dict[str, typing.Any]):
-        """
-        Write a new application result event in the target table.
+        Write a new event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
                       schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
                       object.
+        :param kind: The type of the event, can be either "result" or "metric".
         """
         pass
 

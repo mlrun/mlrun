@@ -71,7 +71,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     ):
         run.metadata.labels["kind"] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            run.metadata.labels, [mlrun.runtimes.constants.RunLabels.owner]
+            run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(

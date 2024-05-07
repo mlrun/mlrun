@@ -216,7 +216,7 @@ class WorkflowRunners(
             labels["job-type"] = "workflow-runner"
             labels["workflow"] = runner.metadata.name
         mlrun.runtimes.utils.enrich_run_labels(
-            labels, [mlrun.runtimes.constants.RunLabels.owner]
+            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
 
         run_spec = self._prepare_run_object_for_single_run(
@@ -274,6 +274,19 @@ class WorkflowRunners(
 
         if workflow_id is None:
             if (
+                run_object.metadata.is_workflow_runner()
+                and run_object.status.is_failed()
+            ):
+                state = run_object.status.state
+                state_text = run_object.status.error
+                workflow_name = run_object.spec.parameters.get(
+                    "workflow_name", "<unknown>"
+                )
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"Failed to run workflow {workflow_name}, state: {state}, state_text: {state_text}"
+                )
+
+            elif (
                 engine == "local"
                 and state.casefold() == mlrun.run.RunStatuses.running.casefold()
             ):

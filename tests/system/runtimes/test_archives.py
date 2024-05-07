@@ -19,7 +19,7 @@ import pytest
 
 import mlrun
 import tests.system.base
-from mlrun.runtimes.constants import RunStates
+from mlrun.common.runtimes.constants import RunStates
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
 base_image = "mlrun/mlrun"
@@ -237,7 +237,9 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.output("tag")
 
     def test_run_function_with_auto_build_and_source_is_idempotent(self):
-        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project = mlrun.get_or_create_project(
+            "run-with-source-and-auto-build", allow_cross_project=True
+        )
         # using project.name because this is a user project meaning the project name get concatenated with the user name
         self.custom_project_names_to_delete.append(project.name)
         project.set_source(f"{git_uri}#main", False)
@@ -252,7 +254,9 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         project.save()
         project.run_function("myjob", auto_build=True)
 
-        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project = mlrun.get_or_create_project(
+            "run-with-source-and-auto-build", allow_cross_project=True
+        )
         project.set_source(f"{git_uri}#main", False)
         project.set_function(
             name="myjob",
@@ -266,7 +270,9 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         project.run_function("myjob", auto_build=True)
 
     def test_run_function_with_auto_build_and_source_is_idempotent_after_failure(self):
-        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project = mlrun.get_or_create_project(
+            "run-with-source-and-auto-build", allow_cross_project=True
+        )
         # using project.name because this is a user project meaning the project name get concatenated with the username
         self.custom_project_names_to_delete.append(project.name)
         project.set_source(f"{git_uri}#main", False)
@@ -283,7 +289,9 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
             project.run_function("myjob", auto_build=True)
 
-        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project = mlrun.get_or_create_project(
+            "run-with-source-and-auto-build", allow_cross_project=True
+        )
         project.set_source(f"{git_uri}#main", False)
         project.set_function(
             name="myjob",
@@ -323,6 +331,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             name="git-proj2",
             user_project=True,
             subpath="subdir",
+            allow_cross_project=True,
         )
         # using project.name because this is a user project meaning the project name get concatenated with the user name
         self.custom_project_names_to_delete.append(project.name)

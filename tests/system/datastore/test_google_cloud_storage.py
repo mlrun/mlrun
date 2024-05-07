@@ -78,7 +78,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
     def setup_before_each_test(self, use_datastore_profile):
         self._object_dir = self.test_dir + "/" + f"target_directory_{uuid.uuid4()}"
         self._bucket_path = (
-            f"ds://{self.profile_name}/{self._bucket_name}"
+            f"ds://{self.profile_name}"
             if use_datastore_profile
             else "gcs://" + self._bucket_name
         )
@@ -91,7 +91,9 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         logger.info(f"Object URL template: {self._target_url_template}")
         if use_datastore_profile:
             kwargs = {"credentials_path": self.credentials_path}
-            profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
+            profile = DatastoreProfileGCS(
+                name=self.profile_name, bucket=self._bucket_name, **kwargs
+            )
             register_temporary_client_datastore_profile(profile)
             os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         else:

@@ -37,17 +37,20 @@ import requests
 import yaml
 
 import mlrun.common.helpers
+import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.serving
 import mlrun.utils.regex
-from mlrun.common.schemas import AlertConfig
+from mlrun.alerts.alert import AlertConfig
+from mlrun.common.schemas.alert import AlertTemplate
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 
@@ -56,14 +59,10 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
-from ..model_monitoring.application import (
-    ModelMonitoringApplicationBase,
-)
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
-    is_legacy_artifact,
     is_relative_path,
     is_yaml_path,
     logger,
@@ -207,14 +206,16 @@ def new_project(
                 "Unsupported option, cannot use subpath argument with project templates"
             )
         if from_template.endswith(".yaml"):
-            project = _load_project_file(from_template, name, secrets)
+            project = _load_project_file(
+                from_template, name, secrets, allow_cross_project=True
+            )
         elif from_template.startswith("git://"):
             clone_git(from_template, context, secrets, clone=True)
             shutil.rmtree(path.join(context, ".git"))
-            project = _load_project_dir(context, name)
+            project = _load_project_dir(context, name, allow_cross_project=True)
         elif from_template.endswith(".zip"):
             clone_zip(from_template, context, secrets)
-            project = _load_project_dir(context, name)
+            project = _load_project_dir(context, name, allow_cross_project=True)
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
@@ -296,6 +297,7 @@ def load_project(
     save: bool = True,
     sync_functions: bool = False,
     parameters: dict = None,
+    allow_cross_project: bool = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -342,6 +344,8 @@ def load_project(
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
@@ -357,7 +361,7 @@ def load_project(
     if url:
         url = str(url)  # to support path objects
         if is_yaml_path(url):
-            project = _load_project_file(url, name, secrets)
+            project = _load_project_file(url, name, secrets, allow_cross_project)
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
@@ -384,7 +388,7 @@ def load_project(
         repo, url = init_repo(context, url, init_git)
 
     if not project:
-        project = _load_project_dir(context, name, subpath)
+        project = _load_project_dir(context, name, subpath, allow_cross_project)
 
     if not project.metadata.name:
         raise ValueError("Project name must be specified")
@@ -438,6 +442,7 @@ def get_or_create_project(
     from_template: str = None,
     save: bool = True,
     parameters: dict = None,
+    allow_cross_project: bool = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist
 
@@ -482,12 +487,12 @@ def get_or_create_project(
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :param parameters:   key/value pairs to add to the project.spec.params
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
     context = context or "./"
-    spec_path = path.join(context, subpath or "", "project.yaml")
-    load_from_path = url or path.isfile(spec_path)
     try:
         # load project from the DB.
         # use `name` as `url` as we load the project from the DB
@@ -503,13 +508,15 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
             parameters=parameters,
+            allow_cross_project=allow_cross_project,
         )
         logger.info("Project loaded successfully", project_name=name)
         return project
-
     except mlrun.errors.MLRunNotFoundError:
         logger.debug("Project not found in db", project_name=name)
 
+    spec_path = path.join(context, subpath or "", "project.yaml")
+    load_from_path = url or path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
@@ -525,6 +532,7 @@ def get_or_create_project(
             user_project=user_project,
             save=save,
             parameters=parameters,
+            allow_cross_project=allow_cross_project,
         )
 
         logger.info(
@@ -599,7 +607,7 @@ def _run_project_setup(
     return project
 
 
-def _load_project_dir(context, name="", subpath=""):
+def _load_project_dir(context, name="", subpath="", allow_cross_project=None):
     subpath_str = subpath or ""
 
     # support both .yaml and .yml file extensions
@@ -613,7 +621,7 @@ def _load_project_dir(context, name="", subpath=""):
         with open(project_file_path) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
-            project = _project_instance_from_struct(struct, name)
+            project = _project_instance_from_struct(struct, name, allow_cross_project)
             project.spec.context = context
     elif function_files := glob.glob(function_file_path):
         function_path = function_files[0]
@@ -686,19 +694,41 @@ def _delete_project_from_db(project_name, secrets, deletion_strategy):
     return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
-def _load_project_file(url, name="", secrets=None):
+def _load_project_file(url, name="", secrets=None, allow_cross_project=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"cant find project file at {url}") from exc
     struct = yaml.load(obj, Loader=yaml.FullLoader)
-    return _project_instance_from_struct(struct, name)
+    return _project_instance_from_struct(struct, name, allow_cross_project)
 
 
-def _project_instance_from_struct(struct, name):
-    struct.setdefault("metadata", {})["name"] = name or struct.get("metadata", {}).get(
-        "name", ""
-    )
+def _project_instance_from_struct(struct, name, allow_cross_project):
+    name_from_struct = struct.get("metadata", {}).get("name", "")
+    if name and name_from_struct and name_from_struct != name:
+        error_message = (
+            f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
+            "1. Set the `allow_cross_project=True` when loading the project.\n"
+            f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
+            "3. Use different project context dir."
+        )
+
+        if allow_cross_project is None:
+            # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
+            logger.warn(
+                "Project name is different than specified on its project yaml."
+                "You should fix it until version 1.9.0",
+                description=error_message,
+            )
+        elif allow_cross_project:
+            logger.warn(
+                "Project name is different than specified on its project yaml. Overriding.",
+                existing_name=name_from_struct,
+                overriding_name=name,
+            )
+        else:
+            raise ValueError(error_message)
+    struct.setdefault("metadata", {})["name"] = name or name_from_struct
     return MlrunProject.from_dict(struct)
 
 
@@ -960,13 +990,9 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                # Support legacy artifacts
-                if is_legacy_artifact(artifact) or _is_imported_artifact(artifact):
-                    key = artifact.get("key")
-                else:
-                    key = artifact.get("metadata").get("key", "")
+                key = artifact.get("metadata", {}).get("key", "")
                 if not key:
-                    raise ValueError('artifacts "key" must be specified')
+                    raise ValueError('artifacts "metadata.key" must be specified')
             else:
                 key = artifact.key
                 artifact = artifact.to_dict()
@@ -1562,6 +1588,23 @@ class MlrunProject(ModelObj):
         )
         return item
 
+    def delete_artifact(
+        self,
+        item: Artifact,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
+        """Delete an artifact object in the DB and optionally delete the artifact data
+
+        :param item: Artifact object (can be any type, such as dataset, model, feature store).
+        :param deletion_strategy: The artifact deletion strategy types.
+        :param secrets: Credentials needed to access the artifact data.
+        """
+        am = self._get_artifact_manager()
+        am.delete_artifact(item, deletion_strategy, secrets)
+
     def log_dataset(
         self,
         key,
@@ -1814,10 +1857,18 @@ class MlrunProject(ModelObj):
         """
         context = context or self.spec.context
         if context:
-            project = _load_project_dir(context, self.metadata.name, self.spec.subpath)
+            project = _load_project_dir(
+                context,
+                self.metadata.name,
+                self.spec.subpath,
+                allow_cross_project=False,
+            )
         else:
             project = _load_project_file(
-                self.spec.origin_url, self.metadata.name, self._secrets
+                self.spec.origin_url,
+                self.metadata.name,
+                self._secrets,
+                allow_cross_project=None,
             )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo
@@ -1846,7 +1897,11 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1884,11 +1939,6 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
-        if name in mm_constants.MonitoringFunctionNames.list():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"An application cannot have the following names: "
-                f"{mm_constants.MonitoringFunctionNames.list()}"
-            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -1914,7 +1964,11 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -1967,7 +2021,10 @@ class MlrunProject(ModelObj):
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         application_class: typing.Union[
-            str, ModelMonitoringApplicationBase, None
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+            None,
         ] = None,
         name: typing.Optional[str] = None,
         image: typing.Optional[str] = None,
@@ -2024,12 +2081,24 @@ class MlrunProject(ModelObj):
 
         return resolved_function_name, function_object, func
 
+    def _wait_for_functions_deployment(self, function_names: list[str]) -> None:
+        """
+        Wait for the deployment of functions on the backend.
+
+        :param function_names: A list of function names.
+        """
+        for fn_name in function_names:
+            fn = typing.cast(RemoteRuntime, self.get_function(key=fn_name))
+            fn._wait_for_function_deployment(db=fn._get_db())
+
     def enable_model_monitoring(
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        *,
         deploy_histogram_data_drift_app: bool = True,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2039,7 +2108,6 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-
         :param default_controller_image:        Deprecated.
         :param base_period:                     The time period in minutes in which the model monitoring controller
                                                 function is triggered. By default, the base period is 10 minutes.
@@ -2047,6 +2115,9 @@ class MlrunProject(ModelObj):
                                                 stream & histogram data drift functions, which are real time nuclio
                                                 functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
+                                                Otherwise, deploy the model monitoring infrastructure on the
+                                                background, including the histogram data drift app if selected.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2064,37 +2135,55 @@ class MlrunProject(ModelObj):
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
 
+        if wait_for_deployment:
+            deployment_functions = mm_constants.MonitoringFunctionNames.list()
+            if deploy_histogram_data_drift_app:
+                deployment_functions.append(
+                    mm_constants.HistogramDataDriftApplicationConstants.NAME
+                )
+            self._wait_for_functions_deployment(deployment_functions)
+
     def deploy_histogram_data_drift_app(
         self,
         *,
         image: str = "mlrun/mlrun",
         db: Optional[mlrun.db.RunDBInterface] = None,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image: The image on which the application will run.
-        :param db:    An optional DB object.
+        :param image:               The image on which the application will run.
+        :param db:                  An optional DB object.
+        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
+                                    Otherwise, deploy the application on the background.
         """
         if db is None:
             db = mlrun.db.get_run_db(secrets=self._secrets)
         db.deploy_histogram_data_drift_app(project=self.name, image=image)
 
+        if wait_for_deployment:
+            self._wait_for_functions_deployment(
+                [mm_constants.HistogramDataDriftApplicationConstants.NAME]
+            )
+
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        *,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Redeploy model monitoring application controller functions.
 
-
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         is triggered. By default, the base period is 10 minutes.
-        :param image:                    The image of the model monitoring controller, writer & monitoring
-                                         stream functions, which are real time nuclio functions.
-                                         By default, the image is mlrun/mlrun.
-        :returns: model monitoring controller job as a dictionary.
+        :param base_period:         The time period in minutes in which the model monitoring controller function
+                                    is triggered. By default, the base period is 10 minutes.
+        :param image:               The image of the model monitoring controller, writer & monitoring
+                                    stream functions, which are real time nuclio functions.
+                                    By default, the image is mlrun/mlrun.
+        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
+                                    Otherwise, deploy the controller on the background.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(
@@ -2102,6 +2191,11 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             image=image,
         )
+
+        if wait_for_deployment:
+            self._wait_for_functions_deployment(
+                [mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER]
+            )
 
     def disable_model_monitoring(
         self, *, delete_histogram_data_drift_app: bool = True
@@ -2824,12 +2918,14 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        self.sync_functions(always=sync)
-        if not self.spec._function_objects:
-            raise ValueError(
-                "There are no functions in the project."
-                " Make sure you've set your functions with project.set_function()."
-            )
+        if engine not in ["remote"]:
+            # for remote runs we don't require the functions to be synced as they can be loaded dynamically during run
+            self.sync_functions(always=sync)
+            if not self.spec._function_objects:
+                raise ValueError(
+                    "There are no functions in the project."
+                    " Make sure you've set your functions with project.set_function()."
+                )
 
         if not name and not workflow_path and not workflow_handler:
             raise ValueError("Workflow name, path, or handler must be specified")
@@ -3266,7 +3362,6 @@ class MlrunProject(ModelObj):
         image: str = None,
         set_as_default: bool = True,
         with_mlrun: bool = None,
-        skip_deployed: bool = False,
         base_image: str = None,
         commands: list = None,
         secret_name: str = None,
@@ -3287,7 +3382,6 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it) defaults to
                                 mlrun.mlconf.default_base_image
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
@@ -3310,14 +3404,6 @@ class MlrunProject(ModelObj):
             logger.info(
                 "Base image not specified, using default base image",
                 base_image=base_image,
-            )
-
-        if skip_deployed:
-            warnings.warn(
-                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
-                "This parameter is ignored.",
-                # TODO: remove in 1.7.0
-                FutureWarning,
             )
 
         if not overwrite_build_params:
@@ -3582,9 +3668,7 @@ class MlrunProject(ModelObj):
         :returns: List of function objects.
         """
 
-        model_monitoring_labels_list = [
-            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-        ]
+        model_monitoring_labels_list = [str(mm_constants.ModelMonitoringAppLabel())]
         if labels:
             model_monitoring_labels_list += labels
         return self.list_functions(
@@ -3811,7 +3895,9 @@ class MlrunProject(ModelObj):
 
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
-    def store_alert_config(self, alert_data: AlertConfig, alert_name=None):
+    def store_alert_config(
+        self, alert_data: AlertConfig, alert_name=None
+    ) -> AlertConfig:
         """
         Create/modify an alert.
         :param alert_data: The data of the alert.
@@ -3821,7 +3907,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
-        return db.store_alert_config(alert_name, alert_data.dict(), self.metadata.name)
+        return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """
@@ -3832,7 +3918,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_config(alert_name, self.metadata.name)
 
-    def list_alerts_configs(self):
+    def list_alerts_configs(self) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
         :return: All the alerts objects of the project.
@@ -3877,6 +3963,23 @@ class MlrunProject(ModelObj):
         if alert_data:
             alert_name = alert_data.name
         db.reset_alert_config(alert_name, self.metadata.name)
+
+    def get_alert_template(self, template_name: str) -> AlertTemplate:
+        """
+        Retrieve a specific alert template.
+        :param template_name: The name of the template to retrieve.
+        :return: The template object.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_alert_template(template_name)
+
+    def list_alert_templates(self) -> list[AlertTemplate]:
+        """
+        Retrieve list of all alert templates.
+        :return: All the alert template objects in the database.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_alert_templates()
 
     def _run_authenticated_git_action(
         self,

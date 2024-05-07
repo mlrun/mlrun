@@ -199,6 +199,26 @@ class Client(
                 **(await chief_response.json())
             )
 
+    async def store_alert_template(
+        self, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Alert templates are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT", f"alert_templates/{name}", request, json
+        )
+
+    async def delete_alert_template(
+        self, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alert templates are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"alert_templates/{name}", request
+        )
+
     async def store_alert(
         self, project: str, name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:

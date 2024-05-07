@@ -37,7 +37,6 @@ results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 def test_artifacts_export_required_fields():
     artifact_classes = [
         mlrun.artifacts.Artifact,
-        mlrun.artifacts.ChartArtifact,
         mlrun.artifacts.PlotArtifact,
         mlrun.artifacts.DatasetArtifact,
         mlrun.artifacts.ModelArtifact,

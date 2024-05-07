@@ -22,7 +22,7 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun.common.schemas.artifact import ArtifactsFormat
+from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies, ArtifactsFormat
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.utils import artifact_project_and_resource_name_extractor
@@ -226,9 +226,20 @@ async def delete_artifact(
     tree: str = None,
     tag: str = None,
     object_uid: str = Query(None, alias="object-uid"),
+    deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
+    secrets: dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    logger.debug(
+        "Deleting artifact",
+        project=project,
+        key=key,
+        tag=tag,
+        producer_id=tree,
+        deletion_strategy=deletion_strategy,
+    )
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -244,6 +255,9 @@ async def delete_artifact(
         project,
         object_uid,
         producer_id=tree,
+        deletion_strategy=deletion_strategy,
+        secrets=secrets,
+        auth_info=auth_info,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

@@ -45,7 +45,6 @@ from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
-from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
@@ -99,18 +98,19 @@ class _V3IORecordsChecker:
 
     @classmethod
     def custom_setup_class(cls, project_name: str) -> None:
-        cls._v3io_container = ModelMonitoringWriter.get_v3io_container(project_name)
-        cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
-        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
-            cls._v3io_container
+        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+            project=project_name
         )
+        cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
+        cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
             app_name = app_data.class_.NAME
             cls._logger.debug("Checking the KV record of app", app_name=app_name)
-            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
+
+            resp = cls._kv_storage.client.kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
             )
             assert (
@@ -123,9 +123,8 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.read(
-            backend=_TSDB_BE,
-            table=_TSDB_TABLE,
+        df: pd.DataFrame = cls._tsdb_storage.get_records(
+            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
             start=f"now-{5 * cls.app_interval}m",
             end="now",
         )

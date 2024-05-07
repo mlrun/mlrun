@@ -39,7 +39,6 @@ import mlrun.serving.routers
 import mlrun.utils
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -1131,11 +1130,14 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
-        tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
-            v3io_container=ModelMonitoringWriter.get_v3io_container(cls.project_name)
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=cls.project_name
         )
-        df: pd.DataFrame = tsdb_client.read(
-            backend=_TSDB_BE, table=_TSDB_TABLE, start="now-5m", end="now"
+
+        df: pd.DataFrame = tsdb_client.get_records(
+            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
+            start="now-5m",
+            end="now",
         )
 
         assert not df.empty, "No TSDB data"

@@ -220,12 +220,12 @@ async def list_model_endpoints(
                       for model endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
                       defined by the user. Please note that these metrics are stored in the time series DB and the
                       results will be appeared under model_endpoint.spec.metrics of each endpoint.
-    :param start:     The start time of the metrics. Can be represented by a string containing an RFC 3339
-                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                      `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-    :param end:       The end time of the metrics. Can be represented by a string containing an RFC 3339
-                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                      `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+    :param start:     The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
+                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
+    :param end:       The end time of the metrics. Can be represented by a string containing an RFC 3339 time, a
+                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
     :param top_level: If True will return only routers and endpoint that are NOT children of any router.
     :param uids:      Will return `ModelEndpointList` of endpoints with uid in uids.
 
@@ -299,14 +299,14 @@ async def get_model_endpoint(
 
     :param project:                    The name of the project
     :param endpoint_id:                The unique id of the model endpoint.
-    :param start:                      The start time of the metrics. Can be represented by a string containing an
-                                       RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                       `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                       0 for the earliest time.
-    :param end:                        The end time of the metrics. Can be represented by a string containing an
-                                       RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                       `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                       0 for the earliest time.
+    :param start:                      The start time of the metrics. Can be represented by a string containing an RFC
+                                       3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
+                                       `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
+                                       = seconds), or 0 for the earliest time.
+    :param end:                        The end time of the metrics. Can be represented by a string containing an RFC
+                                       3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
+                                       `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
+                                       = seconds), or 0 for the earliest time.
     :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
                                        pre-defined real-time metrics for model endpoints such as predictions_per_second
                                        and latency_avg_5m but also custom metrics defined by the user. Please note that

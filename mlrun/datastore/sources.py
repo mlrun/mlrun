@@ -430,9 +430,7 @@ class ParquetSource(BaseSourceDriver):
             col_name, op, value = filter_tuple
             if isinstance(value, (str, datetime)):
                 value = f"'{value}'"
-            if isinstance(value, (list, tuple, set)) and (
-                "in" in op.lower()
-            ):
+            if isinstance(value, (list, tuple, set)) and op.lower() in ["in", "not in"]:
                 none_exists = False
                 value = list(value)
                 for none_value in none_values:
@@ -444,12 +442,14 @@ class ParquetSource(BaseSourceDriver):
                     value = f"({value[0]})"
                 if none_exists:
                     if value:
-                        spark_filter += f"({str(col_name)} {str(op)} {str(value)} OR {str(col_name)} IS NULL)"
+                        spark_filter += (
+                            f"({col_name} {op} {value} OR {col_name} IS NULL)"
+                        )
                     else:
-                        spark_filter += f"{str(col_name)} IS NULL"
+                        spark_filter += f"{col_name} IS NULL"
                     continue
 
-            spark_filter += f"{str(col_name)} {str(op)} {str(value)}"
+            spark_filter += f"{col_name} {op} {value}"
         return spark_filter
 
     def _filter_spark_df(self, df, time_field=None, columns=None):

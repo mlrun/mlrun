@@ -19,11 +19,13 @@ import functools
 import http
 import json
 import typing
+import unittest.mock
 
 import deepdiff
 import fastapi
 import pytest
 import requests_mock as requests_mock_package
+import semver
 import starlette.datastructures
 from aioresponses import CallbackResult
 from requests.cookies import cookiejar_from_dict
@@ -904,7 +906,11 @@ async def test_format_as_leader_project(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
 ):
-    project = _generate_project()
+    with unittest.mock.patch(
+        "mlrun.mlconf.get_parsed_igz_version",
+        return_value=semver.VersionInfo.parse("3.5.5"),
+    ):
+        project = _generate_project()
     iguazio_project = await maybe_coroutine(
         iguazio_client.format_as_leader_project(project)
     )
@@ -916,6 +922,7 @@ async def test_format_as_leader_project(
             exclude_paths=[
                 "root['attributes']['updated_at']",
                 "root['attributes']['operational_status']",
+                # "root['attributes']['default_function_node_selector']"
             ],
         )
         == {}

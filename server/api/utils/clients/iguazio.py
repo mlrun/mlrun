@@ -28,7 +28,6 @@ import fastapi
 import humanfriendly
 import igz_mgmt.schemas.manual_events
 import requests.adapters
-import semver
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
@@ -758,13 +757,22 @@ class Client(
             body["data"]["attributes"]["owner_username"] = project.spec.owner
 
         if project.spec.default_function_node_selector is not None:
-            igz_version = mlrun.mlconf.get_parsed_igz_version()
-            if igz_version and igz_version >= semver.VersionInfo.parse("3.5.5"):
+            # This feature requires support for project-level default_function_node_selector,
+            # which is available starting from version 3.5.5.
+            # We are adding this validation to maintain backward compatibility with older versions of Iguazio.
+            if mlrun.utils.helpers.is_igz_version_sufficient("3.5.5"):
                 body["data"]["attributes"]["default_function_node_selector"] = (
                     Client._transform_mlrun_labels_to_iguazio_labels(
                         project.spec.default_function_node_selector
                     )
                 )
+            else:
+                logger.warning(
+                    "User attempted to use a feature requiring project-level default_function_node_selector,"
+                    " but the installed version of Iguazio is not compatible. "
+                    "Project created without the field in Iguazio."
+                )
+
         return body
 
     @staticmethod

@@ -73,7 +73,11 @@ from ..utils.clones import (
     clone_zip,
     get_repo_url,
 )
-from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
+from ..utils.helpers import (
+    ensure_git_branch,
+    is_igz_version_sufficient,
+    resolve_git_reference_from_source,
+)
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -242,6 +246,12 @@ def new_project(
         project.spec.description = description
 
     if default_function_node_selector:
+        if not is_igz_version_sufficient("3.5.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "The installed version of Iguazio is not compatible with the specified request. "
+                "The default_function_node_selector feature is supported for project-level starting from version 3.5.5."
+                "Please make your request without this parameter, or upgrade your Iguazio version."
+            )
         for key, val in default_function_node_selector.items():
             project.spec.default_function_node_selector[key] = val
 
@@ -1266,6 +1276,20 @@ class MlrunProject(ModelObj):
     @description.setter
     def description(self, description):
         self.spec.description = description
+
+    @property
+    def default_function_node_selector(self) -> dict:
+        return self.spec.default_function_node_selector
+
+    @default_function_node_selector.setter
+    def default_function_node_selector(self, default_function_node_selector):
+        if not is_igz_version_sufficient("3.5.5"):
+            raise mlrun.errors.MLRunIncompatibleVersionError(
+                "The installed version of Iguazio is not compatible with the specified feature. "
+                "This feature requires support for project-level default_function_node_selector, "
+                "which is available starting from version 3.5.5."
+            )
+        self.spec.default_function_node_selector = default_function_node_selector
 
     @property
     def default_image(self) -> str:

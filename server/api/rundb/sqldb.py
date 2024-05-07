@@ -18,6 +18,7 @@ from typing import Optional, Union
 from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
+import mlrun.alerts
 import mlrun.common.schemas
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
@@ -1078,7 +1079,7 @@ class SQLRunDB(RunDBInterface):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass
@@ -1093,6 +1094,12 @@ class SQLRunDB(RunDBInterface):
         pass
 
     def reset_alert_config(self, alert_name, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
         pass
 
 

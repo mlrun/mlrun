@@ -470,7 +470,7 @@ class Projects(
                 "Failed to list pipelines. Pipelines counters will be set to None",
                 exc=mlrun.errors.err_to_str(exc),
             )
-            return collections.defaultdict(lambda: None)
+            return [collections.defaultdict(lambda: None)] * 3
 
         return (
             project_to_recent_completed_pipelines_count,

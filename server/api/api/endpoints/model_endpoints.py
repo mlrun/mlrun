@@ -372,7 +372,9 @@ async def get_model_endpoint_monitoring_metrics(
 class _MetricsValuesParams:
     project: str
     endpoint_id: str
-    names: list[tuple[str, str]]
+    metrics: list[
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringMetric
+    ]
     start: datetime
     end: datetime
 
@@ -432,11 +434,10 @@ async def _get_metrics_values_data(
         )
         for fqn in inputs.name
     ]
-    names = [(metric.app, metric.name) for metric in metrics]
     return _MetricsValuesParams(
         project=project,
         endpoint_id=endpoint_id,
-        names=names,
+        metrics=metrics,
         start=start,
         end=end,
     )
@@ -462,7 +463,7 @@ async def get_model_endpoint_monitoring_metrics_values(
         mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
         project=params.project,
         endpoint_id=params.endpoint_id,
-        names=params.names,
+        metrics=params.metrics,
         start=params.start,
         end=params.end,
     )

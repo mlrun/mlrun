@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -25,9 +26,11 @@ import v3io.dataplane.output
 import v3io.dataplane.response
 
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring import (
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
+    ModelEndpointMonitoringResultNoData,
+    ModelEndpointMonitoringResultValues,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_data
@@ -307,9 +310,31 @@ def test_read_data() -> None:
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
         end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
-        names=[
-            ("histogram-data-drift", "kld_mean"),
-            ("histogram-data-drift", "general_drift"),
+        metrics=[
+            ModelEndpointMonitoringMetric(
+                project="fictitious-one",
+                app="histogram-data-drift",
+                name="kld_mean",
+                full_name="fictitious-one.histogram-data-drift.result.kld_mean",
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            ),
+            ModelEndpointMonitoringMetric(
+                project="fictitious-one",
+                app="histogram-data-drift",
+                name="general_drift",
+                full_name="fictitious-one.histogram-data-drift.result.general_drift",
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            ),
+            ModelEndpointMonitoringMetric(
+                project="fictitious-one",
+                app="late-app",
+                name="notfound",
+                full_name="fictitious-one.late-app.result.notfound",
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            ),
         ],
     )
-    assert len(data) == 2
+    assert len(data) == 3
+    counter = Counter([type(values) for values in data])
+    assert counter[ModelEndpointMonitoringResultValues] == 2
+    assert counter[ModelEndpointMonitoringResultNoData] == 1

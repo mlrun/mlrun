@@ -23,6 +23,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.writer as mm_writer
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
     ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
@@ -71,11 +72,12 @@ def _get_result_kind(result_df: pd.DataFrame) -> mm_constants.ResultKindApp:
 
 
 def read_data(
+    *,
     project: str,
     endpoint_id: str,
     start: datetime,
     end: datetime,
-    names: list[tuple[str, str]],
+    metrics: list[ModelEndpointMonitoringMetric],
 ) -> list[_ModelEndpointMonitoringResultValuesBase]:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
@@ -83,24 +85,29 @@ def read_data(
     )
     df: pd.DataFrame = client.read(
         backend=mm_writer._TSDB_BE,
-        query=_get_sql_query(endpoint_id, names),
+        query=_get_sql_query(
+            endpoint_id, [(metric.app, metric.name) for metric in metrics]
+        ),
         start=start,
         end=end,
     )
+
+    metrics_without_data = {metric.full_name: metric for metric in metrics}
+
     metrics_values: list[_ModelEndpointMonitoringResultValuesBase] = []
-    if df.empty:
-        return metrics_values
-    grouped = df.groupby(
-        [mm_writer.WriterEvent.APPLICATION_NAME, mm_writer.ResultData.RESULT_NAME],
-        observed=False,
-    )
+    if not df.empty:
+        grouped = df.groupby(
+            [mm_writer.WriterEvent.APPLICATION_NAME, mm_writer.ResultData.RESULT_NAME],
+            observed=False,
+        )
+    else:
+        grouped = []
     for (app_name, result_name), sub_df in grouped:
         result_kind = _get_result_kind(sub_df)
+        full_name = _compose_full_name(project=project, app=app_name, name=result_name)
         metrics_values.append(
             ModelEndpointMonitoringResultValues(
-                full_name=_compose_full_name(
-                    project=project, app=app_name, name=result_name
-                ),
+                full_name=full_name,
                 type=ModelEndpointMonitoringMetricType.RESULT,
                 result_kind=result_kind,
                 values=list(
@@ -112,4 +119,14 @@ def read_data(
                 ),  # pyright: ignore[reportArgumentType]
             )
         )
+        del metrics_without_data[full_name]
+
+    for metric in metrics_without_data.values():
+        metrics_values.append(
+            ModelEndpointMonitoringResultNoData(
+                full_name=metric.full_name,
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            )
+        )
+
     return metrics_values

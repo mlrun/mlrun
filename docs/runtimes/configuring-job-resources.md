@@ -77,8 +77,6 @@ limits to your function specify what compute resources are required. It is best 
 
 Ezamples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
-**Is this pod or function?**
-
 ```python
 training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
                                            kind="mpijob", image="mlrun/mlrun-gpu")

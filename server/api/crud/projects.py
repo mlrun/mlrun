@@ -201,6 +201,8 @@ class Projects(
         ):
             server.api.crud.Logs().delete_project_logs_legacy(name)
 
+        server.api.crud.Events().delete_project_alert_events(name)
+
         # delete db resources
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
@@ -294,6 +296,7 @@ class Projects(
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
+            project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
             project_to_running_pipelines_count,
@@ -307,6 +310,9 @@ class Projects(
                     schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
+                    runs_completed_recent_count=project_to_recent_completed_runs_count.get(
+                        project, 0
+                    ),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(
                         project, 0
                     ),
@@ -321,6 +327,7 @@ class Projects(
     async def _get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -348,6 +355,7 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ) = results[0]
@@ -357,6 +365,7 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
                 project_to_running_pipelines_count,
@@ -373,8 +382,11 @@ class Projects(
     def _list_pipelines(
         session,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        page_token: str = "",
     ):
-        return server.api.crud.Pipelines().list_pipelines(session, "*", format_=format_)
+        return server.api.crud.Pipelines().list_pipelines(
+            session, "*", format_=format_, page_token=page_token
+        )
 
     async def _calculate_pipelines_counters(
         self,
@@ -387,10 +399,28 @@ class Projects(
             return project_to_running_pipelines_count
 
         try:
-            _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
-                self._list_pipelines,
-            )
+            next_page_token = ""
+            while True:
+                (
+                    _,
+                    next_page_token,
+                    pipelines,
+                ) = await fastapi.concurrency.run_in_threadpool(
+                    server.api.db.session.run_function_with_new_db_session,
+                    self._list_pipelines,
+                    page_token=next_page_token,
+                )
+
+                for pipeline in pipelines:
+                    if (
+                        pipeline["status"]
+                        not in mlrun.run.RunStatuses.stable_statuses()
+                    ):
+                        project_to_running_pipelines_count[pipeline["project"]] += 1
+
+                if not next_page_token:
+                    break
+
         except Exception as exc:
             # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information
             logger.warning(
@@ -399,9 +429,6 @@ class Projects(
             )
             return collections.defaultdict(lambda: None)
 
-        for pipeline in pipelines:
-            if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
-                project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
 
     @staticmethod

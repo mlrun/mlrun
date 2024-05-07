@@ -209,20 +209,22 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
         db_session,
         project,
         uid=run_uid_running,
-        state=mlrun.runtimes.constants.RunStates.running,
+        state=mlrun.common.runtimes.constants.RunStates.running,
     )
     _create_new_run(
         db,
         db_session,
         project,
         uid=run_uid_completed,
-        state=mlrun.runtimes.constants.RunStates.completed,
+        state=mlrun.common.runtimes.constants.RunStates.completed,
     )
     runs = db.list_runs(db_session, project=project)
     assert len(runs) == 2
 
     runs = db.list_runs(
-        db_session, project=project, states=[mlrun.runtimes.constants.RunStates.running]
+        db_session,
+        project=project,
+        states=[mlrun.common.runtimes.constants.RunStates.running],
     )
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_uid_running
@@ -230,7 +232,7 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     runs = db.list_runs(
         db_session,
         project=project,
-        states=[mlrun.runtimes.constants.RunStates.completed],
+        states=[mlrun.common.runtimes.constants.RunStates.completed],
     )
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_uid_completed
@@ -277,7 +279,7 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
                         name,
                         uid,
                         iteration,
-                        state=mlrun.runtimes.constants.RunStates.completed,
+                        state=mlrun.common.runtimes.constants.RunStates.completed,
                     )
     # get all run records, and change to be as they will be in field (before the migration)
     runs = db._find_runs(db_session, None, "*", None).all()
@@ -300,7 +302,7 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     time_before_creation = datetime.now(tz=timezone.utc)
     # First store - fills the start_time
     project, name, uid, iteration, run = _create_new_run(
-        db, db_session, state=mlrun.runtimes.constants.RunStates.completed
+        db, db_session, state=mlrun.common.runtimes.constants.RunStates.completed
     )
     # get all run records, and change to be as they will be in field (before the migration)
     runs = db._find_runs(db_session, None, "*", None).all()
@@ -331,7 +333,7 @@ def test_store_run_success(db: DBInterface, db_session: Session):
     assert run.name == name
     assert run.uid == uid
     assert run.iteration == iteration
-    assert run.state == mlrun.runtimes.constants.RunStates.created
+    assert run.state == mlrun.common.runtimes.constants.RunStates.created
     assert run.state == run.struct["status"]["state"]
     assert (
         db._add_utc_timezone(run.start_time).isoformat()
@@ -449,7 +451,7 @@ def _change_run_record_to_before_align_runs_migration(run, time_before_creation)
     run.name = None
 
     # change state column to be empty created (should be completed)
-    run.state = mlrun.runtimes.constants.RunStates.created
+    run.state = mlrun.common.runtimes.constants.RunStates.created
 
     # change updated column to be empty
     run.updated = None
@@ -489,7 +491,7 @@ def _create_new_run(
     name="run-name-1",
     uid="run-uid",
     iteration=0,
-    state=mlrun.runtimes.constants.RunStates.created,
+    state=mlrun.common.runtimes.constants.RunStates.created,
 ):
     run = {
         "metadata": {"name": name, "uid": uid, "project": project, "iter": iteration},

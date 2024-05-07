@@ -92,7 +92,9 @@ class TestMLRunSystem:
         self._files_to_upload = []
 
         if not self._skip_set_environment():
-            self.project = mlrun.get_or_create_project(self.project_name, "./")
+            self.project = mlrun.get_or_create_project(
+                self.project_name, "./", allow_cross_project=True
+            )
 
         self.custom_setup()
 

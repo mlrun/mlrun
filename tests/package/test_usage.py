@@ -329,7 +329,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
                        `BaseClass`.
     """
     # Get the project:
-    project = mlrun.get_or_create_project("default")
+    project = mlrun.get_or_create_project("default", allow_cross_project=True)
 
     # Add the custom packager for `BaseClass`:
     project.add_custom_packager(
@@ -394,7 +394,7 @@ def test_parse_local_file(rundb_mock):
     :param rundb_mock: A runDB mock fixture.
     """
     # Get the project:
-    project = mlrun.get_or_create_project("default")
+    project = mlrun.get_or_create_project("default", allow_cross_project=True)
 
     # Create a json file of a dictionary:
     artifact_path = tempfile.TemporaryDirectory()

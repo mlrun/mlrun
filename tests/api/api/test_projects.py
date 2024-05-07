@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.utils
@@ -293,7 +294,7 @@ def test_list_and_get_project_summaries(
     # create files for the project
     files_count = 5
     _create_artifacts(
-        client, project_name, files_count, mlrun.artifacts.ChartArtifact.kind
+        client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
 
     # create feature sets for the project
@@ -317,11 +318,29 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         running_runs_count,
-        mlrun.runtimes.constants.RunStates.running,
+        mlrun.common.runtimes.constants.RunStates.running,
     )
 
     # create completed runs for the project to make sure we're not mistakenly counting them
-    _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
+    two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
+    _create_runs(
+        client,
+        project_name,
+        2,
+        mlrun.common.runtimes.constants.RunStates.completed,
+        two_days_ago,
+    )
+
+    # create completed runs for the project for less than 24 hours ago
+    runs_completed_recent_count = 10
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+    _create_runs(
+        client,
+        project_name,
+        runs_completed_recent_count,
+        mlrun.common.runtimes.constants.RunStates.completed,
+        one_hour_ago,
+    )
 
     # create failed runs for the project for less than 24 hours ago
     recent_failed_runs_count = 6
@@ -330,7 +349,7 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         recent_failed_runs_count,
-        mlrun.runtimes.constants.RunStates.error,
+        mlrun.common.runtimes.constants.RunStates.error,
         one_hour_ago,
     )
 
@@ -341,14 +360,18 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         recent_failed_runs_count,
-        mlrun.runtimes.constants.RunStates.aborted,
+        mlrun.common.runtimes.constants.RunStates.aborted,
         one_hour_ago,
     )
 
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
-        client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
+        client,
+        project_name,
+        3,
+        mlrun.common.runtimes.constants.RunStates.error,
+        two_days_ago,
     )
 
     # create schedules for the project
@@ -371,13 +394,14 @@ def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
                 files_count,
                 feature_sets_count,
                 models_count,
+                runs_completed_recent_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
                 schedules_count,
@@ -394,6 +418,7 @@ def test_list_and_get_project_summaries(
         files_count,
         feature_sets_count,
         models_count,
+        runs_completed_recent_count,
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
         schedules_count,
@@ -438,6 +463,7 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -453,6 +479,7 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
         0,
         0,
         0,
@@ -482,6 +509,7 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
     )
 
     # Docker installation configuration
@@ -497,6 +525,7 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
         0,
         0,
         0,
@@ -1187,6 +1216,34 @@ def _create_resources_of_all_kinds(
         )
         db.store_run_notifications(db_session, [notification], run_uid, project)
 
+    # Create alert notifications
+    notification = mlrun.model.Notification(
+        kind="slack",
+        when=["completed", "error"],
+        name="test-alert-notification",
+        message="test-message",
+        condition="",
+        severity="info",
+        params={"some-param": "some-value"},
+    )
+
+    alert = mlrun.common.schemas.AlertConfig(
+        project=project,
+        name="test_alert",
+        summary="oops",
+        severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        entity={
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
+            "project": project,
+            "id": "*",
+        },
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
+        notifications=[notification.to_dict()],
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+    )
+    alert = db.store_alert(db_session, alert)
+    db.store_alert_notifications(db_session, [notification], alert.id, project)
+
     # Create several logs
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -1361,6 +1418,7 @@ def _assert_db_resources_in_project(
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
+        # alert_templates are not tied to project and are pre-populated anyway
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1375,6 +1433,8 @@ def _assert_db_resources_in_project(
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
+            or cls.__tablename__ == "alert_states"
+            or cls.__tablename__ == "alert_templates"
         ):
             continue
         number_of_cls_records = 0
@@ -1514,6 +1574,7 @@ def _assert_project_summary(
     files_count: int,
     feature_sets_count: int,
     models_count: int,
+    runs_completed_recent_count,
     runs_failed_recent_count: int,
     runs_running_count: int,
     schedules_count: int,
@@ -1522,6 +1583,7 @@ def _assert_project_summary(
     assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
+    assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
     assert project_summary.schedules_count == schedules_count
@@ -1651,7 +1713,15 @@ def _mock_pipelines(project_name):
     for status, count in status_count_map.items():
         for index in range(count):
             pipelines.append({"status": status, "project": project_name})
+
+    def list_pipelines_return_value(*args, **kwargs):
+        next_page_token = "some-token"
+        if kwargs["page_token"] == "":
+            return (None, next_page_token, pipelines[: len(pipelines) // 2])
+        elif kwargs["page_token"] == next_page_token:
+            return (None, None, pipelines[len(pipelines) // 2 :])
+
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
-        return_value=(None, None, pipelines)
+        side_effect=list_pipelines_return_value
     )
     return status_count_map[mlrun.run.RunStatuses.running]

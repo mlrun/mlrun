@@ -1086,12 +1086,12 @@ class KubeResource(BaseRuntime):
 
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
-        i = 0
-        for v in self.spec.env:
-            if get_item_name(v) == name:
-                self.spec.env[i] = new_var
+
+        # ensure we don't have duplicate env vars with the same name
+        for env_index, value_item in enumerate(self.spec.env):
+            if get_item_name(value_item) == name:
+                self.spec.env[env_index] = new_var
                 return self
-            i += 1
         self.spec.env.append(new_var)
         return self
 
@@ -1278,9 +1278,9 @@ class KubeResource(BaseRuntime):
             from kubernetes import client as k8s_client
 
             security_context = k8s_client.V1SecurityContext(
-                        run_as_user=1000,
-                        run_as_group=3000,
-                    )
+                run_as_user=1000,
+                run_as_group=3000,
+            )
             function.with_security_context(security_context)
 
         More info:

@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -64,6 +65,9 @@ from server.api.db.sqldb.helpers import (
     update_labels,
 )
 from server.api.db.sqldb.models import (
+    AlertConfig,
+    AlertState,
+    AlertTemplate,
     Artifact,
     ArtifactV2,
     BackgroundTask,
@@ -1177,10 +1181,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
-        if is_legacy_artifact(artifact):
-            artifact["tag"] = tag
-        else:
-            artifact["metadata"]["tag"] = tag
+        artifact["metadata"]["tag"] = tag
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)
@@ -2186,6 +2187,7 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -2215,6 +2217,7 @@ class SQLDB(DBInterface):
             project_to_feature_set_count,
             project_to_models_count,
             (
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ),
@@ -2224,6 +2227,7 @@ class SQLDB(DBInterface):
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
+            project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
         )
@@ -2297,11 +2301,17 @@ class SQLDB(DBInterface):
 
     def _calculate_runs_counters(
         self, session
-    ) -> tuple[dict[str, int], dict[str, int]]:
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+    ]:
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
             .filter(
-                Run.state.in_(mlrun.runtimes.constants.RunStates.non_terminal_states())
+                Run.state.in_(
+                    mlrun.common.runtimes.constants.RunStates.non_terminal_states()
+                )
             )
             .group_by(Run.project)
             .all()
@@ -2316,8 +2326,8 @@ class SQLDB(DBInterface):
             .filter(
                 Run.state.in_(
                     [
-                        mlrun.runtimes.constants.RunStates.error,
-                        mlrun.runtimes.constants.RunStates.aborted,
+                        mlrun.common.runtimes.constants.RunStates.error,
+                        mlrun.common.runtimes.constants.RunStates.aborted,
                     ]
                 )
             )
@@ -2328,7 +2338,28 @@ class SQLDB(DBInterface):
         project_to_recent_failed_runs_count = {
             result[0]: result[1] for result in recent_failed_runs_count_per_project
         }
-        return project_to_recent_failed_runs_count, project_to_running_runs_count
+
+        recent_completed_runs_count_per_project = (
+            session.query(Run.project, func.count(distinct(Run.name)))
+            .filter(
+                Run.state.in_(
+                    [
+                        mlrun.common.runtimes.constants.RunStates.completed,
+                    ]
+                )
+            )
+            .filter(Run.start_time >= one_day_ago)
+            .group_by(Run.project)
+            .all()
+        )
+        project_to_recent_completed_runs_count = {
+            result[0]: result[1] for result in recent_completed_runs_count_per_project
+        }
+        return (
+            project_to_recent_completed_runs_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        )
 
     async def generate_projects_summaries(
         self, session: Session, projects: list[str]
@@ -2375,6 +2406,9 @@ class SQLDB(DBInterface):
         project_record.source = project.spec.source
         project_record.owner = project.spec.owner
         project_record.state = project.status.state
+        project_record.default_function_node_selector = (
+            project.spec.default_function_node_selector
+        )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
         self._upsert(session, [project_record])
@@ -2470,6 +2504,7 @@ class SQLDB(DBInterface):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
         self.delete_run_notifications(session, project=name)
+        self.delete_alert_notifications(session, project=name)
         self.del_runs(session, project=name)
         self.delete_schedules(session, name)
         self._delete_functions(session, name)
@@ -3901,6 +3936,7 @@ class SQLDB(DBInterface):
                 spec=mlrun.common.schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
+                    default_function_node_selector=project_record.default_function_node_selector,
                 ),
                 status=mlrun.common.schemas.ObjectStatus(
                     state=project_record.state,
@@ -4179,7 +4215,241 @@ class SQLDB(DBInterface):
         data_version_record = DataVersion(version=version, created=now)
         self._upsert(session, [data_version_record])
 
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        template_record = self._get_alert_template_record(
+            session, template.template_name
+        )
+        if not template_record:
+            return self._create_alert_template(session, template)
+        template_record.full_object = template.dict()
+
+        self._upsert(session, [template_record])
+        return self._transform_alert_template_record_to_schema(
+            self._get_alert_template_record(session, template.template_name)
+        )
+
+    def _create_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        template_record = self._transform_alert_template_schema_to_record(template)
+        self._upsert(session, [template_record])
+        return self._transform_alert_template_record_to_schema(template_record)
+
+    def delete_alert_template(self, session, name: str):
+        self._delete(session, AlertTemplate, name=name)
+
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        query = self._query(session, AlertTemplate)
+        return list(map(self._transform_alert_template_record_to_schema, query.all()))
+
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        return self._transform_alert_template_record_to_schema(
+            self._get_alert_template_record(session, name)
+        )
+
+    def store_alert(
+        self, session, alert: mlrun.common.schemas.AlertConfig
+    ) -> mlrun.common.schemas.AlertConfig:
+        alert_record = self._get_alert_record(session, alert.name, alert.project)
+        if not alert_record:
+            return self._create_alert(session, alert)
+        alert_record.full_object = alert.dict()
+        alert_state = self.get_alert_state(session, alert_record.id)
+
+        self._delete_alert_notifications(session, alert.name, alert, alert.project)
+        self._store_notifications(
+            session, AlertConfig, alert.notifications, alert_record.id, alert.project
+        )
+
+        self._upsert(session, [alert_record, alert_state])
+        return self.get_alert_by_id(session, alert_record.id)
+
+    def _create_alert(
+        self, session, alert: mlrun.common.schemas.AlertConfig
+    ) -> mlrun.common.schemas.AlertConfig:
+        alert_record = self._transform_alert_config_schema_to_record(alert)
+        self._upsert(session, [alert_record])
+
+        alert_record = self._get_alert_record(
+            session, alert_record.name, alert_record.project
+        )
+
+        self._store_notifications(
+            session, AlertConfig, alert.notifications, alert_record.id, alert.project
+        )
+
+        state = AlertState(count=0, parent_id=alert_record.id)
+        self._upsert(session, [state])
+        return self._transform_alert_config_record_to_schema(alert_record)
+
+    def delete_alert(self, session, project: str, name: str):
+        self._delete(session, AlertConfig, project=project, name=name)
+
+    def list_alerts(
+        self, session, project: str = None
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        query = self._query(session, AlertConfig)
+
+        if project and project != "*":
+            query = query.filter(AlertConfig.project == project)
+
+        alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
+        for alert in alerts:
+            self.enrich_alert(session, alert)
+        return alerts
+
+    def get_alert(
+        self, session, project: str, name: str
+    ) -> mlrun.common.schemas.AlertConfig:
+        return self._transform_alert_config_record_to_schema(
+            self._get_alert_record(session, name, project)
+        )
+
+    def get_alert_by_id(
+        self, session, alert_id: int
+    ) -> mlrun.common.schemas.AlertConfig:
+        return self._transform_alert_config_record_to_schema(
+            self._get_alert_record_by_id(session, alert_id)
+        )
+
+    def enrich_alert(self, session, alert: AlertConfig):
+        state = self.get_alert_state(session, alert.id)
+        alert.state = (
+            mlrun.common.schemas.AlertActiveState.ACTIVE
+            if state.active
+            else mlrun.common.schemas.AlertActiveState.INACTIVE
+        )
+        alert.count = state.count
+
+        def _enrich_notification(_notification):
+            _notification = _notification.to_dict()
+            # we don't want to return the secret
+            del _notification["secret_params"]
+
+            if not isinstance(_notification["when"], list):
+                _notification["when"] = [_notification["when"]]
+            return _notification
+
+        alert.notifications = [
+            mlrun.common.schemas.notification.Notification(
+                **_enrich_notification(notification)
+            )
+            for notification in self._get_db_notifications(
+                session, AlertConfig, parent_id=alert.id
+            )
+        ]
+
+    @staticmethod
+    def _transform_alert_template_schema_to_record(
+        alert_template: mlrun.common.schemas.AlertTemplate,
+    ) -> AlertTemplate:
+        template_record = AlertTemplate(
+            id=alert_template.template_id,
+            name=alert_template.template_name,
+        )
+        template_record.full_object = alert_template.dict()
+        return template_record
+
+    @staticmethod
+    def _transform_alert_template_record_to_schema(
+        template_record: AlertTemplate,
+    ) -> mlrun.common.schemas.AlertTemplate:
+        if template_record is None:
+            return None
+
+        template = mlrun.common.schemas.AlertTemplate(**template_record.full_object)
+        template.template_id = template_record.id
+        return template
+
+    @staticmethod
+    def _transform_alert_config_record_to_schema(
+        alert_config_record: AlertConfig,
+    ) -> mlrun.common.schemas.AlertConfig:
+        if alert_config_record is None:
+            return None
+
+        alert = mlrun.common.schemas.AlertConfig(**alert_config_record.full_object)
+        alert.id = alert_config_record.id
+        return alert
+
+    @staticmethod
+    def _transform_alert_config_schema_to_record(
+        alert: mlrun.common.schemas.AlertConfig,
+    ) -> AlertConfig:
+        alert_record = AlertConfig(
+            id=alert.id,
+            name=alert.name,
+            project=alert.project,
+        )
+        alert_record.full_object = alert.dict()
+        return alert_record
+
+    def _get_alert_template_record(self, session, name: str) -> AlertTemplate:
+        return self._query(session, AlertTemplate, name=name).one_or_none()
+
+    def _get_alert_record(self, session, name: str, project: str) -> AlertConfig:
+        return self._query(
+            session, AlertConfig, name=name, project=project
+        ).one_or_none()
+
+    def _get_alert_record_by_id(self, session, alert_id: int) -> AlertConfig:
+        return self._query(session, AlertConfig, id=alert_id).one_or_none()
+
+    def store_alert_state(
+        self,
+        session,
+        project: str,
+        name: str,
+        last_updated: datetime,
+        count: typing.Union[int, None] = None,
+        active: bool = False,
+        obj: dict = None,
+    ):
+        alert = self.get_alert(session, project, name)
+        state = self.get_alert_state(session, alert.id)
+        if count is not None:
+            state.count = count
+        state.last_updated = last_updated
+        state.active = active
+        if obj is not None:
+            state.full_object = obj
+        self._upsert(session, [state])
+
+    def get_alert_state(self, session, alert_id: int) -> AlertState:
+        return self._query(session, AlertState, parent_id=alert_id).one()
+
+    def delete_alert_notifications(
+        self,
+        session,
+        project: str,
+    ):
+        if resp := self._query(session, AlertConfig, project=project).all():
+            for alert in resp:
+                self._delete_alert_notifications(
+                    session, alert.name, alert, project, commit=False
+                )
+                session.delete(alert)
+
+            session.commit()
+
+    def _delete_alert_notifications(
+        self, session, name: str, alert: AlertConfig, project: str, commit: bool = True
+    ):
+        query = self._get_db_notifications(
+            session, AlertConfig, None, alert.id, project
+        )
+        for notification in query:
+            session.delete(notification)
+
+        if commit:
+            session.commit()
+
     # ---- Background Tasks ----
+
     @retry_on_conflict
     def store_background_task(
         self,
@@ -4392,6 +4662,22 @@ class SQLDB(DBInterface):
             )
 
         self._store_notifications(session, Run, notification_objects, run.id, project)
+
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+    ):
+        if self._get_alert_record_by_id(session, alert_id):
+            self._store_notifications(
+                session, AlertConfig, notification_objects, alert_id, project
+            )
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert not found: uid={alert_id}, project={project}"
+            )
 
     def _store_notifications(
         self,

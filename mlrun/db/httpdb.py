@@ -20,6 +20,7 @@ import time
 import traceback
 import typing
 import warnings
+from copy import deepcopy
 from datetime import datetime, timedelta
 from os import path, remove
 from typing import Optional, Union
@@ -37,6 +38,8 @@ import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
+from mlrun.alerts.alert import AlertConfig
+from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -137,17 +140,28 @@ class HTTPRunDB(RunDBInterface):
             endpoint += f":{parsed_url.port}"
         base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
 
+        self.base_url = base_url
         username = parsed_url.username or config.httpdb.user
         password = parsed_url.password or config.httpdb.password
+        self.token_provider = None
 
-        username, password, token = mlrun.platforms.add_or_refresh_credentials(
-            parsed_url.hostname, username, password, config.httpdb.token
-        )
+        if config.auth_with_client_id.enabled:
+            self.token_provider = OAuthClientIDTokenProvider(
+                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                timeout=config.auth_with_client_id.request_timeout,
+            )
+        else:
+            username, password, token = mlrun.platforms.add_or_refresh_credentials(
+                parsed_url.hostname, username, password, config.httpdb.token
+            )
 
-        self.base_url = base_url
+            if token:
+                self.token_provider = StaticTokenProvider(token)
+
         self.user = username
         self.password = password
-        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -217,17 +231,19 @@ class HTTPRunDB(RunDBInterface):
 
         if self.user:
             kw["auth"] = (self.user, self.password)
-        elif self.token:
-            # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-            if mlrun.platforms.iguazio.is_iguazio_session(self.token):
-                session_cookie = f'j:{{"sid": "{self.token}"}}'
-                cookies = {
-                    "session": session_cookie,
-                }
-                kw["cookies"] = cookies
-            else:
-                if "Authorization" not in kw.setdefault("headers", {}):
-                    kw["headers"].update({"Authorization": "Bearer " + self.token})
+        elif self.token_provider:
+            token = self.token_provider.get_token()
+            if token:
+                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
+                if self.token_provider.is_iguazio_session():
+                    session_cookie = f'j:{{"sid": "{token}"}}'
+                    cookies = {
+                        "session": session_cookie,
+                    }
+                    kw["cookies"] = cookies
+                else:
+                    if "Authorization" not in kw.setdefault("headers", {}):
+                        kw["headers"].update({"Authorization": "Bearer " + token})
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}
@@ -282,6 +298,68 @@ class HTTPRunDB(RunDBInterface):
 
         return response
 
+    def paginated_api_call(
+        self,
+        method,
+        path,
+        error=None,
+        params=None,
+        body=None,
+        json=None,
+        headers=None,
+        timeout=45,
+        version=None,
+    ) -> typing.Generator[requests.Response, None, None]:
+        """
+        Calls the api with pagination, yielding each page of the response
+        """
+
+        def _api_call(_params):
+            return self.api_call(
+                method=method,
+                path=path,
+                error=error,
+                params=_params,
+                body=body,
+                json=json,
+                headers=headers,
+                timeout=timeout,
+                version=version,
+            )
+
+        first_page_params = deepcopy(params) or {}
+        first_page_params["page"] = 1
+        first_page_params["page-size"] = config.httpdb.pagination.default_page_size
+        response = _api_call(first_page_params)
+        page_token = response.json().get("pagination", {}).get("page-token")
+        if not page_token:
+            yield response
+            return
+
+        params_with_page_token = deepcopy(params) or {}
+        params_with_page_token["page-token"] = page_token
+        while page_token:
+            yield response
+            try:
+                response = _api_call(params_with_page_token)
+            except mlrun.errors.MLRunNotFoundError:
+                # pagination token expired
+                break
+
+            page_token = response.json().get("pagination", {}).get("page-token", None)
+
+    @staticmethod
+    def process_paginated_responses(
+        responses: typing.Generator[requests.Response, None, None], key: str = "data"
+    ) -> list[typing.Any]:
+        """
+        Processes the paginated responses and returns the combined data
+        """
+        data = []
+        for response in responses:
+            data.extend(response.json().get(key, []))
+        return data
+
     def _init_session(self, retry_on_post: bool = False):
         return mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=config.httpdb.retry_api_call_on_exception
@@ -314,7 +392,7 @@ class HTTPRunDB(RunDBInterface):
 
         For example::
 
-            config.dbpath = config.dbpath or 'http://mlrun-api:8080'
+            config.dbpath = config.dbpath or "http://mlrun-api:8080"
             db = get_run_db().connect()
         """
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
@@ -466,6 +544,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("feature_store_default_targets")
                 or config.feature_store.default_targets
             )
+            config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
 
         except Exception as exc:
             logger.warning(
@@ -581,10 +660,10 @@ class HTTPRunDB(RunDBInterface):
                 nil_resp += 1
 
             if watch and state in [
-                mlrun.runtimes.constants.RunStates.pending,
-                mlrun.runtimes.constants.RunStates.running,
-                mlrun.runtimes.constants.RunStates.created,
-                mlrun.runtimes.constants.RunStates.aborting,
+                mlrun.common.runtimes.constants.RunStates.pending,
+                mlrun.common.runtimes.constants.RunStates.running,
+                mlrun.common.runtimes.constants.RunStates.created,
+                mlrun.common.runtimes.constants.RunStates.aborting,
             ]:
                 continue
             else:
@@ -698,9 +777,11 @@ class HTTPRunDB(RunDBInterface):
 
         Example::
 
-            runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
+            runs = db.list_runs(
+                name="download", project="iris", labels=["owner=admin", "kind=job"]
+            )
             # If running in Jupyter, can use the .show() function to display the results
-            db.list_runs(name='', project=project_name).show()
+            db.list_runs(name="", project=project_name).show()
 
 
         :param name: Name of the run to retrieve.
@@ -791,15 +872,15 @@ class HTTPRunDB(RunDBInterface):
             )
         error = "list runs"
         _path = self._path_of("runs", project)
-        resp = self.api_call("GET", _path, error, params=params)
-        return RunList(resp.json()["runs"])
+        responses = self.paginated_api_call("GET", _path, error, params=params)
+        return RunList(self.process_paginated_responses(responses, "runs"))
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
         """Delete a group of runs identified by the parameters of the function.
 
         Example::
 
-            db.del_runs(state='completed')
+            db.del_runs(state="completed")
 
         :param name: Name of the task which the runs belong to.
         :param project: Project to which the runs belong.
@@ -905,7 +986,18 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         return resp.json()
 
-    def del_artifact(self, key, tag=None, project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag=None,
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         """Delete an artifact.
 
         :param key: Identifying key of the artifact.
@@ -913,6 +1005,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         :param tree: The tree which generated this artifact.
         :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        :param deletion_strategy: The artifact deletion strategy types.
+        :param secrets: Credentials needed to access the artifact data.
         """
 
         endpoint_path = f"projects/{project}/artifacts/{key}"
@@ -921,9 +1015,17 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "tree": tree,
             "uid": uid,
+            "deletion_strategy": deletion_strategy,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
+        self.api_call(
+            "DELETE",
+            endpoint_path,
+            error,
+            params=params,
+            version="v2",
+            body=dict_to_json(secrets),
+        )
 
     def list_artifacts(
         self,
@@ -944,11 +1046,13 @@ class HTTPRunDB(RunDBInterface):
         Examples::
 
             # Show latest version of all artifacts in project
-            latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
+            latest_artifacts = db.list_artifacts("", tag="latest", project="iris")
             # check different artifact versions for a specific artifact
-            result_versions = db.list_artifacts('results', tag='*', project='iris')
+            result_versions = db.list_artifacts("results", tag="*", project="iris")
             # Show artifacts with label filters - both uploaded and of binary type
-            result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
+            result_labels = db.list_artifacts(
+                "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
+            )
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
             case-sensitive. This means that querying for ``~name`` may return artifacts named
@@ -1074,7 +1178,29 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
-        self.api_call("DELETE", path, error_message)
+        response = self.api_call("DELETE", path, error_message, version="v2")
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            logger.info(
+                "Function is being deleted", project_name=project, function_name=name
+            )
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Function deleted", project_name=project, function_name=name
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.info(
+                    "Function deletion failed", project_name=project, function_name=name
+                )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.
@@ -1093,8 +1219,8 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list functions"
         path = f"projects/{project}/functions"
-        resp = self.api_call("GET", path, error, params=params)
-        return resp.json()["funcs"]
+        responses = self.paginated_api_call("GET", path, error, params=params)
+        return self.process_paginated_responses(responses, "funcs")
 
     def list_runtime_resources(
         self,
@@ -1240,7 +1366,9 @@ class HTTPRunDB(RunDBInterface):
                 name="run_func_on_tuesdays",
                 kind="job",
                 scheduled_object=get_data_func,
-                cron_trigger=schemas.ScheduleCronTrigger(day_of_week='tue', hour=15, minute=30),
+                cron_trigger=schemas.ScheduleCronTrigger(
+                    day_of_week="tue", hour=15, minute=30
+                ),
             )
             db.create_schedule(project_name, schedule)
         """
@@ -1418,16 +1546,15 @@ class HTTPRunDB(RunDBInterface):
         """
 
         try:
+            normalized_name = normalize_name(func.metadata.name)
             params = {
-                "name": normalize_name(func.metadata.name),
+                "name": normalized_name,
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
-            _path = (
-                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
-            )
+            _path = f"projects/{func.metadata.project}/nuclio/{normalized_name}/deploy"
             resp = self.api_call("GET", _path, params=params)
         except OSError as err:
             logger.error(f"error getting deploy status: {err_to_str(err)}")
@@ -2133,7 +2260,7 @@ class HTTPRunDB(RunDBInterface):
             not a full object.
             Example::
 
-                feature_set_update = {"status": {"processed" : True}}
+                feature_set_update = {"status": {"processed": True}}
 
             Will apply the field ``status.processed`` to the existing object.
         :param project: Project which contains the modified object.
@@ -2707,11 +2834,11 @@ class HTTPRunDB(RunDBInterface):
         :param secrets: A set of secret values to store.
             Example::
 
-                secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
+                secrets = {"password": "myPassw0rd", "aws_key": "111222333"}
                 db.create_project_secrets(
                     "project1",
                     provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                    secrets=secrets
+                    secrets=secrets,
                 )
         """
         path = f"projects/{project}/secrets"
@@ -3144,7 +3271,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
+    ) -> None:
         """
         Redeploy model monitoring application controller function.
 
@@ -3154,13 +3281,14 @@ class HTTPRunDB(RunDBInterface):
         :param image: The image of the model monitoring controller function.
                                          By default, the image is mlrun/mlrun.
         """
-
-        params = {
-            "image": image,
-            "base_period": base_period,
-        }
-        path = f"projects/{project}/model-monitoring/model-monitoring-controller"
-        self.api_call(method="POST", path=path, params=params)
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/model-monitoring-controller",
+            params={
+                "base_period": base_period,
+                "image": image,
+            },
+        )
 
     def enable_model_monitoring(
         self,
@@ -3239,8 +3367,10 @@ class HTTPRunDB(RunDBInterface):
                     metadata=mlrun.common.schemas.HubObjectMetadata(
                         name="priv", description="a private source"
                     ),
-                    spec=mlrun.common.schemas.HubSourceSpec(path="/local/path/to/source", channel="development")
-                )
+                    spec=mlrun.common.schemas.HubSourceSpec(
+                        path="/local/path/to/source", channel="development"
+                    ),
+                ),
             )
             db.create_hub_source(private_source)
 
@@ -3254,9 +3384,9 @@ class HTTPRunDB(RunDBInterface):
                     spec=mlrun.common.schemas.HubSourceSpec(
                         path="/local/path/to/source/2",
                         channel="development",
-                        credentials={...}
-                    )
-                )
+                        credentials={...},
+                    ),
+                ),
             )
             db.create_hub_source(another_source)
 
@@ -3596,6 +3726,16 @@ class HTTPRunDB(RunDBInterface):
         """
         pass
 
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
     def submit_workflow(
         self,
         project: str,
@@ -3803,6 +3943,128 @@ class HTTPRunDB(RunDBInterface):
                 load_source_on_run=func.spec.build.load_source_on_run,
                 default_docker_registry=config.httpdb.builder.docker_registry,
             )
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        """
+        Generate an event.
+        :param name: The name of the event.
+        :param event_data: The data of the event.
+        :param project: The project that the event belongs to.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/events/{name}"
+        error_message = f"post event {project}/events/{name}"
+        if isinstance(event_data, mlrun.common.schemas.Event):
+            event_data = event_data.dict()
+        self.api_call(
+            "POST", endpoint_path, error_message, body=dict_to_json(event_data)
+        )
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, AlertConfig],
+        project="",
+    ) -> AlertConfig:
+        """
+        Create/modify an alert.
+        :param alert_name: The name of the alert.
+        :param alert_data: The data of the alert.
+        :param project: the project that the alert belongs to.
+        :return: The created/modified alert.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}"
+        error_message = f"put alert {project}/alerts/{alert_name}"
+        alert_instance = (
+            alert_data
+            if isinstance(alert_data, AlertConfig)
+            else AlertConfig.from_dict(alert_data)
+        )
+        alert_instance.validate_required_fields()
+
+        alert_data = alert_instance.to_dict()
+        body = _as_json(alert_data)
+        response = self.api_call("PUT", endpoint_path, error_message, body=body)
+        return AlertConfig.from_dict(response.json())
+
+    def get_alert_config(self, alert_name: str, project="") -> AlertConfig:
+        """
+        Retrieve an alert.
+        :param alert_name: The name of the alert to retrieve.
+        :param project: The project that the alert belongs to.
+        :return: The alert object.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}"
+        error_message = f"get alert {project}/alerts/{alert_name}"
+        response = self.api_call("GET", endpoint_path, error_message)
+        return AlertConfig.from_dict(response.json())
+
+    def list_alerts_configs(self, project="") -> list[AlertConfig]:
+        """
+        Retrieve list of alerts of a project.
+        :param project: The project name.
+        :return: All the alerts objects of the project.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts"
+        error_message = f"get alerts {project}/alerts"
+        response = self.api_call("GET", endpoint_path, error_message).json()
+        results = []
+        for item in response:
+            results.append(AlertConfig(**item))
+        return results
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        """
+        Delete an alert.
+        :param alert_name: The name of the alert to delete.
+        :param project: The project that the alert belongs to.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}"
+        error_message = f"delete alert {project}/alerts/{alert_name}"
+        self.api_call("DELETE", endpoint_path, error_message)
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        """
+        Reset an alert.
+        :param alert_name: The name of the alert to reset.
+        :param project: The project that the alert belongs to.
+        """
+        project = project or config.default_project
+        endpoint_path = f"projects/{project}/alerts/{alert_name}/reset"
+        error_message = f"post alert {project}/alerts/{alert_name}/reset"
+        self.api_call("POST", endpoint_path, error_message)
+
+    def get_alert_template(
+        self, template_name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        """
+        Retrieve a specific alert template.
+        :param template_name: The name of the template to retrieve.
+        :return: The template object.
+        """
+        endpoint_path = f"alert-templates/{template_name}"
+        error_message = f"get template alert-templates/{template_name}"
+        response = self.api_call("GET", endpoint_path, error_message)
+        return mlrun.common.schemas.AlertTemplate(**response.json())
+
+    def list_alert_templates(self) -> list[mlrun.common.schemas.AlertTemplate]:
+        """
+        Retrieve list of all alert templates.
+        :return: All the alert template objects in the database.
+        """
+        endpoint_path = "alert-templates"
+        error_message = "get templates /alert-templates"
+        response = self.api_call("GET", endpoint_path, error_message).json()
+        results = []
+        for item in response:
+            results.append(mlrun.common.schemas.AlertTemplate(**item))
+        return results
 
 
 def _as_json(obj):

@@ -26,6 +26,7 @@ import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.common.schemas
+import mlrun.common.schemas.alert as alert_constants
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
@@ -71,7 +72,7 @@ V2_API_PREFIX = f"{API_PREFIX}/v2"
 # and their notifications haven't been sent yet.
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
-_last_notification_push_time: typing.Optional[datetime.datetime] = None
+_last_update_time: typing.Optional[datetime.datetime] = None
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -273,7 +274,7 @@ async def _verify_log_collection_started_on_startup(
         db_session,
         requested_logs_modes=[None, False],
         only_uids=False,
-        states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
+        states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
     )
     logger.debug(
         "Getting all runs which might have reached terminal state while the API was down",
@@ -295,7 +296,7 @@ async def _verify_log_collection_started_on_startup(
                     int(config.runtime_resources_deletion_grace_period),
                 )
             ),
-            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
         )
     )
     if runs:
@@ -321,8 +322,8 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
         # we don't want initiate logs collection for aborted runs
-        run_states = mlrun.runtimes.constants.RunStates.all()
-        run_states.remove(mlrun.runtimes.constants.RunStates.aborted)
+        run_states = mlrun.common.runtimes.constants.RunStates.all()
+        run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
 
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
@@ -571,11 +572,11 @@ async def _verify_log_collection_stopped_on_startup():
             db_session,
             requested_logs_modes=[True],
             only_uids=False,
-            states=mlrun.runtimes.constants.RunStates.terminal_states()
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states()
             + [
                 # add unknown state as well, as it's possible that the run reached such state
                 # usually it happens when run pods get preempted
-                mlrun.runtimes.constants.RunStates.unknown,
+                mlrun.common.runtimes.constants.RunStates.unknown,
             ],
             specific_uids=run_uids_in_progress,
         )
@@ -686,7 +687,14 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
             )
 
     try:
-        _push_terminal_run_notifications(db, db_session)
+        global _last_update_time
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
+            _generate_event_on_failed_runs(db, db_session, _last_update_time)
+        _push_terminal_run_notifications(db, db_session, _last_update_time)
+
+        _last_update_time = now
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",
@@ -713,7 +721,9 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_session):
+def _push_terminal_run_notifications(
+    db: server.api.db.base.DBInterface, db_session, last_update_time
+):
     """
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
@@ -723,15 +733,12 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     # since the last time we pushed notifications.
     # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
     # and their notifications haven't been sent yet.
-    global _last_notification_push_time
-
-    now = datetime.datetime.now(datetime.timezone.utc)
 
     runs = db.list_runs(
         db_session,
         project="*",
-        states=mlrun.runtimes.constants.RunStates.terminal_states(),
-        last_update_time_from=_last_notification_push_time,
+        states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+        last_update_time_from=last_update_time,
         with_notifications=True,
     )
 
@@ -752,7 +759,41 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
-    _last_notification_push_time = now
+
+def _generate_event_on_failed_runs(
+    db: server.api.db.base.DBInterface, db_session, last_update_time
+):
+    """
+    Send an event on the runs that ended with error state since the last call to the function
+    """
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        states=[mlrun.common.runtimes.constants.RunStates.error],
+        last_update_time_from=last_update_time,
+    )
+
+    for run in runs:
+        project = run["metadata"]["project"]
+        uid = run["metadata"]["uid"]
+        entity = {
+            "kind": alert_constants.EventEntityKind.JOB,
+            "project": project,
+            "id": uid,
+        }
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_constants.EventKind.FAILED, entity=entity
+        )
+        mlrun.get_run_db().generate_event(alert_constants.EventKind.FAILED, event_data)
+
+        server.api.crud.Events().process_event(
+            session=db_session,
+            event_data=event_data,
+            event_name=alert_constants.EventKind.FAILED,
+            project=project,
+            validate_event=True,
+        )
 
 
 async def _abort_stale_runs(stale_runs: list[dict]):
@@ -799,7 +840,7 @@ async def _stop_logs():
             db_session,
             requested_logs_modes=[True],
             only_uids=False,
-            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
         )

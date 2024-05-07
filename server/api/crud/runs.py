@@ -19,12 +19,12 @@ import typing
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.lists
 import mlrun.runtimes
-import mlrun.runtimes.constants
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -73,36 +73,14 @@ class Runs(
         data: dict,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.debug("Updating run", project=project, uid=uid, iter=iter)
-        # TODO: Abort run moved to a separate endpoint, remove this section once in 1.8.0
-        #  (once 1.5.x clients are not supported)
-        if (
-            data
-            and data.get("status.state") == mlrun.runtimes.constants.RunStates.aborted
-        ):
-            current_run = server.api.utils.singletons.db.get_db().read_run(
-                db_session, uid, project, iter
-            )
-            if (
-                current_run.get("status", {}).get("state")
-                in mlrun.runtimes.constants.RunStates.terminal_states()
-            ):
-                raise mlrun.errors.MLRunConflictError(
-                    "Run is already in terminal state, can not be aborted"
-                )
-            runtime_kind = current_run.get("metadata", {}).get("labels", {}).get("kind")
-            if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
-                raise mlrun.errors.MLRunBadRequestError(
-                    f"Run of kind {runtime_kind} can not be aborted"
-                )
-            # aborting the run meaning deleting its runtime resources
-            # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
-            #  "knowledge" on the label selector
-            server.api.crud.RuntimeResources().delete_runtime_resources(
-                db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
-                force=True,
-            )
+        run_state = data.get("status.state") if data else None
+        logger.debug(
+            "Updating run", project=project, uid=uid, iter=iter, run_state=run_state
+        )
+
+        # Note: Abort run moved to a separated endpoint
+        # TODO: Remove below function for 1.8.0 (once 1.5.x clients are not supported)
+        self._update_aborted_run(db_session, project, uid, iter, data)
         server.api.utils.singletons.db.get_db().update_run(
             db_session, data, uid, project, iter
         )
@@ -236,7 +214,7 @@ class Runs(
         run_state = run.get("status", {}).get("state")
         if (
             run_state
-            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete run in {run_state} state, consider aborting the run first"
@@ -281,7 +259,7 @@ class Runs(
         if (
             state
             and state
-            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete runs in {state} state, consider aborting the run first"
@@ -350,7 +328,7 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         run_updates = run_updates or {}
-        run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
         logger.debug(
             "Aborting run",
             project=project,
@@ -370,8 +348,8 @@ class Runs(
             new_background_task_id == server.api.constants.internal_abort_task_id
             and current_run_state
             in [
-                mlrun.runtimes.constants.RunStates.aborting,
-                mlrun.runtimes.constants.RunStates.aborted,
+                mlrun.common.runtimes.constants.RunStates.aborting,
+                mlrun.common.runtimes.constants.RunStates.aborted,
             ]
         ):
             logger.warning(
@@ -381,7 +359,10 @@ class Runs(
             )
             return
 
-        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
+        if (
+            current_run_state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
             )
@@ -394,14 +375,14 @@ class Runs(
 
         # mark run as aborting
         aborting_updates = {
-            "status.state": mlrun.runtimes.constants.RunStates.aborting,
+            "status.state": mlrun.common.runtimes.constants.RunStates.aborting,
             "status.abort_task_id": new_background_task_id,
         }
         server.api.utils.singletons.db.get_db().update_run(
             db_session, aborting_updates, uid, project, iter
         )
 
-        run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
         try:
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
@@ -422,7 +403,7 @@ class Runs(
                 iter=iter,
             )
             run_updates = {
-                "status.state": mlrun.runtimes.constants.RunStates.error,
+                "status.state": mlrun.common.runtimes.constants.RunStates.error,
                 "status.error": f"Failed to abort run, error: {err}",
             }
             server.api.utils.singletons.db.get_db().update_run(
@@ -446,4 +427,34 @@ class Runs(
                 server.api.crud.Logs().delete_run_logs_legacy,
                 project,
                 uid,
+            )
+
+    def _update_aborted_run(self, db_session, project, uid, iter, data):
+        if (
+            data
+            and data.get("status.state")
+            == mlrun.common.runtimes.constants.RunStates.aborted
+        ):
+            current_run = server.api.utils.singletons.db.get_db().read_run(
+                db_session, uid, project, iter
+            )
+            if (
+                current_run.get("status", {}).get("state")
+                in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            ):
+                raise mlrun.errors.MLRunConflictError(
+                    "Run is already in terminal state, can not be aborted"
+                )
+            runtime_kind = current_run.get("metadata", {}).get("labels", {}).get("kind")
+            if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Run of kind {runtime_kind} can not be aborted"
+                )
+            # aborting the run meaning deleting its runtime resources
+            # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
+            #  "knowledge" on the label selector
+            server.api.crud.RuntimeResources().delete_runtime_resources(
+                db_session,
+                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                force=True,
             )

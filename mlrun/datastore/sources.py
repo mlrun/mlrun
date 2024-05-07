@@ -102,8 +102,12 @@ class BaseSourceDriver(DataSource):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         """return the source data as dataframe"""
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -245,7 +249,11 @@ class CSVSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
@@ -281,6 +289,12 @@ class ParquetSource(BaseSourceDriver):
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
+    :param additional_filters: List of additional_filter conditions as tuples.
+                               Each tuple should be in the format (column_name, operator, value).
+                               Supported operators: "=", ">=", "<=", ">", "<".
+                               Example: [("Product", "=", "Computer")]
+                               For all supported filters, please see:
+                               https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
     """
 
     kind = "parquet"
@@ -297,6 +311,7 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
+        additional_filters: Optional[list[tuple]] = None,
     ):
         super().__init__(
             name,
@@ -308,6 +323,7 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
+        self.additional_filters = additional_filters
 
     @property
     def start_time(self):
@@ -341,6 +357,7 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         context=None,
+        additional_filters=None,
     ):
         import storey
 
@@ -358,6 +375,7 @@ class ParquetSource(BaseSourceDriver):
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,
+            additional_filters=self.additional_filters or additional_filters,
             **attributes,
         )
 
@@ -380,6 +398,7 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
@@ -389,6 +408,7 @@ class ParquetSource(BaseSourceDriver):
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
             format="parquet",
+            additional_filters=additional_filters or self.additional_filters,
             **reader_args,
         )
 
@@ -406,12 +426,17 @@ class BigQuerySource(BaseSourceDriver):
 
          # use sql query
          query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
-         source = BigQuerySource("bq1", query=query_string,
-                                 gcp_project="my_project",
-                                 materialization_dataset="dataviews")
+         source = BigQuerySource(
+             "bq1",
+             query=query_string,
+             gcp_project="my_project",
+             materialization_dataset="dataviews",
+         )
 
          # read a table
-         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+         source = BigQuerySource(
+             "bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project"
+         )
 
 
     :parameter name: source name
@@ -514,9 +539,14 @@ class BigQuerySource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
+
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
@@ -557,7 +587,6 @@ class BigQuerySource(BaseSourceDriver):
         else:
             df = rows_iterator.to_dataframe(dtypes=dtypes)
 
-        # TODO : filter as part of the query
         return select_columns_from_df(
             filter_df_start_end_time(
                 df,
@@ -735,7 +764,19 @@ class DataFrameSource:
             context=self.context or context,
         )
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        additional_filters=None,
+    ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return self._df
 
     def is_iterator(self):
@@ -930,6 +971,7 @@ class KafkaSource(OnlineSource):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
@@ -1070,9 +1112,13 @@ class SQLSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         import sqlalchemy as sqlalchemy
 
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
         parse_dates = self.attributes.get("parse_dates")

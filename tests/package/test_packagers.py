@@ -99,7 +99,9 @@ def _setup_test(
         mlrun.mlconf.packagers.pack_tuples = True
 
     # Create a project for this tester:
-    project = mlrun.get_or_create_project(name="default", context=test_directory)
+    project = mlrun.get_or_create_project(
+        name="default", context=test_directory, allow_cross_project=True
+    )
 
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(

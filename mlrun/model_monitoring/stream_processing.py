@@ -352,7 +352,6 @@ class EventStreamProcessor:
                     rate="10/m",
                     time_col=EventFieldType.TIMESTAMP,
                     container=self.tsdb_container,
-                    access_key=self.v3io_access_key,
                     v3io_frames=self.v3io_framesd,
                     infer_columns_from_data=True,
                     index_cols=[
@@ -807,7 +806,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # left them
         if endpoint_id not in self.endpoints:
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
-            endpoint_record = get_endpoint_record(
+            endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
             )
@@ -940,7 +939,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         label_values = event[EventFieldType.PREDICTION]
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
-            endpoint_record = get_endpoint_record(
+            endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
             )
@@ -1232,13 +1231,6 @@ def update_endpoint_record(
     model_endpoint_store.update_model_endpoint(
         endpoint_id=endpoint_id, attributes=attributes
     )
-
-
-def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = mlrun.model_monitoring.get_store_object(
-        project=project,
-    )
-    return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
 
 
 def update_monitoring_feature_set(

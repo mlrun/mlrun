@@ -97,6 +97,7 @@ def set_environment(
     example::
 
         from os import path
+
         project_name, artifact_path = set_environment()
         set_environment("http://localhost:8080", artifact_path="./")
         set_environment(env_file="mlrun.env")

@@ -248,8 +248,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     }
                 ]
             },
@@ -258,21 +258,21 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             [
                 {
                     "metadata": {"name": "test-run", "uid": "test-run-uid"},
-                    "status": {"state": "success"},
+                    "status": {"state": "completed"},
                 }
             ],
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     },
                     {
                         "fields": [
                             {"text": "*Runs*", "type": "mrkdwn"},
                             {"text": "*Results*", "type": "mrkdwn"},
-                            {"text": ":question:  test-run", "type": "mrkdwn"},
-                            {"text": "None", "type": "mrkdwn"},
+                            {"text": ":smiley:  test-run", "type": "mrkdwn"},
+                            {"text": "completed", "type": "mrkdwn"},
                         ],
                         "type": "section",
                     },
@@ -289,8 +289,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
-                        "type": "section",
+                        "text": {"text": "[info] test-message", "type": "plain_text"},
+                        "type": "header",
                     },
                     {
                         "fields": [

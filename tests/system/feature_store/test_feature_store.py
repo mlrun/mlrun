@@ -4813,6 +4813,70 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
+    @staticmethod
+    def _sort_df(df: pd.DataFrame, sort_column: str):
+        return (
+            df.reindex(sorted(df.columns), axis=1)
+            .sort_values(by=sort_column)
+            .reset_index(drop=True)
+        )
+
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_parquet_filters(self, engine):
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_source_{run_uuid}.parquet"
+        v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_target_{run_uuid}"
+        df.to_parquet(v3io_parquet_source_path)
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path=v3io_parquet_source_path,
+            additional_filters=[
+                ("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")
+            ],
+        )
+        result = parquet_source.to_dataframe()
+        assert_frame_equal(
+            result.sort_values(by="patient_id").reset_index(drop=True),
+            filtered_df.sort_values(by="patient_id").reset_index(drop=True),
+        )
+        feature_set = fstore.FeatureSet(
+            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
+        )
+
+        target = ParquetTarget(
+            name="department_based_target",
+            path=v3io_parquet_target_path,
+            partitioned=True,
+            partition_cols=["department"],
+        )
+        feature_set.ingest(source=parquet_source, targets=[target])
+        result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
+        # We want to include patient_id in the comparison,
+        # sort the columns alphabetically, and sort the rows by patient_id values.
+        result = self._sort_df(result, "patient_id")
+        expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
+        # the content of category column is still checked:
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        vec = fstore.FeatureVector(
+            name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        result = (
+            fstore.get_offline_features(
+                feature_vector=vec,
+                additional_filters=[("bad", "=", 95)],
+                with_indexes=True,
+                engine=engine,
+            )
+            .to_dataframe()
+            .reset_index()
+        )
+        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = self._sort_df(result, "patient_id")
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

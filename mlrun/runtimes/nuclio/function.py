@@ -22,7 +22,6 @@ from time import sleep
 import nuclio
 import nuclio.utils
 import requests
-import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
@@ -56,33 +55,9 @@ def validate_nuclio_version_compatibility(*min_versions):
     """
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
-    parsed_min_versions = [
-        semver.VersionInfo.parse(min_version) for min_version in min_versions
-    ]
-    try:
-        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
-    except ValueError:
-        # only log when version is set but invalid
-        if mlconf.nuclio_version:
-            logger.warning(
-                "Unable to parse nuclio version, assuming compatibility",
-                nuclio_version=mlconf.nuclio_version,
-                min_versions=min_versions,
-            )
-        return True
-
-    parsed_min_versions.sort(reverse=True)
-    for parsed_min_version in parsed_min_versions:
-        if (
-            parsed_current_version.major == parsed_min_version.major
-            and parsed_current_version.minor == parsed_min_version.minor
-            and parsed_current_version.patch < parsed_min_version.patch
-        ):
-            return False
-
-        if parsed_current_version >= parsed_min_version:
-            return True
-    return False
+    return mlrun.utils.helpers.validate_component_version_compatibility(
+        "nuclio", *min_versions
+    )
 
 
 def min_nuclio_versions(*versions):
@@ -345,17 +320,21 @@ class RemoteRuntime(KubeResource):
 
             git::
 
-                fn.with_source_archive("git://github.com/org/repo#my-branch",
-                        handler="main:handler",
-                        workdir="path/inside/repo")
+                fn.with_source_archive(
+                    "git://github.com/org/repo#my-branch",
+                    handler="main:handler",
+                    workdir="path/inside/repo",
+                )
 
             s3::
 
                 fn.spec.nuclio_runtime = "golang"
-                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                fn.with_source_archive(
+                    "s3://my-bucket/path/in/bucket/my-functions-archive",
                     handler="my_func:Handler",
                     workdir="path/inside/functions/archive",
-                    runtime="golang")
+                    runtime="golang",
+                )
         """
         self.spec.build.source = source
         # update handler in function_handler
@@ -774,7 +753,7 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
             runtime_env[
-                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key
         return runtime_env
 
@@ -990,11 +969,11 @@ class RemoteRuntime(KubeResource):
         ports = mlrun.utils.helpers.as_list(ports)
         sidecar["ports"] = [
             {
-                "name": "http",
+                "name": f"{name}-{i}",
                 "containerPort": port,
                 "protocol": "TCP",
             }
-            for port in ports
+            for i, port in enumerate(ports)
         ]
 
         if command:

@@ -418,15 +418,12 @@ class ParquetSource(BaseSourceDriver):
             return None
         none_values = [None, np.nan]
         additional_filters = deepcopy(self.additional_filters)
-        is_first = True
         spark_filter = ""
         for filter_tuple in additional_filters:
             if not filter_tuple:
                 continue
-            if not is_first:
+            if spark_filter:
                 spark_filter += " AND "
-            else:
-                is_first = False
             col_name, op, value = filter_tuple
             if isinstance(value, (str, datetime)):
                 value = f"'{value}'"

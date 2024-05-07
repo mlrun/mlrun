@@ -44,7 +44,7 @@ class AlertConfig(ModelObj):
         criteria: alert_constants.AlertCriteria = None,
         reset_policy: alert_constants.ResetPolicy = None,
         notifications: list[Notification] = None,
-        entity: alert_constants.EventEntity = None,
+        entities: alert_constants.EventEntities = None,
         id: int = None,
         state: alert_constants.AlertActiveState = None,
         created: str = None,
@@ -59,7 +59,7 @@ class AlertConfig(ModelObj):
         self.criteria = criteria
         self.reset_policy = reset_policy
         self.notifications = notifications or []
-        self.entity = entity
+        self.entities = entities
         self.id = id
         self.state = state
         self.created = created
@@ -75,8 +75,10 @@ class AlertConfig(ModelObj):
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         data = super().to_dict(self._dict_fields)
 
-        data["entity"] = (
-            self.entity.dict() if not isinstance(self.entity, dict) else self.entity
+        data["entities"] = (
+            self.entities.dict()
+            if not isinstance(self.entities, dict)
+            else self.entities
         )
         data["notifications"] = [
             notification.dict() if not isinstance(notification, dict) else notification
@@ -91,10 +93,10 @@ class AlertConfig(ModelObj):
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         new_obj = super().from_dict(struct, fields=fields)
 
-        entity_data = struct.get("entity")
+        entity_data = struct.get("entities")
         if entity_data:
-            entity_obj = alert_constants.EventEntity.parse_obj(entity_data)
-            new_obj.entity = entity_obj
+            entity_obj = alert_constants.EventEntities.parse_obj(entity_data)
+            new_obj.entities = entity_obj
 
         notifications_data = struct.get("notifications")
         if notifications_data:
@@ -120,10 +122,10 @@ class AlertConfig(ModelObj):
             self.notifications.append(notification)
         return self
 
-    def with_entity(self, entity: alert_constants.EventEntity):
-        if not isinstance(entity, alert_constants.EventEntity):
-            raise ValueError("Entity parameter must be of type: EventEntity")
-        self.entity = entity
+    def with_entity(self, entity: alert_constants.EventEntities):
+        if not isinstance(entity, alert_constants.EventEntities):
+            raise ValueError("Entity parameter must be of type: EventEntities")
+        self.entities = entity
         return self
 
     def _apply_template(self, template):

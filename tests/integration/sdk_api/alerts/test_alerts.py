@@ -208,8 +208,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         # test modifiers on the alert config
-        entity = alert_constants.EventEntity(
-            kind=alert_constants.EventEntityKind.MODEL, project=project_name, id="*"
+        entity = alert_constants.EventEntities(
+            kind=alert_constants.EventEntityKind.MODEL, project=project_name, ids=["*"]
         )
         alert_from_template.with_entity(entity=entity)
 
@@ -591,7 +591,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_reset_policy:
             assert alert.reset_policy == alert_reset_policy
         if alert_entity:
-            assert alert.entity == alert_entity
+            assert alert.entities == alert_entity
         if alert_notifications:
             assert alert.notifications == alert_notifications
 

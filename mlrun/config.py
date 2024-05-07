@@ -232,6 +232,10 @@ default_config = {
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
         },
+        "application": {
+            "default_sidecar_internal_port": 8050,
+            "default_authentication_mode": "accessKey",
+        },
     },
     # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {

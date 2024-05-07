@@ -619,7 +619,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
                 name=self.gw_name,
             ),
             spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
-                functions=[self.f1, self.f2], project=self.project_name
+                functions=[self.f1], project=self.project_name
             ),
         )
 

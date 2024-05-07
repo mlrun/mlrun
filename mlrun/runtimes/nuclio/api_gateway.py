@@ -22,28 +22,32 @@ from requests.auth import HTTPBasicAuth
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.common.types
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
 from .function import get_fullname, min_nuclio_versions
 
-NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
-NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE = "none"
-NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY = "accessKey"
 PROJECT_NAME_LABEL = "nuclio.io/project-name"
+
+
+class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
+    NONE = "none"
+    BASIC = "basicAuth"
+    ACCESS_KEY = "accessKey"
 
 
 class APIGatewayAuthenticator(typing.Protocol):
     @property
     def authentication_mode(self) -> str:
-        return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE
+        return APIGatewayAuthenticationMode.NONE.value
 
     @classmethod
     def from_scheme(cls, api_gateway_spec: mlrun.common.schemas.APIGatewaySpec):
         if (
             api_gateway_spec.authenticationMode
-            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+            == APIGatewayAuthenticationMode.BASIC.value
         ):
             if api_gateway_spec.authentication:
                 return BasicAuth(
@@ -54,7 +58,7 @@ class APIGatewayAuthenticator(typing.Protocol):
                 return BasicAuth()
         elif (
             api_gateway_spec.authenticationMode
-            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY
+            == APIGatewayAuthenticationMode.ACCESS_KEY.value
         ):
             return AccessKeyAuth()
         else:
@@ -88,7 +92,7 @@ class BasicAuth(APIGatewayAuthenticator):
 
     @property
     def authentication_mode(self) -> str:
-        return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+        return APIGatewayAuthenticationMode.BASIC.value
 
     def to_scheme(
         self,
@@ -107,7 +111,7 @@ class AccessKeyAuth(APIGatewayAuthenticator):
 
     @property
     def authentication_mode(self) -> str:
-        return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY
+        return APIGatewayAuthenticationMode.ACCESS_KEY.value
 
 
 class APIGatewayMetadata(ModelObj):
@@ -378,7 +382,7 @@ class APIGateway(ModelObj):
 
         if (
             self.spec.authentication.authentication_mode
-            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+            == APIGatewayAuthenticationMode.BASIC.value
         ):
             if not auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -388,17 +392,21 @@ class APIGateway(ModelObj):
 
         if (
             self.spec.authentication.authentication_mode
-            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_ACCESS_KEY
+            == APIGatewayAuthenticationMode.ACCESS_KEY.value
         ):
             # inject access key from env
             auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+            if not auth:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
+                )
         url = urljoin(self.invoke_url, path or "")
         return requests.request(
             method=method,
             url=url,
             headers=headers or {},
-            **kwargs,
             auth=auth,
+            **kwargs,
         )
 
     def wait_for_readiness(self, max_wait_time=90):

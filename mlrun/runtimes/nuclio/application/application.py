@@ -17,11 +17,13 @@ import typing
 import nuclio
 
 import mlrun.errors
+from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.common.schemas import AuthInfo
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
 from mlrun.runtimes.nuclio.api_gateway import (
     APIGateway,
+    APIGatewayAuthenticationMode,
     APIGatewayMetadata,
     APIGatewaySpec,
 )
@@ -119,7 +121,10 @@ class ApplicationSpec(NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
-        self.internal_application_port = internal_application_port or 8050
+        self.internal_application_port = (
+            internal_application_port
+            or mlrun.mlconf.function.application.default_sidecar_internal_port
+        )
 
     @property
     def internal_application_port(self):
@@ -157,7 +162,9 @@ class ApplicationStatus(NuclioStatus):
         )
         self.application_image = application_image or None
         self.sidecar_name = sidecar_name or None
+        self.api_gateway_name = None
         self.api_gateway = None
+        self.url = None
 
 
 class ApplicationRuntime(RemoteRuntime):
@@ -190,6 +197,12 @@ class ApplicationRuntime(RemoteRuntime):
     @api_gateway.setter
     def api_gateway(self, api_gateway: APIGateway):
         self.status.api_gateway = api_gateway
+
+    @property
+    def url(self):
+        if not self.status.api_gateway:
+            self._sync_api_gateway()
+        return self.status.api_gateway.invoke_url
 
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
@@ -245,7 +258,8 @@ class ApplicationRuntime(RemoteRuntime):
         show_on_failure: bool = False,
         skip_access_key_auth: bool = False,
         direct_port_access: bool = False,
-        enable_http_trigger: bool = False,
+        authentication_mode: APIGatewayAuthenticationMode = None,
+        authentication_creds: tuple[str] = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -264,6 +278,9 @@ class ApplicationRuntime(RemoteRuntime):
         :param show_on_failure:         Show logs only in case of build failure
         :param skip_access_key_auth:    Skip adding access key auth to the API Gateway
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
+        :param enable_http_trigger:     Set True to enable the HTTP trigger ingress for the function
+        :param authentication_mode:     API Gateway authentication mode
+        :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
@@ -281,8 +298,9 @@ class ApplicationRuntime(RemoteRuntime):
 
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
-        if not enable_http_trigger:
-            self.spec.disable_default_http_trigger = True
+        self.spec.add_templated_ingress_host_mode = (
+            NuclioIngressAddTemplatedIngressModes.never
+        )
 
         super().deploy(
             project,
@@ -293,7 +311,11 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         ports = self.spec.internal_application_port if direct_port_access else []
-        self.create_api_gateway(skip_access_key_auth=skip_access_key_auth, ports=ports)
+        self.create_api_gateway(
+            ports=ports,
+            authentication_mode=authentication_mode,
+            authentication_creds=authentication_creds,
+        )
 
     def with_source_archive(
         self, source, workdir=None, pull_at_runtime=True, target_dir=None
@@ -325,7 +347,8 @@ class ApplicationRuntime(RemoteRuntime):
         self,
         path: str = None,
         ports: list[int] = None,
-        skip_access_key_auth: bool = False,
+        authentication_mode: APIGatewayAuthenticationMode = None,
+        authentication_creds: tuple[str] = None,
     ):
         api_gateway = APIGateway(
             APIGatewayMetadata(
@@ -342,13 +365,20 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
-        if not skip_access_key_auth:
+        authentication_mode = (
+            authentication_mode
+            or mlrun.mlconf.function.application.default_authentication_mode
+        )
+        if authentication_mode == APIGatewayAuthenticationMode.ACCESS_KEY:
             api_gateway.with_access_key_auth()
+        if authentication_mode == "basic":
+            api_gateway.with_basic_auth(*authentication_creds)
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
             api_gateway.to_scheme(), self.metadata.project
         )
+        self.status.api_gateway_name = api_gateway.metadata.name
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
 
@@ -364,6 +394,7 @@ class ApplicationRuntime(RemoteRuntime):
         mock: bool = None,
         **http_client_kwargs,
     ):
+        self._sync_api_gateway()
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
             super().invoke(
@@ -380,11 +411,10 @@ class ApplicationRuntime(RemoteRuntime):
 
         auth = (auth_info.username, auth_info.password) if auth_info else None
 
+        if not method:
+            method = "POST" if body else "GET"
         return self.status.api_gateway.invoke(
-            method=method or "POST",
-            headers=headers,
-            auth=auth,
-            path=path,
+            method=method, headers=headers, auth=auth, path=path, **http_client_kwargs
         )
 
     def _build_application_image(
@@ -451,3 +481,13 @@ class ApplicationRuntime(RemoteRuntime):
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
+
+    def _sync_api_gateway(self):
+        if not self.status.api_gateway_name:
+            return
+
+        db = self._get_db()
+        api_gateway_scheme = db.get_api_gateway(self.status.api_gateway_name)
+        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        self.status.api_gateway.wait_for_readiness()
+        self.status.url = self.status.api_gateway.invoke_url

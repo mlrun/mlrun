@@ -10,7 +10,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 **In this section**
 - [Environment variables](#environment-variables)
 - [Replicas](#replicas)
-- [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
+- [CPU, GPU, and memory &mdash; requests and limits for user jobs](#cpu-gpu-and-memory-requests-and-limits-for-user-jobs)
 - [Number of workers and GPUs](#number-of-workers-and-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
@@ -61,21 +61,17 @@ See also [Kubernetes horizontal autoscale](https://kubernetes.io/docs/tasks/run-
 
 See more details in [Dask](../runtimes/dask-overview.html), [MPIJob and Horovod](../runtimes/horovod.html), [Spark](../runtimes/spark-operator.html), [Nuclio](../concepts/nuclio-real-time-functions.html).
 
-## CPU, GPU, and memory limits for user jobs
+## CPU, GPU, and memory &mdash; requests and limits for user jobs
 
-When you create a pod in an MLRun job or Nuclio function, the pod has default CPU, GPU, and memory limits. When the job runs, 
-it can consume resources up to the limits defined. The default limits are set at the service level. You can change the 
-default limit for the service, and also overwrite the default when creating a job, or a function. Adding requests and 
-limits to your function specify what compute resources are required. It is best practice to define this for each MLRun function.
+Requests and limits define how much the memory, CPU, and GPU, the pod must have to be able to start to work, and its maximum allowed consumption.
+MLRun and Nuclio functions run in their own pods. The default CPU and memory limits for these pods are defined by their respective services. 
+You can change the limits when creating a job, or a function. It is best practice to define this for each MLRun function. 
 
-**What are defaults?**
-**Why is GPU not in UI?**
-**Why are requests not in UI?**
-**if memory limit is exceeded the pod will be killed (OOM). CPU limits are a bit different, and they affect the cpu cycles assigned to the given pod.**
+See more details in the [Kubernetes documentation: Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 
 ### SDK configuration
 
-Ezamples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
+Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
 training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
@@ -87,9 +83,6 @@ training_function.with_limits(mem="2G", cpu=2, gpus=1) #upper bound
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
 ```
-
-
-
 
 ### UI configuration
 
@@ -351,7 +344,7 @@ scheduled to any existing node, and new nodes are automatically added to accommo
 
 Auto-scaling is a node-group configuration.
 
-## Mount persistent storage
+## Mounting persistent storage
 In some instances, you might need to mount a file-system to your container to persist data. This can be done with native K8s PVC's or the V3IO data layer for Iguazio clusters. See [**Attach storage to functions**](./function-storage.html) for more information on the storage options.
 
 ```python

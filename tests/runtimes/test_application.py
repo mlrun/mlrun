@@ -95,7 +95,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
                     "args": ["--help"],
                 }
             ],
@@ -105,7 +105,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
                 }
             ],
             None,
@@ -114,7 +114,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
                     "command": ["echo"],
                 }
             ],
@@ -124,7 +124,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock):
             [
                 {
                     "image": "my/web-app:latest",
-                    "ports": [{"containerPort": 8080, "name": "http"}],
+                    "ports": [{"containerPort": 8080, "name": "sidecar-port"}],
                     "command": ["echo"],
                     "args": ["--help"],
                 }
@@ -195,7 +195,13 @@ def _assert_application_post_deploy_spec(fn, image):
         {
             "image": image,
             "name": "application-test-sidecar",
-            "ports": [{"containerPort": 8080, "name": "http", "protocol": "TCP"}],
+            "ports": [
+                {
+                    "containerPort": 8080,
+                    "name": "application-test-sidecar-0",
+                    "protocol": "TCP",
+                }
+            ],
         }
     ]
     assert fn.get_env("SIDECAR_PORT") == "8080"

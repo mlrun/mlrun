@@ -16,6 +16,7 @@
 import datetime
 from typing import Optional, Union
 
+import mlrun.alerts
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -128,7 +129,18 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         pass
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -671,7 +683,7 @@ class NopDB(RunDBInterface):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass
@@ -686,4 +698,10 @@ class NopDB(RunDBInterface):
         pass
 
     def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
         pass

@@ -18,7 +18,9 @@ from typing import Optional, Union
 from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
+import mlrun.alerts
 import mlrun.common.schemas
+import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 import server.api.crud
@@ -233,13 +235,26 @@ class SQLRunDB(RunDBInterface):
             producer_id=tree,
         )
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
             self.session,
             key,
             tag,
             project,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -1078,7 +1093,7 @@ class SQLRunDB(RunDBInterface):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass
@@ -1093,6 +1108,12 @@ class SQLRunDB(RunDBInterface):
         pass
 
     def reset_alert_config(self, alert_name, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
         pass
 
 

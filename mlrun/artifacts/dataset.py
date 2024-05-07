@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
+import warnings
 from io import StringIO
 from typing import Optional
 
@@ -160,6 +161,13 @@ class DatasetArtifact(Artifact):
         label_column: str = None,
         **kwargs,
     ):
+        if key or format or target_path:
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
+
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:

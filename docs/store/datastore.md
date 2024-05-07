@@ -3,7 +3,8 @@
 
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-MLRun supports multiple data stores (additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class).
+MLRun supports multiple data stores. Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.
+
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
@@ -78,8 +79,8 @@ remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
   
 ## Data store profiles
 
-```{admonition} Notes
-- Datastore profiles are not part of a project export/import.
+```{admonition} Note
+Datastore profiles are not part of a project export/import.
 ```
 
 You can use a data store profile to manage datastore credentials. A data store profile 
@@ -115,8 +116,8 @@ local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.en
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
 
-```{admonition} Notes
-- Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+```{admonition} Note
+Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
 
 ## Azure data store
@@ -179,7 +180,7 @@ The equivalent to this parameter in environment authentication is "AZURE_STORAGE
 Credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
-- `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
+- `container` &mdash; A string representing the container. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
 This parameter will become mandatory starting with version 1.9.
 
 ## Databricks file system 
@@ -261,6 +262,16 @@ You can set `HADOOP_USER_NAME` locally as follows:
 ```python
 import os
 os.environ["HADOOP_USER_NAME"] = "..."
+```
+
+An example of registering an HDFS data store profile and using it as described in [Data store profiles](#data-store-profiles):
+```python
+DatastoreProfileHdfs(
+    name="my-hdfs",
+    host="localhost",
+    port=9000,
+    http_port=9870,
+)
 ```
 
 To set it on a function, use:
@@ -346,7 +357,7 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 
 * `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
   parameters
-* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use. example: "https://oss-cn-hangzhou.aliyuncs.com"
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

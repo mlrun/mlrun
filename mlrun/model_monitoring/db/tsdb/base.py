@@ -61,7 +61,7 @@ class TSDBConnector(ABC):
         """
         Write a single application or metric to TSDB.
 
-        :raise mlrun.errors.MLRunInvalidArgumentError: If an error occurred while writing the event.
+        :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
         """
         pass
 
@@ -85,8 +85,14 @@ class TSDBConnector(ABC):
         metrics are being calculated by the model monitoring stream pod.
         :param endpoint_id:      The unique id of the model endpoint.
         :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics.
-        :param end:              The end time of the metrics.
+        :param start:            The start time of the metrics. Can be represented by a string containing an  RFC 3339
+                                 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
+                                 = seconds), or 0 for the earliest time.
+        :param end:              The end time of the metrics. Can be represented by a string containing an  RFC 3339
+                                 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
+                                 = seconds), or 0 for the earliest time.
         :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
                  includes timestamps and the values.
         """
@@ -106,11 +112,17 @@ class TSDBConnector(ABC):
         :param columns:          Columns to include in the result.
         :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
                                  connector type.
-        :param start:            The start time of the metrics.
-        :param end:              The end time of the metrics.
+        :param start:            The start time of the metrics. Can be represented by a string containing an RFC
+                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
+                                 = seconds), or 0 for the earliest time.
+        :param end:              The end time of the metrics. Can be represented by a string containing an RFC
+                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
+                                 = seconds), or 0 for the earliest time.
 
         :return: DataFrame with the provided attributes from the data collection.
-        :raise:  MLRunInvalidArgumentError if the provided table wasn't found.
+        :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
         pass
 

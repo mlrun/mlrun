@@ -716,36 +716,6 @@ def is_not_none(field: typing.Any, dict_path: list[str]):
     return False
 
 
-class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
-    def __init__(self, keys, **kwargs):
-        """
-        Create unpacked event dictionary based on provided key metrics (base_metrics, endpoint_features,
-        or custom_metric). Please note that the next step of the TSDB target requires an unpacked dictionary.
-
-        :param keys: list of key metrics.
-
-        :returns: An unpacked dictionary of event filtered by the provided key metrics.
-        """
-        super().__init__(**kwargs)
-        self.keys = keys
-
-    def do(self, event):
-        # Keep only the relevant dictionary based on the provided keys
-        new_event = {}
-        for key in self.keys:
-            if key in event:
-                new_event[key] = event[key]
-
-        # Create unpacked dictionary
-        unpacked = {}
-        for key in new_event.keys():
-            if key in self.keys:
-                unpacked = {**unpacked, **new_event[key]}
-            else:
-                unpacked[key] = new_event[key]
-        return unpacked if unpacked else None
-
-
 class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     def __init__(
         self,

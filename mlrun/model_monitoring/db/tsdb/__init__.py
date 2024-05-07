@@ -56,7 +56,7 @@ class ObjectTSDBFactory(enum.Enum):
 
 def get_tsdb_connector(project: str, **kwargs) -> TSDBConnector:
     """
-    Getting the TSDB connector type based on mlrun.config.model_endpoint_monitoring.tsdb_connector_type.
+    Get the TSDB connector type based on mlrun.config.model_endpoint_monitoring.tsdb_connector_type.
     :param project: The name of the project.
     :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.

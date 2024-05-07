@@ -213,9 +213,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         event: dict,
         kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
     ):
-        """
-        Write a single result or metric to TSDB.
-        """
+        """Write a single result or metric to TSDB"""
 
         event[mm_constants.WriterEvent.END_INFER_TIME] = (
             datetime.datetime.fromisoformat(
@@ -252,7 +250,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                 event=event,
             )
 
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to write application result to TSDB: {err}"
             )
 
@@ -270,11 +268,11 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                     table=table,
                 )
             except v3io_frames.errors.DeleteError as e:
-                if "No TSDB schema file found" not in str(e):
-                    logger.warning(
-                        f"Failed to delete TSDB table '{table}'",
-                        err=mlrun.errors.err_to_str(e),
-                    )
+                logger.warning(
+                    f"Failed to delete TSDB table '{table}'",
+                    err=mlrun.errors.err_to_str(e),
+                )
+
         # Final cleanup of tsdb path
         tsdb_path = self._get_v3io_source_directory()
         tsdb_path.replace("://u", ":///u")
@@ -362,7 +360,7 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
                                  `'s'` = seconds), or 0 for the earliest time.
         :return: DataFrame with the provided attributes from the data collection.
-        :raise:  MLRunInvalidArgumentError if the provided table wasn't found.
+        :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
         if table not in self.tables:
             raise mlrun.errors.MLRunInvalidArgumentError(

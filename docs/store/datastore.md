@@ -179,7 +179,7 @@ The equivalent to this parameter in environment authentication is "AZURE_STORAGE
 Credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
-- `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
+- `container` &mdash; A string representing the container. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
 This parameter will become mandatory starting with version 1.9.
 
 ## Databricks file system 

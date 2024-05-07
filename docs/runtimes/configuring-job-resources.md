@@ -37,12 +37,18 @@ fn.set_envs(file_path="env.txt")
 
 ## Replicas
 
-Some runtimes can scale horizontally, configured either as a number of replicas:</br>
-`spec.replicas` </br>
-or a range (for auto scaling in Dask or Nuclio):</br>
+Some runtimes can scale horizontally, configured either as a number of replicas:
+```python
+training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
+                                           kind="mpijob", image="mlrun/mlrun-gpu")
+training_function.spec.replicas = 2
 ```
-spec.min_replicas = 1
-spec.max_replicas = 4
+or a range (for auto-scaling in Dask or Nuclio):
+```python
+training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
+                                           kind="mpijob", image="mlrun/mlrun-gpu")
+training_function.min_replicas = 1
+training_function.max_replicas = 4
 ```
 
 ```{admonition} Note
@@ -50,52 +56,49 @@ If a `target utilization`
 (Target CPU%) value is set, the replication controller calculates the utilization
 value as a percentage of the equivalent `resource request` (CPU request) on
 the replicas and based on that provides horizontal scaling. 
-See also [Kubernetes horizontal autoscale](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#how-does-a-horizontalpodautoscaler-work)
+See also [Kubernetes horizontal autoscale](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#how-does-a-horizontalpodautoscaler-work).
 ```
 
 See more details in [Dask](../runtimes/dask-overview.html), [MPIJob and Horovod](../runtimes/horovod.html), [Spark](../runtimes/spark-operator.html), [Nuclio](../concepts/nuclio-real-time-functions.html).
 
-## CPU, GPU, and memory limits for user jobs  
+## CPU, GPU, and memory limits for user jobs
 
-When you create a pod in an MLRun job or Nuclio function, the pod has default CPU and memory limits. When the job runs, it can consume 
-resources up to the limits defined. The default limits are set at the service level. You can change the default limit for the service, and 
-also overwrite the default when creating a job, or a function. Adding requests and limits to your function specify what compute resources 
-are required. It is best practice to define this for each MLRun function.
+When you create a pod in an MLRun job or Nuclio function, the pod has default CPU, GPU, and memory limits. When the job runs, 
+it can consume resources up to the limits defined. The default limits are set at the service level. You can change the 
+default limit for the service, and also overwrite the default when creating a job, or a function. Adding requests and 
+limits to your function specify what compute resources are required. It is best practice to define this for each MLRun function.
 
-
-```python
-# Requests - lower bound
-fn.with_requests(mem="1G", cpu=1)
-
-# Limits - upper bound
-fn.with_limits(mem="2G", cpu=2, gpus=1)
-```
-
-See more about [Kubernetes Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+**What are defaults?**
+**Why is GPU not in UI?**
+**Why are requests not in UI?**
+**if memory limit is exceeded the pod will be killed (OOM). CPU limits are a bit different, and they affect the cpu cycles assigned to the given pod.**
 
 ### SDK configuration
 
-Configure the limits assigned to a function by using `with_limits`. For example:
+Ezamples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
-```
+**Is this pod or function?**
+
+```python
 training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
                                            kind="mpijob", image="mlrun/mlrun-gpu")
-training_function.spec.replicas = 2
-training_function.with_requests(cpu=2)
-training_function.with_limits(gpus=1)
+training_function.with_requests(mem="1G", cpu=1) #lower bound
+training_function.with_limits(mem="2G", cpu=2, gpus=1) #upper bound
 ```
 
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
 ```
 
+
+
+
 ### UI configuration
 
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-When creating a service, set the **Memory** and **CPU** in the **Common Parameters** tab, under **User jobs defaults**.
-When creating a job or a function, overwrite the default **Memory**, **CPU**, or **GPU** in the **Configuration** tab, under **Resources**.
+Configure requests and limits in the service's **Common Parameters** tab and in the **Configuration** tab of the function.
 
 ## Number of workers and GPUs
 
@@ -103,12 +106,12 @@ For each Nuclio or serving function, MLRun creates an HTTP trigger with the defa
 that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](#cpu-gpu-and-memory-limits-for-user-jobs).
 
 You can change the number of workers after you create the trigger (function object), then you need to 
-redeploy the function.  Examples of changing the number of workers:
+redeploy the function. Examples of changing the number of workers:
 
-{py:class}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_http`:</br>
+Using {py:meth}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_http`:</br>
 `serve.with_http(workers=8, worker_timeout=10)`
 
-{py:class}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
+Using {py:meth}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
 `serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
 
 ## Volumes
@@ -148,15 +151,14 @@ You can specify a list of the v3io path to use and how they map inside the conta
 mlrun.mount_v3io(name='data',access_key='XYZ123..',volume_mounts=[mlrun.VolumeMount("/data", "projects/proj1/data")])
 ```
 
-See full details in [mount_v3io](../api/mlrun.platforms.html#mlrun.platforms.mount_v3io).
+See full details in {py:meth}`~#mlrun.platforms.mount_v3io`.
 
 Alternatively, using a PVC volume:
 ```
 mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data")
 ```
 
-See full details in [mount_pvc](../api/mlrun.platforms.html#mlrun.platforms.mount_pvc).
-
+See full details in {py:meth}`~mlrun.platforms.mount_pvc`.
 ### UI configuration
 
 ```{admonition} Note
@@ -171,12 +173,10 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
+When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls 
+whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
 
-Node selector is supported for all cloud platforms. It is relevant for MLRun and Nuclio only.
-
-When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
-
-Preemption mode uses Kubernetes Taints and Toleration to enforce the mode selected. Read more in [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration). 
+Preemption mode uses [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration) to enforce the mode selected.  
 
 ### Why preemption mode?
 
@@ -197,7 +197,8 @@ When an MLRun job is running on a spot node and it fails, it won't get back up a
 is brought up by Kubernetes.
 ```
 
-Kubernetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
+Kubernetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see 
+[Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
 Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
 
 ### Stateless and Stateful Applications 
@@ -242,17 +243,8 @@ train_fn.run(inputs={"dataset": my_data})
    
 ```
 
-### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
-
-You can configure Spot node support when creating a job, rerunning an existing job, and creating an ML function. 
-The **Run on Spot nodes** drop-down list is in the **Resources** section of jobs. 
-Configure the Spot node support for individual Nuclio functions when creating a function in the **Configuration** tab, under **Resources**. 
-
-See [`with_preemption_mode`](../api/mlrun.runtimes.html#RemoteRuntime.with_preemption_mode).
+See {py:meth}`~#RemoteRuntime.with_preemption_mode.
 
 Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that 
 the pod/function runs only on non-preemptible nodes:
@@ -271,26 +263,29 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptib
 
 ```
 
-See [`with_priority_class`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_priority_class).
-See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).
+See:
+- py:meth}`~#mlrun.runtimes.RemoteRuntime.with_priority_class`
+- {py:meth}`~#mlrun.runtimes.RemoteRuntime.with_node_selection`
 
+### UI configuration
+
+```{admonition} Note
+Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
+```
+
+You can configure Spot node support when creating a job, rerunning an existing job, and creating an ML function. 
+The **Run on Spot nodes** drop-down list is in the **Resources** section of jobs. 
+Configure the Spot node support for individual Nuclio functions when creating a function in the **Configuration** tab, under **Resources**. 
 
 ## Pod priority for user jobs
 
-Pods (services, or jobs created by those services) can have priorities, which indicate the relative importance of one pod to the other pods on the node. The priority is used for 
-scheduling: a lower priority pod can be evicted to allow scheduling of a higher priority pod. Pod priority is relevant for all pods created 
-by the service. For MLRun, it applies to the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
+[Priority classes](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/) are a mechanism in Kubernetes to 
+control the order in which pods are scheduled and evicted &mdash; to make room for other, higher priority pods. Priorities also affect the pods’ 
+evictions in case the node’s memory is pressured (called Node-pressure Eviction).
 
-Pod priority is specified through Priority classes, which map to a priority value. The priority values are: High, Medium, Low. The default is Medium. Pod priority is supported for:
-- MLRun jobs: the default priority class for the jobs that MLRun creates.
-- Nuclio functions: the default priority class for the user-created functions.
-- Jupyter
-- Presto (The pods priority also affects any additional services that are directly affected by Presto, for example like hive and mariadb, 
-which are created if Enable hive is checked in the Presto service.)
-- Grafana
-- Shell
+Pod priority is relevant for all of the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
 
-See mode details in [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption).
+Pod priority is specified through Priority classes, which map to a priority value. The priority values are: High, Medium, Low. The default is Medium. 
 
 ### SDK configuration
 
@@ -308,7 +303,7 @@ train_fn.run(inputs={"dataset" :my_data})
  
 ```
 
-See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
+See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_priority_class`.
 
 ### UI configuration
 
@@ -335,31 +330,28 @@ For example:
 func.with_node_selection(node_selector={name})
 ```
 
-See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).
+See {py:meth}`~#mlrun.runtimes.RemoteRuntime.with_node_selection`.
 
 ### UI configuration
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-Configure node selection on the service level in the service's **Custom Parameters** tab, under **Resources**, by adding or removing 
-Key:Value pairs. For MLRun and Nuclio, this is the default node selection for all MLRun jobs and Nuclio functions. 
-
-You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node 
-selector**, and adding or removing Key:Value pairs. Configure the node selection for individual Nuclio functions when creating a function in 
-the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
+Configure node selection for individual MLRun jobs when creating a Batch run: go to your project, press **Create New** and select **Batch run**. 
+When you get to the **Resources** tab, add **Key:Value** pair(s). Configure the node selection for individual Nuclio functions when creating a 
+function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
 
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 
-See [**Replicas**](./configuring-job-resources.html#replicas) to see how to configure scaling behavior per runtime. 
-This example demonstrates setting replicas for `nuclio`/`serving` runtimes:
+In environments where node auto-scaling is available, auto-scaling is triggered in situations where pods cannot be scheduled to any existing node 
+due to lack of resources. In situations where pod requests for CPU/Memory are low, auto-scaling may not be triggered since pods could still be 
+placed on existing nodes (per their low requests), even though in practice they do not have the needed resources as they near their (much higher) 
+limits and might be in danger of eviction due to OOM situations.
 
-```python
-# Nuclio/serving scaling
-fn.spec.replicas = 2
-fn.spec.min_replicas = 1
-fn.spec.max_replicas = 4
-```
+Auto-scaling works best when jobs are created with limit=request. In this situation, once resources are not sufficient, new jobs are not 
+scheduled to any existing node, and new nodes are automatically added to accommodate them.
+
+Auto-scaling is a node-group configuration.
 
 ## Mount persistent storage
 In some instances, you might need to mount a file-system to your container to persist data. This can be done with native K8s PVC's or the V3IO data layer for Iguazio clusters. See [**Attach storage to functions**](./function-storage.html) for more information on the storage options.
@@ -400,8 +392,7 @@ For just the run, use:
 func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}) 
 ```
 
-See:
-- {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
+See {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
 
 ```{admonition} Note
 State thresholds are not supported for Nuclio/serving runtimes (since they have their own monitoring) or for the Dask runtime (which can be monitored by the client).

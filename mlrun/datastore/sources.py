@@ -416,7 +416,7 @@ class ParquetSource(BaseSourceDriver):
     def _get_spark_additional_filters(self):
         if not self.additional_filters:
             return None
-        none_values = [None, np.nan, np.NaN]
+        none_values = [None, np.nan]
         additional_filters = deepcopy(self.additional_filters)
         is_first = True
         spark_filter = ""
@@ -429,7 +429,7 @@ class ParquetSource(BaseSourceDriver):
                 is_first = False
             col_name, op, value = filter_tuple
             if isinstance(value, (str, datetime)):
-                value = rf"'{value}'"
+                value = f"'{value}'"
             if isinstance(value, (list, tuple, set, np.ndarray)) and (
                 "in" in op.lower()
             ):

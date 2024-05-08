@@ -366,17 +366,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
-        result = (
-            fstore.get_offline_features(
-                feature_vector=vec,
-                additional_filters=[("bad", "=", 95)],
-                with_indexes=True,
-                engine="spark",
-                run_config=run_config,
-            )
-            .to_dataframe()
-            .reset_index(drop=False)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
+        resp = fstore.get_offline_features(
+            feature_vector=vec,
+            additional_filters=[("bad", "=", 95)],
+            with_indexes=True,
+            target=target,
+            engine="spark",
+            run_config=run_config,
+        )
+        result = resp.to_dataframe()
+        result.reset_index(drop=False)
 
         expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
         result = self._sort_df(result, "patient_id")

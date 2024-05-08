@@ -70,8 +70,7 @@ def _get_result_kind(result_df: pd.DataFrame) -> mm_constants.ResultKindApp:
             application_name=result_df[mm_writer.WriterEvent.APPLICATION_NAME],
             result_name=result_df[mm_writer.ResultData.RESULT_NAME],
         )
-    kind_str = unique_kinds[0]
-    return getattr(mm_constants.ResultKindApp, kind_str.split(".")[1])
+    return unique_kinds[0]
 
 
 def read_data(

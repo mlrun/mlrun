@@ -440,7 +440,7 @@ class APIGateway(ModelObj):
         """
         Synchronize the API gateway from the server.
         """
-        synced_gateway = mlrun.get_run_db().get_api_gateway(
+        synced_gateway = mlrun._get_db().get_api_gateway(
             self.metadata.name, self.spec.project
         )
         synced_gateway = self.from_scheme(synced_gateway)

@@ -1868,7 +1868,7 @@ def test_create_api_gateway_valid(
     ):
         api_gateway.with_access_key_auth()
 
-    gateway = project.store_api_gateway(api_gateway)
+    gateway = project.store_api_gateway(api_gateway=api_gateway)
 
     gateway_dict = gateway.to_dict()
     assert "metadata" in gateway_dict

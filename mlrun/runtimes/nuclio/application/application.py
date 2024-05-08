@@ -376,7 +376,8 @@ class ApplicationRuntime(RemoteRuntime):
 
         db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
-            api_gateway.to_scheme(), self.metadata.project
+            api_gateway=api_gateway.to_scheme(),
+            project=self.metadata.project
         )
         self.status.api_gateway_name = api_gateway.metadata.name
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)

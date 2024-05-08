@@ -618,8 +618,8 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_api_gateway(
         self,
-        project: str,
         api_gateway: mlrun.common.schemas.APIGateway,
+        project: str = None,
     ):
         pass
 

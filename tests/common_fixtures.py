@@ -244,6 +244,7 @@ class RunDBMock:
         self._project_name = None
         self._project = None
         self._runs = {}
+        self._api_gateways = {}
 
     def reset(self):
         self._functions = {}
@@ -251,6 +252,8 @@ class RunDBMock:
         self._project_name = None
         self._project = None
         self._artifacts = {}
+        self._runs = {}
+        self._api_gateways = {}
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -426,10 +429,20 @@ class RunDBMock:
 
     def store_api_gateway(
         self,
-        project: str,
         api_gateway: mlrun.common.schemas.APIGateway,
+        project: str,
     ):
+        key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
+        self._api_gateways[key] = api_gateway
         return api_gateway
+
+    def get_api_gateway(self, name: str, project: str = None):
+        key = self._generate_api_gateway_key(name, project)
+        api_gateway = self._api_gateways.get(key)
+        if api_gateway:
+            api_gateway.status.state = "ready"
+            return api_gateway
+        return None
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
@@ -583,6 +596,9 @@ class RunDBMock:
             ),
         )
 
+    def _generate_api_gateway_key(self, name: str, project: str) -> str:
+        return f"{project}-{name}"
+
     def assert_runtime_categories(self, expected_categories, function_name=None):
         function = self._get_function_internal(function_name)
         categories = function["metadata"]["categories"]
@@ -653,8 +669,8 @@ class RemoteBuilderMock:
         )
 
         def _store_api_gateway_handler(
-            project: str,
             api_gateway: mlrun.common.schemas.APIGateway,
+            project: str,
         ):
             return api_gateway
 

@@ -426,7 +426,7 @@ async def _get_metrics_values_data(
             )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Provided only one of start time, end time. Provide both or none of them"
+            "Provided only one of start time, end time. Please provide both or neither."
         )
     metrics = [
         mlrun.common.schemas.model_monitoring.model_endpoints._parse_metric_fqn_to_monitoring_metric(

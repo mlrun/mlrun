@@ -1376,12 +1376,12 @@ def read_env(env=None, prefix=env_prefix):
     if log_formatter_name := config.get("log_formatter"):
         import mlrun.utils.logger
 
-        log_formatter = mlrun.utils.create_formatter_instance(
+        log_formatter = mlrun.utils.resolve_formatter_by_kind(
             mlrun.utils.FormatterKinds(log_formatter_name)
         )
         current_handler = mlrun.utils.logger.get_handler("default")
         current_formatter_name = current_handler.formatter.__class__.__name__
-        desired_formatter_name = log_formatter.__class__.__name__
+        desired_formatter_name = log_formatter.__name__
         if current_formatter_name != desired_formatter_name:
             current_handler.setFormatter(log_formatter)
 

@@ -188,16 +188,16 @@ class _V3IORecordsChecker:
             method=mlrun.common.types.HTTPMethod.GET,
             path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type=results",
         )
-        get_results: set[str] = set()
-        results_full_names: list[str] = []
+        get_app_results: set[str] = set()
+        app_results_full_names: list[str] = []
         for result in json.loads(response.content.decode()):
-            assert result["app"] == app_data.class_.NAME
-            get_results.add(result["name"])
-            results_full_names.append(result["full_name"])
+            if result["app"] == app_data.class_.NAME:
+                get_app_results.add(result["name"])
+                app_results_full_names.append(result["full_name"])
 
-        assert app_data.results == get_results
-        assert results_full_names, "No results"
-        return results_full_names
+        assert app_data.results == get_app_results
+        assert app_results_full_names, "No results"
+        return app_results_full_names
 
     @classmethod
     def _test_api_get_values(
@@ -207,10 +207,10 @@ class _V3IORecordsChecker:
         run_db: mlrun.db.httpdb.HTTPRunDB,
     ) -> None:
         cls._logger.debug("Checking GET /metrics-values API")
-        names_query = f'name={"&name=".join(results_full_names)}'
+        names_query = f"?name={'&name='.join(results_full_names)}"
         response = run_db.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values?name={names_query}",
+            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{names_query}",
         )
         for result_values in json.loads(response.content.decode()):
             assert result_values[

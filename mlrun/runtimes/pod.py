@@ -997,28 +997,6 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude, strip=strip)
-        api = k8s_client.ApiClient()
-        struct = api.sanitize_for_serialization(struct)
-        if strip:
-            spec = struct["spec"]
-            for attr in [
-                "volumes",
-                "volume_mounts",
-                "driver_volume_mounts",
-                "executor_volume_mounts",
-            ]:
-                if attr in spec:
-                    del spec[attr]
-            if "env" in spec and spec["env"]:
-                for ev in spec["env"]:
-                    if ev["name"].startswith("V3IO_"):
-                        ev["value"] = ""
-            # Reset this, since mounts and env variables were cleared.
-            spec["disable_auto_mount"] = False
-        return struct
-
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
         secret_key = secret_key or name

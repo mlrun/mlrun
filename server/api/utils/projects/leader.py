@@ -149,11 +149,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await self._leader_follower.list_project_summaries(
             db_session, owner, labels, state, names
@@ -197,7 +197,7 @@ class Member(
         try:
             # re-generating all of the maps every time since _ensure_follower_projects_synced might cause changes
             leader_projects: mlrun.common.schemas.ProjectsOutput
-            follower_projects_map: typing.Dict[str, mlrun.common.schemas.ProjectsOutput]
+            follower_projects_map: dict[str, mlrun.common.schemas.ProjectsOutput]
             leader_projects, follower_projects_map = self._run_on_all_followers(
                 True, "list_projects", db_session
             )

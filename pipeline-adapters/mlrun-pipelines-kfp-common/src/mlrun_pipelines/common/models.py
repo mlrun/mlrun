@@ -16,7 +16,7 @@
 from enum import Enum
 
 
-class RunStatuses(Enum):
+class RunStatuses(str, Enum):
     """
     Class for different types of statuses a 'PipelineRun' can have using an enum type.
     Beyond enumerating all possible statuses, this class ensures comparisons are case-insensitive.

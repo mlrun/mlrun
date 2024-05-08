@@ -27,6 +27,7 @@ from mlrun_pipelines.common.helpers import (
 from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
 
 import mlrun
+import mlrun.common.runtimes.constants
 from mlrun.config import config
 from mlrun.utils import get_in
 
@@ -186,7 +187,7 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    auth_env_var = mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
     if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(

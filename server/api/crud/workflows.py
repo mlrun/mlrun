@@ -15,6 +15,7 @@
 import os
 import uuid
 
+import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -288,7 +289,8 @@ class WorkflowRunners(
 
             elif (
                 engine == "local"
-                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
+                and state.casefold()
+                == mlrun_pipelines.common.models.RunStatuses.running.casefold()
             ):
                 workflow_id = ""
             else:

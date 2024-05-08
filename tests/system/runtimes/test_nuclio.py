@@ -17,6 +17,7 @@ import os
 import time
 import uuid
 
+import mlrun_pipelines.mounts
 import pandas as pd
 import pytest
 import requests
@@ -401,7 +402,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func.spec.max_replicas = 1
 
         run_config = fstore.RunConfig(local=False, function=func).apply(
-            mlrun.auto_mount()
+            mlrun_pipelines.mounts.auto_mount()
         )
         stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,

@@ -27,6 +27,7 @@ import click
 import dotenv
 import pandas as pd
 import yaml
+from mlrun_pipelines.mounts import auto_mount as auto_mount_modifier
 from tabulate import tabulate
 
 import mlrun
@@ -37,7 +38,6 @@ from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
 from .model import RunTemplate
-from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
 from .run import (
     get_object,
@@ -466,6 +466,17 @@ def run(
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--state-file-path", default="/tmp/state", help="path to file with state data"
+)
+@click.option(
+    "--image-file-path", default="/tmp/image", help="path to file with image data"
+)
+@click.option(
+    "--full-image-file-path",
+    default="/tmp/fullimage",
+    help="path to file with full image data",
+)
 def build(
     func_url,
     name,
@@ -485,6 +496,9 @@ def build(
     skip,
     env_file,
     ensure_project,
+    state_file_path,
+    image_file_path,
+    full_image_file_path,
 ):
     """Build a container image from code and requirements."""
 
@@ -574,12 +588,12 @@ def build(
         state = func.status.state
         image = func.spec.image
         if kfp:
-            with open("/tmp/state", "w") as fp:
+            with open(state_file_path, "w") as fp:
                 fp.write(state or "none")
             full_image = func.full_image_path(image) or ""
-            with open("/tmp/image", "w") as fp:
+            with open(image_file_path, "w") as fp:
                 fp.write(image)
-            with open("/tmp/fullimage", "w") as fp:
+            with open(full_image_file_path, "w") as fp:
                 fp.write(full_image)
             print("Full image path = ", full_image)
 

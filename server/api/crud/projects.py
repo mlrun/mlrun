@@ -19,6 +19,7 @@ import typing
 
 import fastapi.concurrency
 import humanfriendly
+import mlrun_pipelines
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -396,8 +397,6 @@ class Projects(
                 project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
-                project_to_recent_completed_pipelines_count,
-                project_to_recent_failed_pipelines_count,
                 project_to_running_pipelines_count,
             )
             ttl_time = datetime.datetime.now() + datetime.timedelta(

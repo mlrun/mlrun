@@ -15,7 +15,7 @@ server creates a log for the input and output of the vectors, and the entries ar
 is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. The stream function examines 
 the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
 The parquet files are written as a feature set under the model monitoring project. The parquet files can be read either using `pandas.read_parquet` or `feature_set.get_offline_features`, 
-like any other feature set. In parallel, a scheduled MLRun job runs reading the parquet files, performing drift analysis. The drift analysis data is stored so 
+like any other feature set. In parallel, a scheduled MLRun job runs, reading the parquet files, and performs drift analysis. The drift analysis data is stored so 
 that the user can retrieve it in the Iguazio UI or in a Grafana dashboard.
 
 When you enable model monitoring, you effectively deploy three components:

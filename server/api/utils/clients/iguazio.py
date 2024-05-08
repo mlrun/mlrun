@@ -192,22 +192,17 @@ class Client(
                 SessionPlanes.data,
                 SessionPlanes.control,
             ]
-        body = {
-            "data": {
-                "type": "access_key",
-                "attributes": {"label": "MLRun", "planes": planes},
-            }
-        }
-        response = self._send_request_to_api(
-            "POST",
-            "self/get_or_create_access_key",
-            "Failed getting or creating iguazio access key",
-            session,
-            json=body,
+        planes = [
+            igz_mgmt.constants.SessionPlanes(plane)
+            for plane in planes
+            if plane in igz_mgmt.constants.SessionPlanes.all()
+        ]
+        access_key = igz_mgmt.AccessKey.get_or_create(
+            self._get_igz_client(session),
+            planes=planes,
+            label="MLRun",
         )
-        if response.status_code == http.HTTPStatus.CREATED.value:
-            self._logger.debug("Created access key in Iguazio", planes=planes)
-        return response.json()["data"]["id"]
+        return access_key.id
 
     def create_project(
         self,
@@ -381,9 +376,7 @@ class Client(
         Emit a manual event to Iguazio
         """
         client = self._get_igz_client(access_key)
-        igz_mgmt.ManualEvents.emit(
-            http_client=client, event=event, audit_tenant_id=client.tenant_id
-        )
+        event.emit(client)
 
     def _get_igz_client(self, access_key: str) -> igz_mgmt.Client:
         if not self._igz_clients.get(access_key):

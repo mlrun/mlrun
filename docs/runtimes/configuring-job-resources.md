@@ -44,11 +44,11 @@ training_function = mlrun.code_to_function("training.py", name="training", handl
 training_function.spec.replicas = 2
 ```
 or a range (for auto-scaling in Dask or Nuclio):
-```python
-training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
-                                           kind="mpijob", image="mlrun/mlrun-gpu")
-training_function.min_replicas = 1
-training_function.max_replicas = 4
+
+```
+# set range for # of replicas with replicas and max_replicas
+dask_cluster.spec.min_replicas = 1
+dask_cluster.spec.max_replicas = 4
 ```
 
 ```{admonition} Note
@@ -214,7 +214,7 @@ Configure preemption mode by adding the `with_preemption_mode` parameter in your
 This example illustrates a function that cannot be scheduled on preemptible nodes:
 
 
-```python
+```
 # Only run on non-spot instances
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
 ```
@@ -222,7 +222,7 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preempt
 And another function that can only be scheduled on preemptible noodes:
 
 
-```python
+```
 import mlrun
 import os
 
@@ -240,7 +240,7 @@ See {py:meth}`~#RemoteRuntime.with_preemption_mode.
 Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that 
 the pod/function runs only on non-preemptible nodes:
 
-```python
+```
 import mlrun
 import os
 train_fn = mlrun.code_to_function('training', 
@@ -283,7 +283,7 @@ Pod priority is specified through Priority classes, which map to a priority valu
 Configure pod priority by adding the priority class parameter in your Jupyter notebook. <br>
 For example:
 
-```python
+```
 import mlrun
 import os
 train_fn = mlrun.code_to_function('training', 
@@ -316,9 +316,9 @@ parameter mainly used in production deployments to isolate platform services fro
 Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
 For example:
 
-```python        
-# Add node selection
-func.with_node_selection(node_selector={name})
+```        
+# Only run on non-spot instances
+fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
 ```
 
 See {py:meth}`~#mlrun.runtimes.RemoteRuntime.with_node_selection`.

@@ -1533,11 +1533,14 @@ class HTTPRunDB(RunDBInterface):
         verbose: bool = False,
     ):
         """Retrieve the status of a deploy operation currently in progress.
+
         :param func:                Function object that is being built.
         :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
                                     later than this parameter.
         :param verbose:             Add verbose logs into the output.
+
         :returns: The following parameters:
+
             - Text of builder logs.
             - Timestamp of last log retrieved, to be used in subsequent calls to this function.
         """
@@ -3296,6 +3299,7 @@ class HTTPRunDB(RunDBInterface):
         application results to the databases.
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
+
         :param project:     Project name.
         :param base_period: The time period in minutes in which the model monitoring controller function
                             triggers. By default, the base period is 10 minutes.
@@ -3362,7 +3366,6 @@ class HTTPRunDB(RunDBInterface):
                         path="/local/path/to/source", channel="development"
                     ),
                 ),
-                )
             )
             db.create_hub_source(private_source)
 
@@ -3588,6 +3591,7 @@ class HTTPRunDB(RunDBInterface):
         Returns an API gateway
         :param name: API gateway name
         :param project: optional str parameter to filter by project, if not passed, default project value is taken
+
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
         project = project or config.default_project
@@ -3620,6 +3624,7 @@ class HTTPRunDB(RunDBInterface):
         :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
             or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
+
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
 
@@ -3634,9 +3639,6 @@ class HTTPRunDB(RunDBInterface):
             json=api_gateway.dict(exclude_none=True),
         )
         return mlrun.common.schemas.APIGateway(**response.json())
-        endpoint_path = f"projects/{project}/nuclio/api-gateways"
-        resp = self.api_call("GET", endpoint_path, error)
-        return resp.json()
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
@@ -3659,7 +3661,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         run_uid: str,
-        notifications: typing.list[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ):
         """
         Set notifications on a run. This will override any existing notifications on the run.
@@ -3684,7 +3686,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         schedule_name: str,
-        notifications: typing.list[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ):
         """
         Set notifications on a schedule. This will override any existing notifications on the schedule.
@@ -3707,7 +3709,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_run_notifications(
         self,
-        notification_objects: typing.list[mlrun.model.Notification],
+        notification_objects: list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,

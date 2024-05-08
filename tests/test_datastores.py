@@ -21,8 +21,7 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.artifacts import ModelArtifact
-from mlrun.artifacts.base import LegacyLinkArtifact, LinkArtifact
-from mlrun.artifacts.model import LegacyModelArtifact
+from mlrun.artifacts.base import LinkArtifact
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -202,36 +201,23 @@ def test_get_store_artifact_url_parsing():
         mlrun.datastore.store_resources.get_store_resource(url, db)
 
 
-@pytest.mark.parametrize("legacy_format", [False, True])
-def test_get_store_resource_with_linked_artifacts(legacy_format):
+def test_get_store_resource_with_linked_artifacts():
     artifact_key = "key1"
     project = "test_project"
     link_iteration = 7
 
-    if legacy_format:
-        link_artifact = LegacyLinkArtifact(
-            key=artifact_key, target_path="/some/path", link_iteration=link_iteration
-        )
-        link_artifact.project = project
-        model_artifact = LegacyModelArtifact(
-            key=f"{artifact_key}#{link_iteration}",
-            target_path="/some/path/again",
-            body="just a body",
-        )
-        model_artifact.project = project
-    else:
-        link_artifact = LinkArtifact(
-            key=artifact_key,
-            project=project,
-            target_path="/some/path",
-            link_iteration=link_iteration,
-        )
-        model_artifact = ModelArtifact(
-            key=f"{artifact_key}#{link_iteration}",
-            project=project,
-            target_path="/some/path/again",
-            body="just a body",
-        )
+    link_artifact = LinkArtifact(
+        key=artifact_key,
+        project=project,
+        target_path="/some/path",
+        link_iteration=link_iteration,
+    )
+    model_artifact = ModelArtifact(
+        key=f"{artifact_key}#{link_iteration}",
+        project=project,
+        target_path="/some/path/again",
+        body="just a body",
+    )
 
     mock_artifacts = [link_artifact, model_artifact]
 
@@ -346,7 +332,7 @@ def test_object_from_empty_url():
 def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
-        store, _ = mlrun.store_manager.get_or_create_store(tmpdir)
+        store, _, _ = mlrun.store_manager.get_or_create_store(tmpdir)
         file_system = store.filesystem
         with store.open(tmpdir + "/1x.txt", "w") as fp:
             fp.write("123")

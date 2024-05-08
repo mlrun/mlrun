@@ -15,7 +15,6 @@
 import json
 import re
 import subprocess
-import sys
 
 import click
 
@@ -36,6 +35,7 @@ class PackageTester:
         google_cloud_bigquery_import = (
             "from mlrun.datastore.sources import BigQuerySource"
         )
+        oss_import = "import mlrun.datastore.alibaba_oss"
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
         targets_import = "import mlrun.datastore.targets"
         redis_import = "import redis"
@@ -56,6 +56,7 @@ class PackageTester:
             "[azure-key-vault]": {
                 "import_test_command": f"{basic_import}; {azure_key_vault_import}"
             },
+            "[alibaba-oss]": {"import_test_command": f"{basic_import}; {oss_import}"},
             # TODO: this won't actually fail if the requirement is missing
             "[google-cloud-bigquery]": {
                 "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"
@@ -68,7 +69,8 @@ class PackageTester:
             "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {redis_import}; {targets_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import};"
+                + f" {redis_import}; {targets_import}; {oss_import}",
                 "perform_vulnerability_check": True,
             },
             "[mlflow]": {"import_test_command": f"{basic_import}; {mlflow_import}"},
@@ -205,15 +207,6 @@ class PackageTester:
                 ],
             }
 
-            python_3_7 = sys.version_info[0] == 3 and sys.version_info[1] == 7
-            if python_3_7:
-                ignored_vulnerabilities["numpy"] = [
-                    {
-                        "pattern": r"^Numpy 1.22.2  includes a fix for CVE-2021-41495:(.*)",
-                        "reason": "Numpy support for 3.7 has stopped post 1.21.x",
-                    }
-                ]
-
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:
                 if vulnerability["package_name"] in ignored_vulnerabilities:
@@ -298,8 +291,7 @@ class PackageTester:
                 env=env,
                 shell=True,
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 encoding="utf-8",
             )
         except subprocess.CalledProcessError as exc:

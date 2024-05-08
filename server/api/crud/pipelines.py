@@ -53,7 +53,7 @@ class Pipelines(
         name_contains: str = "",
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
-    ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
+    ) -> tuple[int, typing.Optional[int], list[dict]]:
         if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination"
@@ -300,9 +300,9 @@ class Pipelines(
     def _format_runs(
         self,
         db_session: sqlalchemy.orm.Session,
-        runs: typing.List[dict],
+        runs: list[dict],
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
-    ) -> typing.List[dict]:
+    ) -> list[dict]:
         formatted_runs = []
         logger.debug("Formatting pipeline runs", runs_len=len(runs), format=format_)
         for run in runs:
@@ -335,7 +335,7 @@ class Pipelines(
 
     def _resolve_project_from_command(
         self,
-        command: typing.List[str],
+        command: list[str],
         hyphen_p_is_also_project: bool,
         has_func_url_flags: bool,
         has_runtime_flags: bool,
@@ -374,7 +374,9 @@ class Pipelines(
                         parsed_runtime = ast.literal_eval(runtime)
                     except Exception as exc:
                         logger.warning(
-                            "Failed parsing runtime. Skipping", runtime=runtime, exc=exc
+                            "Failed parsing runtime. Skipping",
+                            runtime=runtime,
+                            exc=err_to_str(exc),
                         )
                     else:
                         if isinstance(parsed_runtime, dict):

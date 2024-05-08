@@ -15,7 +15,6 @@
 import itertools
 import os
 import tempfile
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -90,7 +89,7 @@ def unpack_dataframe(obj: pd.DataFrame, i: int):
     assert (obj == _DATAFRAME_SAMPLES[i]).all().all()
 
 
-def prepare_dataframe_file(file_format: str, i: int) -> Tuple[str, str]:
+def prepare_dataframe_file(file_format: str, i: int) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_dataframe.{file_format}")
     formatter = PandasSupportedFormat.get_format_handler(fmt=file_format)
@@ -211,7 +210,7 @@ def validate_series(result: dict, i: int) -> bool:
     return result == _prepare_result(dataframe=pd.DataFrame(_SERIES_SAMPLES[i]))
 
 
-def prepare_series_file(file_format: str, i: int) -> Tuple[str, str]:
+def prepare_series_file(file_format: str, i: int) -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_series.{file_format}")
     formatter = PandasSupportedFormat.get_format_handler(fmt=file_format)

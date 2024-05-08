@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import igz_mgmt.schemas.events
 
@@ -45,19 +44,18 @@ class Client(base_events.BaseEventClient):
                 self.access_key, event
             )
         except Exception as exc:
-            if self.verbose:
-                logger.warning(
-                    "Failed to emit event",
-                    event=event,
-                    exc_info=exc,
-                )
+            logger.warning(
+                "Failed to emit event",
+                event=event,
+                exc_info=exc,
+            )
 
     def generate_auth_secret_event(
         self,
         username: str,
         secret_name: str,
         action: mlrun.common.schemas.AuthSecretEventActions,
-    ) -> igz_mgmt.Event:
+    ) -> igz_mgmt.AuditEvent:
         """
         Generate an auth secret event
         :param username:        username
@@ -65,10 +63,11 @@ class Client(base_events.BaseEventClient):
         :param action:          preformed action
         :return: event object to emit
         """
-        if action == mlrun.common.schemas.SecretEventActions.created:
-            return self._generate_auth_secret_created_event(username, secret_name)
-        elif action == mlrun.common.schemas.SecretEventActions.updated:
-            return self._generate_auth_secret_updated_event(username, secret_name)
+        if action in [
+            mlrun.common.schemas.SecretEventActions.created,
+            mlrun.common.schemas.SecretEventActions.updated,
+        ]:
+            return self._generate_auth_secret_event(username, secret_name, action)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")
 
@@ -76,9 +75,9 @@ class Client(base_events.BaseEventClient):
         self,
         project: str,
         secret_name: str,
-        secret_keys: typing.List[str] = None,
+        secret_keys: list[str] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
-    ) -> igz_mgmt.Event:
+    ) -> igz_mgmt.AuditEvent:
         """
         Generate a project secret event
         :param project:     project name
@@ -100,32 +99,13 @@ class Client(base_events.BaseEventClient):
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")
 
-    def _generate_auth_secret_created_event(
-        self, username: str, secret_name: str
-    ) -> igz_mgmt.Event:
-        return igz_mgmt.Event(
+    def _generate_auth_secret_event(
+        self, username: str, secret_name: str, action: str
+    ) -> igz_mgmt.AuditEvent:
+        return igz_mgmt.AuditEvent(
             source=self.source,
             kind=PROJECT_AUTH_SECRET_CREATED,
-            description=f"User {username} created secret {secret_name}",
-            parameters_text=[
-                igz_mgmt.schemas.events.ParametersText(name="username", value=username),
-                igz_mgmt.schemas.events.ParametersText(
-                    name="secret_name", value=secret_name
-                ),
-            ],
-            severity=igz_mgmt.constants.EventSeverity.info,
-            classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
-            visibility=igz_mgmt.constants.EventVisibility.external,
-        )
-
-    def _generate_auth_secret_updated_event(
-        self, username: str, secret_name: str
-    ) -> igz_mgmt.Event:
-        return igz_mgmt.Event(
-            source=self.source,
-            kind=PROJECT_AUTH_SECRET_UPDATED,
-            description=f"User {username} updated secret {secret_name}",
+            description=f"User {username} {action} secret {secret_name}",
             parameters_text=[
                 igz_mgmt.schemas.events.ParametersText(name="username", value=username),
                 igz_mgmt.schemas.events.ParametersText(
@@ -139,10 +119,10 @@ class Client(base_events.BaseEventClient):
         )
 
     def _generate_project_secret_created_event(
-        self, project: str, secret_name: str, secret_keys: typing.List[str]
-    ) -> igz_mgmt.Event:
+        self, project: str, secret_name: str, secret_keys: list[str]
+    ) -> igz_mgmt.AuditEvent:
         normalized_secret_keys = self._list_to_string(secret_keys)
-        return igz_mgmt.Event(
+        return igz_mgmt.AuditEvent(
             source=self.source,
             kind=PROJECT_SECRET_CREATED,
             parameters_text=[
@@ -167,10 +147,10 @@ class Client(base_events.BaseEventClient):
         self,
         project: str,
         secret_name: str,
-        secret_keys: typing.List[str],
-    ) -> igz_mgmt.Event:
+        secret_keys: list[str],
+    ) -> igz_mgmt.AuditEvent:
         normalized_secret_keys = self._list_to_string(secret_keys)
-        return igz_mgmt.Event(
+        return igz_mgmt.AuditEvent(
             source=self.source,
             kind=PROJECT_SECRET_UPDATED,
             description=f"Project {project} secret updated",
@@ -193,8 +173,8 @@ class Client(base_events.BaseEventClient):
 
     def _generate_project_secret_deleted_event(
         self, project: str, secret_name: str
-    ) -> igz_mgmt.Event:
-        return igz_mgmt.Event(
+    ) -> igz_mgmt.AuditEvent:
+        return igz_mgmt.AuditEvent(
             source=self.source,
             kind=PROJECT_SECRET_DELETED,
             description=f"Project {project} secret deleted",
@@ -213,5 +193,5 @@ class Client(base_events.BaseEventClient):
         )
 
     @staticmethod
-    def _list_to_string(list_to_convert: typing.List[str]) -> str:
+    def _list_to_string(list_to_convert: list[str]) -> str:
         return ", ".join(list_to_convert)

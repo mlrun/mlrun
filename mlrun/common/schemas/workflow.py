@@ -36,12 +36,12 @@ class WorkflowSpec(pydantic.BaseModel):
 
 class WorkflowRequest(pydantic.BaseModel):
     spec: typing.Optional[WorkflowSpec] = None
-    arguments: typing.Optional[typing.Dict] = None
+    arguments: typing.Optional[dict] = None
     artifact_path: typing.Optional[str] = None
     source: typing.Optional[str] = None
     run_name: typing.Optional[str] = None
     namespace: typing.Optional[str] = None
-    notifications: typing.Optional[typing.List[Notification]] = None
+    notifications: typing.Optional[list[Notification]] = None
 
 
 class WorkflowResponse(pydantic.BaseModel):

@@ -23,8 +23,8 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.api.runtime_handlers.mpijob
 import server.api.utils.helpers
+from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes.constants import PodPhases, RunStates
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.k8s import get_k8s_helper
@@ -353,50 +353,6 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.run_uid,
             log,
             self.launcher_pod.metadata.name,
-        )
-
-    def test_resolve_runtimes(self):
-        mlrun.mlconf.mpijob_crd_version = None
-        mlrun.runtimes.MpiRuntimeContainer.reset_override()
-
-        # check default
-        default_runtime = mlrun.runtimes.MpiRuntimeContainer().selector()
-        assert default_runtime.crd_version == mlrun.runtimes.MPIJobCRDVersions.default()
-
-        # override the default
-        mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.MPIJobCRDVersions.v1
-        v1_runtime = mlrun.runtimes.MpiRuntimeContainer().selector()
-        assert v1_runtime == mlrun.runtimes.MpiRuntimeV1
-
-        # override the container
-        mlrun.runtimes.MpiRuntimeContainer.override(
-            server.api.runtime_handlers.MpiRuntimeHandlerContainer
-        )
-        mlrun.mlconf.mpijob_crd_version = None
-        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
-            mlrun.runtimes.MPIJobCRDVersions.v1alpha1
-        )
-
-        # cache should be used
-        v1alpha1_runtime = mlrun.runtimes.MpiRuntimeContainer.selector()
-        assert v1alpha1_runtime == mlrun.runtimes.MpiRuntimeV1Alpha1
-        v1alpha1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
-        assert (
-            v1alpha1_runtime_handler
-            == server.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
-        )
-
-        mlrun.mlconf.mpijob_crd_version = None
-        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
-            mlrun.runtimes.MPIJobCRDVersions.v1
-        )
-
-        # cache should be used
-        v1_runtime = mlrun.runtimes.MpiRuntimeContainer.selector()
-        assert v1_runtime == mlrun.runtimes.MpiRuntimeV1
-        v1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
-        assert (
-            v1_runtime_handler == server.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
         )
 
     def test_state_thresholds(self, db: Session, client: TestClient):

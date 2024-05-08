@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import mlrun.common.schemas.schedule
 import mlrun.errors
@@ -50,7 +50,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -58,16 +58,16 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: Dict[str, list] = None,
+        hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
         if self._is_run_local and schedule is not None:
@@ -247,7 +247,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         return fn
 
     @staticmethod
-    def _resolve_local_code_path(local_code_path: str) -> (str, List[str]):
+    def _resolve_local_code_path(local_code_path: str) -> (str, list[str]):
         command = None
         args = []
         if local_code_path:

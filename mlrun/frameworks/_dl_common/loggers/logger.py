@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, List
 
 import mlrun
 
@@ -79,7 +78,7 @@ class Logger:
         return self._mode
 
     @property
-    def training_results(self) -> Dict[str, List[List[float]]]:
+    def training_results(self) -> dict[str, list[list[float]]]:
         """
         Get the training results logged. The results will be stored in a dictionary where each key is the metric name
         and the value is a list of lists of values. The first list is by epoch and the second list is by iteration
@@ -90,7 +89,7 @@ class Logger:
         return self._training_results
 
     @property
-    def validation_results(self) -> Dict[str, List[List[float]]]:
+    def validation_results(self) -> dict[str, list[list[float]]]:
         """
         Get the validation results logged. The results will be stored in a dictionary where each key is the metric name
         and the value is a list of lists of values. The first list is by epoch and the second list is by iteration
@@ -101,7 +100,7 @@ class Logger:
         return self._validation_results
 
     @property
-    def training_summaries(self) -> Dict[str, List[float]]:
+    def training_summaries(self) -> dict[str, list[float]]:
         """
         Get the training summaries of the metrics results. The summaries will be stored in a dictionary where each key
         is the metric names and the value is a list of all the summary values per epoch.
@@ -111,7 +110,7 @@ class Logger:
         return self._training_summaries
 
     @property
-    def validation_summaries(self) -> Dict[str, List[float]]:
+    def validation_summaries(self) -> dict[str, list[float]]:
         """
         Get the validation summaries of the metrics results. The summaries will be stored in a dictionary where each key
         is the metric names and the value is a list of all the summary values per epoch.
@@ -121,7 +120,7 @@ class Logger:
         return self._validation_summaries
 
     @property
-    def static_hyperparameters(self) -> Dict[str, DLTypes.TrackableType]:
+    def static_hyperparameters(self) -> dict[str, DLTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -131,7 +130,7 @@ class Logger:
         return self._static_hyperparameters
 
     @property
-    def dynamic_hyperparameters(self) -> Dict[str, List[DLTypes.TrackableType]]:
+    def dynamic_hyperparameters(self) -> dict[str, list[DLTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.

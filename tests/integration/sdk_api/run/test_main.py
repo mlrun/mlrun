@@ -15,9 +15,10 @@ import datetime
 import os
 import pathlib
 import sys
+import tempfile
 import traceback
 from base64 import b64encode
-from subprocess import PIPE, run
+from subprocess import run
 from sys import executable, stderr
 
 import pytest
@@ -46,7 +47,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def custom_setup(self):
         # ensure default project exists
-        mlrun.get_or_create_project("default")
+        mlrun.get_or_create_project("default", allow_cross_project=True)
 
     def test_main_run_basic(self):
         out = self._exec_run(
@@ -216,7 +217,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                 [
                     "--bad-flag",
                     "--name",
-                    "test_main_run_basic",
+                    "test-main-run-basic",
                     "--dump",
                     f"{examples_path}/training.py",
                 ],
@@ -228,7 +229,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             # bad flag with no command
             [
                 "run",
-                ["--name", "test_main_run_basic", "--bad-flag"],
+                ["--name", "test-main-run-basic", "--bad-flag"],
                 False,
                 "Error: Invalid value for '[URL]': URL (--bad-flag) cannot start with '-', "
                 "ensure the command options are typed correctly. Preferably use '--' to separate options and "
@@ -237,7 +238,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             # bad flag after -- separator
             [
                 "run",
-                ["--name", "test_main_run_basic", "--", "-notaflag"],
+                ["--name", "test-main-run-basic", "--", "-notaflag"],
                 False,
                 "Error: Invalid value for '[URL]': URL (-notaflag) cannot start with '-', "
                 "ensure the command options are typed correctly. Preferably use '--' to separate options and "
@@ -248,26 +249,31 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "run",
                 [
                     "--name",
-                    "test_main_run_basic",
+                    "test-main-run-basic",
                     "--",
                     f"{examples_path}/training.py",
                     "--some-arg",
                 ],
                 True,
-                "'status': 'completed'",
+                '"status":"completed"',
             ],
         ],
     )
     def test_main_run_args_validation(self, op, args, raise_on_error, expected_output):
-        out = self._exec_main(
-            op,
-            args,
-            raise_on_error=raise_on_error,
-        )
-        if not raise_on_error:
-            out = out.stderr.decode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = [
+                "--out-path",
+                tmpdir,
+            ] + args
+            out = self._exec_main(
+                op,
+                args,
+                raise_on_error=raise_on_error,
+            )
+            if not raise_on_error:
+                out = out.stderr.decode("utf-8")
 
-        assert out.find(expected_output) != -1, out
+            assert out.find(expected_output) != -1, out
 
     def test_main_run_args_from_env(self):
         os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
@@ -362,7 +368,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
 
     def test_main_local_project(self):
-        mlrun.get_or_create_project("testproject")
+        mlrun.get_or_create_project("testproject", allow_cross_project=True)
         project_path = str(self.assets_path)
         args = "-f simple -p x=2 --dump"
         out = self._exec_main("run", args.split(), cwd=project_path)
@@ -426,7 +432,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_main_run_function_from_another_project(self):
         # test running function from another project and validate that the function is stored in the current project
-        project = mlrun.get_or_create_project("first-project")
+        project = mlrun.get_or_create_project("first-project", allow_cross_project=True)
 
         fn = mlrun.code_to_function(
             name="new-func",
@@ -438,7 +444,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         fn.save()
 
         # create another project
-        project2 = mlrun.get_or_create_project("second-project")
+        project2 = mlrun.get_or_create_project(
+            "second-project", allow_cross_project=True
+        )
 
         # from the second project - run the function that we stored in the first project
         args = (
@@ -460,7 +468,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         cmd = [executable, "-m", "mlrun", op]
         if args:
             cmd += args
-        out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
+        out = run(cmd, capture_output=True, cwd=cwd)
         if out.returncode != 0:
             print(out.stderr.decode("utf-8"), file=stderr)
             print(out.stdout.decode("utf-8"), file=stderr)

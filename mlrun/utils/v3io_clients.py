@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, FrozenSet
 
 from v3io.dataplane import Client as V3IOClient
 from v3io_frames import Client as get_client
 from v3io_frames.client import ClientBase
 
-_v3io_clients: Dict[FrozenSet, V3IOClient] = {}
-_frames_clients: Dict[FrozenSet, ClientBase] = {}
+_v3io_clients: dict[frozenset, V3IOClient] = {}
+_frames_clients: dict[frozenset, ClientBase] = {}
 
 
 def get_frames_client(**kwargs) -> ClientBase:

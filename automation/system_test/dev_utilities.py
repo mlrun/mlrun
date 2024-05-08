@@ -43,15 +43,13 @@ def run_command(cmd):
     """
     Runs a shell command and returns its output and exit status.
     """
-    result = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
-    )
+    result = subprocess.run(cmd, capture_output=True, shell=True)
     return result.stdout.decode("utf-8"), result.returncode
 
 
 def create_ingress_resource(domain_name, ipadd):
     # Replace the placeholder string with the actual domain name
-    yaml_manifest = """
+    yaml_manifest = f"""
     apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
@@ -59,7 +57,7 @@ def create_ingress_resource(domain_name, ipadd):
         nginx.ingress.kubernetes.io/auth-cache-duration: 200 202 5m, 401 30s
         nginx.ingress.kubernetes.io/auth-cache-key: $host$http_x_remote_user$http_cookie$http_authorization
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
-        nginx.ingress.kubernetes.io/whitelist-source-range: "{}"
+        nginx.ingress.kubernetes.io/whitelist-source-range: "{ipadd}"
         nginx.ingress.kubernetes.io/service-upstream: "true"
         nginx.ingress.kubernetes.io/ssl-redirect: "false"
       labels:
@@ -69,7 +67,7 @@ def create_ingress_resource(domain_name, ipadd):
     spec:
       ingressClassName: nginx
       rules:
-      - host: {}
+      - host: {domain_name}
         http:
           paths:
           - backend:
@@ -81,9 +79,9 @@ def create_ingress_resource(domain_name, ipadd):
             pathType: ImplementationSpecific
       tls:
       - hosts:
-        - {}
+        - {domain_name}
         secretName: ingress-tls
-    """.format(ipadd, domain_name, domain_name)
+    """
     subprocess.run(
         ["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True
     )
@@ -97,17 +95,13 @@ def get_ingress_controller_version():
     awk_cmd1 = "awk '{print $3}'"
     awk_cmd2 = "awk -F mlrun-api.default-tenant '{print $2}'"
     cmd = f"{kubectl_cmd} get ingress -n {namespace} | {grep_cmd} | {awk_cmd1} | {awk_cmd2}"
-    result = subprocess.run(
-        cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
+    result = subprocess.run(cmd, shell=True, check=True, capture_output=True)
     return result.stdout.decode("utf-8").strip()
 
 
 def get_svc_password(namespace, service_name, key):
     cmd = f'kubectl get secret --namespace {namespace} {service_name} -o jsonpath="{{.data.{key}}}" | base64 --decode'
-    result = subprocess.run(
-        cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
+    result = subprocess.run(cmd, shell=True, check=True, capture_output=True)
     return result.stdout.decode("utf-8").strip()
 
 

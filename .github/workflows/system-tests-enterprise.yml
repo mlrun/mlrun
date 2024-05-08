@@ -238,8 +238,6 @@ jobs:
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
-          --mysql-user "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
-          --mysql-password "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
           --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
           --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \

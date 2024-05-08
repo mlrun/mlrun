@@ -13,6 +13,8 @@
 # limitations under the License.
 import base64
 import hashlib
+import random
+import string
 import time
 import typing
 
@@ -262,7 +264,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace = self.resolve_namespace(namespace)
         mpijob_crd_version = server.api.runtime_handlers.resolve_mpijob_crd_version()
         mpijob_role_label = (
-            mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+            mlrun.common.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version
             )
         )
@@ -540,6 +542,92 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self.v1api.delete_namespaced_secret(secret_name, namespace)
         return mlrun.common.schemas.SecretEventActions.deleted
 
+    @raise_for_status_code
+    def ensure_configmap(
+        self,
+        resource: str,
+        name: str,
+        data: dict,
+        namespace: str = "",
+        labels: dict = None,
+    ):
+        namespace = self.resolve_namespace(namespace)
+
+        label_name = "resource_name"
+        full_name = f"{resource}-{name}"
+        name = (
+            full_name
+            if len(full_name) <= 63
+            else full_name[:59] + self._generate_rand_string(4)
+        )
+
+        have_confmap = False
+        configmaps_with_label = self.v1api.list_namespaced_config_map(
+            namespace=namespace, label_selector=f"{label_name}={full_name}"
+        )
+
+        if len(configmaps_with_label.items) > 1:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Received more than one config map for label: {full_name}"
+            )
+
+        if len(configmaps_with_label.items) == 1:
+            name = configmaps_with_label.items[0].metadata.name
+            have_confmap = True
+
+        if labels is None:
+            labels = {label_name: full_name}
+        else:
+            labels[label_name] = full_name
+
+        body = client.V1ConfigMap(
+            kind="ConfigMap",
+            metadata=client.V1ObjectMeta(name=name, labels=labels),
+            data=data,
+        )
+
+        if have_confmap:
+            try:
+                self.v1api.replace_namespaced_config_map(
+                    name, namespace=namespace, body=body
+                )
+            except ApiException as exc:
+                logger.error(
+                    "Failed to replace k8s config map",
+                    name=name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                raise exc
+        else:
+            try:
+                self.v1api.create_namespaced_config_map(namespace=namespace, body=body)
+            except ApiException as exc:
+                logger.error(
+                    "Failed to create k8s config map",
+                    name=name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                raise exc
+        return name
+
+    @raise_for_status_code
+    def delete_configmap(self, name: str, namespace: str = "", raise_on_error=True):
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            self.v1api.delete_namespaced_config_map(
+                name=name,
+                namespace=namespace,
+            )
+        except ApiException as exc:
+            logger.error(
+                "Failed to delete k8s config map",
+                name=name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            if raise_on_error:
+                raise exc
+
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
         return self._get_secret_raw_data(secret_name, namespace)
@@ -721,8 +809,12 @@ class BasePod:
             sub_path=sub_path,
         )
 
-    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+    def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
+
+    @staticmethod
+    def _generate_rand_string(length):
+        return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
     def _get_spec(self, template=False):
         pod_obj = client.V1PodTemplate if template else client.V1Pod

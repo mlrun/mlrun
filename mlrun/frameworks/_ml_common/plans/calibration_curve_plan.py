@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict
 
 import plotly.graph_objects as go
 from sklearn.calibration import calibration_curve
@@ -51,7 +50,7 @@ class CalibrationCurvePlan(MLPlotPlan):
         self._strategy = strategy
 
         # Continue the initialization for the MLPlan:
-        super(CalibrationCurvePlan, self).__init__(need_probabilities=True)
+        super().__init__(need_probabilities=True)
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
@@ -73,7 +72,7 @@ class CalibrationCurvePlan(MLPlotPlan):
         model: MLTypes.ModelType = None,
         x: MLTypes.DatasetType = None,
         **kwargs,
-    ) -> Dict[str, Artifact]:
+    ) -> dict[str, Artifact]:
         """
         Produce the calibration curve according to the ground truth (y) and predictions (y_pred) values. If predictions
         are not available, the model and a dataset can be given to produce them.

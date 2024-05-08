@@ -14,7 +14,6 @@
 #
 import os
 import uuid
-from typing import Dict
 
 import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
@@ -130,7 +129,7 @@ class WorkflowRunners(
         self,
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
-        labels: Dict[str, str],
+        labels: dict[str, str],
     ) -> mlrun.run.RunObject:
         """
         Preparing all the necessary metadata and specifications for scheduling workflow from server-side.
@@ -218,7 +217,7 @@ class WorkflowRunners(
             labels["job-type"] = "workflow-runner"
             labels["workflow"] = runner.metadata.name
         mlrun.runtimes.utils.enrich_run_labels(
-            labels, [mlrun.runtimes.constants.RunLabels.owner]
+            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
 
         run_spec = self._prepare_run_object_for_single_run(
@@ -304,7 +303,7 @@ class WorkflowRunners(
     def _prepare_run_object_for_single_run(
         self,
         project: mlrun.common.schemas.Project,
-        labels: Dict[str, str],
+        labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
         load_only: bool = False,
@@ -427,7 +426,7 @@ class WorkflowRunners(
     @staticmethod
     def _label_run_object(
         run_object: mlrun.run.RunObject,
-        labels: Dict[str, str],
+        labels: dict[str, str],
     ) -> mlrun.run.RunObject:
         """
         Setting labels to the task

@@ -35,7 +35,7 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
-        self._api_url = mlrun.config.config.nuclio_dashboard_url
+        self._api_url = mlrun.mlconf.nuclio_dashboard_url
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
@@ -140,9 +140,9 @@ class Client(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
@@ -181,9 +181,9 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
@@ -240,7 +240,7 @@ class Client(
         response = self._session.request(
             method,
             url,
-            verify=mlrun.config.config.httpdb.http.verify,
+            verify=mlrun.mlconf.httpdb.http.verify,
             auth=auth,
             **kwargs,
         )

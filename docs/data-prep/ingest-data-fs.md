@@ -49,7 +49,7 @@ It infers the source data schema, and processes the graph logic (assuming there 
 The infer operation also learns the feature set schema and, by default, does statistical analysis on the result.
   
 ```python
-df = fstore.preview(quotes_set, quotes)
+df = quotes_set.preview(quotes)
 
 # print the feature statistics
 print(quotes_set.get_stats_table())
@@ -89,12 +89,12 @@ Use a feature set to create the basic feature-set definition and then an ingest 
 # Simple feature set that reads a csv file as a dataframe and ingests it "as is" 
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 stocks = pd.read_csv("stocks.csv")
-df = ingest(stocks_set, stocks)
+df = stocks_set.ingest(stocks)
 
 # Specify a csv file as source, specify a custom CSV target 
 source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
-ingest(measurements, source, targets)
+measurements.ingest(source, targets)
 ```
 You can **update a feature set** either by overwriting its data (`overwrite=true`), or by appending data (`overwrite=false`). 
 To append data you need to reuse the feature set that was used in previous ingestions 
@@ -121,7 +121,7 @@ It also enables you to schedule the job or use bigger/faster resources.
 # Running as a remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 config = RunConfig(image='mlrun/mlrun')
-df = ingest(stocks_set, stocks, run_config=config)
+df = stocks_set.ingest(stocks, run_config=config)
 ```
 
 ## Real-time ingestion

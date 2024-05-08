@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Any, Dict, List, Union
+from typing import Any, Union
 
 from tensorflow import keras
 
@@ -33,14 +33,14 @@ def apply_mlrun(
     model_path: str = None,
     model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
     save_traces: bool = False,
-    modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-    custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
     auto_log: bool = True,
     tensorboard_directory: str = None,
-    mlrun_callback_kwargs: Dict[str, Any] = None,
-    tensorboard_callback_kwargs: Dict[str, Any] = None,
+    mlrun_callback_kwargs: dict[str, Any] = None,
+    tensorboard_callback_kwargs: dict[str, Any] = None,
     use_horovod: bool = None,
     **kwargs,
 ) -> TFKerasModelHandler:
@@ -85,7 +85,7 @@ def apply_mlrun(
 
                                             {
                                                 "/.../custom_optimizer.py": "optimizer",
-                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                                "/.../custom_layers.py": ["layer1", "layer2"],
                                             }
 
                                         All the paths will be accessed from the given 'custom_objects_directory',

@@ -199,6 +199,66 @@ class Client(
                 **(await chief_response.json())
             )
 
+    async def store_alert_template(
+        self, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Alert templates are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT", f"alert_templates/{name}", request, json
+        )
+
+    async def delete_alert_template(
+        self, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alert templates are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"alert_templates/{name}", request
+        )
+
+    async def store_alert(
+        self, project: str, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT", f"projects/{project}/alerts/{name}", request, json
+        )
+
+    async def delete_alert(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/alerts/{name}", request
+        )
+
+    async def reset_alert(
+        self, project: str, name: int, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/alerts/{name}/reset", request
+        )
+
+    async def set_event(
+        self, project: str, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Events are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/events/{name}", request, json
+        )
+
     async def set_schedule_notifications(
         self, project: str, schedule_name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
@@ -208,32 +268,6 @@ class Client(
         return await self._proxy_request_to_chief(
             "PUT",
             f"projects/{project}/schedules/{schedule_name}/notifications",
-            request,
-            json,
-        )
-
-    async def create_model_monitoring_controller(
-        self, project: str, request: fastapi.Request, json: dict
-    ):
-        """
-        Model monitoring controller includes a scheduled job which is handled by the chief
-        """
-        return await self._proxy_request_to_chief(
-            "POST",
-            f"projects/{project}/jobs/model-monitoring-controller",
-            request,
-            json,
-        )
-
-    async def deploy_monitoring_batch_job(
-        self, project: str, request: fastapi.Request, json: dict
-    ):
-        """
-        Model monitoring batch includes a scheduled job which is handled by the chief
-        """
-        return await self._proxy_request_to_chief(
-            "POST",
-            f"projects/{project}/jobs/batch-monitoring",
             request,
             json,
         )
@@ -274,6 +308,9 @@ class Client(
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
+            request_kwargs["headers"].setdefault(
+                "x-request-id", request.state.request_id
+            )
 
         # mask clients host with worker's host
         origin_host = request_kwargs.get("headers", {}).pop("host", None)

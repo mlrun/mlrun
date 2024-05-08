@@ -293,7 +293,7 @@ def test_create_pipeline(
         / "assets"
         / "pipelines.yaml"
     )
-    with open(str(pipeline_file_path), "r") as file:
+    with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(

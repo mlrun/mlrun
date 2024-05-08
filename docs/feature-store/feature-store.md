@@ -24,6 +24,7 @@ engines for serving, and batch for training.
 
 feature-store-overview
 feature-sets
+sources-targets
 transformations
 feature-vectors
 sources-targets

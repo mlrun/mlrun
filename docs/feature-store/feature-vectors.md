@@ -1,5 +1,5 @@
 (create-use-feature-vectors)=
-# Creating and using feature vectors
+# Feature vectors
 
 You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
 Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the 
@@ -123,7 +123,8 @@ Here's an example of a new dataset from a Parquet target:
 from mlrun.datastore.targets import ParquetTarget
 
 # Get offline feature vector based on vector and parquet target
-offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarget())
+fvec = fstore.get_feature_vector(feature_vector_name)
+offline_fv = fvec.get_offline_features(target=ParquetTarget())
 
 # Return dataset
 dataset = offline_fv.to_dataframe()
@@ -236,7 +237,8 @@ resp = fs.get_offline_features(
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
 First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the 
-feature vector to the service and receive the latest feature vector.
+feature vector to `get_online_feature_service` and receive the latest value of the feature vector. Note that the response contains only the features - 
+the timestamp (of the last event that updated the feature sets) is not part of the response. 
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
 
@@ -245,7 +247,8 @@ import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
 feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
-svc = fstore.get_online_feature_service(feature_vector)
+fvec = fstore.get_feature_vector(feature_vector)
+svc = fvec.get_online_feature_service()
 ```
 
 The online feature service supports value imputing (substitute NaN/Inf values with statistical or constant value). You 
@@ -254,7 +257,8 @@ instead of NaN/Inf value. This can be defined per column or for all the columns 
 The replaced value can be a fixed number for constants or `$mean`, `$max`, `$min`, `$std`, `$count` for statistical values.
 `"*"` is used to specify the default for all features, for example: 
 
-    svc = fstore.get_online_feature_service(feature_vector, impute_policy={"*": "$mean", "age": 33})
+    fvec = fstore.get_feature_vector(feature_vector)
+    svc = fvec.get_online_feature_service(impute_policy={"*": "$mean", "age": 33})
 
 
 To use the online feature service you need to supply a list of entities you want to get the feature vectors for.
@@ -274,7 +278,7 @@ The `entities` can be a list of dictionaries as shown in the example, or a list 
 list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default. 
 If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
 frameworks and this eliminates additional glue logic. 
-    
+   
 When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
 the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
 into left joins. Consequently, the function performs joins using the latest events for each required 

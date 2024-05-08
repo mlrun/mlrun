@@ -21,6 +21,7 @@ import requests
 import v3io
 
 import mlrun.errors
+from mlrun.config import config as mlconf
 from mlrun.utils import dict_to_json
 
 _cached_control_session = None
@@ -324,8 +325,8 @@ def add_or_refresh_credentials(
     # different access keys for the 2 usages
     token = (
         token
-        # can't use mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session cause this is running in the
-        # import execution path (when we're initializing the run db) and therefore we can't import mlrun.runtimes
+        # can't use mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session cause this is running
+        # in the import execution path (when we're initializing the run db) and therefore we can't import mlrun.runtimes
         or os.environ.get("MLRUN_AUTH_SESSION")
         or os.environ.get("V3IO_ACCESS_KEY")
     )
@@ -351,7 +352,9 @@ def parse_path(url, suffix="/"):
     parsed_url = urlparse(url)
     if parsed_url.netloc:
         scheme = parsed_url.scheme.lower()
-        if scheme == "v3ios":
+        if scheme == "s3":
+            prefix = "s3"
+        elif scheme == "v3ios":
             prefix = "https"
         elif scheme == "v3io":
             prefix = "http"
@@ -379,3 +382,22 @@ def sanitize_username(username: str):
     So simply replace it with dash
     """
     return username.replace("_", "-")
+
+
+def min_iguazio_versions(*versions):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", *versions
+            ):
+                return function(*args, **kwargs)
+
+            message = (
+                f"{function.__name__} is supported since Iguazio {' or '.join(versions)}, currently using "
+                f"Iguazio {mlconf.igz_version}."
+            )
+            raise mlrun.errors.MLRunIncompatibleVersionError(message)
+
+        return wrapper
+
+    return decorator

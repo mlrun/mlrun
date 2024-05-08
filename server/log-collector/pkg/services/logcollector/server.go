@@ -856,12 +856,6 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Finished log streaming",
-		"runUID", runUID,
-		"projectName", projectName,
-		"podName", podName)
-
 	// remove run from state file
 	if err := s.stateManifest.RemoveLogItem(ctx, runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
@@ -869,6 +863,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	s.Logger.DebugWithCtx(ctx,
 		"Finished log streaming",
+		"projectName", projectName,
 		"runUID", runUID,
 		"podName", podName)
 }

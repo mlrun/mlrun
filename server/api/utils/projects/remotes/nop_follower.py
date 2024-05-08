@@ -26,7 +26,7 @@ import server.api.utils.projects.remotes.follower as project_follower
 class Member(project_follower.Member):
     def __init__(self) -> None:
         super().__init__()
-        self._projects: typing.Dict[str, mlrun.common.schemas.Project] = {}
+        self._projects: dict[str, mlrun.common.schemas.Project] = {}
 
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
@@ -78,9 +78,9 @@ class Member(project_follower.Member):
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner or labels or state:
             raise NotImplementedError(
@@ -116,9 +116,9 @@ class Member(project_follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 

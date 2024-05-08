@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import ast
 import copy
 import os
 import uuid
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import mlrun_pipelines.common.ops
 
@@ -54,7 +54,7 @@ class BaseLauncher(abc.ABC):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -62,16 +62,16 @@ class BaseLauncher(abc.ABC):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: Dict[str, list] = None,
+        hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -176,7 +176,7 @@ class BaseLauncher(abc.ABC):
             if message:
                 logger.warning(message, output_path=run.spec.output_path)
 
-    def _validate_run_params(self, parameters: Dict[str, Any]):
+    def _validate_run_params(self, parameters: dict[str, Any]):
         for param_name, param_value in parameters.items():
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
@@ -238,8 +238,8 @@ class BaseLauncher(abc.ABC):
         out_path=None,
         artifact_path=None,
         workdir=None,
-        notifications: List[mlrun.model.Notification] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        notifications: list[mlrun.model.Notification] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -354,7 +354,7 @@ class BaseLauncher(abc.ABC):
             or {}
         )
         state_thresholds = (
-            mlrun.config.config.function.spec.state_thresholds.default.to_dict()
+            mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
@@ -404,7 +404,7 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
-                in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
             ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(

@@ -24,7 +24,7 @@ class ClientSpec(
 ):
     def get_client_spec(
         self, client_version: str = None, client_python_version: str = None
-    ):
+    ) -> mlrun.common.schemas.ClientSpec:
         mpijob_crd_version = (
             server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
         )
@@ -101,6 +101,9 @@ class ClientSpec(
             feature_store_data_prefixes=self._get_config_value_if_not_default(
                 "feature_store.data_prefixes"
             ),
+            feature_store_default_targets=self._get_config_value_if_not_default(
+                "feature_store.default_targets"
+            ),
             external_platform_tracking=self._get_config_value_if_not_default(
                 "external_platform_tracking"
             ),
@@ -111,6 +114,7 @@ class ClientSpec(
                 "model_endpoint_monitoring.endpoint_store_connection"
             ),
             packagers=self._get_config_value_if_not_default("packagers"),
+            alerts_mode=self._get_config_value_if_not_default("alerts.mode"),
         )
 
     @staticmethod

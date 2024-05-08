@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import List, Tuple, Union
+from typing import Union
 
 import lightgbm as lgb
 import numpy as np
@@ -36,13 +36,13 @@ class LGBMTypes(MLTypes):
 
     # An evaluation result as packaged by the training in LightGBM:
     EvaluationResultType = Union[
-        Tuple[str, str, float, bool],  # As packaged in `lightgbm.train`
-        Tuple[str, str, float, bool, float],  # As packaged in `lightgbm.cv`
+        tuple[str, str, float, bool],  # As packaged in `lightgbm.train`
+        tuple[str, str, float, bool, float],  # As packaged in `lightgbm.cv`
     ]
 
     # Detailed type for the named tuple `CallbackEnv` passed during LightGBM's training for the callbacks:
-    CallbackEnvType = Tuple[
-        lgb.Booster, dict, int, int, int, List[EvaluationResultType]
+    CallbackEnvType = tuple[
+        lgb.Booster, dict, int, int, int, list[EvaluationResultType]
     ]
 
 

@@ -32,14 +32,14 @@ from mlrun.utils import logger
 
 class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
-        self._internal_background_tasks: typing.Dict[
+        self._internal_background_tasks: dict[
             str, mlrun.common.schemas.BackgroundTask
         ] = {}
 
         # contains a lock for each background task kind, with the following format:
         # {kind: [active_name, previous_name]}
-        self._background_tasks_kind_locks: typing.Dict[
-            str, typing.Tuple[typing.Optional[str], typing.Optional[str]]
+        self._background_tasks_kind_locks: dict[
+            str, tuple[typing.Optional[str], typing.Optional[str]]
         ] = {}
 
     @server.api.utils.helpers.ensure_running_on_chief
@@ -51,7 +51,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         name: typing.Optional[str] = None,
         *args,
         **kwargs,
-    ) -> typing.Tuple[typing.Callable, str]:
+    ) -> tuple[typing.Callable, str]:
         name = name or str(uuid.uuid4())
         # sanity
         if name in self._internal_background_tasks:

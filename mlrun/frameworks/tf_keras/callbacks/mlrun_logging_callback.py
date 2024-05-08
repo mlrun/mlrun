@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Dict, List, Union
+from typing import Callable, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -50,16 +50,16 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: TFKerasModelHandler,
         log_model_tag: str = "",
-        log_model_labels: Dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_parameters: Dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_extra_data: Dict[
+        log_model_labels: dict[str, TFKerasTypes.TrackableType] = None,
+        log_model_parameters: dict[str, TFKerasTypes.TrackableType] = None,
+        log_model_extra_data: dict[
             str, Union[TFKerasTypes.TrackableType, Artifact]
         ] = None,
-        dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
+        dynamic_hyperparameters: dict[
+            str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[TFKerasTypes, List[Union[str, int]]]
+        static_hyperparameters: dict[
+            str, Union[TFKerasTypes, list[Union[str, int]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -97,7 +97,7 @@ class MLRunLoggingCallback(LoggingCallback):
                                          trying to track common static and dynamic hyperparameters such as learning
                                          rate.
         """
-        super(MLRunLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -134,7 +134,7 @@ class MLRunLoggingCallback(LoggingCallback):
         :param logs: Currently no data is passed to this argument for this method but that may change in the
                      future.
         """
-        super(MLRunLoggingCallback, self).on_test_end(logs=logs)
+        super().on_test_end(logs=logs)
 
         # Check if its part of evaluation. If so, end the run:
         if self._logger.mode == LoggingMode.EVALUATION:
@@ -151,7 +151,7 @@ class MLRunLoggingCallback(LoggingCallback):
                       performed. Validation result keys are prefixed with `val_`. For training epoch, the values of the
                       `Model`'s metrics are returned. Example : `{'loss': 0.2, 'acc': 0.7}`.
         """
-        super(MLRunLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Log the current epoch's results:
         self._logger.log_epoch_to_context(epoch=epoch)

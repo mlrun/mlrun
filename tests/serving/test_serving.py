@@ -16,7 +16,6 @@ import json
 import os
 import pathlib
 import time
-import unittest.mock
 
 import pandas as pd
 import pytest
@@ -25,7 +24,7 @@ from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.runtimes import nuclio_init_hook
-from mlrun.runtimes.serving import serving_subkind
+from mlrun.runtimes.nuclio.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import (
     GraphContext,
@@ -126,6 +125,15 @@ spec = generate_spec(router_object.to_dict())
 ensemble_spec = generate_spec(ensemble_object.to_dict())
 ensemble_spec_classification = generate_spec(ensemble_object_classification.to_dict())
 testdata = '{"inputs": [5]}'
+testdata_iris = '{"inputs": [5.1, 3.5, 1.4, 0.2]}'
+testdata_iris_dict = (
+    '{"inputs": {"sepal width (cm)": 3.5, "sepal length (cm)": 5.1, '
+    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+)
+testdata_iris_dict_error = (
+    '{"inputs": {"sepal width (cm)": 3.5, '
+    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
+)
 testdata_2 = '{"inputs": [5, 5]}'
 
 
@@ -215,6 +223,7 @@ def init_ctx(
             spec["graph"]["class_args"][extra_class_args_names[i]] = extra_class_args[i]
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
     context = context or GraphContext()
+    context.is_mock = True
     nuclio_init_hook(context, globals(), serving_subkind)
     return context
 
@@ -450,6 +459,7 @@ def test_v2_stream_mode():
 def test_v2_raised_err():
     os.environ["SERVING_SPEC_ENV"] = json.dumps(raiser_spec)
     context = GraphContext()
+    context.is_mock = True
     nuclio_init_hook(context, globals(), serving_subkind)
 
     event = MockEvent(testdata, path="/v2/models/m6/infer")
@@ -462,6 +472,7 @@ def test_v2_async_mode():
     # model loading is async
     os.environ["SERVING_SPEC_ENV"] = json.dumps(asyncspec)
     context = GraphContext()
+    context.is_mock = True
     nuclio_init_hook(context, globals(), serving_subkind)
     context.logger.info("model initialized")
 
@@ -527,6 +538,30 @@ def test_v2_get_modelmeta(rundb_mock):
     # test raise if model doesnt exist
     with pytest.raises(RuntimeError):
         server.test("/v2/models/m4", method="GET")
+
+
+def test_v2_infer_dict(rundb_mock):
+    project = mlrun.new_project("tstsrv", save=False)
+    fn = mlrun.new_function("tst", kind="serving")
+    model_uri = _log_model(project)
+    print(model_uri)
+    fn.add_model("m1", model_uri, "ModelTestingClass", multiplier=100)
+
+    server = fn.to_mock_server()
+    resp_list_1 = server.test("/v2/models/m1/infer", testdata_iris)
+    resp_list_2 = server.test("/v2/models/m1/predict", testdata_iris)
+    resp_dict = server.test("/v2/models/m1/infer_dict", testdata_iris_dict)
+    assert (
+        resp_dict.get("outputs")
+        == resp_list_1.get("outputs")
+        == resp_list_2.get("outputs")
+    )
+
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m1/infer_dict", testdata_iris)
+
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m1/infer_dict", testdata_iris_dict_error)
 
 
 def test_v2_custom_handler():
@@ -714,30 +749,3 @@ def test_mock_invoke():
 
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
-
-
-def test_deploy_with_dashboard_argument():
-    fn = mlrun.new_function("tests", kind="serving")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
-    db_instance = fn._get_db()
-    db_instance.remote_builder = unittest.mock.Mock(
-        return_value={
-            "data": {
-                "metadata": {
-                    "name": "test",
-                },
-                "status": {
-                    "state": "ready",
-                    "external_invocation_urls": ["http://test-url.com"],
-                },
-            },
-        },
-    )
-    db_instance.get_builder_status = unittest.mock.Mock(
-        return_value=(None, None),
-    )
-
-    mlrun.deploy_function(fn)
-
-    # test that the remote builder was called even with dashboard argument
-    assert db_instance.remote_builder.call_count == 1

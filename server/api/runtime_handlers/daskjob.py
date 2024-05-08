@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import typing
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import semver
 from kubernetes.client.rest import ApiException
@@ -62,7 +62,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
         self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
-    ) -> List[dict]:
+    ) -> list[dict]:
         return []
 
     @staticmethod
@@ -133,7 +133,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
-        runtime_resources_list: List[mlrun.common.schemas.RuntimeResources],
+        runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -174,7 +174,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
-        service_resources: List[mlrun.common.schemas.RuntimeResource],
+        service_resources: list[mlrun.common.schemas.RuntimeResource],
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -193,7 +193,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         db: DBInterface,
         db_session: Session,
         namespace: str,
-        deleted_resources: List[Dict],
+        deleted_resources: list[dict],
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
@@ -326,7 +326,7 @@ def enrich_dask_cluster(
     # in other words, dont let spec.env override env (or not even duplicate it)
     # we dont want to override env to ensure k8s runtime envs are enforced and correct
     # leaving no room for human mistakes
-    def get_env_name(env_: Union[client.V1EnvVar, Dict]) -> str:
+    def get_env_name(env_: Union[client.V1EnvVar, dict]) -> str:
         if isinstance(env_, client.V1EnvVar):
             return env_.name
         return env_.get("name", "")

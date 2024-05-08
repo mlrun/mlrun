@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ class ExcecutionParams:
         minikube: bool = False,
         sqlite: str = None,
         upgrade: bool = False,
-        custom_values: typing.List[str] = None,
+        custom_values: list[str] = None,
     ):
         self.registry_url = registry_url
         self.registry_secret_name = registry_secret_name
@@ -158,7 +158,7 @@ class CommunityEditionDeployer:
         minikube: bool = False,
         sqlite: str = None,
         upgrade: bool = False,
-        custom_values: typing.List[str] = None,
+        custom_values: list[str] = None,
     ) -> None:
         """
         Deploy MLRun CE stack.
@@ -389,7 +389,7 @@ class CommunityEditionDeployer:
     def _generate_helm_install_arguments(
         self,
         ep: ExcecutionParams,
-    ) -> typing.List[str]:
+    ) -> list[str]:
         """
         Generate the helm install arguments.
         :param ep:  Execution parameters
@@ -451,7 +451,7 @@ class CommunityEditionDeployer:
     def _generate_helm_values(
         self,
         ep: ExcecutionParams,
-    ) -> typing.Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Generate the helm values.
         :return: Dictionary of helm values
@@ -653,7 +653,7 @@ class CommunityEditionDeployer:
             raise exc
 
     def _set_mlrun_version_in_helm_values(
-        self, helm_values: typing.Dict[str, str], mlrun_version: str
+        self, helm_values: dict[str, str], mlrun_version: str
     ) -> None:
         """
         Set the mlrun version in all the image tags in the helm values.
@@ -668,7 +668,7 @@ class CommunityEditionDeployer:
 
     def _override_image_in_helm_values(
         self,
-        helm_values: typing.Dict[str, str],
+        helm_values: dict[str, str],
         image_helm_value: str,
         overriden_image: str,
     ) -> None:
@@ -692,7 +692,7 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
     def _toggle_component_in_helm_values(
-        self, helm_values: typing.Dict[str, str], component: str, disable: bool
+        self, helm_values: dict[str, str], component: str, disable: bool
     ) -> None:
         """
         Disable a deployment in the helm values.

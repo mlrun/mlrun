@@ -82,7 +82,7 @@ class _JSONFormatter(_Formatter):
 
         :return: The read object.
         """
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             obj = json.load(file)
         return obj
 
@@ -117,7 +117,7 @@ class _JSONLFormatter(_Formatter):
 
         :return: The read object.
         """
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             lines = file.readlines()
 
         obj = []
@@ -157,7 +157,7 @@ class _YAMLFormatter(_Formatter):
 
         :return: The read object.
         """
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             obj = yaml.safe_load(file)
         return obj
 
@@ -188,7 +188,7 @@ class _TXTFormatter(_Formatter):
 
         :return: The read object.
         """
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             obj = ast.literal_eval(file.read())
         return obj
 

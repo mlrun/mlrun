@@ -203,8 +203,8 @@ async def _get_runtime_resources_allowed_projects(
     kind: typing.Optional[str] = None,
     object_id: typing.Optional[str] = None,
     action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
-) -> typing.Tuple[
-    typing.List[str],
+) -> tuple[
+    list[str],
     mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     bool,
     bool,
@@ -257,6 +257,6 @@ async def _get_runtime_resources_allowed_projects(
 
 
 def _generate_label_selector_for_allowed_projects(
-    allowed_projects: typing.List[str],
+    allowed_projects: list[str],
 ):
     return f"mlrun/project in ({', '.join(allowed_projects)})"

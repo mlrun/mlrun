@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import typing
 
 
-def base_requirements() -> typing.List[str]:
+def base_requirements() -> list[str]:
     return list(_load_dependencies_from_file("requirements.txt"))
 
 
-def dev_requirements() -> typing.List[str]:
+def dev_requirements() -> list[str]:
     return list(_load_dependencies_from_file("dev-requirements.txt"))
 
 
-def extra_requirements() -> typing.Dict[str, typing.List[str]]:
+def extra_requirements() -> dict[str, list[str]]:
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
     #       corresponding line there.
@@ -33,7 +32,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "s3": [
             "boto3>=1.28.0,<1.29.0",
             "aiobotocore>=2.5.0,<2.8",
-            "s3fs==2023.9.2",
+            "s3fs>=2023.9.2, <2024.4",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
@@ -61,7 +60,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
             "google-cloud==0.34",
         ],
-        "google-cloud-storage": ["gcsfs==2023.9.2"],
+        "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",
@@ -76,6 +75,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "dask~=2023.9.0",
             "distributed~=2023.9.0",
         ],
+        "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
     }
 
     # see above why we are excluding google-cloud
@@ -114,7 +114,7 @@ def _extract_package_from_egg(line: str) -> str:
     return line
 
 
-def _load_dependencies_from_file(path: str, parent_dir: str = None) -> typing.List[str]:
+def _load_dependencies_from_file(path: str, parent_dir: str = None) -> list[str]:
     """Load dependencies from requirements file"""
     parent_dir = parent_dir or os.path.dirname(__file__)
     with open(f"{parent_dir}/{path}") as fp:
@@ -126,11 +126,11 @@ def _load_dependencies_from_file(path: str, parent_dir: str = None) -> typing.Li
 
 
 def _get_extra_dependencies(
-    include: typing.List[str] = None,
-    exclude: typing.List[str] = None,
-    base_deps: typing.List[str] = None,
-    extras_require: typing.Dict[str, typing.List[str]] = None,
-) -> typing.List[str]:
+    include: list[str] = None,
+    exclude: list[str] = None,
+    base_deps: list[str] = None,
+    extras_require: dict[str, list[str]] = None,
+) -> list[str]:
     """Get list of dependencies for given extras categories
 
     :param include: list of extras categories to include

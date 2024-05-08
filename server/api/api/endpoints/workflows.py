@@ -17,7 +17,7 @@ import copy
 import traceback
 import typing
 from http import HTTPStatus
-from typing import Dict, Optional
+from typing import Optional
 
 import fastapi
 import mlrun_pipelines.common.models
@@ -262,7 +262,7 @@ def _is_requested_schedule(
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.Project, name: str
-) -> typing.Optional[Dict]:
+) -> typing.Optional[dict]:
     """
     Getting workflow from project by name.
 
@@ -281,7 +281,7 @@ def _fill_workflow_missing_fields_from_project(
     project: mlrun.common.schemas.Project,
     workflow_name: str,
     spec: mlrun.common.schemas.WorkflowSpec,
-    arguments: typing.Dict,
+    arguments: dict,
 ) -> mlrun.common.schemas.WorkflowSpec:
     """
     Fill the workflow spec details from the project object, with favour to spec

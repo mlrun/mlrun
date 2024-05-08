@@ -36,8 +36,8 @@ def test_runtimes_inheritance(method, base_classes):
     classes_map = {
         mlrun.runtimes.base.FunctionSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
-            mlrun.runtimes.function.NuclioSpec,
-            mlrun.runtimes.serving.ServingSpec,
+            mlrun.runtimes.nuclio.function.NuclioSpec,
+            mlrun.runtimes.nuclio.serving.ServingSpec,
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
@@ -45,29 +45,28 @@ def test_runtimes_inheritance(method, base_classes):
         ],
         mlrun.runtimes.pod.KubeResourceSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
-            mlrun.runtimes.function.NuclioSpec,
-            mlrun.runtimes.serving.ServingSpec,
+            mlrun.runtimes.nuclio.function.NuclioSpec,
+            mlrun.runtimes.nuclio.serving.ServingSpec,
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
-        mlrun.runtimes.function.NuclioSpec: [
-            mlrun.runtimes.serving.ServingSpec,
+        mlrun.runtimes.nuclio.function.NuclioSpec: [
+            mlrun.runtimes.nuclio.serving.ServingSpec,
         ],
         mlrun.runtimes.base.FunctionStatus: [
             mlrun.runtimes.daskjob.DaskStatus,
-            mlrun.runtimes.function.NuclioStatus,
+            mlrun.runtimes.nuclio.function.NuclioStatus,
         ],
         mlrun.runtimes.base.BaseRuntime: [
             mlrun.runtimes.local.HandlerRuntime,
             mlrun.runtimes.local.BaseRuntime,
-            mlrun.runtimes.function.RemoteRuntime,
-            mlrun.runtimes.serving.ServingRuntime,
+            mlrun.runtimes.nuclio.function.RemoteRuntime,
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
             mlrun.runtimes.kubejob.KubejobRuntime,
             mlrun.runtimes.daskjob.DaskCluster,
             mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
-            mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
             mlrun.runtimes.databricks_job.databricks_runtime.DatabricksRuntime,
@@ -202,6 +201,34 @@ def test_resource_enrichment_in_resource_spec_initialization():
         )
         == {}
     )
+
+
+def test_to_dict():
+    volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-path", name="volume-name"
+    )
+    function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
+    # For sanitization
+    function.spec.volume_mounts = [volume_mount]
+    # For enrichment
+    function.set_env(name="V3IO_ACCESS_KEY", value="123")
+    # For apply enrichment before to_dict completion
+    function.spec.disable_auto_mount = True
+
+    function_dict = function.to_dict()
+    assert function_dict["spec"]["volume_mounts"][0]["mountPath"] == "some-path"
+    assert function_dict["spec"]["env"][0]["name"] == "V3IO_ACCESS_KEY"
+    assert function_dict["spec"]["env"][0]["value"] == "123"
+    assert function_dict["spec"]["disable_auto_mount"] is True
+
+    stripped_function_dict = function.to_dict(strip=True)
+    assert "volume_mounts" not in stripped_function_dict["spec"]
+    assert stripped_function_dict["spec"]["env"][0]["name"] == "V3IO_ACCESS_KEY"
+    assert stripped_function_dict["spec"]["env"][0]["value"] == ""
+    assert stripped_function_dict["spec"]["disable_auto_mount"] is False
+
+    excluded_function_dict = function.to_dict(exclude=["spec"])
+    assert "spec" not in excluded_function_dict
 
 
 def test_volume_mounts_addition():

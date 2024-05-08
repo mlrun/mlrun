@@ -11,19 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import nuclio
 
 import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
 
 
-def handler(context: mlrun.run.MLClientCtx) -> None:
+def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     """
     Run model monitoring application processor
 
-    :param context: the MLRun context
+    :param context: the Nuclio context
+    :param event:   trigger event
     """
+    context.user_data.monitor_app_controller.run(event)
+
+
+def init_context(context):
+    mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
+    mlrun_context.logger.info("Initialize monitoring app controller")
     monitor_app_controller = MonitoringApplicationController(
-        context=context,
-        project=context.project,
+        mlrun_context=mlrun_context,
+        project=mlrun_context.project,
     )
-    monitor_app_controller.run()
+    setattr(context.user_data, "monitor_app_controller", monitor_app_controller)

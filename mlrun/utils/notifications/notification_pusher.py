@@ -14,15 +14,21 @@
 
 import asyncio
 import datetime
+import json
 import os
+import re
 import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
+import kfp
+
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
 import mlrun.errors
+import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -32,7 +38,7 @@ from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_proce
 from .notification import NotificationBase, NotificationTypes
 
 
-class _NotificationPusherBase(object):
+class _NotificationPusherBase:
     def _push(
         self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
     ):
@@ -95,15 +101,11 @@ class NotificationPusher(_NotificationPusherBase):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications: typing.List[
-            typing.Tuple[
-                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
-            ]
+        self._sync_notifications: list[
+            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
-        self._async_notifications: typing.List[
-            typing.Tuple[
-                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
-            ]
+        self._async_notifications: list[
+            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
 
         for run in self._runs:
@@ -242,20 +244,7 @@ class NotificationPusher(_NotificationPusherBase):
             custom_message = (
                 f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )
-            db = mlrun.get_run_db()
-
-            workflow_id = run.status.results.get("workflow_id", None)
-            if workflow_id:
-                workflow_runs = db.list_runs(
-                    project=run.metadata.project,
-                    labels=f"workflow={workflow_id}",
-                )
-                logger.debug(
-                    "Found workflow runs, extending notification runs",
-                    workflow_id=workflow_id,
-                    workflow_runs_amount=len(workflow_runs),
-                )
-                runs.extend(workflow_runs)
+            runs.extend(self.get_workflow_steps(run))
 
         message = (
             self.messages.get(run.state(), "").format(resource=resource)
@@ -399,9 +388,135 @@ class NotificationPusher(_NotificationPusherBase):
             mask_params=False,
         )
 
+    def get_workflow_steps(self, run: mlrun.model.RunObject) -> list:
+        steps = []
+        db = mlrun.get_run_db()
+
+        def _add_run_step(_node_name, _):
+            steps.append(
+                db.list_runs(
+                    project=run.metadata.project,
+                    labels=f"mlrun/runner-pod={_node_name}",
+                )[0]
+            )
+
+        def _add_deploy_function_step(_, _node_template):
+            project, name, hash_key = self._extract_function_uri(
+                _node_template["metadata"]["annotations"]["mlrun/function-uri"]
+            )
+            if name:
+                try:
+                    function = db.get_function(
+                        project=project, name=name, hash_key=hash_key
+                    )
+                except mlrun.errors.MLRunNotFoundError:
+                    # If the function is not found (if build failed for example), we will create a dummy
+                    # function object for the notification to display the function name
+                    function = {
+                        "metadata": {
+                            "name": name,
+                            "project": project,
+                            "hash_key": hash_key,
+                        },
+                    }
+                function["status"] = {
+                    "state": mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                        node["phase"]
+                    ),
+                }
+                if isinstance(function["metadata"].get("updated"), datetime.datetime):
+                    function["metadata"]["updated"] = function["metadata"][
+                        "updated"
+                    ].isoformat()
+                steps.append(function)
+
+        step_methods = {
+            mlrun.kfpops.PipelineRunType.run: _add_run_step,
+            mlrun.kfpops.PipelineRunType.build: _add_deploy_function_step,
+            mlrun.kfpops.PipelineRunType.deploy: _add_deploy_function_step,
+        }
+
+        workflow_id = run.status.results.get("workflow_id", None)
+        if not workflow_id:
+            return steps
+
+        workflow_manifest = self._get_workflow_manifest(workflow_id)
+        if not workflow_manifest:
+            return steps
+
+        try:
+            workflow_nodes = sorted(
+                workflow_manifest["status"]["nodes"].items(),
+                key=lambda _node: _node[1]["finishedAt"],
+            )
+            for node_name, node in workflow_nodes:
+                if node["type"] != "Pod":
+                    # Skip the parent DAG node
+                    continue
+
+                node_template = next(
+                    template
+                    for template in workflow_manifest["spec"]["templates"]
+                    if template["name"] == node["templateName"]
+                )
+                step_type = node_template["metadata"]["annotations"].get(
+                    "mlrun/pipeline-step-type"
+                )
+                step_method = step_methods.get(step_type)
+                if step_method:
+                    step_method(node_name, node_template)
+            return steps
+        except Exception:
+            # If we fail to read the pipeline steps, we will return the list of runs that have the same workflow id
+            logger.warning(
+                "Failed to extract workflow steps from workflow manifest, "
+                "returning all runs with the workflow id label",
+                workflow_id=workflow_id,
+                traceback=traceback.format_exc(),
+            )
+            return db.list_runs(
+                project=run.metadata.project,
+                labels=f"workflow={workflow_id}",
+            )
+
+    @staticmethod
+    def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
+        kfp_client = kfp.Client(namespace=mlrun.mlconf.namespace)
+
+        # arbitrary timeout of 5 seconds, the workflow should be done by now
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        if not kfp_run:
+            return None
+
+        kfp_run = kfp_run.to_dict()
+        try:
+            return json.loads(kfp_run["pipeline_runtime"]["workflow_manifest"])
+        except Exception:
+            return None
+
+    def _extract_function_uri(self, function_uri: str) -> tuple[str, str, str]:
+        """
+        Extract the project, name, and hash key from a function uri.
+        Examples:
+            - "project/name@hash_key" returns project, name, hash_key
+            - "project/name returns" project, name, ""
+        """
+        project, name, hash_key = None, None, None
+        hashed_pattern = r"^(.+)/(.+)@(.+)$"
+        pattern = r"^(.+)/(.+)$"
+        match = re.match(hashed_pattern, function_uri)
+        if match:
+            project, name, hash_key = match.groups()
+        else:
+            match = re.match(pattern, function_uri)
+            if match:
+                project, name = match.groups()
+                hash_key = ""
+        return project, name, hash_key
+
 
 class CustomNotificationPusher(_NotificationPusherBase):
-    def __init__(self, notification_types: typing.List[str] = None):
+    def __init__(self, notification_types: list[str] = None):
         notifications = {
             notification_type: NotificationTypes(notification_type).get_notification()()
             for notification_type in notification_types
@@ -446,7 +561,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
     def add_notification(
         self,
         notification_type: str,
-        params: typing.Dict[str, str] = None,
+        params: dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(params)
@@ -471,9 +586,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         else:
             logger.warning(f"No notification of type {notification_type} in project")
 
-    def edit_notification(
-        self, notification_type: str, params: typing.Dict[str, str] = None
-    ):
+    def edit_notification(self, notification_type: str, params: dict[str, str] = None):
         self.remove_notification(notification_type)
         self.add_notification(notification_type, params)
 

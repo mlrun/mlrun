@@ -26,6 +26,7 @@ import sqlalchemy.orm
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.schemas
+import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
 import server.api.db.sqldb.helpers
 import server.api.db.sqldb.models
@@ -110,6 +111,15 @@ def init_data(
         config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+    if not from_scratch:
+        # Cleanup pagination cache on api startup
+        session = create_session()
+        server.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+            session
+        )
+        session.commit()
+
     logger.info("Initial data created")
 
 
@@ -128,6 +138,7 @@ def update_default_configuration_data():
     try:
         db = server.api.db.sqldb.db.SQLDB()
         _add_default_hub_source_if_needed(db, db_session)
+        _add_default_alert_templates(db, db_session)
     finally:
         close_session(db_session)
 
@@ -135,7 +146,7 @@ def update_default_configuration_data():
 def _resolve_needed_operations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
     force_from_scratch: bool = False,
-) -> typing.Tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool]:
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
     )
@@ -258,7 +269,7 @@ def _align_runs_table(
 
         # State field used to have a bug causing only the body to be updated, align the column
         run.state = run_dict.get("status", {}).get(
-            "state", mlrun.runtimes.constants.RunStates.created
+            "state", mlrun.common.runtimes.constants.RunStates.created
         )
         # in case no name was in the body, we defaulted to created, let's make sure the body will have it as well
         run_dict.setdefault("status", {})["state"] = run.state
@@ -417,7 +428,7 @@ def _resolve_current_data_version(
         if not projects or not projects.projects:
             logger.info(
                 "No projects in DB, assuming latest data version",
-                exc=exc,
+                exc=err_to_str(exc),
                 latest_data_version=latest_data_version,
             )
             return latest_data_version
@@ -433,7 +444,7 @@ def _resolve_current_data_version(
         elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
             logger.info(
                 "Data version table exist without version, assuming prior version",
-                exc=exc,
+                exc=err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition
@@ -777,9 +788,7 @@ def _get_migration_state():
     If the state file does not exist, return 0.
     """
     try:
-        with open(
-            config.artifacts.artifact_migration_state_file_path, "r"
-        ) as state_file:
+        with open(config.artifacts.artifact_migration_state_file_path) as state_file:
             state = json.load(state_file)
             return state.get("last_migrated_id", 0), set(
                 state.get("link_artifact_ids", [])
@@ -811,6 +820,15 @@ def _delete_state_file():
         os.remove(config.artifacts.artifact_migration_state_file_path)
     except FileNotFoundError:
         pass
+
+
+def _add_default_alert_templates(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    for template in server.api.constants.pre_defined_templates:
+        record = db.get_alert_template(db_session, template.template_name)
+        if record is None or record.templates_differ(template):
+            db.store_alert_template(db_session, template)
 
 
 def main() -> None:

@@ -11,17 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import enum
 import json
-import typing
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
 
 import mlrun.common.model_monitoring
+import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
@@ -48,7 +47,7 @@ class ModelEndpointMetadata(BaseModel):
         extra = Extra.allow
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
+    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
         """Create a `ModelEndpointMetadata` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
@@ -71,8 +70,8 @@ class ModelEndpointSpec(ObjectSpec):
     model: Optional[str] = ""  # <model_name>:<version>
     model_class: Optional[str] = ""
     model_uri: Optional[str] = ""
-    feature_names: Optional[List[str]] = []
-    label_names: Optional[List[str]] = []
+    feature_names: Optional[list[str]] = []
+    label_names: Optional[list[str]] = []
     stream_path: Optional[str] = ""
     algorithm: Optional[str] = ""
     monitor_configuration: Optional[dict] = {}
@@ -80,7 +79,7 @@ class ModelEndpointSpec(ObjectSpec):
     monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled.value
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
+    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
         """Create a `ModelEndpointSpec` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
@@ -123,8 +122,8 @@ class ModelEndpointSpec(ObjectSpec):
 
 
 class Histogram(BaseModel):
-    buckets: List[float]
-    counts: List[int]
+    buckets: list[float]
+    counts: list[int]
 
 
 class FeatureValues(BaseModel):
@@ -175,15 +174,15 @@ class ModelEndpointStatus(ObjectStatus):
     error_count: Optional[int] = 0
     drift_status: Optional[str] = ""
     drift_measures: Optional[dict] = {}
-    metrics: Optional[Dict[str, Dict[str, Any]]] = {
+    metrics: Optional[dict[str, dict[str, Any]]] = {
         EventKeyMetrics.GENERIC: {
             EventLiveStats.LATENCY_AVG_1H: 0,
             EventLiveStats.PREDICTIONS_PER_SECOND: 0,
         }
     }
-    features: Optional[List[Features]] = []
-    children: Optional[List[str]] = []
-    children_uids: Optional[List[str]] = []
+    features: Optional[list[Features]] = []
+    children: Optional[list[str]] = []
+    children_uids: Optional[list[str]] = []
     endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP
     monitoring_feature_set_uri: Optional[str] = ""
     state: Optional[str] = ""
@@ -192,7 +191,7 @@ class ModelEndpointStatus(ObjectStatus):
         extra = Extra.allow
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
+    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
         """Create a `ModelEndpointStatus` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
@@ -290,13 +289,25 @@ class ModelEndpoint(BaseModel):
 
 
 class ModelEndpointList(BaseModel):
-    endpoints: List[ModelEndpoint] = []
+    endpoints: list[ModelEndpoint] = []
+
+
+class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
+    RESULT = "result"
+
+
+class ModelEndpointMonitoringMetric(BaseModel):
+    project: str
+    app: str
+    type: ModelEndpointMonitoringMetricType
+    name: str
+    full_name: str
 
 
 def _mapping_attributes(
     base_model: BaseModel,
     flattened_dictionary: dict,
-    json_parse_values: typing.List = None,
+    json_parse_values: list = None,
 ):
     """Generate a `BaseModel` object with the provided dictionary attributes.
 

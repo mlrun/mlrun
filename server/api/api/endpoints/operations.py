@@ -77,7 +77,7 @@ async def trigger_migrations(
 
 def _get_or_create_migration_background_task(
     task_name: str,
-) -> typing.Tuple[
+) -> tuple[
     typing.Optional[typing.Callable],
     typing.Optional[mlrun.common.schemas.BackgroundTask],
     str,

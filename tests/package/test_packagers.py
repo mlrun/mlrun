@@ -16,7 +16,7 @@ import inspect
 import shutil
 import tempfile
 import typing
-from typing import List, Tuple, Type, Union
+from typing import Union
 
 import pytest
 
@@ -79,8 +79,8 @@ _PACKAGERS_TESTERS = [
 
 
 def _get_tests_tuples(
-    test_type: Union[Type[PackTest], Type[UnpackTest], Type[PackToUnpackTest]],
-) -> List[Tuple[Type[PackagerTester], PackTest]]:
+    test_type: Union[type[PackTest], type[UnpackTest], type[PackToUnpackTest]],
+) -> list[tuple[type[PackagerTester], PackTest]]:
     return [
         (tester, test)
         for tester in _PACKAGERS_TESTERS
@@ -90,7 +90,7 @@ def _get_tests_tuples(
 
 
 def _setup_test(
-    tester: Type[PackagerTester],
+    tester: type[PackagerTester],
     test: Union[PackTest, UnpackTest, PackToUnpackTest],
     test_directory: str,
 ) -> KubejobRuntime:
@@ -99,7 +99,9 @@ def _setup_test(
         mlrun.mlconf.packagers.pack_tuples = True
 
     # Create a project for this tester:
-    project = mlrun.get_or_create_project(name="default", context=test_directory)
+    project = mlrun.get_or_create_project(
+        name="default", context=test_directory, allow_cross_project=True
+    )
 
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(
@@ -111,8 +113,8 @@ def _setup_test(
 
 
 def _get_key_and_artifact_type(
-    tester: Type[PackagerTester], test: Union[PackTest, PackToUnpackTest]
-) -> Tuple[str, str]:
+    tester: type[PackagerTester], test: Union[PackTest, PackToUnpackTest]
+) -> tuple[str, str]:
     # Parse the log hint (in case it is a string):
     log_hint = LogHintUtils.parse_log_hint(log_hint=test.log_hint)
 
@@ -135,7 +137,7 @@ def _get_key_and_artifact_type(
     "tester, test",
     _get_tests_tuples(test_type=PackTest),
 )
-def test_packager_pack(rundb_mock, tester: Type[PackagerTester], test: PackTest):
+def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest):
     """
     Test a packager's packing.
 
@@ -187,7 +189,7 @@ def test_packager_pack(rundb_mock, tester: Type[PackagerTester], test: PackTest)
     "tester, test",
     _get_tests_tuples(test_type=UnpackTest),
 )
-def test_packager_unpack(rundb_mock, tester: Type[PackagerTester], test: UnpackTest):
+def test_packager_unpack(rundb_mock, tester: type[PackagerTester], test: UnpackTest):
     """
     Test a packager's unpacking.
 
@@ -231,7 +233,7 @@ def test_packager_unpack(rundb_mock, tester: Type[PackagerTester], test: UnpackT
     _get_tests_tuples(test_type=PackToUnpackTest),
 )
 def test_packager_pack_to_unpack(
-    rundb_mock, tester: Type[PackagerTester], test: PackToUnpackTest
+    rundb_mock, tester: type[PackagerTester], test: PackToUnpackTest
 ):
     """
     Test a packager's packing and unpacking by running two MLRun functions one after the other, one will return the

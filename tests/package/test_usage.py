@@ -16,7 +16,7 @@ import json
 import os
 import pathlib
 import tempfile
-from typing import Any, Tuple, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -43,7 +43,7 @@ RETURNS_LOG_HINTS = [
 
 
 def log_artifacts_and_results() -> (
-    Tuple[np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline]
+    tuple[np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline]
 ):
     encoder_to_imputer = Pipeline(
         steps=[
@@ -95,7 +95,7 @@ def _assert_parsing(
 
     assert isinstance(my_file, mlrun.DataItem)
     my_file = my_file.local()
-    with open(my_file, "r") as file:
+    with open(my_file) as file:
         file_content = file.read()
     assert file_content == "123"
 
@@ -329,7 +329,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
                        `BaseClass`.
     """
     # Get the project:
-    project = mlrun.get_or_create_project("default")
+    project = mlrun.get_or_create_project("default", allow_cross_project=True)
 
     # Add the custom packager for `BaseClass`:
     project.add_custom_packager(
@@ -394,7 +394,7 @@ def test_parse_local_file(rundb_mock):
     :param rundb_mock: A runDB mock fixture.
     """
     # Get the project:
-    project = mlrun.get_or_create_project("default")
+    project = mlrun.get_or_create_project("default", allow_cross_project=True)
 
     # Create a json file of a dictionary:
     artifact_path = tempfile.TemporaryDirectory()
@@ -420,7 +420,7 @@ def test_parse_local_file(rundb_mock):
     assert json_path.exists()
 
     # Make sure the file was not changed
-    with open(json_path, "r") as file:
+    with open(json_path) as file:
         my_dict = json.load(file)
     assert my_dict == _JSON_SAMPLE
 

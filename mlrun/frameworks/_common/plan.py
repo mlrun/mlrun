@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from abc import ABC, abstractmethod
-from typing import Dict
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -33,7 +32,7 @@ class Plan(ABC):
         self._artifacts = {}  # type: Dict[str, Artifact]
 
     @property
-    def artifacts(self) -> Dict[str, Artifact]:
+    def artifacts(self) -> dict[str, Artifact]:
         """
         Get the plan's produced artifacts.
 
@@ -59,7 +58,7 @@ class Plan(ABC):
         pass
 
     @abstractmethod
-    def produce(self, *args, **kwargs) -> Dict[str, Artifact]:
+    def produce(self, *args, **kwargs) -> dict[str, Artifact]:
         """
         Produce the artifact according to this plan.
 

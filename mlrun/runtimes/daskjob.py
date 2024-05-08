@@ -16,7 +16,7 @@ import inspect
 import socket
 import time
 from os import environ
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -461,7 +461,7 @@ class DaskCluster(KubejobRuntime):
 
     def set_state_thresholds(
         self,
-        state_thresholds: Dict[str, str],
+        state_thresholds: dict[str, str],
         patch: bool = True,
     ):
         raise NotImplementedError(
@@ -477,23 +477,23 @@ class DaskCluster(KubejobRuntime):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[Dict[str, list]] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if state_thresholds:

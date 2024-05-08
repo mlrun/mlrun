@@ -11,16 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -174,12 +175,12 @@ async def list_model_endpoints(
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
-    labels: List[str] = Query([], alias="label"),
+    labels: list[str] = Query([], alias="label"),
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
-    metrics: List[str] = Query([], alias="metric"),
+    metrics: list[str] = Query([], alias="metric"),
     top_level: bool = Query(False, alias="top-level"),
-    uids: List[str] = Query(None, alias="uid"),
+    uids: list[str] = Query(None, alias="uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
@@ -268,7 +269,7 @@ async def get_model_endpoint(
     endpoint_id: str,
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
-    metrics: List[str] = Query([], alias="metric"),
+    metrics: list[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
@@ -316,4 +317,42 @@ async def get_model_endpoint(
         start=start,
         end=end,
         feature_analysis=feature_analysis,
+    )
+
+
+@router.get(
+    "/{endpoint_id}/metrics",
+    response_model=list[
+        mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
+    ],
+)
+async def get_model_endpoint_monitoring_metrics(
+    project: str,
+    endpoint_id: str,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        server.api.api.deps.authenticate_request
+    ),
+    type: Literal["results"] = "results",
+) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+    """
+    :param project:     The name of the project.
+    :param endpoint_id: The unique id of the model endpoint.
+    :param auth_info:   The auth info of the request.
+    :param type:        The type of the metrics to return. Currently, only "results"
+                        is supported.
+
+    :returns:           A list of the application results for this model endpoint.
+    """
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    return await run_in_threadpool(
+        mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(
+            project=project
+        ).get_model_endpoint_metrics,
+        endpoint_id=endpoint_id,
     )

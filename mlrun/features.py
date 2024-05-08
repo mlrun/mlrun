@@ -14,7 +14,7 @@
 #
 import math
 import re
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from .data_types import ValueType, python_type_to_value_type
 from .errors import MLRunRuntimeError, err_to_str
@@ -44,7 +44,7 @@ class Entity(ModelObj):
         name: str = None,
         value_type: Union[ValueType, str] = None,
         description: str = None,
-        labels: Optional[Dict[str, str]] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         """data entity (index key)
 
@@ -65,8 +65,6 @@ class Entity(ModelObj):
 
 
 class Feature(ModelObj):
-    """data feature"""
-
     _dict_fields = [
         "name",
         "description",
@@ -82,13 +80,13 @@ class Feature(ModelObj):
     def __init__(
         self,
         value_type: Union[ValueType, str] = None,
-        dims: List[int] = None,
+        dims: list[int] = None,
         description: str = None,
         aggregate: bool = None,
         name: str = None,
         validator=None,
         default: str = None,
-        labels: Dict[str, str] = None,
+        labels: dict[str, str] = None,
     ):
         """data feature
 
@@ -240,10 +238,7 @@ class Validator(ModelObj):
             from mlrun.features import Validator
 
             # Add validator to the feature 'bid' with check type
-            quotes_set["bid"].validator = Validator(
-                check_type=True,
-                severity="info"
-            )
+            quotes_set["bid"].validator = Validator(check_type=True, severity="info")
 
         :param check_type:  check feature type e.g. True, False
         :param severity:    severity name e.g. info, warning, etc.
@@ -282,10 +277,7 @@ class MinMaxValidator(Validator):
 
             # Add validator to the feature 'bid', where valid
             # minimal value is 52
-            quotes_set["bid"].validator = MinMaxValidator(
-                min=52,
-                severity="info"
-            )
+            quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
         :param check_type:  check feature type e.g. True, False
         :param severity:    severity name e.g. info, warning, etc.
@@ -346,9 +338,7 @@ class MinMaxLenValidator(Validator):
             # Add length validator to the feature 'ticker', where valid
             # minimal length is 1 and maximal length is 10
             quotes_set["ticker"].validator = MinMaxLenValidator(
-                min=1,
-                max=10,
-                severity="info"
+                min=1, max=10, severity="info"
             )
 
         :param check_type:  check feature type e.g. True, False
@@ -410,8 +400,7 @@ class RegexValidator(Validator):
             # expression '(\b[A-Za-z]{1}[0-9]{7}\b)' where valid values are
             # e.g. A1234567, z9874563, etc.
             quotes_set["name"].validator = RegexValidator(
-                regex=r"(\b[A-Za-z]{1}[0-9]{7}\b)",
-                severity="info"
+                regex=r"(\b[A-Za-z]{1}[0-9]{7}\b)", severity="info"
             )
 
         :param check_type:  check feature type e.g. True, False
@@ -445,7 +434,7 @@ class RegexValidator(Validator):
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
-        new_obj = super(RegexValidator, cls).from_dict(
+        new_obj = super().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
         if hasattr(new_obj, "regex"):

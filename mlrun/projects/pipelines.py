@@ -347,6 +347,11 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
+    if project.spec.default_function_node_selector:
+        f.enrich_runtime_spec(
+            project.spec.default_function_node_selector,
+        )
+
     if try_auto_mount:
         if (
             decorator and AutoMountType.is_auto_modifier(decorator)
@@ -363,7 +368,7 @@ class _PipelineRunStatus:
     def __init__(
         self,
         run_id: str,
-        engine: typing.Type["_PipelineRunner"],
+        engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: str = "",
@@ -437,7 +442,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -454,7 +459,7 @@ class _PipelineRunner(abc.ABC):
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
         if not (workflow_handler and callable(workflow_handler)):
-            workflow_file = workflow_spec.get_source_file(project.spec.context)
+            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
             workflow_handler = create_pipeline(
                 project,
                 workflow_file,
@@ -486,7 +491,7 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         pipeline_context.set(project, workflow_spec)
-        workflow_file = workflow_spec.get_source_file(project.spec.context)
+        workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
             project,
@@ -515,7 +520,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -659,7 +664,7 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -748,7 +753,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str = None,
         namespace: str = None,
         source: str = None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: list[mlrun.model.Notification] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -945,7 +950,7 @@ def load_and_run(
     save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
-    workflow_arguments: typing.Dict[str, typing.Any] = None,
+    workflow_arguments: dict[str, typing.Any] = None,
     artifact_path: str = None,
     workflow_handler: typing.Union[str, typing.Callable] = None,
     namespace: str = None,
@@ -1020,7 +1025,7 @@ def load_and_run(
                 )
 
             except Exception as exc:
-                logger.error("Failed to send slack notification", exc=exc)
+                logger.error("Failed to send slack notification", exc=err_to_str(exc))
 
         raise error
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import warnings
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from mlrun_pipelines.models import PipelineNodeWrapper
 
@@ -61,7 +61,7 @@ def run_function(
     hyperparams: dict = None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
     inputs: dict = None,
-    outputs: List[str] = None,
+    outputs: list[str] = None,
     workdir: str = "",
     labels: dict = None,
     base_task: mlrun.model.RunTemplate = None,
@@ -73,8 +73,8 @@ def run_function(
     auto_build: bool = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
-    notifications: List[mlrun.model.Notification] = None,
-    returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    notifications: list[mlrun.model.Notification] = None,
+    returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
 ) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
@@ -95,8 +95,11 @@ def run_function(
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
         DATA_PATH = "s3://bigdata/data.parquet"
         function = mlrun.import_function("hub://auto-trainer")
-        run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
-                                      inputs={"dataset": DATA_PATH})
+        run1 = run_function(
+            function,
+            params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+            inputs={"dataset": DATA_PATH},
+        )
 
     example (use with project)::
 
@@ -115,8 +118,12 @@ def run_function(
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url}, outputs=["data"])
-            run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
-                                         inputs={"dataset": run1.outputs["data"]})
+            run2 = run_function(
+                "train",
+                params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                inputs={"dataset": run1.outputs["data"]},
+            )
+
 
         project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 
@@ -239,7 +246,7 @@ def build_function(
     base_image=None,
     commands: list = None,
     secret_name=None,
-    requirements: Union[str, List[str]] = None,
+    requirements: Union[str, list[str]] = None,
     requirements_file: str = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,

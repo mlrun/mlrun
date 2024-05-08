@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import typing
 
 import kubernetes.client
 
@@ -38,7 +37,7 @@ def is_running_inside_kubernetes_cluster():
 
 def generate_preemptible_node_selector_requirements(
     node_selector_operator: str,
-) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
+) -> list[kubernetes.client.V1NodeSelectorRequirement]:
     """
     Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
     node selector operator represents a key's relationship to a set of values.
@@ -62,7 +61,7 @@ def generate_preemptible_node_selector_requirements(
 
 
 def generate_preemptible_nodes_anti_affinity_terms() -> (
-    typing.List[kubernetes.client.V1NodeSelectorTerm]
+    list[kubernetes.client.V1NodeSelectorTerm]
 ):
     """
     Generate node selector term containing anti-affinity expressions based on the
@@ -84,7 +83,7 @@ def generate_preemptible_nodes_anti_affinity_terms() -> (
 
 
 def generate_preemptible_nodes_affinity_terms() -> (
-    typing.List[kubernetes.client.V1NodeSelectorTerm]
+    list[kubernetes.client.V1NodeSelectorTerm]
 ):
     """
     Use for purpose of scheduling on node having at least one of the node selectors.
@@ -105,7 +104,7 @@ def generate_preemptible_nodes_affinity_terms() -> (
     return node_selector_terms
 
 
-def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+def generate_preemptible_tolerations() -> list[kubernetes.client.V1Toleration]:
     tolerations = mlconfig.get_preemptible_tolerations()
 
     toleration_objects = []

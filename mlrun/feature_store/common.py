@@ -192,7 +192,7 @@ class RunConfig:
         owner=None,
         credentials: typing.Optional[mlrun.model.Credentials] = None,
         code: str = None,
-        requirements: typing.Union[str, typing.List[str]] = None,
+        requirements: typing.Union[str, list[str]] = None,
         extra_spec: dict = None,
         auth_info=None,
     ):

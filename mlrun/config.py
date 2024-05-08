@@ -17,7 +17,7 @@ Configuration system.
 Configuration can be in either a configuration file specified by
 MLRUN_CONFIG_FILE environment variable or by environment variables.
 
-Environment variables are in the format "MLRUN_httpdb__port=8080". This will be
+Environment variables are in the format "MLRUN_HTTPDB__PORT=8080". This will be
 mapped to config.httpdb.port. Values should be in JSON format.
 """
 
@@ -149,7 +149,6 @@ default_config = {
         "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
-    "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster
@@ -189,6 +188,7 @@ default_config = {
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
+        "function_deletion_batch_size": 10,
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
             "operations": {
@@ -197,6 +197,7 @@ default_config = {
                 "run_abortion": "600",
                 "abort_grace_period": "10",
                 "delete_project": "900",
+                "delete_function": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -241,6 +242,7 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/mlrun",
+            "application": "python:3.9-slim",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -325,7 +327,13 @@ default_config = {
                 # optional values (as per https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html#sql-mode-full):
                 #
                 # if set to "nil" or "none", nothing would be set
-                "modes": "STRICT_TRANS_TABLES",
+                "modes": (
+                    "STRICT_TRANS_TABLES"
+                    ",NO_ZERO_IN_DATE"
+                    ",NO_ZERO_DATE"
+                    ",ERROR_FOR_DIVISION_BY_ZERO"
+                    ",NO_ENGINE_SUBSTITUTION",
+                )
             },
         },
         "jobs": {
@@ -353,10 +361,12 @@ default_config = {
             #                  is set to ClusterIP
             #  ---------------------------------------------------------------------
             # Note: adding a mode requires special handling on
-            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
-            # - mlrun.runtimes.function.enrich_function_with_ingress
+            # - mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
+            # size of serving spec to move to config maps
+            "serving_spec_env_cutoff": 4096,
         },
         "logs": {
             "decode": {
@@ -474,6 +484,14 @@ default_config = {
             # if set to true, will log a warning for trying to use run db functionality while in nop db mode
             "verbose": True,
         },
+        "pagination": {
+            "default_page_size": 20,
+            "pagination_cache": {
+                "interval": 60,
+                "ttl": 3600,
+                "max_size": 10000,
+            },
+        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
@@ -493,10 +511,9 @@ default_config = {
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
-        "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
+        # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
@@ -534,9 +551,10 @@ default_config = {
     "feature_store": {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
-            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/nosql",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -672,6 +690,10 @@ default_config = {
         "access_key": "",
     },
     "grafana_url": "",
+    "alerts": {
+        # supported modes: "enabled", "disabled".
+        "mode": "enabled"
+    },
     "auth_with_client_id": {
         "enabled": False,
         "request_timeout": 5,
@@ -1065,7 +1087,7 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
-        application_name: str = None,
+        function_name: str = None,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1080,7 +1102,7 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:    Application name, None for model_monitoring_stream.
+        :param function_name:    Application name, None for model_monitoring_stream.
 
         :return:                Full configured path for the provided kind. Can be either a single path
                                 or a list of paths in the case of the online model monitoring stream path.
@@ -1095,14 +1117,15 @@ class Config:
                 return store_prefix_dict[kind].format(project=project)
 
             if (
-                application_name
+                function_name
+                and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind
-                    if application_name is None
-                    else f"{kind}-{application_name.lower()}",
+                    if function_name is None
+                    else f"{kind}-{function_name.lower()}",
                 )
             elif kind == "stream":  # return list for mlrun<1.6.3 BC
                 return [
@@ -1148,7 +1171,7 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
-    def get_s3_storage_options(self) -> typing.Dict[str, typing.Any]:
+    def get_s3_storage_options(self) -> dict[str, typing.Any]:
         """
         Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
         graph uses this method for generating the storage options for S3 parquet target path.

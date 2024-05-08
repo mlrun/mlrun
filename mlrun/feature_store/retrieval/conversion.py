@@ -19,7 +19,7 @@ from collections import Counter
 # np.bool -> bool and np.object -> object fix backported from pyspark v3.3.3.
 
 
-class PandasConversionMixin(object):
+class PandasConversionMixin:
     """
     Min-in for the conversion from Spark to pandas. Currently, only :class:`DataFrame`
     can use this class.
@@ -79,10 +79,10 @@ class PandasConversionMixin(object):
                     msg = (
                         "toPandas attempted Arrow optimization because "
                         "'spark.sql.execution.arrow.pyspark.enabled' is set to true; however, "
-                        "failed by the reason below:\n  %s\n"
+                        f"failed by the reason below:\n  {e}\n"
                         "Attempting non-optimization as "
                         "'spark.sql.execution.arrow.pyspark.fallback.enabled' is set to "
-                        "true." % str(e)
+                        "true."
                     )
                     warnings.warn(msg)
                     use_arrow = False
@@ -92,7 +92,7 @@ class PandasConversionMixin(object):
                         "'spark.sql.execution.arrow.pyspark.enabled' is set to true, but has "
                         "reached the error below and will not continue because automatic fallback "
                         "with 'spark.sql.execution.arrow.pyspark.fallback.enabled' has been set to "
-                        "false.\n  %s" % str(e)
+                        f"false.\n  {e}"
                     )
                     warnings.warn(msg)
                     raise
@@ -108,9 +108,7 @@ class PandasConversionMixin(object):
                     )
 
                     # Rename columns to avoid duplicated column names.
-                    tmp_column_names = [
-                        "col_{}".format(i) for i in range(len(self.columns))
-                    ]
+                    tmp_column_names = [f"col_{i}" for i in range(len(self.columns))]
                     self_destruct = self.sql_ctx._conf.arrowPySparkSelfDestructEnabled()
                     batches = self.toDF(*tmp_column_names)._collect_as_arrow(
                         split_batches=self_destruct
@@ -160,7 +158,7 @@ class PandasConversionMixin(object):
                         "reached the error below and can not continue. Note that "
                         "'spark.sql.execution.arrow.pyspark.fallback.enabled' does not have an "
                         "effect on failures in the middle of "
-                        "computation.\n  %s" % str(e)
+                        f"computation.\n  {e}"
                     )
                     warnings.warn(msg)
                     raise

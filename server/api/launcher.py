@@ -1,4 +1,4 @@
-# Copyright 2023 MLRun Authors
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
@@ -59,7 +59,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
+        inputs: Optional[dict[str, str]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -67,16 +67,16 @@ class ServerSideLauncher(launcher.BaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: Dict[str, list] = None,
+        hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        state_thresholds: Optional[Dict[str, int]] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -200,9 +200,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-            project_name
-            or runtime.metadata.project
-            or mlrun.config.config.default_project
+            project_name or runtime.metadata.project or mlrun.mlconf.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
@@ -291,7 +289,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     @staticmethod
     def _validate_state_thresholds(
-        state_thresholds: Optional[Dict[str, str]] = None,
+        state_thresholds: Optional[dict[str, str]] = None,
     ):
         """
         Validate the state thresholds
@@ -304,10 +302,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
             return
 
         for state, threshold in state_thresholds.items():
-            if state not in mlrun.runtimes.constants.ThresholdStates.all():
+            if state not in mlrun.common.runtimes.constants.ThresholdStates.all():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Invalid state {state} for state threshold, must be one of "
-                    f"{mlrun.runtimes.constants.ThresholdStates.all()}"
+                    f"{mlrun.common.runtimes.constants.ThresholdStates.all()}"
                 )
 
             if threshold is None:

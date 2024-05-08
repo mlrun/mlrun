@@ -15,11 +15,12 @@
 import importlib
 import os
 from abc import ABC
-from typing import List, Tuple, Union
+from typing import Union
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.callbacks import (
+from tensorflow.keras.optimizers import Optimizer
+from tensorflow.python.keras.callbacks import (
     BaseLogger,
     Callback,
     CSVLogger,
@@ -27,7 +28,6 @@ from tensorflow.keras.callbacks import (
     ProgbarLogger,
     TensorBoard,
 )
-from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 
@@ -88,9 +88,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         :param restoration: Restoration information tuple as returned from 'remove_interface' in order to
                                         add the interface in a certain state.
         """
-        super(TFKerasMLRunInterface, cls).add_interface(
-            obj=obj, restoration=restoration
-        )
+        super().add_interface(obj=obj, restoration=restoration)
 
     def mlrun_compile(self, *args, **kwargs):
         """
@@ -237,7 +235,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         """
         self._RANK_0_ONLY_CALLBACKS.add(callback_name)
 
-    def _pre_compile(self, optimizer: Optimizer) -> Tuple[Optimizer, Union[bool, None]]:
+    def _pre_compile(self, optimizer: Optimizer) -> tuple[Optimizer, Union[bool, None]]:
         """
         Method to call before calling 'compile' to setup the run and inputs for using horovod.
 
@@ -295,11 +293,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
     def _pre_fit(
         self,
-        callbacks: List[Callback],
+        callbacks: list[Callback],
         verbose: int,
         steps_per_epoch: Union[int, None],
         validation_steps: Union[int, None],
-    ) -> Tuple[List[Callback], int, Union[int, None], Union[int, None]]:
+    ) -> tuple[list[Callback], int, Union[int, None], Union[int, None]]:
         """
         Method to call before calling 'fit' to setup the run and inputs for using horovod.
 
@@ -366,9 +364,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
     def _pre_evaluate(
         self,
-        callbacks: List[Callback],
+        callbacks: list[Callback],
         steps: Union[int, None],
-    ) -> Tuple[List[Callback], Union[int, None]]:
+    ) -> tuple[list[Callback], Union[int, None]]:
         """
         Method to call before calling 'evaluate' to setup the run and inputs for using horovod.
 

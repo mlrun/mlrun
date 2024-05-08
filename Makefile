@@ -556,6 +556,8 @@ run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 
 .PHONY: run-api
 run-api: api ## Run mlrun api (dockerized)
+	# clean up any previous api container. Don't remove it after run to be able to debug failures
+	docker rm mlrun-api --force || true
 	docker run \
 		--name mlrun-api \
 		--detach \
@@ -569,7 +571,7 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: run-test-db
 run-test-db:
-	# clean up any previous test db container
+	# clean up any previous test db container. Don't remove it after run to be able to debug failures
 	docker rm test-db --force || true
 	docker run \
 		--name=test-db \
@@ -610,12 +612,13 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: fmt-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports ## Run lint on the code
 
-.PHONY: fmt-check
-fmt-check: ## Check the code (using ruff)
+.PHONY: lint-check
+lint-check: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
 	python -m ruff check --exit-non-zero-on-fix
+	python -m ruff check --preview --select=CPY001 --exit-non-zero-on-fix
 	python -m ruff format --check
 
 .PHONY: lint-go
@@ -698,7 +701,14 @@ endif
 ifndef MLRUN_RELEASE_BRANCH
 	$(error MLRUN_RELEASE_BRANCH is undefined)
 endif
-	python ./automation/release_notes/generate.py run $(MLRUN_VERSION) $(MLRUN_OLD_VERSION) $(MLRUN_RELEASE_BRANCH) $(MLRUN_RAISE_ON_ERROR) $(MLRUN_RELEASE_NOTES_OUTPUT_FILE) $(MLRUN_SKIP_CLONE)
+	python ./automation/release_notes/generate.py \
+		run \
+		--release $(MLRUN_VERSION) \
+		--previous-release $(MLRUN_OLD_VERSION) \
+		--release-branch $(MLRUN_RELEASE_BRANCH) \
+		--raise-on-failed-parsing $(MLRUN_RAISE_ON_ERROR) \
+		--tmp-file-path $(MLRUN_RELEASE_NOTES_OUTPUT_FILE) \
+		--skip-clone $(MLRUN_SKIP_CLONE)
 
 
 .PHONY: pull-cache

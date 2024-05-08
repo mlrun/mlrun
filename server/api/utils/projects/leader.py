@@ -46,7 +46,7 @@ class Member(
         logger.info("Initializing projects leader")
         self._initialize_followers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.config.config.httpdb.projects.periodic_sync_interval
+            mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
@@ -65,7 +65,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._enrich_and_validate(project)
         self._run_on_all_followers(True, "create_project", db_session, project)
         return self.get_project(db_session, project.metadata.name), False
@@ -78,7 +78,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._enrich_and_validate(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(True, "store_project", db_session, name, project)
@@ -93,7 +93,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.common.schemas.Project, bool]:
+    ) -> tuple[mlrun.common.schemas.Project, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
@@ -126,6 +126,7 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
     ) -> mlrun.common.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 
@@ -134,11 +135,11 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
             db_session, owner, format_, labels, state, names
@@ -215,9 +216,9 @@ class Member(
             followers_projects_map = collections.defaultdict(dict)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    followers_projects_map[_follower_name][project.metadata.name] = (
-                        project
-                    )
+                    followers_projects_map[_follower_name][
+                        project.metadata.name
+                    ] = project
 
             # create map - leader project name -> leader project for easier searches
             leader_projects_map = {}
@@ -244,13 +245,11 @@ class Member(
     def _ensure_project_synced(
         self,
         db_session: sqlalchemy.orm.Session,
-        leader_project_names: typing.Set[str],
-        follower_names: typing.Set[str],
+        leader_project_names: set[str],
+        follower_names: set[str],
         project_name: str,
-        followers_projects_map: typing.Dict[
-            str, typing.Dict[str, mlrun.common.schemas.Project]
-        ],
-        leader_projects_map: typing.Dict[str, mlrun.common.schemas.Project],
+        followers_projects_map: dict[str, dict[str, mlrun.common.schemas.Project]],
+        leader_projects_map: dict[str, mlrun.common.schemas.Project],
     ):
         # FIXME: This function only handles syncing project existence, i.e. if a user updates a project attribute
         #  through one of the followers this change won't be synced and the projects will be left with this discrepancy
@@ -309,7 +308,7 @@ class Member(
     def _store_project_in_followers(
         self,
         db_session: sqlalchemy.orm.Session,
-        follower_names: typing.Set[str],
+        follower_names: set[str],
         project_name: str,
         project: mlrun.common.schemas.Project,
     ):
@@ -338,7 +337,7 @@ class Member(
     def _create_project_in_missing_followers(
         self,
         db_session: sqlalchemy.orm.Session,
-        missing_followers: typing.Set[str],
+        missing_followers: set[str],
         # the name of the follower which we took the missing project from
         project_follower_name: str,
         project_name: str,
@@ -383,7 +382,7 @@ class Member(
 
     def _run_on_all_followers(
         self, leader_first: bool, method: str, *args, **kwargs
-    ) -> typing.Tuple[typing.Any, typing.Dict[str, typing.Any]]:
+    ) -> tuple[typing.Any, dict[str, typing.Any]]:
         leader_response = None
         if leader_first:
             leader_response = getattr(self._leader_follower, method)(*args, **kwargs)
@@ -397,11 +396,11 @@ class Member(
         return leader_response, follower_responses
 
     def _initialize_followers(self):
-        leader_name = mlrun.config.config.httpdb.projects.leader
+        leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
         followers = (
-            mlrun.config.config.httpdb.projects.followers.split(",")
-            if mlrun.config.config.httpdb.projects.followers
+            mlrun.mlconf.httpdb.projects.followers.split(",")
+            if mlrun.mlconf.httpdb.projects.followers
             else []
         )
         self._followers = {

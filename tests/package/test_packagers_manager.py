@@ -16,7 +16,7 @@ import os
 import shutil
 import tempfile
 import zipfile
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Union
 
 import pytest
 
@@ -45,7 +45,7 @@ class PackagerA(Packager):
     def get_default_unpacking_artifact_type(self, data_item: DataItem) -> str:
         return "result"
 
-    def get_supported_artifact_types(self) -> List[str]:
+    def get_supported_artifact_types(self) -> list[str]:
         return ["result"]
 
     def is_packable(
@@ -88,7 +88,7 @@ class PackagerB(DefaultPackager):
         obj: str,
         key: str,
         fmt: str,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         # Create a temp directory:
         path = tempfile.mkdtemp()
 
@@ -107,7 +107,7 @@ class PackagerB(DefaultPackager):
         obj: str,
         key: str,
         amount_of_files: int,
-    ) -> Tuple[Artifact, dict]:
+    ) -> tuple[Artifact, dict]:
         # Create a temp directory:
         path = tempfile.mkdtemp()
 
@@ -204,7 +204,7 @@ class NotAPackager:
     ],
 )
 def test_collect_packagers(
-    packagers_to_collect: List[str], validation: Union[List[Type[Packager]], str]
+    packagers_to_collect: list[str], validation: Union[list[type[Packager]], str]
 ):
     """
     Test the manager's `collect_packagers` method.
@@ -242,7 +242,7 @@ def test_collect_packagers(
 )
 @pytest.mark.parametrize("set_via_default_priority", [True, False])
 def test_packagers_priority(
-    packagers_to_collect: List[Type[Packager]],
+    packagers_to_collect: list[type[Packager]],
     result_key_suffix: str,
     set_via_default_priority: bool,
 ):
@@ -365,7 +365,7 @@ def test_clear_packagers_outputs():
 def test_arbitrary_log_hint(
     key: str,
     obj: Union[list, dict, tuple, set],
-    expected_results: Union[Dict[str, float], str],
+    expected_results: Union[dict[str, float], str],
 ):
     """
     Test the arbitrary log hint key prefixes "*" and "**".

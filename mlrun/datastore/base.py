@@ -144,6 +144,10 @@ class DataStore:
     def url(self):
         return f"{self.kind}://{self.endpoint}"
 
+    @property
+    def spark_url(self):
+        return self.url
+
     def get(self, key, size=None, offset=0):
         pass
 
@@ -175,11 +179,23 @@ class DataStore:
         return {}
 
     @staticmethod
-    def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
+    def _parquet_reader(
+        df_module,
+        url,
+        file_system,
+        time_column,
+        start_time,
+        end_time,
+        additional_filters,
+    ):
         from storey.utils import find_filters, find_partitions
 
         def set_filters(
-            partitions_time_attributes, start_time_inner, end_time_inner, kwargs
+            partitions_time_attributes,
+            start_time_inner,
+            end_time_inner,
+            filters_inner,
+            kwargs,
         ):
             filters = []
             find_filters(
@@ -189,20 +205,23 @@ class DataStore:
                 filters,
                 time_column,
             )
+            if filters and filters_inner:
+                filters[0] += filters_inner
+
             kwargs["filters"] = filters
 
         def reader(*args, **kwargs):
-            if start_time or end_time:
-                if time_column is None:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "When providing start_time or end_time, must provide time_column"
-                    )
-
+            if time_column is None and (start_time or end_time):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "When providing start_time or end_time, must provide time_column"
+                )
+            if start_time or end_time or additional_filters:
                 partitions_time_attributes = find_partitions(url, file_system)
                 set_filters(
                     partitions_time_attributes,
                     start_time,
                     end_time,
+                    additional_filters,
                     kwargs,
                 )
                 try:
@@ -213,6 +232,7 @@ class DataStore:
                     ):
                         raise ex
 
+                    # TODO: fix timezone issue (ML-6308)
                     if start_time.tzinfo:
                         start_time_inner = start_time.replace(tzinfo=None)
                         end_time_inner = end_time.replace(tzinfo=None)
@@ -224,6 +244,7 @@ class DataStore:
                         partitions_time_attributes,
                         start_time_inner,
                         end_time_inner,
+                        additional_filters,
                         kwargs,
                     )
                     return df_module.read_parquet(*args, **kwargs)
@@ -242,6 +263,7 @@ class DataStore:
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         df_module = df_module or pd
@@ -306,7 +328,13 @@ class DataStore:
                 kwargs["columns"] = columns
 
             reader = self._parquet_reader(
-                df_module, url, file_system, time_column, start_time, end_time
+                df_module,
+                url,
+                file_system,
+                time_column,
+                start_time,
+                end_time,
+                additional_filters,
             )
 
         elif file_url.endswith(".json") or format == "json":
@@ -317,31 +345,17 @@ class DataStore:
             raise Exception(f"File type unhandled {url}")
 
         if file_system:
-            if (
-                self.supports_isdir()
-                and file_system.isdir(file_url)
-                or self._is_dd(df_module)
-            ):
-                storage_options = self.get_storage_options()
-                if url.startswith("ds://"):
-                    parsed_url = urllib.parse.urlparse(url)
-                    url = parsed_url.path
-                    if self.using_bucket:
-                        url = url[1:]
-                    # Pass the underlying file system
-                    kwargs["filesystem"] = file_system
-                elif storage_options:
-                    kwargs["storage_options"] = storage_options
-                df = reader(url, **kwargs)
-            else:
-                file = url
-                # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
-                if file_system.protocol != "file":
-                    # If not dir, use file_system.open() to avoid regression when pandas < 1.2 and does not
-                    # support the storage_options parameter.
-                    file = file_system.open(url)
-
-                df = reader(file, **kwargs)
+            storage_options = self.get_storage_options()
+            if url.startswith("ds://"):
+                parsed_url = urllib.parse.urlparse(url)
+                url = parsed_url.path
+                if self.using_bucket:
+                    url = url[1:]
+                # Pass the underlying file system
+                kwargs["filesystem"] = file_system
+            elif storage_options:
+                kwargs["storage_options"] = storage_options
+            df = reader(url, **kwargs)
         else:
             temp_file = tempfile.NamedTemporaryFile(delete=False)
             self.download(self._join(subpath), temp_file.name)
@@ -399,14 +413,15 @@ class DataItem:
 
 
         # reading run results using DataItem (run.artifact())
-        train_run = train_iris_func.run(inputs={'dataset': dataset},
-                                        params={'label_column': 'label'})
+        train_run = train_iris_func.run(
+            inputs={"dataset": dataset}, params={"label_column": "label"}
+        )
 
-        train_run.artifact('confusion-matrix').show()
-        test_set = train_run.artifact('test_set').as_df()
+        train_run.artifact("confusion-matrix").show()
+        test_set = train_run.artifact("test_set").as_df()
 
         # create and use DataItem from uri
-        data = mlrun.get_dataitem('http://xyz/data.json').get()
+        data = mlrun.get_dataitem("http://xyz/data.json").get()
     """
 
     def __init__(
@@ -548,6 +563,7 @@ class DataItem:
         time_column=None,
         start_time=None,
         end_time=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
@@ -559,6 +575,12 @@ class DataItem:
         :param end_time:    filters out data after this time
         :param time_column: Store timestamp_key will be used if None.
                             The results will be filtered by this column and start_time & end_time.
+        :param additional_filters: List of additional_filter conditions as tuples.
+                                    Each tuple should be in the format (column_name, operator, value).
+                                    Supported operators: "=", ">=", "<=", ">", "<".
+                                    Example: [("Product", "=", "Computer")]
+                                    For all supported filters, please see:
+                                    https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
         """
         df = self._store.as_df(
             self._url,
@@ -569,6 +591,7 @@ class DataItem:
             time_column=time_column,
             start_time=start_time,
             end_time=end_time,
+            additional_filters=additional_filters,
             **kwargs,
         )
         return df

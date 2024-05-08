@@ -49,7 +49,7 @@ def watch_stream(
 
     example::
 
-        watch_stream('v3io:///users/admin/mystream')
+        watch_stream("v3io:///users/admin/mystream")
 
     :param url:        stream url
     :param shard_ids:  range or list of shard IDs

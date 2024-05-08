@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import List
 
 import mlrun
 
@@ -34,8 +33,8 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        dynamic_hyperparameters: List[str] = None,
-        static_hyperparameters: List[str] = None,
+        dynamic_hyperparameters: list[str] = None,
+        static_hyperparameters: list[str] = None,
         logging_frequency: int = 100,
     ):
         """
@@ -55,7 +54,7 @@ class MLRunLoggingCallback(LoggingCallback):
                                         them and the results to MLRun). Two low frequency may slow the training time.
                                         Default: 100.
         """
-        super(MLRunLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
         )
@@ -75,7 +74,7 @@ class MLRunLoggingCallback(LoggingCallback):
                     information check the `Callback` doc string.
         """
         # Log the results and parameters:
-        super(MLRunLoggingCallback, self).__call__(env=env)
+        super().__call__(env=env)
 
         # Produce the artifacts (post iteration stage):
         if env.iteration % self._logging_frequency == 0:

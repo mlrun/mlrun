@@ -163,7 +163,7 @@ class Projects(
             )
 
         # verify project can be deleted in nuclio
-        if mlrun.config.config.nuclio_dashboard_url:
+        if mlrun.mlconf.nuclio_dashboard_url:
             nuclio_client = server.api.utils.clients.nuclio.Client()
             nuclio_client.delete_project(
                 session,
@@ -201,6 +201,8 @@ class Projects(
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             server.api.crud.Logs().delete_project_logs_legacy(name)
+
+        server.api.crud.Events().delete_project_alert_events(name)
 
         # delete db resources
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
@@ -247,9 +249,9 @@ class Projects(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return server.api.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
@@ -259,9 +261,9 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
@@ -288,13 +290,14 @@ class Projects(
         return project_summaries[0]
 
     async def generate_projects_summaries(
-        self, projects: typing.List[str]
-    ) -> typing.List[mlrun.common.schemas.ProjectSummary]:
+        self, projects: list[str]
+    ) -> list[mlrun.common.schemas.ProjectSummary]:
         (
             project_to_files_count,
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
+            project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
             project_to_running_pipelines_count,
@@ -308,6 +311,9 @@ class Projects(
                     schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
+                    runs_completed_recent_count=project_to_recent_completed_runs_count.get(
+                        project, 0
+                    ),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(
                         project, 0
                     ),
@@ -321,14 +327,15 @@ class Projects(
 
     async def _get_project_resources_counters(
         self,
-    ) -> typing.Tuple[
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, typing.Union[int, None]],
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, typing.Union[int, None]],
     ]:
         now = datetime.datetime.now()
         if (
@@ -349,6 +356,7 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ) = results[0]
@@ -358,6 +366,7 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
                 project_to_running_pipelines_count,
@@ -374,12 +383,15 @@ class Projects(
     def _list_pipelines(
         session,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        page_token: str = "",
     ):
-        return server.api.crud.Pipelines().list_pipelines(session, "*", format_=format_)
+        return server.api.crud.Pipelines().list_pipelines(
+            session, "*", format_=format_, page_token=page_token
+        )
 
     async def _calculate_pipelines_counters(
         self,
-    ) -> typing.Dict[str, typing.Union[int, None]]:
+    ) -> dict[str, typing.Union[int, None]]:
         # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
         # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
@@ -388,10 +400,28 @@ class Projects(
             return project_to_running_pipelines_count
 
         try:
-            _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
-                self._list_pipelines,
-            )
+            next_page_token = ""
+            while True:
+                (
+                    _,
+                    next_page_token,
+                    pipelines,
+                ) = await fastapi.concurrency.run_in_threadpool(
+                    server.api.db.session.run_function_with_new_db_session,
+                    self._list_pipelines,
+                    page_token=next_page_token,
+                )
+
+                for pipeline in pipelines:
+                    if (
+                        pipeline["status"]
+                        not in mlrun.run.RunStatuses.stable_statuses()
+                    ):
+                        project_to_running_pipelines_count[pipeline["project"]] += 1
+
+                if not next_page_token:
+                    break
+
         except Exception as exc:
             # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information
             logger.warning(
@@ -414,7 +444,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        if not mlrun.config.config.nuclio_dashboard_url:
+        if not mlrun.mlconf.nuclio_dashboard_url:
             return
 
         nuclio_client = server.api.utils.clients.nuclio.Client()

@@ -43,7 +43,7 @@ class TestFeatureStoreS3SparkEngine(SparkHadoopTestBase):
     def test_basic_remote_spark_ingest_ds_s3(self):
         ds_profile = DatastoreProfileS3(
             name=self.ds_profile_name,
-            access_key=self.env["AWS_ACCESS_KEY_ID"],
+            access_key_id=self.env["AWS_ACCESS_KEY_ID"],
             secret_key=self.env["AWS_SECRET_ACCESS_KEY"],
         )
         register_temporary_client_datastore_profile(ds_profile)

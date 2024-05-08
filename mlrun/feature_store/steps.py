@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -92,8 +92,6 @@ class MLRunStep(MapClass):
 
 
 class FeaturesetValidator(StepToDict, MLRunStep):
-    """Validate feature values according to the feature set validation policy"""
-
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
         """Validate feature values according to the feature set validation policy
 
@@ -152,11 +150,9 @@ class FeaturesetValidator(StepToDict, MLRunStep):
 
 
 class MapValues(StepToDict, MLRunStep):
-    """Map column values to new values"""
-
     def __init__(
         self,
-        mapping: Dict[str, Dict[Union[str, int, bool], Any]],
+        mapping: dict[str, dict[Union[str, int, bool], Any]],
         with_original_features: bool = False,
         suffix: str = "mapped",
         **kwargs,
@@ -166,13 +162,19 @@ class MapValues(StepToDict, MLRunStep):
         example::
 
             # replace the value "U" with '0' in the age column
-            graph.to(MapValues(mapping={'age': {'U': '0'}}, with_original_features=True))
+            graph.to(MapValues(mapping={"age": {"U": "0"}}, with_original_features=True))
 
             # replace integers, example
-            graph.to(MapValues(mapping={'not': {0: 1, 1: 0}}))
+            graph.to(MapValues(mapping={"not": {0: 1, 1: 0}}))
 
             # replace by range, use -inf and inf for extended range
-            graph.to(MapValues(mapping={'numbers': {'ranges': {'negative': [-inf, 0], 'positive': [0, inf]}}}))
+            graph.to(
+                MapValues(
+                    mapping={
+                        "numbers": {"ranges": {"negative": [-inf, 0], "positive": [0, inf]}}
+                    }
+                )
+            )
 
         :param mapping: a dict with entry per column and the associated old/new values map
         :param with_original_features: set to True to keep the original features
@@ -377,7 +379,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Dict[str, Any] = None,
+        mapping: dict[str, Any] = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -423,13 +425,15 @@ class Imputer(StepToDict, MLRunStep):
 
 
 class OneHotEncoder(StepToDict, MLRunStep):
-    def __init__(self, mapping: Dict[str, List[Union[int, str]]], **kwargs):
+    def __init__(self, mapping: dict[str, list[Union[int, str]]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
 
-            mapping = {'category': ['food', 'health', 'transportation'],
-                       'gender': ['male', 'female']}
+            mapping = {
+                "category": ["food", "health", "transportation"],
+                "gender": ["male", "female"],
+            }
             graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
 
         :param mapping: a dict of per column categories (to map to binary fields)
@@ -510,15 +514,13 @@ class OneHotEncoder(StepToDict, MLRunStep):
 
 
 class DateExtractor(StepToDict, MLRunStep):
-    """Date Extractor allows you to extract a date-time component"""
-
     def __init__(
         self,
-        parts: Union[Dict[str, str], List[str]],
+        parts: Union[dict[str, str], list[str]],
         timestamp_col: str = None,
         **kwargs,
     ):
-        """Date Extractor extract a date-time component into new columns
+        """Date Extractor extracts a date-time component into new columns
 
         The extracted date part will appear as `<timestamp_col>_<date_part>` feature.
 
@@ -548,10 +550,12 @@ class DateExtractor(StepToDict, MLRunStep):
 
             # (taken from the fraud-detection end-to-end feature store demo)
             # Define the Transactions FeatureSet
-            transaction_set = fstore.FeatureSet("transactions",
-                                            entities=[fstore.Entity("source")],
-                                            timestamp_key='timestamp',
-                                            description="transactions feature set")
+            transaction_set = fstore.FeatureSet(
+                "transactions",
+                entities=[fstore.Entity("source")],
+                timestamp_key="timestamp",
+                description="transactions feature set",
+            )
 
             # Get FeatureSet computation graph
             transaction_graph = transaction_set.graph
@@ -559,11 +563,11 @@ class DateExtractor(StepToDict, MLRunStep):
             # Add the custom `DateExtractor` step
             # to the computation graph
             transaction_graph.to(
-                    class_name='DateExtractor',
-                    name='Extract Dates',
-                    parts = ['hour', 'day_of_week'],
-                    timestamp_col = 'timestamp',
-                )
+                class_name="DateExtractor",
+                name="Extract Dates",
+                parts=["hour", "day_of_week"],
+                timestamp_col="timestamp",
+            )
 
         :param parts: list of pandas style date-time parts you want to extract.
         :param timestamp_col: The name of the column containing the timestamps to extract from,
@@ -629,8 +633,6 @@ class DateExtractor(StepToDict, MLRunStep):
 
 
 class SetEventMetadata(MapClass):
-    """Set the event metadata (id and key) from the event body"""
-
     def __init__(
         self,
         id_path: Optional[str] = None,
@@ -695,18 +697,19 @@ class SetEventMetadata(MapClass):
 
 
 class DropFeatures(StepToDict, MLRunStep):
-    def __init__(self, features: List[str], **kwargs):
+    def __init__(self, features: list[str], **kwargs):
         """Drop all the features from feature list
 
         :param features:    string list of the features names to drop
 
         example::
 
-            feature_set = fstore.FeatureSet("fs-new",
-                                        entities=[fstore.Entity("id")],
-                                        description="feature set",
-                                        engine="pandas",
-                                        )
+            feature_set = fstore.FeatureSet(
+                "fs-new",
+                entities=[fstore.Entity("id")],
+                description="feature set",
+                engine="pandas",
+            )
             # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
             df_pandas = feature_set.ingest(data)

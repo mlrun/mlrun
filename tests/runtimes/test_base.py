@@ -166,7 +166,7 @@ class TestAutoMount:
         through the request headers
         """
         os.environ[
-            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
         ] = "some-access-key"
 
         runtime = self._generate_runtime()

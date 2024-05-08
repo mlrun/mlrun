@@ -14,7 +14,7 @@
 #
 from abc import ABC
 from types import ModuleType
-from typing import Callable, List, Tuple, Union
+from typing import Callable, Union
 
 import lightgbm as lgb
 
@@ -88,7 +88,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
                 globals().update({"lightgbm": lgb, "lgb": lgb})
 
         # Add the interface to the provided lightgbm module:
-        super(LGBMMLRunInterface, cls).add_interface(obj=obj, restoration=restoration)
+        super().add_interface(obj=obj, restoration=restoration)
 
     @staticmethod
     def mlrun_train(*args, **kwargs):
@@ -223,7 +223,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         pass
 
     @staticmethod
-    def _parse_callbacks(callbacks: List[Callable]):
+    def _parse_callbacks(callbacks: list[Callable]):
         """
         Parse the callbacks passed to the training API functions of LightGBM for adding logging and enabling the MLRun
         callbacks API.
@@ -259,9 +259,9 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     @staticmethod
     def _post_train(
         booster: lgb.Booster,
-        train_set: Tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]],
-        validation_sets: List[
-            Tuple[Tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]], str]
+        train_set: tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]],
+        validation_sets: list[
+            tuple[tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]], str]
         ],
     ):
         """

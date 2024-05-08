@@ -20,7 +20,7 @@ from kubernetes import client
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun import mlconf
-from mlrun.runtimes.constants import RunStates
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1
 from mlrun.utils import update_in
 from server.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler
@@ -169,7 +169,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
         return job
 
-    def _get_job_launcher_status(self, resp: typing.List) -> str:
+    def _get_job_launcher_status(self, resp: list) -> str:
         launcher_status = mlrun.utils.get_in(resp, "status.replicaStatuses.Launcher")
         if launcher_status is None:
             return ""
@@ -236,7 +236,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+    ) -> tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         """
         https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29
         https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
@@ -283,7 +283,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return "mpi-job-role=launcher"
 
     @staticmethod
-    def _get_crd_info() -> typing.Tuple[str, str, str]:
+    def _get_crd_info() -> tuple[str, str, str]:
         return (
             MpiRuntimeV1.crd_group,
             MpiRuntimeV1.crd_version,

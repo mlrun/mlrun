@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 import os
-import typing
 
 from mlrun.config import config
 from mlrun.runtimes.kubejob import KubejobRuntime
@@ -206,7 +205,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         self.set_envs(horovod_autotune_settings)
 
-    def set_mpi_args(self, args: typing.List[str]) -> None:
+    def set_mpi_args(self, args: list[str]) -> None:
         """Sets the runtime's mpi arguments to args.
 
         Parameters
@@ -224,14 +223,14 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         ```
         # Define the wanted MPI arguments
         mpi_args = []
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_DEBUG=INFO')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_SOCKET_NTHREADS=2')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_NSOCKS_PERTHREAD=8')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_MIN_NCHANNELS=4')
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_DEBUG=INFO")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_SOCKET_NTHREADS=2")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_NSOCKS_PERTHREAD=8")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_MIN_NCHANNELS=4")
 
         # Set the MPI arguments in the function
         fn.set_mpi_args(mpi_args)

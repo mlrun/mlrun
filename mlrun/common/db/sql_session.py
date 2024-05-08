@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-import typing
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -23,8 +22,8 @@ from sqlalchemy.orm import sessionmaker as SessionMaker
 from mlrun.config import config
 
 # TODO: wrap the following functions in a singleton class
-_engines: typing.Dict[str, Engine] = {}
-_session_makers: typing.Dict[str, SessionMaker] = {}
+_engines: dict[str, Engine] = {}
+_session_makers: dict[str, SessionMaker] = {}
 
 
 # doing lazy load to allow tests to initialize the engine

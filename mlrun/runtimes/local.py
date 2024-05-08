@@ -436,7 +436,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     return out, err
 
 
-class _DupStdout(object):
+class _DupStdout:
     def __init__(self):
         self.terminal = sys.stdout
         self.buf = StringIO()
@@ -493,7 +493,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 logger.warning("Run was aborted", err=err_to_str(exc))
                 # Run was aborted, the state run state is updated by the abort job, no need to commit again
                 context.set_state(
-                    mlrun.runtimes.constants.RunStates.aborted, commit=False
+                    mlrun.common.runtimes.constants.RunStates.aborted, commit=False
                 )
                 commit = False
             except Exception as exc:

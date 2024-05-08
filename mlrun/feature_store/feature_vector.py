@@ -17,7 +17,7 @@ import typing
 from copy import copy
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -69,18 +69,16 @@ class FeatureVectorSpec(ModelObj):
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
         self._function: FunctionReference = None
-        self._relations: typing.Dict[str, ObjectDict] = None
+        self._relations: dict[str, ObjectDict] = None
         self._join_graph: JoinGraph = None
 
         self.description = description
-        self.features: List[str] = features or []
+        self.features: list[str] = features or []
         self.entity_source = entity_source
         self.entity_fields = entity_fields or []
         self.graph = graph
         self.join_graph = join_graph
-        self.relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = (
-            relations or {}
-        )
+        self.relations: dict[str, dict[str, Union[Entity, str]]] = relations or {}
         self.timestamp_field = timestamp_field
         self.label_feature = label_feature
         self.with_indexes = with_indexes
@@ -97,12 +95,12 @@ class FeatureVectorSpec(ModelObj):
         self._entity_source = self._verify_dict(source, "entity_source", DataSource)
 
     @property
-    def entity_fields(self) -> List[Feature]:
+    def entity_fields(self) -> list[Feature]:
         """the schema/metadata for the entity source fields"""
         return self._entity_fields
 
     @entity_fields.setter
-    def entity_fields(self, entity_fields: List[Feature]):
+    def entity_fields(self, entity_fields: list[Feature]):
         self._entity_fields = ObjectList.from_list(Feature, entity_fields)
 
     @property
@@ -125,14 +123,12 @@ class FeatureVectorSpec(ModelObj):
         self._function = self._verify_dict(function, "function", FunctionReference)
 
     @property
-    def relations(self) -> typing.Dict[str, ObjectDict]:
+    def relations(self) -> dict[str, ObjectDict]:
         """feature set relations dict"""
         return self._relations
 
     @relations.setter
-    def relations(
-        self, relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]]
-    ):
+    def relations(self, relations: dict[str, dict[str, Union[Entity, str]]]):
         temp_relations = {}
         for fs_name, relation in relations.items():
             for col, ent in relation.items():
@@ -179,29 +175,29 @@ class FeatureVectorStatus(ModelObj):
         self.stats = stats or {}
         self.index_keys = index_keys
         self.preview = preview or []
-        self.features: List[Feature] = features or []
+        self.features: list[Feature] = features or []
         self.run_uri = run_uri
         self.timestamp_key = timestamp_key
 
     @property
-    def targets(self) -> List[DataTarget]:
+    def targets(self) -> list[DataTarget]:
         """list of material storage targets + their status/path"""
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTarget]):
+    def targets(self, targets: list[DataTarget]):
         self._targets = ObjectList.from_list(DataTarget, targets)
 
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
     @property
-    def features(self) -> List[Feature]:
+    def features(self) -> list[Feature]:
         """list of features (result of joining features from the source feature sets)"""
         return self._features
 
     @features.setter
-    def features(self, features: List[Feature]):
+    def features(self, features: list[Feature]):
         self._features = ObjectList.from_list(Feature, features)
 
 
@@ -378,7 +374,7 @@ class _JoinStep(ModelObj):
         name: str = None,
         left_step_name: str = None,
         right_step_name: str = None,
-        left_feature_set_names: Union[str, List[str]] = None,
+        left_feature_set_names: Union[str, list[str]] = None,
         right_feature_set_name: str = None,
         join_type: str = "inner",
         asof_join: bool = False,
@@ -388,7 +384,8 @@ class _JoinStep(ModelObj):
         self.right_step_name = right_step_name
         self.left_feature_set_names = (
             left_feature_set_names
-            if isinstance(left_feature_set_names, list)
+            if left_feature_set_names is None
+            or isinstance(left_feature_set_names, list)
             else [left_feature_set_names]
         )
         self.right_feature_set_name = right_feature_set_name
@@ -402,7 +399,7 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
-        entity_rows_keys: List[str] = None,
+        entity_rows_keys: list[str] = None,
     ):
         if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
             entity_rows_keys
@@ -482,21 +479,22 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
         join_graph: JoinGraph = None,
-        relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = None,
+        relations: dict[str, dict[str, Union[Entity, str]]] = None,
     ):
         """Feature vector, specify selected features, their metadata and material views
 
         example::
 
             import mlrun.feature_store as fstore
+
             features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
             vector = fstore.FeatureVector("my-vec", features)
 
             # get the vector as a dataframe
-            df = fstore.get_offline_features(vector).to_dataframe()
+            df = vector.get_offline_features().to_dataframe()
 
             # return an online/real-time feature service
-            svc = fstore.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            svc = vector.get_online_feature_service(impute_policy={"*": "$mean"})
             resp = svc.get([{"stock": "GOOG"}])
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
@@ -732,7 +730,7 @@ class FeatureVector(ModelObj):
         entity_timestamp_column: str = None,
         target: DataTargetBase = None,
         run_config: RunConfig = None,
-        drop_columns: List[str] = None,
+        drop_columns: list[str] = None,
         start_time: Union[str, datetime] = None,
         end_time: Union[str, datetime] = None,
         with_indexes: bool = False,
@@ -740,9 +738,9 @@ class FeatureVector(ModelObj):
         engine: str = None,
         engine_args: dict = None,
         query: str = None,
-        order_by: Union[str, List[str]] = None,
+        order_by: Union[str, list[str]] = None,
         spark_service: str = None,
-        timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+        timestamp_for_filtering: Union[str, dict[str, str]] = None,
     ):
         """retrieve offline feature vector results
 
@@ -827,7 +825,7 @@ class FeatureVector(ModelObj):
         fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
         impute_policy: dict = None,
         update_stats: bool = False,
-        entity_keys: List[str] = None,
+        entity_keys: list[str] = None,
     ):
         """initialize and return online feature vector service api,
         returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -855,7 +853,7 @@ class FeatureVector(ModelObj):
 
                 Example::
 
-                    svc = vector_uri.get_online_feature_service(entity_keys=['ticker'])
+                    svc = vector_uri.get_online_feature_service(entity_keys=["ticker"])
                     try:
                         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                         print(resp)
@@ -910,7 +908,7 @@ class OnlineVectorService:
         graph,
         index_columns,
         impute_policy: dict = None,
-        requested_columns: List[str] = None,
+        requested_columns: list[str] = None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}
@@ -966,7 +964,7 @@ class OnlineVectorService:
         """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[Union[dict, list]], as_list=False):
+    def get(self, entity_rows: list[Union[dict, list]], as_list=False):
         """get feature vector given the provided entity inputs
 
         take a list of input vectors/rows and return a list of enriched feature vectors

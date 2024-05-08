@@ -101,7 +101,9 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
    
    Sliding windows are fixed-size, overlapping, windows (defined by `windows`) that are evaluated at a sliding
    interval (defined by `period`).  
-   The period size must be an integral divisor of the window size. 
+   The period size must be an integral divisor of the window size. In general, for best performance, use the highest interval 
+   that you can, and which gives the output you desire. The lower limit is technically 1s, but going that low can be inefficient, 
+   depending on the window size, data, and the engine used.
       
    The following figure illustrates sliding windows of size 20 seconds, and periods of 10 seconds. Since the period is less than the 
    window size, the windows contain overlapping data. In this example, events E4-E6 are in Windows 1 and 2. When Window 2 is evaluated 
@@ -279,8 +281,8 @@ feature_set = fstore.FeatureSet("fs-new",
                                 entities=[fstore.Entity("id")], 
                                 engine="pandas",
                                 )
-# Adding multiply step, with specific parameters
-feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
+# Adding multiply step, with specific class parameters passed as kwargs
+feature_set.graph.to(class_name="MultiplyFeature", feature="number1", value=4)
 df_pandas = feature_set.ingest(data)
 ```
 

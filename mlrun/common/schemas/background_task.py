@@ -61,4 +61,4 @@ class BackgroundTask(pydantic.BaseModel):
 
 
 class BackgroundTaskList(pydantic.BaseModel):
-    background_tasks: typing.List[BackgroundTask]
+    background_tasks: list[BackgroundTask]

@@ -74,8 +74,9 @@ class Member(
         if self._is_chief:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
-                # chief-worker model.
-                # TODO: remove full_sync=True in 1.7.0 if no issues arise
+                # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
+                # we don't necessarily need to archive projects that are not in the leader.
+                # TODO: Discuss maybe removing full_sync=True in 1.8.0
                 self._sync_projects(full_sync=True)
             except Exception as exc:
                 logger.warning(
@@ -98,7 +99,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._validate_project(project)
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
@@ -129,7 +130,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._validate_project(project)
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
@@ -150,7 +151,9 @@ class Member(
                 )
             else:
                 self._leader_client.update_project(leader_session, name, project)
-                return self.get_project(db_session, name, leader_session), False
+                return server.api.db.session.run_function_with_new_db_session(
+                    self.get_project, name, leader_session
+                ), False
 
     def patch_project(
         self,
@@ -161,7 +164,7 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
@@ -213,10 +216,20 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
     ) -> mlrun.common.schemas.Project:
+        # by default, get project will use mlrun db to get/list the project.
+        # from leader is relevant for cases where we want to get the project from the leader
         if from_leader:
             return self._leader_client.get_project(leader_session, name)
-        return server.api.crud.Projects().get_project(db_session, name)
+
+        # format_ is relevant for cases where we want to get the project from mlrun db
+        projects = self.list_projects(
+            db_session, format_=format_, leader_session=leader_session, names=[name]
+        ).projects
+        if not projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+        return projects[0]
 
     def get_project_owner(
         self,
@@ -230,12 +243,12 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.schemas.ProjectsFormat.leader
@@ -262,11 +275,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await server.api.crud.Projects().list_project_summaries(
             db_session, owner, labels, state, names

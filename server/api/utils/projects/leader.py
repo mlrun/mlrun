@@ -216,9 +216,9 @@ class Member(
             followers_projects_map = collections.defaultdict(dict)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    followers_projects_map[_follower_name][
-                        project.metadata.name
-                    ] = project
+                    followers_projects_map[_follower_name][project.metadata.name] = (
+                        project
+                    )
 
             # create map - leader project name -> leader project for easier searches
             leader_projects_map = {}

@@ -21,8 +21,8 @@ import sys
 import time
 from sys import executable
 
-import mlrun_pipelines.common.models
 import igz_mgmt
+import mlrun_pipelines.common.models
 import pandas as pd
 import pytest
 from kfp import dsl

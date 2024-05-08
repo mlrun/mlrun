@@ -1490,9 +1490,98 @@ class HTTPRunDB(RunDBInterface):
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError("bad function run response")
+            raise ValueError("bad submit build response")
 
         return resp.json()
+
+    def deploy_nuclio_function(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        builder_env: Optional[dict] = None,
+    ):
+        """
+        Deploy a Nuclio function.
+        :param func:            Function to build.
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+        """
+        func.metadata.project = func.metadata.project or config.default_project
+        self.warn_on_s3_and_ecr_permissions_conflict(func)
+        try:
+            req = {
+                "function": func.to_dict(),
+            }
+            if builder_env:
+                req["builder_env"] = builder_env
+            _path = (
+                f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
+            )
+            resp = self.api_call("POST", _path, json=req)
+        except OSError as err:
+            logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.error(f"deploy nuclio - bad response:\n{resp.text}")
+            raise ValueError("bad nuclio deploy response")
+
+        return resp.json()
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        """Retrieve the status of a deploy operation currently in progress.
+        :param func:                Function object that is being built.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+        :returns: The following parameters:
+            - Text of builder logs.
+            - Timestamp of last log retrieved, to be used in subsequent calls to this function.
+        """
+
+        try:
+            normalized_name = normalize_name(func.metadata.name)
+            params = {
+                "name": normalized_name,
+                "project": func.metadata.project,
+                "tag": func.metadata.tag,
+                "last_log_timestamp": str(last_log_timestamp),
+                "verbose": bool2str(verbose),
+            }
+            _path = f"projects/{func.metadata.project}/nuclio/{normalized_name}/deploy"
+            resp = self.api_call("GET", _path, params=params)
+        except OSError as err:
+            logger.error(f"error getting deploy status: {err_to_str(err)}")
+            raise OSError(f"error: cannot get deploy status, {err_to_str(err)}")
+
+        if not resp.ok:
+            logger.warning(f"failed resp, {resp.text}")
+            raise RunDBError("bad function build response")
+
+        if resp.headers:
+            func.status.state = resp.headers.get("x-mlrun-function-status", "")
+            last_log_timestamp = float(
+                resp.headers.get("x-mlrun-last-timestamp", "0.0")
+            )
+            func.status.address = resp.headers.get("x-mlrun-address", "")
+            func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
+            func.status.internal_invocation_urls = resp.headers.get(
+                "x-mlrun-internal-invocation-urls", ""
+            ).split(",")
+            func.status.external_invocation_urls = resp.headers.get(
+                "x-mlrun-external-invocation-urls", ""
+            ).split(",")
+            func.status.container_image = resp.headers.get(
+                "x-mlrun-container-image", ""
+            )
+
+        text = ""
+        if resp.content:
+            text = resp.content.decode()
+        return text, last_log_timestamp
 
     def get_builder_status(
         self,
@@ -1555,9 +1644,14 @@ class HTTPRunDB(RunDBInterface):
                 func.status.container_image = resp.headers.get(
                     "x-mlrun-container-image", ""
                 )
-            else:
-                func.status.build_pod = resp.headers.get("builder_pod", "")
-                func.spec.image = resp.headers.get("function_image", "")
+
+            builder_pod = resp.headers.get("builder_pod", "")
+            if builder_pod:
+                func.status.build_pod = builder_pod
+
+            function_image = resp.headers.get("function_image", "")
+            if function_image:
+                func.spec.image = function_image
 
         text = ""
         if resp.content:
@@ -1620,7 +1714,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.config.config.default_project).
+        :param project: Project name (defaults to mlrun.mlconf.default_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
@@ -1952,9 +2046,9 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        entities: List[str] = None,
-        labels: List[str] = None,
-    ) -> List[dict]:
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> list[dict]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
         refer to the feature-set object containing the features, not to the features themselves.
@@ -1989,8 +2083,8 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: List[str] = None,
-    ) -> List[dict]:
+        labels: list[str] = None,
+    ) -> list[dict]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
         against the name rather than the features.
@@ -2034,9 +2128,9 @@ class HTTPRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        entities: List[str] = None,
-        features: List[str] = None,
-        labels: List[str] = None,
+        entities: list[str] = None,
+        features: list[str] = None,
+        labels: list[str] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2045,7 +2139,7 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-    ) -> List[FeatureSet]:
+    ) -> list[FeatureSet]:
         """Retrieve a list of feature-sets matching the criteria provided.
 
         :param project: Project name.
@@ -2160,7 +2254,7 @@ class HTTPRunDB(RunDBInterface):
             not a full object.
             Example::
 
-                feature_set_update = {"status": {"processed" : True}}
+                feature_set_update = {"status": {"processed": True}}
 
             Will apply the field ``status.processed`` to the existing object.
         :param project: Project which contains the modified object.
@@ -2255,7 +2349,7 @@ class HTTPRunDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2264,7 +2358,7 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
-    ) -> List[FeatureVector]:
+    ) -> list[FeatureVector]:
         """Retrieve a list of feature-vectors matching the criteria provided.
 
         :param project: Project name.
@@ -2466,7 +2560,7 @@ class HTTPRunDB(RunDBInterface):
 
     def tag_artifacts(
         self,
-        artifacts: Union[List[Artifact], List[dict], Artifact, dict],
+        artifacts: Union[list[Artifact], list[dict], Artifact, dict],
         project: str,
         tag_name: str,
         replace: bool = False,
@@ -2504,9 +2598,9 @@ class HTTPRunDB(RunDBInterface):
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
         ] = mlrun.common.schemas.ProjectsFormat.name_only,
-        labels: List[str] = None,
+        labels: list[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
-    ) -> List[Union[mlrun.projects.MlrunProject, str]]:
+    ) -> list[Union[mlrun.projects.MlrunProject, str]]:
         """Return a list of the existing projects, potentially filtered by specific criteria.
 
         :param owner: List only projects belonging to this specific owner.
@@ -2734,11 +2828,11 @@ class HTTPRunDB(RunDBInterface):
         :param secrets: A set of secret values to store.
             Example::
 
-                secrets = {'password': 'myPassw0rd', 'aws_key': '111222333'}
+                secrets = {"password": "myPassw0rd", "aws_key": "111222333"}
                 db.create_project_secrets(
                     "project1",
                     provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                    secrets=secrets
+                    secrets=secrets,
                 )
         """
         path = f"projects/{project}/secrets"
@@ -2761,7 +2855,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ) -> mlrun.common.schemas.SecretsData:
         """Retrieve project-context secrets from Vault.
 
@@ -2850,7 +2944,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: List[str] = None,
+        secrets: list[str] = None,
     ):
         """Delete project-context secrets from Kubernetes.
 
@@ -3007,13 +3101,13 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         top_level: bool = False,
-        uids: Optional[List[str]] = None,
-    ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
+        uids: Optional[list[str]] = None,
+    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
         model endpoint. This functions supports filtering by the following parameters:
@@ -3079,7 +3173,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_id: str,
         start: Optional[str] = None,
         end: Optional[str] = None,
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
         """
@@ -3164,65 +3258,76 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
-    def deploy_monitoring_batch_job(
+    def update_model_monitoring_controller(
         self,
-        project: str = "",
-        default_batch_image: str = "mlrun/mlrun",
-        with_schedule: bool = False,
-    ):
-        """
-        Submit model monitoring batch job. By default, submit only the batch job as ML function without scheduling.
-        To submit a scheduled job as well, please set with_schedule = True.
-
-        :param project:             Project name.
-        :param default_batch_image: The default image of the model monitoring batch job. By default, the image
-                                    is mlrun/mlrun.
-        :param with_schedule:       If true, submit the model monitoring scheduled job as well.
-
-
-        :returns: model monitoring batch job as a dictionary. You can easily convert the returned function into a
-                 runtime object by calling ~mlrun.new_function.
-        """
-
-        params = {
-            "default_batch_image": default_batch_image,
-            "with_schedule": with_schedule,
-        }
-        path = f"projects/{project}/jobs/batch-monitoring"
-
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
-
-    def create_model_monitoring_controller(
-        self,
-        project: str = "",
-        default_controller_image: str = "mlrun/mlrun",
+        project: str,
         base_period: int = 10,
-    ):
+        image: str = "mlrun/mlrun",
+    ) -> None:
         """
-        Submit model monitoring application controller job along with deploying the model monitoring writer function.
-        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-        the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        Redeploy model monitoring application controller function.
 
         :param project:                  Project name.
-        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
-                                         function, which is a real time nuclio functino, will be deployed with the same
-                                         image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
-                  runtime object by calling ~mlrun.new_function.
+        :param base_period:              The time period in minutes in which the model monitoring controller function
+                                         triggers. By default, the base period is 10 minutes.
+        :param image: The image of the model monitoring controller function.
+                                         By default, the image is mlrun/mlrun.
         """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/model-monitoring-controller",
+            params={
+                "base_period": base_period,
+                "image": image,
+            },
+        )
 
-        params = {
-            "default_controller_image": default_controller_image,
-            "base_period": base_period,
-        }
-        path = f"projects/{project}/jobs/model-monitoring-controller"
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+    ) -> None:
+        """
+        Deploy model monitoring application controller, writer and stream functions.
+        While the main goal of the controller function is to handle the monitoring processing and triggering
+        applications, the goal of the model monitoring writer function is to write all the monitoring
+        application results to the databases.
+        The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
+        is detected. It processes the new events into statistics that are then written to statistics databases.
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller, writer & monitoring
+                            stream functions, which are real time nuclio functions.
+                            By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/enable-model-monitoring",
+            params={
+                "base_period": base_period,
+                "image": image,
+                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            },
+        )
 
-        resp = self.api_call(method="POST", path=path, params=params)
-        return resp.json()["func"]
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param project: Project name.
+        :param image:   The image on which the application will run.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
+            params={"image": image},
+        )
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
@@ -3253,7 +3358,10 @@ class HTTPRunDB(RunDBInterface):
                     metadata=mlrun.common.schemas.HubObjectMetadata(
                         name="priv", description="a private source"
                     ),
-                    spec=mlrun.common.schemas.HubSourceSpec(path="/local/path/to/source", channel="development")
+                    spec=mlrun.common.schemas.HubSourceSpec(
+                        path="/local/path/to/source", channel="development"
+                    ),
+                ),
                 )
             )
             db.create_hub_source(private_source)
@@ -3268,9 +3376,9 @@ class HTTPRunDB(RunDBInterface):
                     spec=mlrun.common.schemas.HubSourceSpec(
                         path="/local/path/to/source/2",
                         channel="development",
-                        credentials={...}
-                    )
-                )
+                        credentials={...},
+                    ),
+                ),
             )
             db.create_hub_source(another_source)
 
@@ -3312,7 +3420,7 @@ class HTTPRunDB(RunDBInterface):
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
         version: Optional[str] = None,
-    ) -> List[mlrun.common.schemas.hub.IndexedHubSource]:
+    ) -> list[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
 
@@ -3462,17 +3570,70 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def list_api_gateways(self, project=None):
+    def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
         """
         Returns a list of Nuclio api gateways
-        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
-        :return: json with the list of Nuclio Api Gateways
-            (json example is here
-            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        :return: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
         project = project or config.default_project
         error = "list api gateways"
+        endpoint_path = f"projects/{project}/api-gateways"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGatewaysOutput(**response.json())
+
+    def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
+        """
+        Returns an API gateway
+        :param name: API gateway name
+        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+        project = project or config.default_project
+        error = "get api gateway"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
+        response = self.api_call("GET", endpoint_path, error)
+        return mlrun.common.schemas.APIGateway(**response.json())
+
+    def delete_api_gateway(self, name, project=None):
+        """
+        Deletes an API gateway
+        :param name: API gateway name
+        :param project: Project name
+        """
+        project = project or config.default_project
+        error = "delete api gateway"
+        endpoint_path = f"projects/{project}/api-gateways/{name}"
+        self.api_call("DELETE", endpoint_path, error)
+
+    def store_api_gateway(
+        self,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
+        project: Optional[str] = None,
+    ) -> mlrun.common.schemas.APIGateway:
+        """
+        Stores an API Gateway.
+        :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
+            or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
+        :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
+        """
+
+        if isinstance(api_gateway, mlrun.runtimes.nuclio.api_gateway.APIGateway):
+            api_gateway = api_gateway.to_scheme()
+        endpoint_path = f"projects/{project}/api-gateways/{api_gateway.metadata.name}"
+        error = "store api gateways"
+        response = self.api_call(
+            "PUT",
+            endpoint_path,
+            error,
+            json=api_gateway.dict(exclude_none=True),
+        )
+        return mlrun.common.schemas.APIGateway(**response.json())
         endpoint_path = f"projects/{project}/nuclio/api-gateways"
         resp = self.api_call("GET", endpoint_path, error)
         return resp.json()
@@ -3498,7 +3659,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         run_uid: str,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: typing.list[mlrun.model.Notification] = None,
     ):
         """
         Set notifications on a run. This will override any existing notifications on the run.
@@ -3523,7 +3684,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         schedule_name: str,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: typing.list[mlrun.model.Notification] = None,
     ):
         """
         Set notifications on a schedule. This will override any existing notifications on the schedule.
@@ -3546,7 +3707,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_run_notifications(
         self,
-        notification_objects: typing.List[mlrun.model.Notification],
+        notification_objects: typing.list[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
         mask_params: bool = True,
@@ -3556,6 +3717,16 @@ class HTTPRunDB(RunDBInterface):
         The notification mechanism may run "locally" for certain runtimes.
         However, the updates occur in the API so nothing to do here.
         """
+        pass
+
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
         pass
 
     def submit_workflow(

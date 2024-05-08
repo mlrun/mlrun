@@ -64,7 +64,7 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
     Usage::
 
         train = train_op(...)
-        train.apply(mount_pvc('claim-name', 'pipeline', '/mnt/pipeline'))
+        train.apply(mount_pvc("claim-name", "pipeline", "/mnt/pipeline"))
     """
     if "MLRUN_PVC_MOUNT" in os.environ:
         mount = os.environ.get("MLRUN_PVC_MOUNT")

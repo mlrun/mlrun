@@ -15,7 +15,7 @@
 import warnings
 from typing import Optional, Union
 
-import kfp
+from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun
 from mlrun.utils import hub_prefix
@@ -76,7 +76,7 @@ def run_function(
     notifications: list[mlrun.model.Notification] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
-) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
     run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
@@ -86,7 +86,7 @@ def run_function(
     when functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
     e.g. local=True will run all the functions locally, setting artifact_path will direct all outputs to the same path.
     project runs provide additional notifications/reporting and exception handling.
-    inside a Kubeflow pipeline (KFP) run_function() generates KFP "ContainerOps" which are used to form a DAG
+    inside a Kubeflow pipeline (KFP) run_function() generates KFP node (see PipelineNodeWrapper) which forms a DAG
     some behavior may differ between regular runs and deferred KFP runs.
 
     example (use with function object)::
@@ -166,7 +166,7 @@ def run_function(
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
     :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-    :return: MLRun RunObject or KubeFlow containerOp
+    :return: MLRun RunObject or PipelineNodeWrapper
     """
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
@@ -254,7 +254,7 @@ def build_function(
     overwrite_build_params: bool = False,
     extra_args: str = None,
     force_build: bool = False,
-) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
+) -> Union[BuildStatus, PipelineNodeWrapper]:
     """deploy ML function, build container with its dependencies
 
     :param function:        Name of the function (in the project) or function object
@@ -294,7 +294,11 @@ def build_function(
         if overwrite_build_params:
             function.spec.build.commands = None
         if requirements or requirements_file:
-            function.with_requirements(requirements, requirements_file, overwrite=True)
+            function.with_requirements(
+                requirements=requirements,
+                requirements_file=requirements_file,
+                overwrite=True,
+            )
         if commands:
             function.with_commands(commands)
         return function.deploy_step(
@@ -358,7 +362,7 @@ def deploy_function(
     builder_env: dict = None,
     project_object=None,
     mock: bool = None,
-) -> Union[DeployStatus, kfp.dsl.ContainerOp]:
+) -> Union[DeployStatus, PipelineNodeWrapper]:
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object

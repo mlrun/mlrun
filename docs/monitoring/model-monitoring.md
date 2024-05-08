@@ -11,11 +11,14 @@ If you are using the CE version, see {ref}`legacy-model-monitoring`.
 
 The model monitoring process flow starts with collecting operational data. The operational data is converted to vectors, which are posted to the Model Server. 
 The model server is then wrapped around a machine learning model that uses a function to calculate predictions based on the available vectors. Next, the model 
-server creates a log for the input and output of the vectors, and the entries are written to the production data stream. While the model server 
-is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. The stream function examines 
-the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
-The parquet files are written as a feature set under the model monitoring project. The parquet files can be read either using `pandas.read_parquet` or `feature_set.get_offline_features`, 
-like any other feature set. In parallel, an MLRun job runs, reading the parquet files and performing drift analysis. The drift analysis data is stored so 
+server creates a log for the input and output of the vectors, and the entries are written to the production data stream. The stream function examines 
+the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). While the model server 
+is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. 
+The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 
+to the same target. You can use `get_offline_features` to read the data from that feature set. 
+
+In parallel, an MLRun job runs, reading the parquet files and 
+performing drift analysis. The drift analysis data is stored so 
 that the user can retrieve it in the Iguazio UI or in a Grafana dashboard.
 
 When you enable model monitoring, you effectively deploy three components:
@@ -129,8 +132,9 @@ project.deploy_function(my_app)
 ### Invoke the model again
 
 Monitoring uses datasets defined by the parameter `base_period`. Invoking the model a second time ensures that the 
-data set includes the full monitoring window. From this point on, the controller checks the Parquet DB every 10 minutes (or non-default 
-`base_period`) and streams any new data to the app.
+data set includes the full monitoring window. From this point on, the applications are triggered by the controller. 
+the controller checks the Parquet DB every 10 minutes (or non-default `base_period`) and streams any new data to the app. 
+
 ```python
 model_name = "RandomForestClassifier"
 serving_1 = project.get_function("serving")
@@ -143,6 +147,11 @@ for i in range(150):
     )
     sleep(choice([0.01, 0.04]))
 ```
+
+Now you can view the application results. 
+
+
+<img src="../tutorials/_static/images/mm-myapp.png" width="1000" >
 
 ### View model monitoring artifacts and drift
  

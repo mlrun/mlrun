@@ -294,6 +294,8 @@ class Projects(
         (
             project_to_files_count,
             project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_completed_runs_count,
@@ -319,7 +321,7 @@ class Projects(
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
-                    # project_.*_pipelines_count is a defaultdict so it will return None if using dict.get()
+                    # the following are defaultdict so it will return None if using dict.get()
                     # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
                     pipelines_completed_recent_count=project_to_recent_completed_pipelines_count[
                         project
@@ -328,6 +330,12 @@ class Projects(
                         project
                     ],
                     pipelines_running_count=project_to_running_pipelines_count[project],
+                    distinct_scheduled_jobs_pending_count=project_to_schedule_pending_jobs_count[
+                        project
+                    ],
+                    distinct_scheduled_pipelines_pending_count=project_to_schedule_pending_workflows_count[
+                        project
+                    ],
                 )
             )
         return project_summaries
@@ -335,6 +343,8 @@ class Projects(
     async def _get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -363,6 +373,8 @@ class Projects(
             (
                 project_to_files_count,
                 project_to_schedule_count,
+                project_to_schedule_pending_jobs_count,
+                project_to_schedule_pending_workflows_count,
                 project_to_feature_set_count,
                 project_to_models_count,
                 project_to_recent_completed_runs_count,
@@ -377,6 +389,8 @@ class Projects(
             self._cache["project_resources_counters"]["result"] = (
                 project_to_files_count,
                 project_to_schedule_count,
+                project_to_schedule_pending_jobs_count,
+                project_to_schedule_pending_workflows_count,
                 project_to_feature_set_count,
                 project_to_models_count,
                 project_to_recent_completed_runs_count,

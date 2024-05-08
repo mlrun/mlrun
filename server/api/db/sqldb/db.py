@@ -2188,6 +2188,8 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -2213,7 +2215,11 @@ class SQLDB(DBInterface):
         )
         (
             project_to_files_count,
-            project_to_schedule_count,
+            (
+                project_to_schedule_count,
+                project_to_schedule_pending_jobs_count,
+                project_to_schedule_pending_workflows_count,
+            ),
             project_to_feature_set_count,
             project_to_models_count,
             (
@@ -2225,6 +2231,8 @@ class SQLDB(DBInterface):
         return (
             project_to_files_count,
             project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_completed_runs_count,
@@ -2243,7 +2251,9 @@ class SQLDB(DBInterface):
         }
         return project_to_function_count
 
-    def _calculate_schedules_counters(self, session) -> dict[str, int]:
+    def _calculate_schedules_counters(
+        self, session
+    ) -> [dict[str, int], dict[str, int], dict[str, int]]:
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
             .group_by(Schedule.project)
@@ -2252,7 +2262,32 @@ class SQLDB(DBInterface):
         project_to_schedule_count = {
             result[0]: result[1] for result in schedules_count_per_project
         }
-        return project_to_schedule_count
+
+        next_day = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        schedules_pending_count_per_project = (
+            session.query(Schedule.project, Schedule.name, Schedule.Label)
+            .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
+            .filter(Schedule.next_run_time < next_day)
+            .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
+            .filter(Schedule.Label.name.in_(["workflow", "kind"]))
+            .all()
+        )
+
+        project_to_schedule_pending_jobs_count = collections.defaultdict(int)
+        project_to_schedule_pending_workflows_count = collections.defaultdict(int)
+
+        for result in schedules_pending_count_per_project:
+            if result[2].to_dict()["name"] == "workflow":
+                project_to_schedule_pending_workflows_count[result[0]] += 1
+            elif result[2].to_dict()["value"] == "job":
+                project_to_schedule_pending_jobs_count[result[0]] += 1
+
+        return (
+            project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
+        )
 
     def _calculate_feature_sets_counters(self, session) -> dict[str, int]:
         feature_sets_count_per_project = (

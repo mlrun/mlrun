@@ -375,11 +375,14 @@ def test_list_and_get_project_summaries(
     )
 
     # create schedules for the project
-    schedules_count = 3
-    _create_schedules(
+
+    (
+        schedules_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
+    ) = _create_schedules(
         client,
         project_name,
-        schedules_count,
     )
 
     # mock pipelines for the project
@@ -394,7 +397,7 @@ def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -405,6 +408,8 @@ def test_list_and_get_project_summaries(
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
                 schedules_count,
+                distinct_scheduled_jobs_pending_count,
+                distinct_scheduled_pipelines_pending_count,
                 running_pipelines_count,
             )
         else:
@@ -422,6 +427,8 @@ def test_list_and_get_project_summaries(
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
         schedules_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
         running_pipelines_count,
     )
 
@@ -464,6 +471,8 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -479,6 +488,8 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
         0,
         0,
         0,
@@ -510,6 +521,8 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -525,6 +538,8 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
         0,
         0,
         0,
@@ -1578,6 +1593,8 @@ def _assert_project_summary(
     runs_failed_recent_count: int,
     runs_running_count: int,
     schedules_count: int,
+    distinct_scheduled_jobs_pending_count: int,
+    distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
 ):
     assert project_summary.files_count == files_count
@@ -1587,6 +1604,14 @@ def _assert_project_summary(
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
     assert project_summary.schedules_count == schedules_count
+    assert (
+        project_summary.distinct_scheduled_jobs_pending_count
+        == distinct_scheduled_jobs_pending_count
+    )
+    assert (
+        project_summary.distinct_scheduled_pipelines_pending_count
+        == distinct_scheduled_pipelines_pending_count
+    )
     assert project_summary.pipelines_running_count == pipelines_running_count
 
 
@@ -1687,19 +1712,59 @@ def _create_runs(
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
-def _create_schedules(client: TestClient, project_name, schedules_count):
-    for index in range(schedules_count):
-        schedule_name = f"schedule-name-{str(uuid4())}"
-        schedule = mlrun.common.schemas.ScheduleInput(
-            name=schedule_name,
-            kind=mlrun.common.schemas.ScheduleKinds.job,
-            scheduled_object={"metadata": {"name": "something"}},
-            cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(year=1999),
+def _create_schedule(
+    client: TestClient,
+    project_name,
+    cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
+    labels: dict = None,
+):
+    if not labels:
+        labels = {}
+
+    schedule_name = f"schedule-name-{str(uuid4())}"
+    schedule = mlrun.common.schemas.ScheduleInput(
+        name=schedule_name,
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object={"metadata": {"name": "something"}},
+        cron_trigger=cron_trigger,
+        labels=labels,
+    )
+    response = client.post(f"projects/{project_name}/schedules", json=schedule.dict())
+    assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+
+def _create_schedules(client: TestClient, project_name):
+    schedules_count = 3
+    distinct_scheduled_jobs_pending_count = 5
+    distinct_scheduled_pipelines_pending_count = 7
+
+    for i in range(schedules_count):
+        _create_schedule(
+            client, project_name, mlrun.common.schemas.ScheduleCronTrigger(year=1999)
         )
-        response = client.post(
-            f"projects/{project_name}/schedules", json=schedule.dict()
+
+    for i in range(distinct_scheduled_jobs_pending_count):
+        _create_schedule(
+            client,
+            project_name,
+            mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            {"kind": "job"},
         )
-        assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+    for i in range(distinct_scheduled_pipelines_pending_count):
+        _create_schedule(
+            client,
+            project_name,
+            mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            {"workflow": "workflow"},
+        )
+    return (
+        schedules_count
+        + distinct_scheduled_jobs_pending_count
+        + distinct_scheduled_pipelines_pending_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
+    )
 
 
 def _mock_pipelines(project_name):

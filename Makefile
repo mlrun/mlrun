@@ -587,8 +587,12 @@ run-test-db:
 		--collation-server=utf8_bin \
 		--sql_mode=""
 
+.PHONY: clean-html-docs
+clean-html-docs: ## Clean html docs
+	cd docs && make clean && cd ..
+
 .PHONY: html-docs
-html-docs: ## Build html docs
+html-docs: clean-html-docs ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 

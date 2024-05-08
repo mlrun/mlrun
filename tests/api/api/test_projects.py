@@ -1717,9 +1717,9 @@ def _mock_pipelines(project_name):
     def list_pipelines_return_value(*args, **kwargs):
         next_page_token = "some-token"
         if kwargs["page_token"] == "":
-            return (None, next_page_token, pipelines[: len(pipelines) // 2])
+            return None, next_page_token, pipelines[: len(pipelines) // 2]
         elif kwargs["page_token"] == next_page_token:
-            return (None, None, pipelines[len(pipelines) // 2 :])
+            return None, None, pipelines[len(pipelines) // 2 :]
 
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         side_effect=list_pipelines_return_value

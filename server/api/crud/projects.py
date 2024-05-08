@@ -19,7 +19,6 @@ import typing
 
 import fastapi.concurrency
 import humanfriendly
-import mlrun_pipelines
 import sqlalchemy.orm
 
 import mlrun.common.schemas

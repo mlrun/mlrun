@@ -76,7 +76,7 @@ COPY . .
 
 RUN python -m pip install .[complete-api] &&\
     pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 \
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 VOLUME /mlrun/db
 

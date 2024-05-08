@@ -70,48 +70,6 @@ from .utils import (
 )
 
 
-class RunStatuses:
-    succeeded = "Succeeded"
-    failed = "Failed"
-    skipped = "Skipped"
-    error = "Error"
-    running = "Running"
-
-    @staticmethod
-    def all():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-            RunStatuses.running,
-        ]
-
-    @staticmethod
-    def stable_statuses():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-        ]
-
-    @staticmethod
-    def failed_statuses():
-        return [
-            RunStatuses.failed,
-            RunStatuses.error,
-        ]
-
-    @staticmethod
-    def transient_statuses():
-        return [
-            status
-            for status in RunStatuses.all()
-            if status not in RunStatuses.stable_statuses()
-        ]
-
-
 def function_to_module(code="", workdir=None, secrets=None, silent=False):
     """Load code, notebook or mlrun function as .py module
     this function can import a local/remote py file or notebook

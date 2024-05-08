@@ -1353,10 +1353,17 @@ async def _delete_nuclio_functions_in_batches(
         project: str,
         function: str,
         _semaphore: asyncio.Semaphore,
+        k8s_helper: server.api.utils.singletons.k8s.K8sHelper,
     ) -> tuple[str, str]:
         async with _semaphore:
             try:
                 await nuclio_client.delete_function(name=function, project_name=project)
+
+                config_map = k8s_helper.get_configmap_for_function(
+                    function, mlrun.common.constants.MLRUN_MODEL_CONF
+                )
+                if config_map:
+                    k8s_helper.delete_config_map(config_map.items[0].metadata.name)
                 return None
             except Exception as exc:
                 # return tuple with failure info
@@ -1370,8 +1377,9 @@ async def _delete_nuclio_functions_in_batches(
     failed_requests = []
 
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
         tasks = [
-            delete_function(client, project_name, function_name, semaphore)
+            delete_function(client, project_name, function_name, semaphore, k8s_helper)
             for function_name in function_names
         ]
 

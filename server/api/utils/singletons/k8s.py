@@ -552,28 +552,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         labels: dict = None,
     ):
         namespace = self.resolve_namespace(namespace)
-
+        have_confmap = False
         label_name = "resource_name"
         full_name = f"{resource}-{name}"
-        name = (
-            full_name
-            if len(full_name) <= 63
-            else full_name[:59] + self._generate_rand_string(4)
+
+        configmap_with_label = self.get_configmap_for_function(
+            name, resource, namespace
         )
-
-        have_confmap = False
-        configmaps_with_label = self.v1api.list_namespaced_config_map(
-            namespace=namespace, label_selector=f"{label_name}={full_name}"
-        )
-
-        if len(configmaps_with_label.items) > 1:
-            raise mlrun.errors.MLRunInternalServerError(
-                f"Received more than one config map for label: {full_name}"
-            )
-
-        if len(configmaps_with_label.items) == 1:
-            name = configmaps_with_label.items[0].metadata.name
+        if configmap_with_label:
+            name = configmap_with_label.metadata.name
             have_confmap = True
+        else:
+            name = (
+                full_name
+                if len(full_name) <= 63
+                else full_name[:59] + self._generate_rand_string(4)
+            )
 
         if labels is None:
             labels = {label_name: full_name}
@@ -609,6 +603,23 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 )
                 raise exc
         return name
+
+    @raise_for_status_code
+    def get_configmap_for_function(
+        self, function_name: str, resource: str, namespace: str = ""
+    ):
+        namespace = self.resolve_namespace(namespace)
+        label_name = "resource_name"
+        full_name = f"{resource}-{function_name}"
+        configmaps_with_label = self.v1api.list_namespaced_config_map(
+            namespace=namespace, label_selector=f"{label_name}={full_name}"
+        )
+        if len(configmaps_with_label.items) > 1:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Received more than one config map for label: {full_name}"
+            )
+
+        return configmaps_with_label.items[0] if configmaps_with_label.items else None
 
     @raise_for_status_code
     def delete_configmap(self, name: str, namespace: str = "", raise_on_error=True):

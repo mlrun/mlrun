@@ -16,7 +16,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
@@ -442,13 +442,19 @@ async def _get_metrics_values_data(
 @router.get(
     "/{endpoint_id}/metrics-values",
     response_model=list[
-        mlrun.common.schemas.model_monitoring.model_endpoints._ModelEndpointMonitoringResultValuesBase
+        Union[
+            mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
+            mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+        ]
     ],
 )
 async def get_model_endpoint_monitoring_metrics_values(
     params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
 ) -> list[
-    mlrun.common.schemas.model_monitoring.model_endpoints._ModelEndpointMonitoringResultValuesBase
+    Union[
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+    ]
 ]:
     """
     :param params: A combined object with all the request parameters.

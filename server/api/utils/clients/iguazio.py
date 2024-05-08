@@ -697,7 +697,7 @@ class Client(
     @staticmethod
     def _resolve_params_from_response_body(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> typing.Tuple[typing.Optional[str], typing.Optional[list[str]]]:
+    ) -> tuple[typing.Optional[str], typing.Optional[list[str]]]:
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}
         )

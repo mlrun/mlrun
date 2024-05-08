@@ -122,10 +122,10 @@ class AlertConfig(ModelObj):
             self.notifications.append(notification)
         return self
 
-    def with_entity(self, entity: alert_constants.EventEntities):
-        if not isinstance(entity, alert_constants.EventEntities):
-            raise ValueError("Entity parameter must be of type: EventEntities")
-        self.entities = entity
+    def with_entities(self, entities: alert_constants.EventEntities):
+        if not isinstance(entities, alert_constants.EventEntities):
+            raise ValueError("Entities parameter must be of type: EventEntities")
+        self.entities = entities
         return self
 
     def _apply_template(self, template):

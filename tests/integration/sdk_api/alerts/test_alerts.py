@@ -208,10 +208,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         # test modifiers on the alert config
-        entity = alert_constants.EventEntities(
+        entities = alert_constants.EventEntities(
             kind=alert_constants.EventEntityKind.MODEL, project=project_name, ids=["*"]
         )
-        alert_from_template.with_entity(entity=entity)
+        alert_from_template.with_entities(entities=entities)
 
         notifications = [
             mlrun.common.schemas.Notification(
@@ -237,7 +237,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert_severity=drift_template.severity,
             alert_trigger=drift_template.trigger,
             alert_reset_policy=drift_template.reset_policy,
-            alert_entity=entity,
+            alert_entity=entities,
             alert_notifications=notifications,
         )
 

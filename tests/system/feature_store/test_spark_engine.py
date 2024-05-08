@@ -378,8 +378,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=run_config,
         )
         result = resp.to_dataframe()
-        result.reset_index(drop=False)
-
+        result.reset_index(drop=False, inplace=True)
         expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
         result = self._sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False)

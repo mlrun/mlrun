@@ -24,7 +24,9 @@ import nuclio.utils
 import requests
 from aiohttp.client import ClientSession
 from kubernetes import client
+from mlrun_pipelines.common.mounts import VolumeMount
 from mlrun_pipelines.common.ops import deploy_op
+from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -39,11 +41,8 @@ from mlrun.errors import err_to_str
 from mlrun.lists import RunList
 from mlrun.model import RunObject
 from mlrun.platforms.iguazio import (
-    VolumeMount,
-    mount_v3io,
     parse_path,
     split_path,
-    v3io_cred,
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec

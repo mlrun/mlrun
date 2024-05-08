@@ -1363,7 +1363,7 @@ async def _delete_nuclio_functions_in_batches(
                     function, mlrun.common.constants.MLRUN_MODEL_CONF
                 )
                 if config_map:
-                    k8s_helper.delete_config_map(config_map.items[0].metadata.name)
+                    k8s_helper.delete_configmap(config_map.metadata.name)
                 return None
             except Exception as exc:
                 # return tuple with failure info

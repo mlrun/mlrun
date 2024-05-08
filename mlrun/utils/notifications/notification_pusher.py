@@ -22,13 +22,13 @@ import typing
 from concurrent.futures import ThreadPoolExecutor
 
 import kfp
+import mlrun_pipelines.common.ops
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
 import mlrun.errors
-import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -431,9 +431,9 @@ class NotificationPusher(_NotificationPusherBase):
                 steps.append(function)
 
         step_methods = {
-            mlrun.kfpops.PipelineRunType.run: _add_run_step,
-            mlrun.kfpops.PipelineRunType.build: _add_deploy_function_step,
-            mlrun.kfpops.PipelineRunType.deploy: _add_deploy_function_step,
+            mlrun_pipelines.common.ops.PipelineRunType.run: _add_run_step,
+            mlrun_pipelines.common.ops.PipelineRunType.build: _add_deploy_function_step,
+            mlrun_pipelines.common.ops.PipelineRunType.deploy: _add_deploy_function_step,
         }
 
         workflow_id = run.status.results.get("workflow_id", None)

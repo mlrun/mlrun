@@ -20,9 +20,10 @@ import tempfile
 import typing
 import uuid
 
-import kfp.compiler
-from kfp import dsl
+import mlrun_pipelines.common.models
+import mlrun_pipelines.patcher
 from kfp.compiler import compiler
+from mlrun_pipelines.helpers import new_pipe_metadata
 
 import mlrun
 import mlrun.common.schemas
@@ -31,7 +32,6 @@ from mlrun.errors import err_to_str
 from mlrun.utils import (
     get_ui_url,
     logger,
-    new_pipe_metadata,
     normalize_workflow_name,
     retry_until_successful,
 )
@@ -301,72 +301,6 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
     }
 
 
-# When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
-# converts it to a k8s object. As part of the flow in the Compile.compile() method,
-# we call _create_and_write_workflow, which builds a dictionary from the workflow and then writes it to a file.
-# Unfortunately, the kfp sdk does not provide an API for configuring priority_class_name and other attributes.
-# I ran across the following problem when seeking for a method to set the priority_class_name:
-# https://github.com/kubeflow/pipelines/issues/3594
-# When we patch the _create_and_write_workflow, we can eventually obtain the dictionary right before we write it
-# to a file and enrich it with argo compatible fields, make sure you looking for the same argo version we use
-# https://github.com/argoproj/argo-workflows/blob/release-2.7/pkg/apis/workflow/v1alpha1/workflow_types.go
-def _create_enriched_mlrun_workflow(
-    self,
-    pipeline_func: typing.Callable,
-    pipeline_name: typing.Optional[str] = None,
-    pipeline_description: typing.Optional[str] = None,
-    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
-    pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
-):
-    """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    workflow = self._original_create_workflow(
-        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
-    )
-    # We don't want to interrupt the original flow and don't know all the scenarios the function could be called.
-    # that's why we have try/except on all the code of the enrichment and also specific try/except for errors that
-    # we know can be raised.
-    try:
-        functions = []
-        if pipeline_context.functions:
-            try:
-                functions = pipeline_context.functions.values()
-            except Exception as err:
-                logger.debug(
-                    "Unable to retrieve project functions, not enriching workflow with mlrun",
-                    error=err_to_str(err),
-                )
-                return workflow
-
-        # enrich each pipeline step with your desire k8s attribute
-        for kfp_step_template in workflow["spec"]["templates"]:
-            if kfp_step_template.get("container"):
-                for function_obj in functions:
-                    # we condition within each function since the comparison between the function and
-                    # the kfp pod may change depending on the attribute type.
-                    _set_function_attribute_on_kfp_pod(
-                        kfp_step_template,
-                        function_obj,
-                        "PriorityClassName",
-                        "priority_class_name",
-                    )
-                    _enrich_kfp_pod_security_context(
-                        kfp_step_template,
-                        function_obj,
-                    )
-    except mlrun.errors.MLRunInvalidArgumentError:
-        raise
-    except Exception as err:
-        logger.debug(
-            "Something in the enrichment of kfp pods failed", error=err_to_str(err)
-        )
-    return workflow
-
-
-# patching function as class method
-kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow
-kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
-
-
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     project_instance, name, tag, hash_key = parse_versioned_object_uri(
         key, project.metadata.name
@@ -457,7 +391,10 @@ class _PipelineRunStatus:
 
     @property
     def state(self):
-        if self._state not in mlrun.run.RunStatuses.stable_statuses():
+        if (
+            self._state
+            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+        ):
             self._state = self._engine.get_state(self.run_id, self.project)
         return self._state
 
@@ -754,7 +691,7 @@ class _LocalRunner(_PipelineRunner):
         err = None
         try:
             workflow_handler(**workflow_spec.args)
-            state = mlrun.run.RunStatuses.succeeded
+            state = mlrun_pipelines.common.models.RunStatuses.succeeded
         except Exception as exc:
             err = exc
             logger.exception("Workflow run failed")
@@ -762,7 +699,7 @@ class _LocalRunner(_PipelineRunner):
                 f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
             )
-            state = mlrun.run.RunStatuses.failed
+            state = mlrun_pipelines.common.models.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_pipeline_run_results(
             pipeline_context.runs_map.values(), state=state
@@ -921,9 +858,9 @@ class _RemoteRunner(_PipelineRunner):
                 f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
             )
-            state = mlrun.run.RunStatuses.failed
+            state = mlrun_pipelines.common.models.RunStatuses.failed
         else:
-            state = mlrun.run.RunStatuses.succeeded
+            state = mlrun_pipelines.common.models.RunStatuses.succeeded
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,
             )
@@ -1116,7 +1053,7 @@ def load_and_run(
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
-    if run.state == mlrun.run.RunStatuses.failed:
+    if run.state == mlrun_pipelines.common.models.RunStatuses.failed:
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
@@ -1131,7 +1068,7 @@ def load_and_run(
 
         pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-        if pipeline_state != mlrun.run.RunStatuses.succeeded:
+        if pipeline_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
             raise RuntimeError(
                 f"Workflow {workflow_log_message} failed, state={pipeline_state}"
             )

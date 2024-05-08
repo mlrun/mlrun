@@ -19,6 +19,7 @@ import typing
 
 import fastapi.concurrency
 import humanfriendly
+import mlrun_pipelines
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -475,6 +476,13 @@ class Projects(
             # in case of exception we want to return 3 * defaultdict of None because this function
             # returns 3 values
             return [collections.defaultdict(lambda: None)] * 3
+
+        for pipeline in pipelines:
+            if (
+                pipeline["status"]
+                not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+            ):
+                project_to_running_pipelines_count[pipeline["project"]] += 1
 
         return (
             project_to_recent_completed_pipelines_count,

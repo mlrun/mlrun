@@ -138,19 +138,25 @@ jobs:
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
   package-tests:
-    name: Run package tests (Python ${{ matrix.python-version }})
+    name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
         python-version: [3.9]
+        default-pipeline-adapter: ["kfp-v1-8"]
+        pipeline-adapter: ["kfp-v1-8", "kfp-v2"]
     steps:
     - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+        pipeline-adapter: ${{ matrix.pipeline-adapter }}
         cache: 'pip'
+    - name: Change default pipeline adapter for MLRun
+      if: matrix.default-pipeline-adapter != matrix.pipeline-adapter
+      run: sed -i -e 's/${{ matrix.default-pipeline-adapter }}/${{ matrix.pipeline-adapter }}/g' requirements.txt
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Test package

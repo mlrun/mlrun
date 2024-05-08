@@ -15,11 +15,11 @@ server creates a log for the input and output of the vectors, and the entries ar
 is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. The stream function examines 
 the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
 The parquet files are written as a feature set under the model monitoring project. The parquet files can be read either using `pandas.read_parquet` or `feature_set.get_offline_features`, 
-like any other feature set. In parallel, a scheduled MLRun job runs, reading the parquet files, and performs drift analysis. The drift analysis data is stored so 
+like any other feature set. In parallel, an MLRun job runs, reading the parquet files and performing drift analysis. The drift analysis data is stored so 
 that the user can retrieve it in the Iguazio UI or in a Grafana dashboard.
 
 When you enable model monitoring, you effectively deploy three components:
-- application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The frequency is determined by `base_period`. 
+- application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The controller is a scheduled batch job whose frequency is determined by `base_period`. 
 - stream function: monitors the log of the data stream. It is triggered when a new log entry is detected. The monitored data is used to create real-time dashboards, detect drift, and analyze performance.
 - writer function: writes to the database and outputs alerts.
 
@@ -50,6 +50,7 @@ project.enable_model_monitoring(base_period=1)
 ```
 
 ### Log the model with training data
+
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`.
 ```python
 model_name = "RandomForestClassifier"
@@ -62,7 +63,8 @@ project.log_model(
 
 ### Import, enable monitoring, and deploy the serving function
 
-Use the [v2_model_server serving](https://www.mlrun.org/hub/functions/master/v2-model-server/) function from the MLRun function hub.
+Use the [v2_model_server serving](https://www.mlrun.org/hub/functions/master/v2-model-server/) function 
+from the MLRun function hub.
 
 Add the model to the serving function's routing spec ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`), 
 enable monitoring on the serving function ({py:meth}`~mlrun.runtimes.ServingRuntime.set_tracking`),
@@ -88,7 +90,9 @@ project.deploy_function(serving_fn)
 
 ### Invoke the model
 
-Invoke the function with {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke`; after invoking, you can see results.
+Invoke the model function with {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke`.
+
+
 ```python
 model_name = "RandomForestClassifier"
 serving_1 = project.get_function("serving")
@@ -101,6 +105,12 @@ for i in range(150):
     )
     sleep(choice([0.01, 0.04]))
 ```
+After invoking the model, you can see some basic meta data, including last prediction and average latency.
+
+<img src="../tutorials/_static/images/model_endpoint_1.png" width="1000" >
+
+You can also see the basic statistics in Grafana.
+
 ### Register and deploy the model-monitoring function
 
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
@@ -119,7 +129,8 @@ project.deploy_function(my_app)
 ### Invoke the model again
 
 Monitoring uses datasets defined by the parameter `base_period`. Invoking the model a second time ensures that the 
-data includes the full monitoring window.
+data set includes the full monitoring window. From this point on, the controller checks the Parquet DB every 10 minutes (or non-default 
+`base_period`) and streams any new data to the app.
 ```python
 model_name = "RandomForestClassifier"
 serving_1 = project.get_function("serving")

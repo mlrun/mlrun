@@ -481,7 +481,7 @@ class NotificationPusher(_NotificationPusherBase):
 
     @staticmethod
     def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
-        kfp_client = kfp.Client(namespace=mlrun.config.config.namespace)
+        kfp_client = kfp.Client(namespace=mlrun.mlconf.namespace)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

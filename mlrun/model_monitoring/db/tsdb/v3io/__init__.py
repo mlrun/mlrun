@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .stores import ObjectStoreFactory, get_store_object
-from .stores.base import StoreBase
-from .tsdb import get_tsdb_connector
-from .tsdb.base import TSDBConnector
+from .v3io_connector import V3IOTSDBConnector

@@ -208,7 +208,9 @@ def add_default_env(task):
             name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
         )
 
-    auth_env_var = mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    auth_env_var = (
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    )
     if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         task.set_env_variable(
             name=auth_env_var,

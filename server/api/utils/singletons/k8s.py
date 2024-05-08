@@ -556,9 +556,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         label_name = "resource_name"
         full_name = f"{resource}-{name}"
 
-        configmap_with_label = self.get_configmap_for_function(
-            name, resource, namespace
-        )
+        configmap_with_label = self.get_configmap(name, resource, namespace)
         if configmap_with_label:
             name = configmap_with_label.metadata.name
             have_confmap = True
@@ -605,12 +603,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return name
 
     @raise_for_status_code
-    def get_configmap_for_function(
-        self, function_name: str, resource: str, namespace: str = ""
-    ):
+    def get_configmap(self, name: str, resource: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
         label_name = "resource_name"
-        full_name = f"{resource}-{function_name}"
+        full_name = f"{resource}-{name}"
         configmaps_with_label = self.v1api.list_namespaced_config_map(
             namespace=namespace, label_selector=f"{label_name}={full_name}"
         )

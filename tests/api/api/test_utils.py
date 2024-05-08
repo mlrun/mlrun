@@ -1671,7 +1671,7 @@ async def test_delete_function_calls_k8s_helper_methods():
     k8s_helper_mock = MagicMock()
     configmap = V1ConfigMap()
     configmap.metadata = V1ObjectMeta(name="config-map-1")
-    k8s_helper_mock.get_configmap_for_function.return_value = configmap
+    k8s_helper_mock.get_configmap.return_value = configmap
 
     with (
         patch(
@@ -1688,7 +1688,5 @@ async def test_delete_function_calls_k8s_helper_methods():
         )
 
         assert len(failed_requests) == 0
-        k8s_helper_mock.get_configmap_for_function.assert_called_with(
-            "function1", "model-conf"
-        )
+        k8s_helper_mock.get_configmap.assert_called_with("function1", "model-conf")
         k8s_helper_mock.delete_configmap.assert_called_with("config-map-1")

@@ -93,8 +93,8 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_file = model_file
         self.metrics = metrics or {}
         self.parameters = paraemeters or {}
-        self.inputs: list[Feature] = inputs or []
-        self.outputs: list[Feature] = outputs or []
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.framework = framework
         self.algorithm = algorithm
         self.feature_vector = feature_vector

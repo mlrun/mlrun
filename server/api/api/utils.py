@@ -1318,20 +1318,19 @@ async def _delete_function(
         project,
         function_name,
     )
-
-    logger.debug(
-        "Updating functions with deletion task id",
-        function_name=function_name,
-        functions_count=len(functions),
-        project=project,
-    )
-
-    # update functions with deletion task id
-    await _update_functions_with_deletion_task_ids(
-        db_session, functions, project, background_task_name
-    )
-
     if len(functions) > 0:
+        logger.debug(
+            "Updating functions with deletion task id",
+            function_name=function_name,
+            functions_count=len(functions),
+            project=project,
+        )
+
+        # update functions with deletion task id
+        await _update_functions_with_deletion_task_ids(
+            db_session, functions, project, background_task_name
+        )
+
         # Since we request functions by a specific name and project,
         # in MLRun terminology, they are all just versions of the same function
         # therefore, it's enough to check the kind of the first one only
@@ -1357,6 +1356,10 @@ async def _delete_function(
             db_session,
             project,
             function_name,
+        )
+    else:
+        logger.debug(
+            "No functions to delete found", function_name=function_name, project=project
         )
 
 

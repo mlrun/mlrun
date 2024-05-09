@@ -486,7 +486,7 @@ class Projects(
             )
             # this function should return project_to_recent_completed_pipelines_count,
             # project_to_recent_failed_pipelines_count, project_to_running_pipelines_count,
-            # in case of exception we want to return 3 * defaultdict  because this function
+            # in case of exception we want to return 3 * defaultdict because this function
             # returns 3 values
             return [collections.defaultdict(lambda: 0)] * 3
 

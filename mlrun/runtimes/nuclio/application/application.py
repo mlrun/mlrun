@@ -278,7 +278,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param show_on_failure:         Show logs only in case of build failure
         :param skip_access_key_auth:    Skip adding access key auth to the API Gateway
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
-        :param enable_http_trigger:     Set True to enable the HTTP trigger ingress for the function
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
         :return: True if the function is ready (deployed)
@@ -374,10 +373,9 @@ class ApplicationRuntime(RemoteRuntime):
         if authentication_mode == "basic":
             api_gateway.with_basic_auth(*authentication_creds)
 
-        db = self._get_db()
+        db = mlrun.get_run_db()
         api_gateway_scheme = db.store_api_gateway(
-            api_gateway=api_gateway.to_scheme(),
-            project=self.metadata.project
+            api_gateway=api_gateway.to_scheme(), project=self.metadata.project
         )
         self.status.api_gateway_name = api_gateway.metadata.name
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
@@ -410,12 +408,16 @@ class ApplicationRuntime(RemoteRuntime):
                 **http_client_kwargs,
             )
 
-        auth = (auth_info.username, auth_info.password) if auth_info else None
+        basic_auth = (auth_info.username, auth_info.password) if auth_info else None
 
         if not method:
             method = "POST" if body else "GET"
         return self.status.api_gateway.invoke(
-            method=method, headers=headers, auth=auth, path=path, **http_client_kwargs
+            method=method,
+            headers=headers,
+            basic_auth=basic_auth,
+            path=path,
+            **http_client_kwargs,
         )
 
     def _build_application_image(
@@ -487,8 +489,10 @@ class ApplicationRuntime(RemoteRuntime):
         if not self.status.api_gateway_name:
             return
 
-        db = self._get_db()
-        api_gateway_scheme = db.get_api_gateway(self.status.api_gateway_name)
+        db = mlrun.get_run_db()
+        api_gateway_scheme = db.get_api_gateway(
+            name=self.status.api_gateway_name, project=self.metadata.project
+        )
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
         self.status.url = self.status.api_gateway.invoke_url

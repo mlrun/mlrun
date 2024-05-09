@@ -433,6 +433,9 @@ class RunDBMock:
         project: str,
     ):
         key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
+        api_gateway.metadata.labels = {
+            mlrun.runtimes.nuclio.api_gateway.PROJECT_NAME_LABEL: project
+        }
         self._api_gateways[key] = api_gateway
         return api_gateway
 
@@ -440,7 +443,9 @@ class RunDBMock:
         key = self._generate_api_gateway_key(name, project)
         api_gateway = self._api_gateways.get(key)
         if api_gateway:
-            api_gateway.status.state = "ready"
+            if not api_gateway.status:
+                api_gateway.status = mlrun.common.schemas.APIGatewayStatus()
+            api_gateway.status.state = mlrun.common.schemas.APIGatewayState.ready
             return api_gateway
         return None
 
@@ -663,16 +668,16 @@ class RemoteBuilderMock:
                 },
             }
 
-        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
-        self.deploy_nuclio_function = unittest.mock.Mock(
-            side_effect=_remote_builder_handler
-        )
-
         def _store_api_gateway_handler(
             api_gateway: mlrun.common.schemas.APIGateway,
             project: str,
         ):
             return api_gateway
+
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+        self.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_builder_handler
+        )
 
         self.store_api_gateway = unittest.mock.Mock(
             side_effect=_store_api_gateway_handler

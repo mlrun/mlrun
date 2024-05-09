@@ -604,7 +604,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self._get_basic_gateway()
         api_gateway.with_basic_auth("test", "test")
         api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
-        res = api_gateway.invoke(auth=("test", "test"), verify=False)
+        res = api_gateway.invoke(basic_auth=("test", "test"), verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 

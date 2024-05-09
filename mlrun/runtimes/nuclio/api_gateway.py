@@ -353,7 +353,7 @@ class APIGateway(ModelObj):
         self,
         method="POST",
         headers: dict = None,
-        auth: Optional[tuple[str, str]] = None,
+        basic_auth: Optional[tuple[str, str]] = None,
         path: Optional[str] = None,
         **kwargs,
     ):
@@ -362,7 +362,7 @@ class APIGateway(ModelObj):
 
         :param method: (str, optional) The HTTP method for the invocation.
         :param headers: (dict, optional) The HTTP headers for the invocation.
-        :param auth: (Optional[tuple[str, str]], optional) The authentication creds for the invocation if required.
+        :param basic_auth: (Optional[tuple[str, str]], optional) The (username,password) for the invocation if required.
         :param path: (str, optional) The sub-path for the invocation.
         :param kwargs: (dict) Additional keyword arguments.
 
@@ -380,15 +380,17 @@ class APIGateway(ModelObj):
                 f"API gateway is not ready. " f"Current state: {self.state}"
             )
 
+        auth = None
+
         if (
             self.spec.authentication.authentication_mode
             == APIGatewayAuthenticationMode.BASIC.value
         ):
-            if not auth:
+            if not basic_auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = HTTPBasicAuth(*auth)
+            auth = HTTPBasicAuth(*basic_auth)
 
         if (
             self.spec.authentication.authentication_mode
@@ -440,7 +442,7 @@ class APIGateway(ModelObj):
         """
         Synchronize the API gateway from the server.
         """
-        synced_gateway = mlrun._get_db().get_api_gateway(
+        synced_gateway = mlrun.get_run_db().get_api_gateway(
             self.metadata.name, self.spec.project
         )
         synced_gateway = self.from_scheme(synced_gateway)

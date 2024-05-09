@@ -18,7 +18,7 @@ from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from typing import Optional, Union
-
+import operator
 import numpy as np
 import pandas as pd
 import semver
@@ -413,44 +413,67 @@ class ParquetSource(BaseSourceDriver):
             **reader_args,
         )
 
-    def _get_spark_additional_filters(self):
+    def _get_spark_additional_filters(self, column_types: dict):
         if not self.additional_filters:
             return None
-        none_values = [None, np.nan]
-        spark_filter = ""
+
+        from pyspark.sql.functions import col, isnan, lit
+        operators = {
+            "==": operator.eq,
+            "=": operator.eq,
+            ">": operator.gt,
+            "<": operator.lt,
+            ">=": operator.ge,
+            "<=": operator.le,
+            "!=": operator.ne
+        }
+
+        none_values = [None, np.nan, np.NaN, float('nan')]
+        spark_filter = None
+        new_filter = lit(True)
         for filter_tuple in self.additional_filters:
             if not filter_tuple:
                 continue
-            if spark_filter:
-                spark_filter += " AND "
             col_name, op, value = filter_tuple
-            if isinstance(value, (str, datetime)):
-                value = f"'{value}'"
-            if isinstance(value, (list, tuple, set)) and op.lower() in ["in", "not in"]:
+            if op.lower() in ("in", "not in") and isinstance(value, (list, tuple, set)):
                 none_exists = False
                 value = list(value)
                 for none_value in none_values:
                     if none_value in value:
                         value.remove(none_value)
                         none_exists = True
-                value = tuple(value)
-                if len(value) == 1:
-                    value = f"({value[0]})"
                 if none_exists:
+                    filter_nan = column_types[col_name] != "timestamp"
                     if value:
-                        spark_filter += (
-                            f"({col_name} {op} {value} OR {col_name} IS NULL)"
-                        )
+                        if op.lower() == "in":
+                            new_filter = col(col_name).isin(value) | col(col_name).isNull()
+                            new_filter = new_filter | isnan(col(col_name)) if filter_nan else new_filter
+                        else:
+                            new_filter = ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            new_filter = new_filter & ~isnan(col(col_name)) if filter_nan else new_filter
                     else:
-                        spark_filter += f"{col_name} IS NULL"
-                    continue
-
-            spark_filter += f"{col_name} {op} {value}"
+                        if op.lower() == "in":
+                            new_filter = col(col_name).isNull()
+                            new_filter = new_filter & isnan(col(col_name)) if filter_nan else new_filter
+                        else:
+                            new_filter = ~col(col_name).isNull() & ~isnan(col(col_name))
+                            new_filter = new_filter & ~isnan(col(col_name)) if filter_nan else new_filter
+                else:
+                    if op.lower() == "in":
+                        new_filter = col(col_name).isin(value)
+                    elif op.lower() == "not in":
+                        new_filter = ~col(col_name).isin(value)
+            else:
+                new_filter = operators[op](col(col_name), value)
+            if spark_filter is not None:
+                spark_filter = spark_filter & new_filter
+            else:
+                spark_filter = new_filter
         return spark_filter
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
-        spark_additional_filters = self._get_spark_additional_filters()
-        if spark_additional_filters:
+        spark_additional_filters = self._get_spark_additional_filters(column_types=dict(df.dtypes))
+        if spark_additional_filters is not None:
             df = df.filter(spark_additional_filters)
         return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)
 

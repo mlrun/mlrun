@@ -12,21 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import Optional, TypedDict
 from unittest.mock import Mock, patch
 
+import pandas as pd
 import pytest
 import v3io.dataplane.output
 import v3io.dataplane.response
 
-from mlrun.common.schemas.model_monitoring import (
+import mlrun.utils.v3io_clients
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
+    ModelEndpointMonitoringResultNoData,
+    ModelEndpointMonitoringResultValues,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
+from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_data
 
 
 @pytest.fixture
@@ -214,3 +221,120 @@ class TestGetModelEndpointMetrics:
         """Test that non 404 errors are not silenced"""
         with pytest.raises(v3io.dataplane.response.HttpResponseError):
             store_with_err.get_model_endpoint_metrics(cls.ENDPOINT)
+
+
+@pytest.mark.parametrize(
+    ("endpoint_id", "names", "expected_query"),
+    [
+        ("ddw2lke", [], "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';"),
+        (
+            "ep123",
+            [("app1", "res1")],
+            (
+                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' "
+                "AND ((application_name='app1' AND result_name='res1'));"
+            ),
+        ),
+        (
+            "ep123",
+            [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
+            (
+                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
+                "((application_name='app1' AND result_name='res1') OR "
+                "(application_name='app1' AND result_name='res2') OR "
+                "(application_name='app2' AND result_name='res1'));"
+            ),
+        ),
+    ],
+)
+def test_tsdb_query(
+    endpoint_id: str, names: list[tuple[str, str]], expected_query: str
+) -> None:
+    assert _get_sql_query(endpoint_id, names) == expected_query
+
+
+@pytest.fixture
+def tsdb_df() -> pd.DataFrame:
+    return pd.DataFrame.from_records(
+        [
+            (
+                pd.Timestamp("2024-04-02 18:00:28+0000", tz="UTC"),
+                "histogram-data-drift",
+                "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+                0,
+                "kld_mean",
+                -1.0,
+                0.06563064,
+                "2024-04-02 17:59:28.000000+00:00",
+            ),
+            (
+                pd.Timestamp("2024-04-02 18:00:28+0000", tz="UTC"),
+                "histogram-data-drift",
+                "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+                0,
+                "general_drift",
+                0.0,
+                0.04651495,
+                "2024-04-02 17:59:28.000000+00:00",
+            ),
+        ],
+        index="time",
+        columns=[
+            "time",
+            "application_name",
+            "endpoint_id",
+            "result_kind",
+            "result_name",
+            "result_status",
+            "result_value",
+            "start_infer_time",
+        ],
+    )
+
+
+@pytest.fixture
+def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
+    frames_client_mock = Mock()
+    frames_client_mock.read = Mock(return_value=tsdb_df)
+
+    with patch.object(
+        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("_mock_frames_client")
+def test_read_data() -> None:
+    data = read_data(
+        project="fictitious-one",
+        endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+        start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
+        end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
+        metrics=[
+            ModelEndpointMonitoringMetric(
+                project="fictitious-one",
+                app="histogram-data-drift",
+                name="kld_mean",
+                full_name="fictitious-one.histogram-data-drift.result.kld_mean",
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            ),
+            ModelEndpointMonitoringMetric(
+                project="fictitious-one",
+                app="histogram-data-drift",
+                name="general_drift",
+                full_name="fictitious-one.histogram-data-drift.result.general_drift",
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            ),
+            ModelEndpointMonitoringMetric(
+                project="fictitious-one",
+                app="late-app",
+                name="notfound",
+                full_name="fictitious-one.late-app.result.notfound",
+                type=ModelEndpointMonitoringMetricType.RESULT,
+            ),
+        ],
+    )
+    assert len(data) == 3
+    counter = Counter([type(values) for values in data])
+    assert counter[ModelEndpointMonitoringResultValues] == 2
+    assert counter[ModelEndpointMonitoringResultNoData] == 1

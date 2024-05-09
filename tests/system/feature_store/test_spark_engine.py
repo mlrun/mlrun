@@ -366,9 +366,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
+        vec.save()
         target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
+        print(f"fstore.get_offline_features {datetime.now()}")
         resp = fstore.get_offline_features(
             feature_vector=vec,
             additional_filters=[("bad", "=", 95)],
@@ -377,6 +379,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
             run_config=run_config,
         )
+        print(f"to_dataframe {datetime.now()}")
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
         expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")

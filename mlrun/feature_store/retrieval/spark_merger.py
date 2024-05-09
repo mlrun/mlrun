@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+
 import pandas as pd
 import semver
 
@@ -33,6 +35,7 @@ def spark_df_to_pandas(spark_df):
 
         type_conversion_dict = {}
         for field in spark_df.schema.fields:
+            print(f"field {field}, datetime:{datetime.datetime.now()}")
             if str(field.dataType) == "TimestampType":
                 spark_df = spark_df.withColumn(
                     field.name,
@@ -42,7 +45,9 @@ def spark_df_to_pandas(spark_df):
                     ),
                 )
                 type_conversion_dict[field.name] = "datetime64[ns]"
+        print(f"for loop finished {datetime.datetime.now()}")
         df = PandasConversionMixin.toPandas(spark_df)
+        print(f"to Pandas finished {datetime.datetime.now()}")
         if type_conversion_dict:
             df = df.astype(type_conversion_dict)
         return df
@@ -190,6 +195,7 @@ class SparkFeatureMerger(BaseMerger):
         return merged_df
 
     def get_df(self, to_pandas=True):
+        print(f"get_df {datetime.datetime.now()}")
         if to_pandas:
             if self._pandas_df is None:
                 df = spark_df_to_pandas(self._result_df)

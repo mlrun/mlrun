@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
+from mlrun_pipelines.mounts import v3io_cred
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -26,7 +27,6 @@ import mlrun.feature_store
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun import v3io_cred
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest

@@ -1604,7 +1604,7 @@ def _assert_project_summary(
     assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
-    assert project_summary.schedules_count == schedules_count
+    assert project_summary.distinct_schedules_count == schedules_count
     assert (
         project_summary.distinct_scheduled_jobs_pending_count
         == distinct_scheduled_jobs_pending_count
@@ -1739,12 +1739,12 @@ def _create_schedules(client: TestClient, project_name):
     distinct_scheduled_jobs_pending_count = 5
     distinct_scheduled_pipelines_pending_count = 7
 
-    for i in range(schedules_count):
+    for _ in range(schedules_count):
         _create_schedule(
             client, project_name, mlrun.common.schemas.ScheduleCronTrigger(year=1999)
         )
 
-    for i in range(distinct_scheduled_jobs_pending_count):
+    for _ in range(distinct_scheduled_jobs_pending_count):
         _create_schedule(
             client,
             project_name,
@@ -1752,7 +1752,7 @@ def _create_schedules(client: TestClient, project_name):
             {"kind": "job"},
         )
 
-    for i in range(distinct_scheduled_pipelines_pending_count):
+    for _ in range(distinct_scheduled_pipelines_pending_count):
         _create_schedule(
             client,
             project_name,

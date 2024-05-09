@@ -113,8 +113,7 @@ class ProjectSummary(pydantic.BaseModel):
     runs_completed_recent_count: int
     runs_failed_recent_count: int
     runs_running_count: int
-    # TODO: change this name to distinct_schedule_count (?)
-    schedules_count: int
+    distinct_schedules_count: int
     distinct_scheduled_jobs_pending_count: int
     distinct_scheduled_pipelines_pending_count: int
     pipelines_completed_recent_count: typing.Optional[int] = None

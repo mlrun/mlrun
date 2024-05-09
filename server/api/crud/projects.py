@@ -311,7 +311,7 @@ class Projects(
                 mlrun.common.schemas.ProjectSummary(
                     name=project,
                     files_count=project_to_files_count.get(project, 0),
-                    schedules_count=project_to_schedule_count.get(project, 0),
+                    distinct_schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
                     runs_completed_recent_count=project_to_recent_completed_runs_count.get(
@@ -339,6 +339,13 @@ class Projects(
                 )
             )
         return project_summaries
+
+    @staticmethod
+    def _failed_statuses():
+        return [
+            mlrun.run.RunStatuses.failed,
+            mlrun.run.RunStatuses.error,
+        ]
 
     async def _get_project_resources_counters(
         self,
@@ -468,10 +475,7 @@ class Projects(
                                 project_to_recent_completed_pipelines_count[
                                     pipeline["project"]
                                 ] += 1
-                            elif (
-                                pipeline["status"]
-                                in mlrun.run.RunStatuses.failed_statuses()
-                            ):
+                            elif pipeline["status"] in self._failed_statuses():
                                 project_to_recent_failed_pipelines_count[
                                     pipeline["project"]
                                 ] += 1

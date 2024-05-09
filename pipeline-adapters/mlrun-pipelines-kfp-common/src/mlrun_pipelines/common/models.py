@@ -102,10 +102,3 @@ class RunStatuses(str, Enum):
             for status in RunStatuses.all()
             if status not in RunStatuses.stable_statuses()
         ]
-
-    @staticmethod
-    def failed_statuses():
-        return [
-            RunStatuses.failed,
-            RunStatuses.error,
-        ]

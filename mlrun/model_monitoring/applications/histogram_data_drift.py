@@ -168,6 +168,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             value=value,
             kind=ResultKindApp.data_drift,
             status=status,
+            extra_data={},
         )
 
     def _get_metrics(

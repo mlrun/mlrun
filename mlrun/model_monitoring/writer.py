@@ -22,6 +22,7 @@ import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
+    HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
     ResultStatusApp,
@@ -211,4 +212,19 @@ class ModelMonitoringWriter(StepToDict):
                 event[ResultData.RESULT_STATUS],
                 event_value,
                 self.project,
+            )
+
+        if (
+            kind == WriterEventKind.RESULT
+            and event[WriterEvent.APPLICATION_NAME]
+            == HistogramDataDriftApplicationConstants.NAME
+            and event[ResultData.RESULT_NAME]
+            == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+        ):
+            # Update the model endpoint with metadata specific to the
+            # histogram data drift app
+            store = mlrun.model_monitoring.db.get_store_object(project=self.project)
+            store.update_model_endpoint(
+                endpoint_id=endpoint_id,
+                attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
             )

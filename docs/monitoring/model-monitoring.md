@@ -9,13 +9,14 @@ If you are using the CE version, see {ref}`legacy-model-monitoring`.
 
 <img src="../_static/images/model-monitoring.png" width="1100" >
 
-The model monitoring process flow starts with collecting operational data. The operational data is converted to vectors, which are posted to the Model Server. 
-The model server is then wrapped around a machine learning model that uses a function to calculate predictions based on the available vectors. Next, the model 
-server creates a log for the input and output of the vectors, and the entries are written to the production data stream. The stream function examines 
-the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). While the model server 
-is processing the vectors, the stream function monitors the log of the data stream and is triggered when a new log entry is detected. 
+The model monitoring process flow starts with collecting operational data from a function in the model serving pod. The model monitoring stream pod forwards data to a Parquet database. 
+The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. The stream function examines 
+the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
 The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 
 to the same target. You can use `get_offline_features` to read the data from that feature set. 
+
+
+
 
 In parallel, an MLRun job runs, reading the parquet files and 
 performing drift analysis. The drift analysis data is stored so 
@@ -66,6 +67,9 @@ project.log_model(
 
 ### Import, enable monitoring, and deploy the serving function
 
+The result of this step is that the model-monitoring stream pod writes data to Parquet, by model endpoint. 
+Every base period, the controller checks for new data and if it finds, sends it to the relevant app.
+
 Use the [v2_model_server serving](https://www.mlrun.org/hub/functions/master/v2-model-server/) function 
 from the MLRun function hub.
 
@@ -108,19 +112,20 @@ for i in range(150):
     )
     sleep(choice([0.01, 0.04]))
 ```
-After invoking the model, you can see some basic meta data, including last prediction and average latency.
+After invoking the model, you can see the model endpoints and minimal meta data (for example, 
+last prediction and average latency) in the **Models | Model Endpoints** page.
 
 <img src="../tutorials/_static/images/model_endpoint_1.png" width="1000" >
 
 You can also see the basic statistics in Grafana.
 
 ### Register and deploy the model-monitoring function
-
+The next step is to deploy the model-monitoring job to generate the full meta data. 
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
 Then, deploy the function using {py:meth}`~mlrun.projects.MlrunProject.deploy_function`.
 
-You can use the MLRun built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) as an MLRun function and create MLRun artifacts.
-```python
+
+```
 my_app = project.set_model_monitoring_function(
     func="./assets/demo_app.py",
     application_class="DemoMonitoringApp",
@@ -129,11 +134,17 @@ my_app = project.set_model_monitoring_function(
 
 project.deploy_function(my_app)
 ```
+
+You can use the MLRun built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) as an MLRun function and create MLRun artifacts.
+See the [Model monitoring and drift detection tutorial](../tutorials/05-model-monitoring).
+
 ### Invoke the model again
 
-Monitoring uses datasets defined by the parameter `base_period`. Invoking the model a second time ensures that the 
-data set includes the full monitoring window. From this point on, the applications are triggered by the controller. 
-the controller checks the Parquet DB every 10 minutes (or non-default `base_period`) and streams any new data to the app. 
+The controller checks for new datasets every `base_period` to send to the app. Invoking the model a second time ensures that the previous 
+window closed and therefore the data contains the full monitoring window. From this point on, the applications are triggered by the controller. 
+From this point on, the applications are triggered by the controller. The controller checks the Parquet DB every 10 minutes (or non-default 
+`base_period`) and streams any new data to the app.
+
 
 ```python
 model_name = "RandomForestClassifier"

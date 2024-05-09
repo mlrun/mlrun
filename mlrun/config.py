@@ -507,6 +507,7 @@ default_config = {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
             "stream": "",
+            "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
@@ -520,6 +521,7 @@ default_config = {
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
+        "tsdb_connector_type": "v3io-tsdb",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -1092,6 +1094,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
+        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1118,7 +1121,7 @@ class Config:
             )
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project)
+                return store_prefix_dict[kind].format(project=project, **kwargs)
 
             if (
                 function_name

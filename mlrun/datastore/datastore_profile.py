@@ -188,6 +188,7 @@ class DatastoreProfileS3(DatastoreProfile):
     bucket: typing.Optional[str] = None
 
     @pydantic.validator("bucket")
+    @classmethod
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
@@ -292,6 +293,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     bucket: typing.Optional[str] = None
 
     @pydantic.validator("bucket")
+    @classmethod
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
@@ -344,13 +346,14 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     client_secret: typing.Optional[str] = None
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
-    bucket: typing.Optional[str] = None
+    container: typing.Optional[str] = None
 
-    @pydantic.validator("bucket")
-    def check_bucket(cls, v):
+    @pydantic.validator("container")
+    @classmethod
+    def check_container(cls, v):
         if not v:
             warnings.warn(
-                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                "The 'container' attribute will be mandatory starting from version 1.9",
                 FutureWarning,
                 stacklevel=2,
             )
@@ -358,10 +361,10 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
-            #  in azure the path after schema is starts with bucket, wherefore it should not start with "/".
+            #  in azure the path after schema is starts with container, wherefore it should not start with "/".
             subpath = subpath[1:]
-        if self.bucket:
-            return f"az://{self.bucket}/{subpath}"
+        if self.container:
+            return f"az://{self.container}/{subpath}"
         else:
             return f"az://{subpath}"
 

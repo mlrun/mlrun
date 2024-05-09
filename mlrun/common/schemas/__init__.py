@@ -142,8 +142,10 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
+    MonitoringTSDBTables,
     PrometheusEndpoints,
-    TimeSeriesTarget,
+    TimeSeriesConnector,
+    TSDBTarget,
 )
 from .notification import (
     Notification,

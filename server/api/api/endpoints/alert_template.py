@@ -15,6 +15,7 @@
 
 from http import HTTPStatus
 
+import semver
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -38,7 +39,7 @@ async def store_alert_template(
 ) -> mlrun.common.schemas.AlertTemplate:
     await (
         server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert_templates,
+            _get_authorization_resource(),
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
@@ -75,7 +76,7 @@ async def get_alert_template(
 ) -> mlrun.common.schemas.AlertTemplate:
     await (
         server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert_templates,
+            _get_authorization_resource(),
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
@@ -93,7 +94,7 @@ async def list_alert_templates(
 ) -> list[mlrun.common.schemas.AlertTemplate]:
     await (
         server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert_templates,
+            _get_authorization_resource(),
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
@@ -116,7 +117,7 @@ async def delete_alert_template(
 ):
     await (
         server.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert_templates,
+            _get_authorization_resource(),
             mlrun.common.schemas.AuthorizationAction.delete,
             auth_info,
         )
@@ -134,3 +135,13 @@ async def delete_alert_template(
     await run_in_threadpool(
         server.api.crud.AlertTemplates().delete_alert_template, db_session, name
     )
+
+
+def _get_authorization_resource():
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
+    if igz_version and igz_version < semver.VersionInfo.parse("3.6.0"):
+        # alert_templates is not in OFA manifest prior to 3.6, so we use
+        # the permissions of hub_source as they are the same
+        return mlrun.common.schemas.AuthorizationResourceTypes.hub_source
+
+    return mlrun.common.schemas.AuthorizationResourceTypes.alert_templates

@@ -248,7 +248,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             mm_drift_table.FeaturesDriftTablePlot().produce(
                 sample_set_statistics=sample_set_statistics,
                 inputs_statistics=inputs_statistics,
-                metrics=metrics_per_feature.T.to_dict(),
+                metrics=metrics_per_feature.T.to_dict(),  # pyright: ignore[reportArgumentType]
                 drift_results=drift_results,
             )
         )

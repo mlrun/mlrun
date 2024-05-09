@@ -345,6 +345,7 @@ class Projects(
         return [
             mlrun.run.RunStatuses.failed,
             mlrun.run.RunStatuses.error,
+            mlrun.run.RunStatuses.canceled,
         ]
 
     async def _get_project_resources_counters(

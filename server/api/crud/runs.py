@@ -425,4 +425,6 @@ class Runs(
                 artifact = mlrun.artifacts.dict_to_artifact(artifact)
                 artifact_uris.append(artifact.uri)
 
-        run["status"]["artifact_uris"] = artifact_uris
+        run["status"]["artifact_uris"] = list(
+            set(run["status"]["artifact_uris"]) | (set(artifact_uris))
+        )

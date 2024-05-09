@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 
 import pandas as pd
@@ -23,16 +23,15 @@ from v3io_frames.frames_pb2 import IGNORE
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.feature_store.steps
-import mlrun.model_monitoring.db
-import mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 
 
-class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
+class V3IOTSDBConnector(TSDBConnector):
     """
     Handles the TSDB operations when the TSDB connector is of type V3IO. To manage these operations we use V3IO Frames
     Client that provides API for executing commands on the V3IO TSDB table.

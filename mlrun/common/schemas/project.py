@@ -114,6 +114,8 @@ class ProjectSummary(pydantic.BaseModel):
     runs_failed_recent_count: int
     runs_running_count: int
     schedules_count: int
+    pipelines_completed_recent_count: typing.Optional[int] = None
+    pipelines_failed_recent_count: typing.Optional[int] = None
     pipelines_running_count: typing.Optional[int] = None
 
 

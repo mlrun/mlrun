@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import typing
 from enum import Enum
 from sys import stdout
 from traceback import format_exception
@@ -221,11 +222,15 @@ class FormatterKinds(Enum):
     JSON = "json"
 
 
-def create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Formatter:
+def resolve_formatter_by_kind(
+    formatter_kind: FormatterKinds,
+) -> typing.Type[
+    typing.Union[HumanReadableFormatter, HumanReadableExtendedFormatter, JSONFormatter]
+]:
     return {
-        FormatterKinds.HUMAN: HumanReadableFormatter(),
-        FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter(),
-        FormatterKinds.JSON: JSONFormatter(),
+        FormatterKinds.HUMAN: HumanReadableFormatter,
+        FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter,
+        FormatterKinds.JSON: JSONFormatter,
     }[formatter_kind]
 
 
@@ -243,11 +248,11 @@ def create_logger(
     logger_instance = Logger(level, name=name, propagate=False)
 
     # resolve formatter
-    formatter_instance = create_formatter_instance(
+    formatter_instance = resolve_formatter_by_kind(
         FormatterKinds(formatter_kind.lower())
     )
 
     # set handler
-    logger_instance.set_handler("default", stream or stdout, formatter_instance)
+    logger_instance.set_handler("default", stream or stdout, formatter_instance())
 
     return logger_instance

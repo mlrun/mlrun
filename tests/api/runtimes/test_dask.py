@@ -449,6 +449,8 @@ class TestDaskRuntime(TestRuntimeBase):
                 env=[
                     {"name": "MLRUN_NAMESPACE", "value": "other-namespace"},
                     k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+                    {"name": "TEST_DUP", "value": "A"},
+                    {"name": "TEST_DUP", "value": "B"},
                 ],
             ),
         )
@@ -472,6 +474,7 @@ class TestDaskRuntime(TestRuntimeBase):
             {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+            {"name": "TEST_DUP", "value": "A"},
         ]
         expected_labels = {
             "mlrun/project": "project",

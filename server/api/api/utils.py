@@ -1351,13 +1351,13 @@ async def _delete_function(
                 error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
                 raise mlrun.errors.MLRunInternalServerError(error_message)
 
-    # delete the function from the database
-    await run_in_threadpool(
-        server.api.crud.Functions().delete_function,
-        db_session,
-        project,
-        function_name,
-    )
+        # delete the function from the database
+        await run_in_threadpool(
+            server.api.crud.Functions().delete_function,
+            db_session,
+            project,
+            function_name,
+        )
 
 
 async def _update_functions_with_deletion_task_ids(

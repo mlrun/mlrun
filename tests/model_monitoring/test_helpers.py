@@ -14,11 +14,10 @@
 
 import datetime
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
-from contextlib import nullcontext as does_not_raise
 from typing import NamedTuple, Optional
 from unittest.mock import Mock, patch
 
+import nuclio
 import pytest
 from v3io.dataplane.response import HttpResponseError
 
@@ -32,7 +31,6 @@ from mlrun.common.model_monitoring.helpers import (
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
-from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.controller import (
     _BatchWindow,
     _BatchWindowGenerator,
@@ -40,7 +38,6 @@ from mlrun.model_monitoring.controller import (
 )
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
-    _MLRunNoRunsFoundError,
     update_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
@@ -50,6 +47,15 @@ from mlrun.utils import datetime_now
 class _HistLen(NamedTuple):
     counts_len: int
     edges_len: int
+
+
+class TemplateFunction(mlrun.runtimes.ServingRuntime):
+    def __init__(self):
+        super().__init__()
+        self.add_trigger(
+            "cron_interval",
+            spec=nuclio.CronTrigger(interval=f"{1}m"),
+        )
 
 
 @pytest.fixture
@@ -163,7 +169,7 @@ class TestBatchInterval:
         mock = Mock(spec=["kv"])
         mock.kv.get = Mock(side_effect=HttpResponseError)
         with patch(
-            "mlrun.model_monitoring.controller.get_v3io_client",
+            "mlrun.utils.v3io_clients.get_v3io_client",
             return_value=mock,
         ):
             yield
@@ -352,53 +358,8 @@ class TestBumpModelEndpointLastRequest:
 
     @staticmethod
     @pytest.fixture
-    def runs() -> list[dict]:
-        return [
-            {
-                "kind": "run",
-                "metadata": {
-                    "name": "model-monitoring-controller",
-                    "uid": "3a88d8aef52f4a90a12b681a87d9dc51",
-                    "iteration": 0,
-                    "project": "test-mm-1",
-                    "labels": {
-                        "mlrun/schedule-name": "model-monitoring-controller",
-                        "kind": "job",
-                        "v3io_user": "pipelines",
-                        "host": "model-monitoring-controller-cbvs4",
-                    },
-                    "annotations": {},
-                },
-                "spec": {
-                    "function": "test-mm-1/model-monitoring-controller@8056f87c8e5b11408d9d990fc0381f7a0fca83cf",
-                    "log_level": "info",
-                    "parameters": {
-                        "batch_intervals_dict": {"minutes": 1, "hours": 0, "days": 0}
-                    },
-                    "handler": "handler",
-                    "outputs": [],
-                    "output_path": "v3io:///projects/test-mm-1/artifacts",
-                    "inputs": {},
-                    "notifications": [],
-                    "state_thresholds": {
-                        "pending_scheduled": "1h",
-                        "pending_not_scheduled": "-1",
-                        "image_pull_backoff": "1h",
-                        "executing": "24h",
-                    },
-                    "hyperparams": {},
-                    "hyper_param_options": {},
-                    "data_stores": [],
-                },
-                "status": {
-                    "results": {},
-                    "start_time": "2024-01-14T15:01:03.639771+00:00",
-                    "last_update": "2024-01-14T15:01:04.049320+00:00",
-                    "state": "completed",
-                    "artifacts": [],
-                },
-            }
-        ]
+    def function() -> mlrun.runtimes.ServingRuntime:
+        return TemplateFunction()
 
     @staticmethod
     def test_update_last_request(
@@ -406,11 +367,11 @@ class TestBumpModelEndpointLastRequest:
         model_endpoint: ModelEndpoint,
         db: NopDB,
         last_request: str,
-        runs: list[dict],
+        function: mlrun.runtimes.ServingRuntime,
     ) -> None:
         model_endpoint.spec.stream_path = "stream"
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "list_runs", return_value=runs):
+            with patch.object(db, "get_function", return_value=function):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -426,7 +387,7 @@ class TestBumpModelEndpointLastRequest:
         model_endpoint.spec.stream_path = ""
 
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "list_runs", return_value=runs):
+            with patch.object(db, "get_function", return_value=function):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -451,7 +412,9 @@ class TestBumpModelEndpointLastRequest:
         db: NopDB,
     ) -> None:
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "list_runs", return_value=[]):
+            with patch.object(
+                db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
+            ):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -461,69 +424,13 @@ class TestBumpModelEndpointLastRequest:
         patch_patch_model_endpoint.assert_not_called()
 
     @staticmethod
-    @pytest.mark.parametrize(
-        ("runs", "error_context", "expected_window"),
-        [
-            (
-                [],
-                pytest.raises(
-                    _MLRunNoRunsFoundError, match="No model-monitoring-controller runs"
-                ),
-                None,
-            ),
-            (
-                [{"kind": "run", "spec": {"parameters": {}}}],
-                pytest.raises(
-                    MLRunValueError,
-                    match="Could not find `batch_intervals_dict` in model-monitoring-controller run",
-                ),
-                None,
-            ),
-            (
-                [
-                    {
-                        "kind": "run",
-                        "spec": {
-                            "parameters": {
-                                "batch_intervals_dict": {
-                                    "minutes": 1,
-                                    "hours": 0,
-                                    "days": 0,
-                                }
-                            }
-                        },
-                    },
-                    {
-                        "kind": "run",
-                        "spec": {
-                            "parameters": {
-                                "batch_intervals_dict": {
-                                    "minutes": 1,
-                                    "hours": 2,
-                                    "days": 3,
-                                }
-                            }
-                        },
-                    },
-                ],
-                does_not_raise(),
-                datetime.timedelta(minutes=1),
-            ),
-        ],
-    )
     def test_get_monitoring_time_window_from_controller_run(
         project: str,
         db: NopDB,
-        runs: list[dict],
-        error_context: AbstractContextManager,
-        expected_window: Optional[datetime.timedelta],
+        function: mlrun.runtimes.ServingRuntime,
     ) -> None:
-        with patch.object(db, "list_runs", return_value=runs):
-            with error_context:
-                assert (
-                    _get_monitoring_time_window_from_controller_run(
-                        project=project,
-                        db=db,
-                    )
-                    == expected_window
-                ), "The window is different than expected"
+        with patch.object(db, "get_function", return_value=function):
+            assert _get_monitoring_time_window_from_controller_run(
+                project=project,
+                db=db,
+            ) == datetime.timedelta(minutes=1), "The window is different than expected"

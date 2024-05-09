@@ -29,7 +29,7 @@ import server.api.initial_data
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
-from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
+from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
 from server.api.db.base import DBInterface
 
@@ -105,7 +105,7 @@ class TestArtifacts:
 
     def test_list_artifact_kind_filter(self, db: DBInterface, db_session: Session):
         artifact_name_1 = "artifact_name_1"
-        artifact_kind_1 = ChartArtifact.kind
+        artifact_kind_1 = PlotlyArtifact.kind
         artifact_name_2 = "artifact_name_2"
         artifact_kind_2 = PlotArtifact.kind
         tree = "artifact_tree"
@@ -139,7 +139,7 @@ class TestArtifacts:
 
     def test_list_artifact_category_filter(self, db: DBInterface, db_session: Session):
         artifact_name_1 = "artifact_name_1"
-        artifact_kind_1 = ChartArtifact.kind
+        artifact_kind_1 = PlotlyArtifact.kind
         artifact_name_2 = "artifact_name_2"
         artifact_kind_2 = PlotArtifact.kind
         artifact_name_3 = "artifact_name_3"
@@ -242,7 +242,7 @@ class TestArtifacts:
         artifact_1_tree = "artifact_tree"
         artifact_1_tag = "artifact_tag_1"
         artifact_1_body = self._generate_artifact(artifact_1_key, tree=artifact_1_tree)
-        artifact_1_kind = ChartArtifact.kind
+        artifact_1_kind = PlotlyArtifact.kind
         artifact_1_with_kind_tree = "artifact_tree_2"
         artifact_2_tag = "artifact_tag_2"
         artifact_1_with_kind_body = self._generate_artifact(
@@ -1075,16 +1075,7 @@ class TestArtifacts:
         artifact_tag = "artifact-tag-1"
         project = "project1"
 
-        # create project
-        db.create_project(
-            db_session,
-            mlrun.common.schemas.Project(
-                metadata=mlrun.common.schemas.ProjectMetadata(
-                    name=project,
-                ),
-                spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
-            ),
-        )
+        self._create_project(db, db_session, project)
 
         # create an artifact in the old format
         artifact_key_1 = "artifact1"
@@ -1137,14 +1128,7 @@ class TestArtifacts:
             tag=legacy_artifact_tag,
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # change the state file path to the temp directory for the test only
-            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
-                temp_dir + "/_artifact_migration_state.json"
-            )
-
-            # perform the migration
-            server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+        self._run_artifacts_v2_migration(db, db_session)
 
         # validate the migration succeeded
         query_all = db._query(
@@ -1229,17 +1213,7 @@ class TestArtifacts:
         # create 10 artifacts in 10 projects
         for i in range(10):
             project_name = f"project-{i}"
-            db.create_project(
-                db_session,
-                mlrun.common.schemas.Project(
-                    metadata=mlrun.common.schemas.ProjectMetadata(
-                        name=project_name,
-                    ),
-                    spec=mlrun.common.schemas.ProjectSpec(
-                        description="some-description"
-                    ),
-                ),
-            )
+            self._create_project(db, db_session, project_name)
             for j in range(10):
                 artifact_key = f"artifact-{j}"
                 artifact_uid = f"uid-{j}"
@@ -1265,14 +1239,7 @@ class TestArtifacts:
         ).all()
         assert len(old_artifacts) == 100
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # change the state file path to the temp directory for the test only
-            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
-                temp_dir + "/_artifact_migration_state.json"
-            )
-
-            # perform the migration
-            server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+        self._run_artifacts_v2_migration(db, db_session)
 
         # validate the migration succeeded
         old_artifacts = db._query(
@@ -1307,15 +1274,7 @@ class TestArtifacts:
         project = "project1"
 
         # create project
-        db.create_project(
-            db_session,
-            mlrun.common.schemas.Project(
-                metadata=mlrun.common.schemas.ProjectMetadata(
-                    name=project,
-                ),
-                spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
-            ),
-        )
+        self._create_project(db, db_session, project)
 
         # create an artifact in the old format
         artifact_body = self._generate_artifact(artifact_key, artifact_uid, "artifact")
@@ -1338,14 +1297,7 @@ class TestArtifacts:
         old_artifacts = query_all.all()
         assert len(old_artifacts) == 1
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # change the state file path to the temp directory for the test only
-            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
-                temp_dir + "/_artifact_migration_state.json"
-            )
-
-            # perform the migration
-            server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+        self._run_artifacts_v2_migration(db, db_session)
 
         # validate the migration succeeded
         query_all = db._query(
@@ -1369,6 +1321,54 @@ class TestArtifacts:
             assert artifacts[0]["metadata"]["key"] == artifact_key
             assert artifacts[0]["metadata"]["project"] == project
             assert artifacts[0]["metadata"]["uid"] != artifact_uid
+
+    def test_migrate_artifact_v2_persist_db_key_with_iteration(
+        self, db: DBInterface, db_session: Session
+    ):
+        artifact_key = "artifact"
+        artifact_tree = "some-tree"
+        artifact_tag = "artifact-tag-1"
+        project = "project1"
+        db_key = "db-key-1"
+        iteration = 2
+
+        # create project
+        self._create_project(db, db_session, project)
+
+        # create artifacts in the old format
+        artifact_body = self._generate_artifact(artifact_key, artifact_tree, "artifact")
+        artifact_body["metadata"]["key"] = artifact_key
+        artifact_body["metadata"]["iter"] = iteration
+        artifact_body["metadata"]["project"] = project
+        artifact_body["spec"]["db_key"] = db_key
+
+        # store the artifact with the db_key
+        db.store_artifact_v1(
+            db_session,
+            db_key,
+            artifact_body,
+            artifact_tree,
+            project=project,
+            tag=artifact_tag,
+            iter=iteration,
+        )
+
+        # validate the artifact was stored with the db_key
+        key = f"{iteration}-{db_key}"
+        artifact = db.read_artifact_v1(db_session, key, project=project)
+        assert artifact["metadata"]["key"] == artifact_key
+
+        # migrate the artifacts to v2
+        self._run_artifacts_v2_migration(db, db_session)
+
+        # validate the migration succeeded and the db_key was persisted
+        query_all = db._query(
+            db_session,
+            server.api.db.sqldb.models.ArtifactV2,
+        )
+        new_artifact = query_all.one()
+        assert new_artifact.key == db_key
+        assert new_artifact.iteration == iteration
 
     def test_update_model_spec(self, db: DBInterface, db_session: Session):
         artifact_key = "model1"
@@ -1471,3 +1471,24 @@ class TestArtifacts:
             project=project,
             producer_id=artifact_tree,
         )
+
+    @staticmethod
+    def _create_project(db: DBInterface, db_session: Session, project_name):
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project_name,
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+        )
+        db.create_project(db_session, project)
+
+    @staticmethod
+    def _run_artifacts_v2_migration(db: DBInterface, db_session: Session):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # change the state file path to the temp directory for the test only
+            mlrun.mlconf.artifacts.artifact_migration_state_file_path = (
+                temp_dir + "/_artifact_migration_state.json"
+            )
+
+            # perform the migration
+            server.api.initial_data._migrate_artifacts_table_v2(db, db_session)

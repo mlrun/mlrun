@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent
+import concurrent.futures
 import json
 import pickle
 import time
@@ -30,72 +32,101 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.types
+import mlrun.db.httpdb
 import mlrun.feature_store
+import mlrun.feature_store as fstore
 import mlrun.model_monitoring.api
-from mlrun.model_monitoring import TrackingPolicy
-from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
+from mlrun.datastore.targets import ParquetTarget
+from mlrun.model_monitoring.applications import (
+    ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationBaseV2,
+)
+from mlrun.model_monitoring.applications.histogram_data_drift import (
+    HistogramDataDriftApplication,
+)
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
-from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
+    DemoMonitoringAppV2,
     NoCheckDemoMonitoringApp,
 )
-from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+from .assets.custom_evidently_app import (
+    CustomEvidentlyMonitoringApp,
+    CustomEvidentlyMonitoringAppV2,
+)
 
 
 @dataclass
 class _AppData:
-    class_: type[ModelMonitoringApplicationBase]
+    class_: type[
+        typing.Union[ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2]
+    ]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
-    metrics: typing.Optional[set[str]] = None  # only for testing
+    results: typing.Optional[set[str]] = None  # only for testing
+    metrics: typing.Optional[set[str]] = None  # only for testing (future use)
+    deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
+        assert hasattr(self.class_, "NAME")
+
         path = Path(__file__).parent / self.rel_path
         assert path.exists()
         self.abs_path = str(path.absolute())
 
 
+_DefaultDataDriftAppData = _AppData(
+    class_=HistogramDataDriftApplication,
+    rel_path="",
+    deploy=False,
+    results={"general_drift"},
+    metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
+)
+
+
 class _V3IORecordsChecker:
+    project_name: str
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
 
     @classmethod
     def custom_setup_class(cls, project_name: str) -> None:
-        cls._v3io_container = ModelMonitoringWriter.get_v3io_container(project_name)
-        cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
-        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
-            cls._v3io_container
+        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+            project=project_name
         )
+        cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
+        cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
-            app_name = app_data.class_.name
+            app_name = app_data.class_.NAME
             cls._logger.debug("Checking the KV record of app", app_name=app_name)
-            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
+
+            resp = cls._kv_storage.client.kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
             )
             assert (
                 data := resp.output.item
             ), f"V3IO KV app data is empty for app {app_name}"
-            if app_data.metrics:
+            if app_data.results:
                 assert (
-                    data.keys() == app_data.metrics
+                    data.keys() == app_data.results
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.read(
-            backend=_TSDB_BE,
-            table=_TSDB_TABLE,
+        df: pd.DataFrame = cls._tsdb_storage.get_records(
+            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
             start=f"now-{5 * cls.app_interval}m",
             end="now",
         )
@@ -105,37 +136,117 @@ class _V3IORecordsChecker:
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
-            app_data.class_.name for app_data in cls.apps_data
+            app_data.class_.NAME for app_data in cls.apps_data
         }, "The application names are different than expected"
 
         tsdb_metrics = df.groupby("application_name").result_name.unique()
         for app_data in cls.apps_data:
-            if app_metrics := app_data.metrics:
-                app_name = app_data.class_.name
+            if app_metrics := app_data.results:
+                app_name = app_data.class_.NAME
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
                 assert (
                     set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_v3io_records(cls, ep_id: str) -> None:
+    def _test_apps_parquet(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
+        parquet_apps_directory = (
+            mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
+                mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
+                kind=mm_constants.FileTargetKind.APPS_PARQUET,
+            )
+        )
+        df = ParquetTarget(
+            path=f"{parquet_apps_directory}/key={ep_id}",
+        ).as_df()
+
+        is_inputs_saved = inputs.issubset(df.columns)
+        assert is_inputs_saved, "Dataframe does not contain the input columns"
+        is_output_saved = outputs.issubset(df.columns)
+        assert is_output_saved, "Dataframe does not contain the output columns"
+        is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
+            df.columns
+        )
+        assert is_metadata_saved, "Dataframe does not contain the metadata columns"
+
+    @classmethod
+    def _test_v3io_records(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:
+        cls._test_apps_parquet(ep_id, inputs, outputs)
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
+
+    @classmethod
+    def _test_api_get_results(
+        cls, ep_id: str, app_data: _AppData, run_db: mlrun.db.httpdb.HTTPRunDB
+    ) -> list[str]:
+        cls._logger.debug("Checking GET /metrics API")
+        response = run_db.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type=results",
+        )
+        get_app_results: set[str] = set()
+        app_results_full_names: list[str] = []
+        for result in json.loads(response.content.decode()):
+            if result["app"] == app_data.class_.NAME:
+                get_app_results.add(result["name"])
+                app_results_full_names.append(result["full_name"])
+
+        assert app_data.results == get_app_results
+        assert app_results_full_names, "No results"
+        return app_results_full_names
+
+    @classmethod
+    def _test_api_get_values(
+        cls,
+        ep_id: str,
+        results_full_names: list[str],
+        run_db: mlrun.db.httpdb.HTTPRunDB,
+    ) -> None:
+        cls._logger.debug("Checking GET /metrics-values API")
+        names_query = f"?name={'&name='.join(results_full_names)}"
+        response = run_db.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{names_query}",
+        )
+        for result_values in json.loads(response.content.decode()):
+            assert result_values[
+                "data"
+            ], f"No data for result {result_values['full_name']}"
+            assert result_values[
+                "values"
+            ], f"The values list is empty for result {result_values['full_name']}"
+
+    @classmethod
+    def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
+        cls._logger.debug("Checking model endpoint monitoring APIs")
+        run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
+        results_full_names = cls._test_api_get_results(
+            ep_id=ep_id, app_data=app_data, run_db=run_db
+        )
+        cls._test_api_get_values(
+            ep_id=ep_id, results_full_names=results_full_names, run_db=run_db
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow"
+    project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        cls.max_events = typing.cast(
-            int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+        assert (
+            typing.cast(
+                int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+            )
+            == EXPECTED_EVENTS_COUNT
         )
-        assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"
         cls.num_features = 4
@@ -149,10 +260,176 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.evidently_project_id = str(uuid.uuid4())
 
         cls.apps_data: list[_AppData] = [
+            _DefaultDataDriftAppData,
+            _AppData(
+                class_=DemoMonitoringAppV2,
+                rel_path="assets/application.py",
+                results={"data_drift_test", "model_perf"},
+            ),
+            _AppData(
+                class_=CustomEvidentlyMonitoringAppV2,
+                rel_path="assets/custom_evidently_app.py",
+                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
+                kwargs={
+                    "evidently_workspace_path": cls.evidently_workspace_path,
+                    "evidently_project_id": cls.evidently_project_id,
+                },
+                results={"data_drift_test"},
+            ),
+        ]
+
+        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+
+    def _submit_controller_and_deploy_writer(
+        self, deploy_histogram_data_drift_app
+    ) -> None:
+        self.project.enable_model_monitoring(
+            base_period=self.app_interval,
+            **({} if self.image is None else {"image": self.image}),
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+        )
+
+    def _set_and_deploy_monitoring_apps(self) -> None:
+        with ThreadPoolExecutor() as executor:
+            for app_data in self.apps_data:
+                if app_data.deploy:
+                    fn = self.project.set_model_monitoring_function(
+                        func=app_data.abs_path,
+                        application_class=app_data.class_.__name__,
+                        name=app_data.class_.NAME,
+                        image="mlrun/mlrun" if self.image is None else self.image,
+                        requirements=app_data.requirements,
+                        **app_data.kwargs,
+                    )
+                    executor.submit(fn.deploy)
+
+    def _log_model(self, with_training_set: bool) -> tuple[set[str], set[str]]:
+        train_set = None
+        dataset = load_iris()
+        if with_training_set:
+            train_set = pd.DataFrame(
+                dataset.data,
+                columns=dataset.feature_names,
+            )
+            inputs = {
+                mlrun.feature_store.api.norm_column_name(feature)
+                for feature in dataset.feature_names
+            }
+        else:
+            inputs = {f"f{i}" for i in range(len(dataset.feature_names))}
+
+        self.project.log_model(
+            f"{self.model_name}_{with_training_set}",
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+            training_set=train_set,
+        )
+        outputs = {"p0"}
+
+        return inputs, outputs
+
+    @classmethod
+    def _deploy_model_serving(
+        cls, with_training_set: bool
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = mlrun.import_function(
+            "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
+        )
+        serving_fn.add_model(
+            f"{cls.model_name}_{with_training_set}",
+            model_path=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
+        )
+        serving_fn.set_tracking()
+        if cls.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+
+        serving_fn.deploy()
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+
+    @classmethod
+    def _infer(
+        cls,
+        serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
+        *,
+        num_events: int = 10_000,
+        with_training_set: bool = True,
+    ) -> None:
+        result = serving_fn.invoke(
+            f"v2/models/{cls.model_name}_{with_training_set}/infer",
+            json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+        )
+        assert isinstance(result, dict), "Unexpected result type"
+        assert "outputs" in result, "Result should have 'outputs' key"
+        assert (
+            len(result["outputs"]) == num_events
+        ), "Outputs length does not match inputs"
+
+    @classmethod
+    def _get_model_endpoint_id(cls) -> str:
+        endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
+        assert endpoints and len(endpoints) == 1
+        return endpoints[0].metadata.uid
+
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_app_flow(self, with_training_set: bool) -> None:
+        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        inputs, outputs = self._log_model(with_training_set)
+
+        for i in range(len(self.apps_data)):
+            if "with_training_set" in self.apps_data[i].kwargs:
+                self.apps_data[i].kwargs["with_training_set"] = with_training_set
+
+        # workaround for ML-5997
+        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
+            self.apps_data.remove(_DefaultDataDriftAppData)
+
+        with ThreadPoolExecutor() as executor:
+            executor.submit(
+                self._submit_controller_and_deploy_writer,
+                deploy_histogram_data_drift_app=_DefaultDataDriftAppData
+                in self.apps_data,
+                # workaround for ML-5997
+            )
+            executor.submit(self._set_and_deploy_monitoring_apps)
+            future = executor.submit(self._deploy_model_serving, with_training_set)
+
+        serving_fn = future.result()
+
+        time.sleep(5)
+        self._infer(serving_fn, with_training_set=with_training_set)
+        # mark the first window as "done" with another request
+        time.sleep(
+            self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + 2
+        )
+        self._infer(serving_fn, num_events=1, with_training_set=with_training_set)
+        # wait for the completed window to be processed
+        time.sleep(1.2 * self.app_interval_seconds)
+
+        ep_id = self._get_model_endpoint_id()
+        self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
+
+        if with_training_set:
+            self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
+    # TODO : delete in 1.9.0 (V1 app deprecation)
+    project_name = "test-app-flow-v1"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        super().custom_setup_class()
+        cls.apps_data: list[_AppData] = [
             _AppData(
                 class_=DemoMonitoringApp,
                 rel_path="assets/application.py",
-                metrics={"data_drift_test", "model_perf"},
+                results={"data_drift_test", "model_perf"},
             ),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
@@ -161,112 +438,21 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
+                    "with_training_set": True,
                 },
-                metrics={"data_drift_test"},
+                results={"data_drift_test"},
             ),
         ]
-        cls.infer_path = f"v2/models/{cls.model_name}/infer"
-        cls.infer_input = cls._generate_infer_input()
-        cls.next_window_input = cls._generate_infer_input(num_events=1)
 
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
-
-    def _submit_controller_and_deploy_writer(self) -> None:
-        self.project.enable_model_monitoring(
-            base_period=self.app_interval,
-            **({} if self.image is None else {"default_controller_image": self.image}),
-        )
-
-    def _set_and_deploy_monitoring_apps(self) -> None:
-        with ThreadPoolExecutor() as executor:
-            for app_data in self.apps_data:
-                fn = self.project.set_model_monitoring_function(
-                    func=app_data.abs_path,
-                    application_class=app_data.class_.__name__,
-                    name=app_data.class_.name,
-                    image="mlrun/mlrun" if self.image is None else self.image,
-                    requirements=app_data.requirements,
-                    **app_data.kwargs,
-                )
-                executor.submit(fn.deploy)
-
-    def _log_model(self) -> None:
-        dataset = load_iris()
-        train_set = pd.DataFrame(
-            dataset.data,
-            columns=dataset.feature_names,
-        )
-        self.project.log_model(
-            self.model_name,
-            model_dir=str((Path(__file__).parent / "assets").absolute()),
-            model_file="model.pkl",
-            training_set=train_set,
-        )
-
-    @classmethod
-    def _deploy_model_serving(cls) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
-        )
-        serving_fn.add_model(
-            cls.model_name,
-            model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
-        )
-        serving_fn.set_tracking(tracking_policy=TrackingPolicy())
-        if cls.image is not None:
-            for attr in (
-                "stream_image",
-                "default_batch_image",
-                "default_controller_image",
-            ):
-                setattr(serving_fn.spec.tracking_policy, attr, cls.image)
-            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
-
-        serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
-
-    @classmethod
-    def _get_model_enpoint_id(cls) -> str:
-        endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
-        assert endpoints and len(endpoints) == 1
-        return endpoints[0].metadata.uid
-
-    @classmethod
-    def _generate_infer_input(cls, num_events: typing.Optional[int] = None) -> str:
-        if num_events is None:
-            num_events = cls.max_events
-        return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
-
-    def test_app_flow(self) -> None:
-        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self._log_model()
-
-        with ThreadPoolExecutor() as executor:
-            executor.submit(self._submit_controller_and_deploy_writer)
-            executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(self._deploy_model_serving)
-
-        self.serving_fn = future.result()
-
-        time.sleep(5)
-        self.serving_fn.invoke(self.infer_path, self.infer_input)
-        # mark the first window as "done" with another request
-        time.sleep(
-            self.app_interval_seconds
-            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            + 2
-        )
-        self.serving_fn.invoke(self.infer_path, self.next_window_input)
-        # wait for the completed window to be processed
-        time.sleep(1.2 * self.app_interval_seconds)
-
-        self._test_v3io_records(ep_id=self._get_model_enpoint_id())
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    def test_app_flow(self, with_training_set) -> None:
+        super().test_app_flow(with_training_set)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-record-results"
+    project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -300,7 +486,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         # model monitoring infra
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
-        cls.apps_data = [cls.app_data]
+        cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     @classmethod
@@ -333,7 +519,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         fn = self.project.set_model_monitoring_function(
             func=self.app_data.abs_path,
             application_class=self.app_data.class_.__name__,
-            name=self.app_data.class_.name,
+            name=self.app_data.class_.NAME,
             requirements=self.app_data.requirements,
             image="mlrun/mlrun" if self.image is None else self.image,
             **self.app_data.kwargs,
@@ -356,7 +542,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
-            **({} if self.image is None else {"default_controller_image": self.image}),
+            **({} if self.image is None else {"image": self.image}),
         )
 
     def test_inference_feature_set(self) -> None:
@@ -370,4 +556,236 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         time.sleep(2.4 * self.app_interval_seconds)
 
-        self._test_v3io_records(self.endpoint_id)
+        self._test_v3io_records(
+            self.endpoint_id, inputs=set(self.columns), outputs=set(self.y_name)
+        )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringInitialize(TestMLRunSystem):
+    project_name = "test-mm-initialize"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    def test_enable_model_monitoring(self) -> None:
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.update_model_monitoring_controller(
+                image=self.image or "mlrun/mlrun"
+            )
+
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun", wait_for_deployment=True
+        )
+
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+        )
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "10m"
+        )
+
+        self.project.update_model_monitoring_controller(
+            image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
+        )
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        assert (
+            controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+                "interval"
+            ]
+            == "1m"
+        )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestAllKindOfServing(TestMLRunSystem):
+    project_name = "test-mm-serving"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        random_rgb_image_list = (
+            np.random.randint(0, 256, (20, 30, 3), dtype=np.uint8)
+            .reshape(-1, 3)
+            .tolist()
+        )
+        cls.models = {
+            "int_one_to_one": {
+                "name": "serving_1",
+                "model_name": "int_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": [1, 2, 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+            "int_one_to_many": {
+                "name": "serving_2",
+                "model_name": "int_one_to_many",
+                "class_name": "OneToMany",
+                "data_point": [1, 2, 3],
+                "schema": ["f0", "f1", "f2", "p0", "p1", "p2", "p3", "p4"],
+            },
+            "str_one_to_one": {
+                "name": "serving_3",
+                "model_name": "str_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": "input_str",
+                "schema": ["f0", "p0"],
+            },
+            "str_one_to_one_with_train": {
+                "name": "serving_4",
+                "model_name": "str_one_to_one_with_train",
+                "class_name": "OneToOne",
+                "data_point": "input_str",
+                "schema": ["str_in", "str_out"],
+                "training_set": pd.DataFrame(
+                    data={"str_in": ["str_1", "str_2"], "str_out": ["str_3", "str_4"]}
+                ),
+                "label_column": "str_out",
+            },
+            "str_one_to_many": {
+                "name": "serving_5",
+                "model_name": "str_one_to_many",
+                "class_name": "OneToMany",
+                "data_point": "input_str",
+                "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
+            },
+            "img_one_to_one": {
+                "name": "serving_6",
+                "model_name": "img_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": random_rgb_image_list,
+                "schema": [f"f{i}" for i in range(600)] + ["p0"],
+            },
+            "int_and_str_one_to_one": {
+                "name": "serving_7",
+                "model_name": "int_and_str_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": [1, "a", 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+        }
+
+    def _log_model(
+        self,
+        model_name: str,
+        training_set: pd.DataFrame = None,
+        label_column: typing.Union[str, list[str]] = None,
+    ) -> None:
+        self.project.log_model(
+            model_name,
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+            training_set=training_set,
+            label_column=label_column,
+        )
+
+    @classmethod
+    def _deploy_model_serving(
+        cls, name: str, model_name: str, class_name: str, **kwargs
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = mlrun.code_to_function(
+            project=cls.project_name,
+            name=name,
+            filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
+            kind="serving",
+        )
+        serving_fn.add_model(
+            model_name,
+            model_path=f"store://models/{cls.project_name}/{model_name}:latest",
+            class_name=class_name,
+        )
+        serving_fn.set_tracking()
+        if cls.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+
+        serving_fn.deploy()
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+
+    def _test_endpoint(self, model_name, feature_set_uri) -> dict[str, typing.Any]:
+        model_dict = self.models[model_name]
+        serving_fn = self.project.get_function(model_dict.get("name"))
+        data_point = model_dict.get("data_point")
+
+        serving_fn.invoke(
+            f"v2/models/{model_name}/infer",
+            json.dumps(
+                {"inputs": [data_point]},
+            ),
+        )
+        serving_fn.invoke(
+            f"v2/models/{model_name}/infer",
+            json.dumps({"inputs": [data_point, data_point]}),
+        )
+        time.sleep(
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 10
+        )
+
+        offline_response_df = ParquetTarget(
+            name="temp",
+            path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
+        ).as_df()
+
+        is_schema_saved = set(model_dict.get("schema")).issubset(
+            offline_response_df.columns
+        )
+        has_all_the_events = offline_response_df.shape[0] == 3
+
+        return {
+            "model_name": model_name,
+            "is_schema_saved": is_schema_saved,
+            "has_all_the_events": has_all_the_events,
+        }
+
+    def test_all(self) -> None:
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            base_period=1,
+            deploy_histogram_data_drift_app=False,
+        )
+        futures = []
+        with ThreadPoolExecutor() as executor:
+            for model_name, model_dict in self.models.items():
+                self._log_model(
+                    model_name,
+                    training_set=model_dict.get("training_set"),
+                    label_column=model_dict.get("label_column"),
+                )
+                future = executor.submit(self._deploy_model_serving, **model_dict)
+                futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+        futures_2 = []
+        with ThreadPoolExecutor() as executor:
+            self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+            endpoints = self.db.list_model_endpoints()
+            for endpoint in endpoints:
+                future = executor.submit(
+                    self._test_endpoint,
+                    model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[
+                        0
+                    ],
+                    feature_set_uri=endpoint[
+                        mm_constants.EventFieldType.FEATURE_SET_URI
+                    ],
+                )
+                futures_2.append(future)
+
+        for future in concurrent.futures.as_completed(futures_2):
+            res_dict = future.result()
+            assert res_dict[
+                "is_schema_saved"
+            ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
+
+            assert res_dict[
+                "has_all_the_events"
+            ], f"For {res_dict['model_name']} Not all the events were saved"

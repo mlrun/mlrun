@@ -21,6 +21,7 @@ import unittest.mock
 import deepdiff
 import pytest
 from fastapi.testclient import TestClient
+from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -29,7 +30,6 @@ import mlrun.k8s_utils
 import server.api.utils.builder
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
-from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
 from server.api.utils.singletons.db import get_db
 from tests.api.conftest import K8sSecretsMock
@@ -255,6 +255,77 @@ class TestKubejobRuntime(TestRuntimeBase):
         mlrun.mlconf.valid_function_priority_class_names = ""
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
+
+    @pytest.mark.parametrize(
+        "common_node_selector, project_node_selector, user_node_selector, expected_merged_selector",
+        [
+            # No node selectors provided at any level
+            ({}, {}, {}, {}),
+            # Only common node selector provided
+            ({"zone": "us-east"}, {}, {}, {"zone": "us-east"}),
+            # Only project node selector provided
+            ({}, {"gpu": "false"}, {}, {"gpu": "false"}),
+            # Only function node selector provided
+            ({}, {}, {"test": "user"}, {"test": "user"}),
+            # Common and project node selectors provided - the common becomes the function node selector
+            (
+                {"zone": "us-east"},
+                {"gpu": "false"},
+                {},
+                {"zone": "us-east", "gpu": "false"},
+            ),
+            # Common and user node selectors provided
+            ({"zone": "us-east"}, {}, {"test": "user"}, {"test": "user"}),
+            # Project and user node selectors provided
+            ({}, {"gpu": "false"}, {"test": "user"}, {"gpu": "false", "test": "user"}),
+            # All node selectors provided
+            (
+                {"zone": "us-east"},
+                {"gpu": "false"},
+                {"test": "user"},
+                {"gpu": "false", "test": "user"},
+            ),
+            # Project and user node selectors overlap
+            (
+                {},
+                {"gpu": "false"},
+                {"gpu": "true", "zone": "us-south"},
+                {"gpu": "true", "zone": "us-south"},
+            ),
+            # Common, project, and user node selectors all overlap
+            (
+                {"zone": "us-east", "gpu": "true"},
+                {"gpu": "false", "test": "test"},
+                {"test": "", "zone": "us-south"},
+                {"gpu": "false", "test": "", "zone": "us-south"},
+            ),
+        ],
+    )
+    def test_merge_node_selector(
+        self,
+        db: Session,
+        k8s_secrets_mock,
+        common_node_selector,
+        project_node_selector,
+        user_node_selector,
+        expected_merged_selector,
+    ):
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(common_node_selector).encode("utf-8")
+        )
+
+        runtime = self._generate_runtime()
+        if user_node_selector:
+            runtime.spec.node_selector = user_node_selector
+
+        project = runtime._get_db().get_project(runtime.metadata.project)
+        project.spec.default_function_node_selector = project_node_selector
+        runtime._get_db().store_project(self.project, project)
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_node_selector=expected_merged_selector
+        )
 
     def test_set_annotation(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
@@ -1042,12 +1113,12 @@ def my_func(context):
         self.execute_function(runtime)
         run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = override_state_thresholds
-        expected_state_thresholds[
-            "image_pull_backoff"
-        ] = mlconf.function.spec.state_thresholds.default.image_pull_backoff
-        expected_state_thresholds[
-            "pending_scheduled"
-        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        expected_state_thresholds["image_pull_backoff"] = (
+            mlconf.function.spec.state_thresholds.default.image_pull_backoff
+        )
+        expected_state_thresholds["pending_scheduled"] = (
+            mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
         patch_state_thresholds = {
@@ -1061,9 +1132,9 @@ def my_func(context):
         run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = patch_state_thresholds
         expected_state_thresholds["executing"] = override_state_thresholds["executing"]
-        expected_state_thresholds[
-            "pending_scheduled"
-        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        expected_state_thresholds["pending_scheduled"] = (
+            mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
     @staticmethod

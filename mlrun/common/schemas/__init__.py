@@ -14,6 +14,18 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+from .alert import AlertActiveState, AlertConfig, AlertTemplate, Event
+from .api_gateway import (
+    APIGateway,
+    APIGatewayAuthenticationMode,
+    APIGatewayBasicAuth,
+    APIGatewayMetadata,
+    APIGatewaysOutput,
+    APIGatewaySpec,
+    APIGatewayState,
+    APIGatewayStatus,
+    APIGatewayUpstream,
+)
 from .artifact import (
     Artifact,
     ArtifactCategories,
@@ -43,6 +55,7 @@ from .clusterization_spec import (
     ClusterizationSpec,
     WaitForChiefToReachOnlineStateFeatureFlag,
 )
+from .common import ImageBuilder
 from .constants import (
     APIStates,
     ClusterizationRole,
@@ -113,6 +126,7 @@ from .model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     Features,
+    FeatureSetFeatures,
     FeatureValues,
     GrafanaColumn,
     GrafanaDataPoint,
@@ -128,7 +142,10 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
-    TimeSeriesTarget,
+    MonitoringTSDBTables,
+    PrometheusEndpoints,
+    TimeSeriesConnector,
+    TSDBTarget,
 )
 from .notification import (
     Notification,
@@ -138,12 +155,14 @@ from .notification import (
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .pagination import PaginationInfo
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOutput,
     ProjectOwner,
     ProjectsFormat,
     ProjectsOutput,

@@ -139,7 +139,6 @@ myst_enable_extensions = [
     "deflist",
     "html_image",
     "html_admonition",
-    "smartquotes",
     "replacements",
     "linkify",
     "substitution",
@@ -148,7 +147,7 @@ myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2
 myst_all_links_external = True
 
-# These substitutions point to the relevant mlrun docs for the currect CE version
+# These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
     "ceversion": "v1.4.0",
@@ -171,6 +170,7 @@ autodoc_mock_imports = [
 ]
 
 redirects = {"functions-architecture": "functions.html"}
+smartquotes = False
 
 # -- Autosummary -------------------------------------------------------------
 

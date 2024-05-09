@@ -109,7 +109,10 @@ default_config = {
         "runs": {
             # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
             "batch_delete_runs_chunk_size": 10,
-        }
+        },
+        "resources": {
+            "delete_crd_resources_timeout": "5 minutes",
+        },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
@@ -146,7 +149,6 @@ default_config = {
         "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
-    "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster
@@ -186,6 +188,7 @@ default_config = {
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
+        "function_deletion_batch_size": 10,
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
             "operations": {
@@ -194,6 +197,7 @@ default_config = {
                 "run_abortion": "600",
                 "abort_grace_period": "10",
                 "delete_project": "900",
+                "delete_function": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -238,6 +242,7 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/mlrun",
+            "application": "python:3.9-slim",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -285,6 +290,12 @@ default_config = {
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
+        # http client used by httpdb
+        "http": {
+            # when True, the client will verify the server's TLS
+            # set to False for backwards compatibility.
+            "verify": False,
+        },
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -303,7 +314,11 @@ default_config = {
                 # default is 16MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
                 "max_allowed_packet": 64000000,  # 64MB
             },
-            # None will set this to be equal to the httpdb.max_workers
+            # tests connections for liveness upon each checkout
+            "connections_pool_pre_ping": True,
+            # this setting causes the pool to recycle connections after the given number of seconds has passed
+            "connections_pool_recycle": 60 * 60,
+            # None defaults to httpdb.max_workers
             "connections_pool_size": None,
             "connections_pool_max_overflow": None,
             # below is a db-specific configuration
@@ -312,7 +327,13 @@ default_config = {
                 # optional values (as per https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html#sql-mode-full):
                 #
                 # if set to "nil" or "none", nothing would be set
-                "modes": "STRICT_TRANS_TABLES",
+                "modes": (
+                    "STRICT_TRANS_TABLES"
+                    ",NO_ZERO_IN_DATE"
+                    ",NO_ZERO_DATE"
+                    ",ERROR_FOR_DIVISION_BY_ZERO"
+                    ",NO_ENGINE_SUBSTITUTION",
+                )
             },
         },
         "jobs": {
@@ -340,10 +361,12 @@ default_config = {
             #                  is set to ClusterIP
             #  ---------------------------------------------------------------------
             # Note: adding a mode requires special handling on
-            # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
+            # - mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.nuclio.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
+            # size of serving spec to move to config maps
+            "serving_spec_env_cutoff": 4096,
         },
         "logs": {
             "decode": {
@@ -408,7 +431,7 @@ default_config = {
             "iguazio_access_key": "",
             "iguazio_list_projects_default_page_size": 200,
             "iguazio_client_job_cache_ttl": "20 minutes",
-            "nuclio_project_deletion_verification_timeout": "60 seconds",
+            "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
@@ -431,7 +454,7 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.21.1",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.18",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
@@ -461,6 +484,14 @@ default_config = {
             # if set to true, will log a warning for trying to use run db functionality while in nop db mode
             "verbose": True,
         },
+        "pagination": {
+            "default_page_size": 20,
+            "pagination_cache": {
+                "interval": 60,
+                "ttl": 3600,
+                "max_size": 10000,
+            },
+        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
@@ -472,20 +503,21 @@ default_config = {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
             "stream": "",
+            "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
-        "batch_processing_function_branch": "master",
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
+        # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
+        "tsdb_connector_type": "v3io-tsdb",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -521,9 +553,10 @@ default_config = {
     "feature_store": {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "nosql": "v3io:///projects/{project}/FeatureStore/{name}/nosql",
             # "authority" is optional and generalizes [userinfo "@"] host [":" port]
-            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/nosql",
+            "dsnosql": "ds://{ds_profile_name}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -598,8 +631,9 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
-        # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
+        # Default timeout seconds for retrieving workflow id after execution
+        # Remote workflow timeout is the maximum between remote and the inner engine timeout
+        "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -658,6 +692,14 @@ default_config = {
         "access_key": "",
     },
     "grafana_url": "",
+    "alerts": {
+        # supported modes: "enabled", "disabled".
+        "mode": "enabled"
+    },
+    "auth_with_client_id": {
+        "enabled": False,
+        "request_timeout": 5,
+    },
 }
 
 _is_running_as_api = None
@@ -951,10 +993,10 @@ class Config:
             with_gpu = (
                 with_gpu_requests if requirement == "requests" else with_gpu_limits
             )
-            resources[
-                requirement
-            ] = self.get_default_function_pod_requirement_resources(
-                requirement, with_gpu
+            resources[requirement] = (
+                self.get_default_function_pod_requirement_resources(
+                    requirement, with_gpu
+                )
             )
         return resources
 
@@ -1047,8 +1089,9 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
-        application_name: str = None,
-    ) -> str:
+        function_name: str = None,
+        **kwargs,
+    ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
         :param project:         Project name.
@@ -1062,9 +1105,10 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:    Application name, None for model_monitoring_stream.
+        :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind. Can be either a single path
+                                or a list of paths in the case of the online model monitoring stream path.
         """
 
         if target != "offline":
@@ -1073,24 +1117,35 @@ class Config:
             )
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project)
+                return store_prefix_dict[kind].format(project=project, **kwargs)
 
             if (
-                application_name
+                function_name
+                and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind
-                    if application_name is None
-                    else f"{kind}-{application_name.lower()}",
+                    if function_name is None
+                    else f"{kind}-{function_name.lower()}",
                 )
-            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project,
-                kind=kind
-                if application_name is None
-                else f"{kind}-{application_name.lower()}",
-            )
+            elif kind == "stream":  # return list for mlrun<1.6.3 BC
+                return [
+                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project,
+                        kind=kind,
+                    ),  # old stream uri (pipelines) for BC ML-6043
+                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                        project=project,
+                        kind=kind,
+                    ),  # new stream uri (projects)
+                ]
+            else:
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project,
+                    kind=kind,
+                )
 
         # Get the current offline path from the configuration
         file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
@@ -1337,12 +1392,25 @@ def read_env(env=None, prefix=env_prefix):
         if igz_domain:
             config["ui_url"] = f"https://mlrun-ui.{igz_domain}"
 
-    if config.get("log_level"):
+    if log_level := config.get("log_level"):
         import mlrun.utils.logger
 
         # logger created (because of imports mess) before the config is loaded (in tests), therefore we're changing its
         # level manually
-        mlrun.utils.logger.set_logger_level(config["log_level"])
+        mlrun.utils.logger.set_logger_level(log_level)
+
+    if log_formatter_name := config.get("log_formatter"):
+        import mlrun.utils.logger
+
+        log_formatter = mlrun.utils.create_formatter_instance(
+            mlrun.utils.FormatterKinds(log_formatter_name)
+        )
+        current_handler = mlrun.utils.logger.get_handler("default")
+        current_formatter_name = current_handler.formatter.__class__.__name__
+        desired_formatter_name = log_formatter.__class__.__name__
+        if current_formatter_name != desired_formatter_name:
+            current_handler.setFormatter(log_formatter)
+
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)

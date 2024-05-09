@@ -218,7 +218,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if workdir:
             self.spec.workdir = workdir
         if target_dir:
-            self.spec.clone_target_dir = target_dir
+            self.spec.build.source_code_target_dir = target_dir
 
     def is_deployed(self):
         return True
@@ -240,7 +240,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
-                self.spec.clone_target_dir,
+                self.spec.build.source_code_target_dir,
                 secrets=execution._secrets_manager,
             )
             if workdir and not workdir.startswith("/"):
@@ -493,7 +493,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 logger.warning("Run was aborted", err=err_to_str(exc))
                 # Run was aborted, the state run state is updated by the abort job, no need to commit again
                 context.set_state(
-                    mlrun.runtimes.constants.RunStates.aborted, commit=False
+                    mlrun.common.runtimes.constants.RunStates.aborted, commit=False
                 )
                 commit = False
             except Exception as exc:

@@ -22,9 +22,11 @@ from time import sleep
 import nuclio
 import nuclio.utils
 import requests
-import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
+from mlrun_pipelines.common.mounts import VolumeMount
+from mlrun_pipelines.common.ops import deploy_op
+from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -36,15 +38,11 @@ import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
-from mlrun.kfpops import deploy_op
 from mlrun.lists import RunList
 from mlrun.model import RunObject
 from mlrun.platforms.iguazio import (
-    VolumeMount,
-    mount_v3io,
     parse_path,
     split_path,
-    v3io_cred,
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
@@ -56,33 +54,9 @@ def validate_nuclio_version_compatibility(*min_versions):
     """
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
-    parsed_min_versions = [
-        semver.VersionInfo.parse(min_version) for min_version in min_versions
-    ]
-    try:
-        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
-    except ValueError:
-        # only log when version is set but invalid
-        if mlconf.nuclio_version:
-            logger.warning(
-                "Unable to parse nuclio version, assuming compatibility",
-                nuclio_version=mlconf.nuclio_version,
-                min_versions=min_versions,
-            )
-        return True
-
-    parsed_min_versions.sort(reverse=True)
-    for parsed_min_version in parsed_min_versions:
-        if (
-            parsed_current_version.major == parsed_min_version.major
-            and parsed_current_version.minor == parsed_min_version.minor
-            and parsed_current_version.patch < parsed_min_version.patch
-        ):
-            return False
-
-        if parsed_current_version >= parsed_min_version:
-            return True
-    return False
+    return mlrun.utils.helpers.validate_component_version_compatibility(
+        "nuclio", *min_versions
+    )
 
 
 def min_nuclio_versions(*versions):
@@ -291,6 +265,9 @@ class RemoteRuntime(KubeResource):
     def status(self, status):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
+    def pre_deploy_validation(self):
+        pass
+
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
@@ -342,17 +319,21 @@ class RemoteRuntime(KubeResource):
 
             git::
 
-                fn.with_source_archive("git://github.com/org/repo#my-branch",
-                        handler="main:handler",
-                        workdir="path/inside/repo")
+                fn.with_source_archive(
+                    "git://github.com/org/repo#my-branch",
+                    handler="main:handler",
+                    workdir="path/inside/repo",
+                )
 
             s3::
 
                 fn.spec.nuclio_runtime = "golang"
-                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                fn.with_source_archive(
+                    "s3://my-bucket/path/in/bucket/my-functions-archive",
                     handler="my_func:Handler",
                     workdir="path/inside/functions/archive",
-                    runtime="golang")
+                    runtime="golang",
+                )
         """
         self.spec.build.source = source
         # update handler in function_handler
@@ -431,15 +412,15 @@ class RemoteRuntime(KubeResource):
                 raise ValueError(
                     "gateway timeout must be greater than the worker timeout"
                 )
-            annotations[
-                "nginx.ingress.kubernetes.io/proxy-connect-timeout"
-            ] = f"{gateway_timeout}"
-            annotations[
-                "nginx.ingress.kubernetes.io/proxy-read-timeout"
-            ] = f"{gateway_timeout}"
-            annotations[
-                "nginx.ingress.kubernetes.io/proxy-send-timeout"
-            ] = f"{gateway_timeout}"
+            annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = (
+                f"{gateway_timeout}"
+            )
+            annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] = (
+                f"{gateway_timeout}"
+            )
+            annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = (
+                f"{gateway_timeout}"
+            )
 
         trigger = nuclio.HttpTrigger(
             workers=workers,
@@ -540,11 +521,16 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo
+        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # todo: verify that the function name is normalized
+        if auth_info:
+            # TODO: remove in 1.9.0
+            warnings.warn(
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                FutureWarning,
+            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
@@ -567,9 +553,7 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(
-            self, False, builder_env=builder_env, force_build=force_build
-        )
+        data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -603,7 +587,6 @@ class RemoteRuntime(KubeResource):
         return self.spec.command
 
     def _wait_for_function_deployment(self, db, verbose=False):
-        text = ""
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
@@ -611,7 +594,7 @@ class RemoteRuntime(KubeResource):
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
             try:
-                text, last_log_timestamp = db.get_builder_status(
+                text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
             except mlrun.db.RunDBError:
@@ -769,9 +752,12 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
             runtime_env[
-                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key
         return runtime_env
+
+    def _get_serving_spec(self):
+        return None
 
     def _get_nuclio_config_spec_env(self):
         env_dict = {}
@@ -957,6 +943,53 @@ class RemoteRuntime(KubeResource):
         if resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
+
+    def with_sidecar(
+        self,
+        name: str = None,
+        image: str = None,
+        ports: typing.Optional[typing.Union[int, list[int]]] = None,
+        command: typing.Optional[str] = None,
+        args: typing.Optional[list[str]] = None,
+    ):
+        """
+        Add a sidecar container to the function pod
+        :param name:    Sidecar container name.
+        :param image:   Sidecar container image.
+        :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
+        :param command: Sidecar container command instead of the image entrypoint.
+        :param args:    Sidecar container command args (requires command to be set).
+        """
+        name = name or f"{self.metadata.name}-sidecar"
+        sidecar = self._set_sidecar(name)
+        if image:
+            sidecar["image"] = image
+
+        ports = mlrun.utils.helpers.as_list(ports)
+        sidecar["ports"] = [
+            {
+                "name": f"{name}-{i}",
+                "containerPort": port,
+                "protocol": "TCP",
+            }
+            for i, port in enumerate(ports)
+        ]
+
+        if command:
+            sidecar["command"] = mlrun.utils.helpers.as_list(command)
+
+        if args:
+            sidecar["args"] = mlrun.utils.helpers.as_list(args)
+
+    def _set_sidecar(self, name: str) -> dict:
+        self.spec.config.setdefault("spec.sidecars", [])
+        sidecars = self.spec.config["spec.sidecars"]
+        for sidecar in sidecars:
+            if sidecar["name"] == name:
+                return sidecar
+
+        sidecars.append({"name": name})
+        return sidecars[-1]
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

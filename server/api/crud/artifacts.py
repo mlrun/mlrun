@@ -25,6 +25,7 @@ import mlrun.utils.singleton
 import server.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+from mlrun.utils.helpers import validate_inline_artifact_body_size
 
 
 class Artifacts(
@@ -55,11 +56,6 @@ class Artifacts(
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
-
-        if mlrun.utils.helpers.is_legacy_artifact(artifact):
-            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
-                artifact
-            ).to_dict()
 
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -184,11 +180,34 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         object_uid: str = None,
         producer_id: str = None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
+
+        # delete artifacts data by deletion strategy
+        if deletion_strategy in [
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
+        ]:
+            self._delete_artifact_data(
+                db_session,
+                key,
+                tag,
+                project,
+                object_uid,
+                producer_id,
+                deletion_strategy,
+                secrets,
+                auth_info,
+            )
+
         return server.api.utils.singletons.db.get_db().del_artifact(
             db_session, key, tag, project, object_uid, producer_id=producer_id
         )
@@ -224,3 +243,51 @@ class Artifacts(
                         path=path,
                         err=err_to_str(err),
                     )
+        if "spec" in artifact and "inline" in artifact["spec"]:
+            validate_inline_artifact_body_size(artifact["spec"]["inline"])
+
+    def _delete_artifact_data(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        key: str,
+        tag: str = "latest",
+        project: str = mlrun.mlconf.default_project,
+        object_uid: str = None,
+        producer_id: str = None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
+
+        try:
+            artifact = self.get_artifact(
+                db_session,
+                key,
+                tag,
+                project=project,
+                producer_id=producer_id,
+                object_uid=object_uid,
+            )
+            path = artifact["spec"]["target_path"]
+            server.api.crud.Files().delete_artifact_data(
+                auth_info, project, path, secrets
+            )
+        except Exception as exc:
+            logger.debug(
+                "Failed delete artifact data",
+                key=key,
+                project=project,
+                deletion_strategy=deletion_strategy,
+                err=err_to_str(exc),
+            )
+
+            if (
+                deletion_strategy
+                == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+            ):
+                raise mlrun.errors.MLRunInternalServerError(
+                    "Failed to delete artifact data"
+                ) from exc

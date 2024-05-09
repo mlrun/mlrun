@@ -33,7 +33,6 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_artifact_target,
-    is_legacy_artifact,
     logger,
     template_artifact_path,
 )
@@ -71,6 +70,7 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
+    @mlrun.utils.filter_warnings("ignore", FutureWarning)
     def to_dict(
         self, fields: list = None, exclude: list = None, strip: bool = False
     ) -> dict:
@@ -501,6 +501,7 @@ class ImageBuilder(ModelObj):
         requirements: list = None,
         extra_args=None,
         builder_env=None,
+        source_code_target_dir=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -521,6 +522,7 @@ class ImageBuilder(ModelObj):
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
         self.requirements = requirements or []  #: pip requirements
+        self.source_code_target_dir = source_code_target_dir or None
 
     @property
     def source(self):
@@ -557,6 +559,7 @@ class ImageBuilder(ModelObj):
         overwrite=False,
         builder_env=None,
         extra_args=None,
+        source_code_target_dir=None,
     ):
         if image:
             self.image = image
@@ -582,6 +585,8 @@ class ImageBuilder(ModelObj):
             self.builder_env = builder_env
         if extra_args:
             self.extra_args = extra_args
+        if source_code_target_dir:
+            self.source_code_target_dir = source_code_target_dir
 
     def with_commands(
         self,
@@ -760,6 +765,11 @@ class RunMetadata(ModelObj):
     def iteration(self, iteration):
         self._iteration = iteration
 
+    def is_workflow_runner(self):
+        if not self.labels:
+            return False
+        return self.labels.get("job-type", "") == "workflow-runner"
+
 
 class HyperParamStrategies:
     grid = "grid"
@@ -925,7 +935,7 @@ class RunSpec(ModelObj):
 
         >>> run_spec.inputs = {
         ...     "my_input": "...",
-        ...     "my_hinted_input : pandas.DataFrame": "..."
+        ...     "my_hinted_input : pandas.DataFrame": "...",
         ... }
 
         :param inputs: The inputs to set.
@@ -1212,6 +1222,19 @@ class RunStatus(ModelObj):
         self.reason = reason
         self.notifications = notifications or {}
 
+    def is_failed(self) -> Optional[bool]:
+        """
+        This method returns whether a run has failed.
+        Returns none if state has yet to be defined. callee is responsible for handling None.
+        (e.g wait for state to be defined)
+        """
+        if not self.state:
+            return None
+        return self.state.casefold() in [
+            mlrun.run.RunStatuses.failed.casefold(),
+            mlrun.run.RunStatuses.error.casefold(),
+        ]
+
 
 class RunTemplate(ModelObj):
     """Run template"""
@@ -1269,7 +1292,7 @@ class RunTemplate(ModelObj):
 
         example::
 
-            grid_params = {"p1": [2,4,1], "p2": [10,20]}
+            grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
             task = mlrun.new_task("grid-search")
             task.with_hyper_params(grid_params, selector="max.accuracy")
         """
@@ -1411,11 +1434,14 @@ class RunObject(RunTemplate):
             unknown_error = ""
             if (
                 self.status.state
-                in mlrun.runtimes.constants.RunStates.abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.abortion_states()
             ):
                 unknown_error = "Run was aborted"
 
-            elif self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            elif (
+                self.status.state
+                in mlrun.common.runtimes.constants.RunStates.error_states()
+            ):
                 unknown_error = "Unknown error"
 
             return (
@@ -1453,7 +1479,7 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                key = a["key"] if is_legacy_artifact(a) else a["metadata"]["key"]
+                key = a["metadata"]["key"]
                 outputs[key] = get_artifact_target(a, self.metadata.project)
         return outputs
 
@@ -1496,7 +1522,10 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
-        if self.status.state in mlrun.runtimes.constants.RunStates.terminal_states():
+        if (
+            self.status.state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
             return self.status.state
         self.refresh()
         return self.status.state or "unknown"
@@ -1558,7 +1587,7 @@ class RunObject(RunTemplate):
         last_pull_log_time = None
         logs_enabled = show_logs is not False
         state = self.state()
-        if state not in mlrun.runtimes.constants.RunStates.terminal_states():
+        if state not in mlrun.common.runtimes.constants.RunStates.terminal_states():
             logger.info(
                 f"run {self.metadata.name} is not completed yet, waiting for it to complete",
                 current_state=state,
@@ -1568,7 +1597,8 @@ class RunObject(RunTemplate):
             if (
                 logs_enabled
                 and logs_interval
-                and state not in mlrun.runtimes.constants.RunStates.terminal_states()
+                and state
+                not in mlrun.common.runtimes.constants.RunStates.terminal_states()
                 and (
                     last_pull_log_time is None
                     or (datetime.now() - last_pull_log_time).seconds > logs_interval
@@ -1577,7 +1607,7 @@ class RunObject(RunTemplate):
                 last_pull_log_time = datetime.now()
                 state, offset = self.logs(watch=False, offset=offset)
 
-            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+            if state in mlrun.common.runtimes.constants.RunStates.terminal_states():
                 if logs_enabled and logs_interval:
                     self.logs(watch=False, offset=offset)
                 break
@@ -1589,7 +1619,10 @@ class RunObject(RunTemplate):
                 )
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
-        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+        if (
+            raise_on_failure
+            and state != mlrun.common.runtimes.constants.RunStates.completed
+        ):
             raise mlrun.errors.MLRunRuntimeError(
                 f"Task {self.metadata.name} did not complete (state={state})"
             )

@@ -101,7 +101,7 @@ class TestDBFS(TestMLRunSystem):
             (
                 CSVSource,
                 CSVTarget,
-                "testdata_short.csv",
+                "test_data.csv",
                 pd.read_csv,
                 {"parse_dates": ["date_of_birth"]},
                 False,
@@ -109,7 +109,7 @@ class TestDBFS(TestMLRunSystem):
             (
                 ParquetSource,
                 ParquetTarget,
-                "testdata_short.parquet",
+                "test_data.parquet",
                 pd.read_parquet,
                 {},
                 True,
@@ -153,5 +153,8 @@ class TestDBFS(TestMLRunSystem):
             result.reset_index(inplace=True, drop=False)
 
         assert_frame_equal(
-            expected.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+            expected.sort_index(axis=1),
+            result.sort_index(axis=1),
+            check_like=True,
+            check_dtype=False,
         )

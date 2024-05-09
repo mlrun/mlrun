@@ -132,7 +132,7 @@ class GoogleCloudStorageStore(DataStore):
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     def get_spark_options(self):
-        res = None
+        res = {}
         st = self.get_storage_options()
         if "token" in st:
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
@@ -147,13 +147,13 @@ class GoogleCloudStorageStore(DataStore):
             if "project_id" in credentials:
                 res["spark.hadoop.fs.gs.project.id"] = credentials["project_id"]
             if "private_key_id" in credentials:
-                res[
-                    "spark.hadoop.fs.gs.auth.service.account.private.key.id"
-                ] = credentials["private_key_id"]
+                res["spark.hadoop.fs.gs.auth.service.account.private.key.id"] = (
+                    credentials["private_key_id"]
+                )
             if "private_key" in credentials:
-                res[
-                    "spark.hadoop.fs.gs.auth.service.account.private.key"
-                ] = credentials["private_key"]
+                res["spark.hadoop.fs.gs.auth.service.account.private.key"] = (
+                    credentials["private_key"]
+                )
             if "client_email" in credentials:
                 res["spark.hadoop.fs.gs.auth.service.account.email"] = credentials[
                     "client_email"
@@ -161,3 +161,7 @@ class GoogleCloudStorageStore(DataStore):
             if "client_id" in credentials:
                 res["spark.hadoop.fs.gs.client.id"] = credentials["client_id"]
         return res
+
+    @property
+    def spark_url(self):
+        return f"gs://{self.endpoint}"

@@ -350,9 +350,9 @@ def configure_kaniko_ecr_init_container(
         aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
-        init_container_env[
-            aws_credentials_file_env_key
-        ] = aws_credentials_file_env_value
+        init_container_env[aws_credentials_file_env_key] = (
+            aws_credentials_file_env_value
+        )
 
         # set the kaniko container AWS credentials location to the mount's path
         kpod.env.append(
@@ -458,6 +458,7 @@ def build_image(
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
+            source_dir_to_mount = path.normpath(source_dir_to_mount)
 
         # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
         # in the image, however, it is recommended to use `workdir` instead in such cases
@@ -487,14 +488,18 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
+    source_code_target_dir = (
+        runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
+    )
     if source_to_copy and (
-        not runtime.spec.clone_target_dir
-        or not os.path.isabs(runtime.spec.clone_target_dir)
+        not source_code_target_dir or not os.path.isabs(source_code_target_dir)
     ):
-        relative_workdir = runtime.spec.clone_target_dir or ""
+        relative_workdir = source_code_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join("/home/mlrun_code", relative_workdir)
+        runtime.spec.build.source_code_target_dir = path.join(
+            "/home/mlrun_code", relative_workdir
+        )
 
     dock = make_dockerfile(
         base_image,
@@ -504,7 +509,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        target_dir=runtime.spec.clone_target_dir,
+        target_dir=runtime.spec.build.source_code_target_dir,
         builder_env=builder_env_list,
         project_secrets=project_secrets,
         extra_args=extra_args,
@@ -640,12 +645,10 @@ def build_runtime(
         build.base_image or runtime.spec.image or config.default_base_image
     )
     if base_image:
-        # TODO: ml-models was removed in 1.5.0. remove it from here in 1.7.0.
         mlrun_images = [
             "mlrun/mlrun",
             "mlrun/mlrun-gpu",
             "mlrun/ml-base",
-            "mlrun/ml-models",
         ]
         if any([image in base_image for image in mlrun_images]):
             # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
@@ -770,6 +773,19 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def resolve_and_enrich_image_target(
+    image_target: str,
+    registry: str = None,
+    client_version: str = None,
+    client_python_version: str = None,
+) -> str:
+    image_target = resolve_image_target(image_target, registry)
+    image_target = mlrun.utils.enrich_image_url(
+        image_target, client_version, client_python_version
+    )
+    return image_target
 
 
 def resolve_image_target(image_target: str, registry: str = None) -> str:

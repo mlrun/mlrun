@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import os.path
 import pathlib
@@ -27,9 +27,13 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.artifacts
+import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring as mm_consts
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
+import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -48,53 +52,6 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-class RemoteBuilderMock:
-    kind = "http"
-
-    def __init__(self):
-        def _remote_builder_handler(
-            func,
-            with_mlrun,
-            mlrun_version_specifier=None,
-            skip_deployed=False,
-            builder_env=None,
-            force_build=False,
-        ):
-            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
-            # it overrides the mock args - this way the value will remain as it was.
-            return {
-                "ready": True,
-                "data": {
-                    "spec": {
-                        "clone_target_dir": func.spec.clone_target_dir,
-                    },
-                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod"),
-                },
-            }
-
-        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
-
-    def get_build_config_and_target_dir(self):
-        self.remote_builder.assert_called_once()
-        call_args = self.remote_builder.call_args
-
-        build_runtime = call_args.args[0]
-        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
-
-
-@pytest.fixture
-def remote_builder_mock(monkeypatch):
-    builder_mock = RemoteBuilderMock()
-
-    monkeypatch.setattr(
-        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
-    )
-    monkeypatch.setattr(
-        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
-    )
-    return builder_mock
-
-
 def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
@@ -102,7 +59,9 @@ def test_sync_functions(rundb_mock):
     project_function_object = project.spec._function_objects
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    imported_project = mlrun.load_project(
+        "./", str(project_file_path), save=False, allow_cross_project=True
+    )
     assert imported_project.spec._function_objects == {}
     imported_project.sync_functions()
     _assert_project_function_objects(imported_project, project_function_object)
@@ -132,6 +91,26 @@ def test_sync_functions_with_names_different_than_default(rundb_mock):
 
     assert project.spec._function_objects == project_function_object
     assert project.spec._function_definitions == project_function_definition
+
+
+def test_sync_functions_preserves_existing(rundb_mock):
+    project = mlrun.new_project("project-name", save=False)
+    project.set_function("hub://describe", "describe")
+    project.set_function("hub://auto-trainer", "auto-trainer")
+
+    old_trainer = project.spec._function_objects.pop("auto-trainer")
+    old_describe = project.spec._function_objects["describe"]
+
+    project.sync_functions(always=False)
+    assert old_trainer is not project.spec._function_objects["auto-trainer"]
+    assert old_trainer is not project.get_function("auto-trainer")
+    assert old_describe is project.spec._function_objects["describe"]
+    assert old_describe is project.get_function("describe")
+
+    project._initialized = False
+    project.sync_functions(always=True)
+    assert old_describe is not project.spec._function_objects["describe"]
+    assert old_describe is not project.get_function("describe")
 
 
 def test_sync_functions_unavailable_file():
@@ -225,7 +204,7 @@ def test_build_project_from_minimal_dict():
 
 
 @pytest.mark.parametrize(
-    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "url,project_name,project_files,clone,allow_cross_project,num_of_files_to_create,create_child_dir,"
     "override_context,expect_error,error_msg",
     [
         (
@@ -235,6 +214,52 @@ def test_build_project_from_minimal_dict():
             / "project.zip",
             "pipe2",
             ["prep_data.py", "project.yaml"],
+            True,
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "different1name",
+            ["prep_data.py", "project.yaml"],
+            True,
+            False,
+            3,
+            True,
+            "",
+            True,
+            "project name mismatch",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "different2name",
+            ["prep_data.py", "project.yaml"],
+            True,
+            None,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "different1name",
+            ["prep_data.py", "project.yaml"],
+            True,
             True,
             3,
             True,
@@ -250,6 +275,7 @@ def test_build_project_from_minimal_dict():
             "pipe2",
             ["prep_data.py", "project.yaml"],
             True,
+            False,
             3,
             True,
             "",
@@ -261,6 +287,7 @@ def test_build_project_from_minimal_dict():
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
+            False,
             3,
             True,
             "",
@@ -274,6 +301,7 @@ def test_build_project_from_minimal_dict():
             / "project.zip",
             "pipe2",
             ["prep_data.py", "project.yaml"],
+            False,
             False,
             3,
             True,
@@ -289,6 +317,7 @@ def test_build_project_from_minimal_dict():
             "pipe2",
             ["prep_data.py", "project.yaml"],
             False,
+            False,
             3,
             True,
             "",
@@ -299,6 +328,7 @@ def test_build_project_from_minimal_dict():
             "git://github.com/mlrun/project-demo.git",
             "pipe",
             [],
+            False,
             False,
             3,
             True,
@@ -311,6 +341,7 @@ def test_build_project_from_minimal_dict():
             "git://github.com/mlrun/project-demo.git",
             "pipe",
             [],
+            False,
             False,
             0,
             False,
@@ -326,6 +357,7 @@ def test_build_project_from_minimal_dict():
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
+            False,
             0,
             False,
             "",
@@ -336,6 +368,7 @@ def test_build_project_from_minimal_dict():
             "ssh://git@something/something",
             "something",
             [],
+            False,
             False,
             0,
             False,
@@ -352,6 +385,7 @@ def test_load_project(
     project_name,
     project_files,
     clone,
+    allow_cross_project,
     num_of_files_to_create,
     create_child_dir,
     override_context,
@@ -379,11 +413,25 @@ def test_load_project(
 
     if expect_error:
         with pytest.raises(Exception) as exc:
-            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+            mlrun.load_project(
+                context=context,
+                url=url,
+                clone=clone,
+                save=False,
+                name=project_name,
+                allow_cross_project=allow_cross_project,
+            )
         assert error_msg in str(exc.value)
         return
 
-    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+    project = mlrun.load_project(
+        context=context,
+        url=url,
+        clone=clone,
+        save=False,
+        name=project_name,
+        allow_cross_project=allow_cross_project,
+    )
 
     for temp_file in temp_files:
         # verify that the context directory was cleaned if clone is True
@@ -397,6 +445,55 @@ def test_load_project(
     assert project.spec.source == str(url)
     for project_file in project_files:
         assert os.path.exists(os.path.join(context, project_file))
+
+
+@pytest.mark.parametrize(
+    "from_template,project_name,override_context,expect_error,error_msg",
+    [
+        (
+            str(
+                pathlib.Path(tests.conftest.tests_root_directory)
+                / "projects"
+                / "assets"
+                / "project.zip"
+            ),
+            "different1name",
+            "",
+            False,
+            "",
+        ),
+    ],
+)
+def test_new_project(
+    context,
+    from_template,
+    project_name,
+    override_context,
+    expect_error,
+    error_msg,
+):
+    # use override context to test invalid paths - it will not be deleted on teardown
+    context = override_context or context
+
+    if expect_error:
+        with pytest.raises(Exception) as exc:
+            mlrun.new_project(
+                context=context,
+                from_template=from_template,
+                save=False,
+                name=project_name,
+            )
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.new_project(
+        context=context,
+        from_template=from_template,
+        save=False,
+        name=project_name,
+    )
+
+    assert project.name == project_name
 
 
 @pytest.mark.parametrize("op", ["new", "load"])
@@ -463,7 +560,11 @@ def test_load_project_and_sync_functions(
 ):
     url = "git://github.com/mlrun/project-demo.git"
     project = mlrun.load_project(
-        context=str(context), url=url, sync_functions=sync, save=save
+        context=str(context),
+        url=url,
+        sync_functions=sync,
+        save=save,
+        allow_cross_project=True,
     )
     assert len(project.spec._function_objects) == expected_num_of_funcs
 
@@ -878,6 +979,96 @@ def test_import_artifact_using_relative_path():
     assert artifact.spec.db_key == "y"
 
 
+def test_import_artifact_retain_producer(rundb_mock):
+    base_path = tests.conftest.results
+    project_1 = mlrun.new_project(
+        name="project-1", context=f"{base_path}/project_1", save=False
+    )
+    project_2 = mlrun.new_project(
+        name="project-2", context=f"{base_path}/project_2", save=False
+    )
+
+    # create an artifact with a 'run' producer
+    artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
+    run_name = "my-run"
+    run_tag = "some-tag"
+
+    # we set the producer as dict so the export will work
+    artifact.producer = mlrun.artifacts.ArtifactProducer(
+        kind="run",
+        project=project_1.name,
+        name=run_name,
+        tag=run_tag,
+    ).get_meta()
+
+    # export the artifact
+    artifact_path = f"{base_path}/my-artifact.yaml"
+    artifact.export(artifact_path)
+
+    # import the artifact to another project
+    new_key = "y"
+    imported_artifact = project_2.import_artifact(artifact_path, new_key)
+    assert imported_artifact.producer == artifact.producer
+
+    # set the artifact on the first project
+    project_1.set_artifact(artifact.key, artifact)
+    project_1.save()
+
+    # load a new project from the first project's context
+    project_3 = mlrun.load_project(
+        name="project-3", context=project_1.context, allow_cross_project=True
+    )
+
+    # make sure the artifact was registered with the new key
+    loaded_artifact = project_3.get_artifact(new_key)
+    assert loaded_artifact.producer == artifact.producer
+
+
+def test_replace_exported_artifact_producer(rundb_mock):
+    base_path = tests.conftest.results
+    project_1 = mlrun.new_project(
+        name="project-1", context=f"{base_path}/project_1", save=False
+    )
+    project_2 = mlrun.new_project(
+        name="project-2", context=f"{base_path}/project_2", save=False
+    )
+
+    # create an artifact with a 'project' producer
+    key = "x"
+    artifact = mlrun.artifacts.Artifact(key=key, body="123", is_inline=True)
+
+    # we set the producer as dict so the export will work
+    artifact.producer = mlrun.artifacts.ArtifactProducer(
+        kind="project",
+        project=project_1.name,
+        name=project_1.name,
+    ).get_meta()
+
+    # export the artifact
+    artifact_path = f"{base_path}/my-artifact.yaml"
+    artifact.export(artifact_path)
+
+    # import the artifact to another project
+    new_key = "y"
+    imported_artifact = project_2.import_artifact(artifact_path, new_key)
+    assert imported_artifact.producer != artifact.producer
+    assert imported_artifact.producer["name"] == project_2.name
+
+    # set the artifact on the first project
+    project_1.set_artifact(artifact.key, artifact)
+    project_1.save()
+
+    # load a new project from the first project's context
+    project_3 = mlrun.load_project(
+        name="project-3", context=project_1.context, allow_cross_project=True
+    )
+
+    # make sure the artifact was registered with the new project producer
+    loaded_artifact = project_3.get_artifact(key)
+    assert loaded_artifact.producer != artifact.producer
+    assert loaded_artifact.producer["name"] == project_3.name
+
+
 @pytest.mark.parametrize(
     "relative_artifact_path,project_context,expected_path,expected_in_context",
     [
@@ -951,7 +1142,7 @@ def test_export_to_zip(rundb_mock):
     assert os.path.isfile(zip_path)
 
     zipf = zipfile.ZipFile(zip_path, "r")
-    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+    assert set(zipf.namelist()) == {"./", "f.py", "project.yaml"}
 
     # check upload to (remote) DataItem
     project.export("memory://x.zip")
@@ -1055,6 +1246,50 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
+def test_function_receives_project_default_function_node_selector():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+    default_function_node_selector = {"gpu": "true"}
+
+    non_enriched_function = proj1.set_function(
+        func=func_path,
+        name="func",
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+    )
+    assert non_enriched_function.spec.node_selector == {}
+
+    proj1.spec.default_function_node_selector = default_function_node_selector
+    enriched_function = proj1.get_function("func", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # Same check - with a function object
+    func1 = mlrun.code_to_function(
+        "func2",
+        kind="job",
+        handler="myhandler",
+        image="mlrun/mlrun",
+        filename=func_path,
+    )
+    proj1.set_function(func1, name="func2")
+
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.node_selector == {}
+
+    enriched_function = proj1.get_function("func2", enrich=True)
+    assert enriched_function.spec.node_selector == default_function_node_selector
+
+    # If a function already has a node selector defined, the project-level node selector should merge with it,
+    # giving precedence to the function's node selector.
+    func1.spec.node_selector = {"zone": "us-west"}
+    proj1.set_function(func1, name="func3")
+
+    enriched_function = proj1.get_function("func3", enrich=True)
+    assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
+
+
 def test_project_exports_default_image():
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     default_image = "myrepo/myimage1"
@@ -1062,7 +1297,9 @@ def test_project_exports_default_image():
     project.set_default_image(default_image)
 
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    imported_project = mlrun.load_project(
+        "./", str(project_file_path), save=False, allow_cross_project=True
+    )
     assert imported_project.default_image == default_image
 
 
@@ -1244,7 +1481,9 @@ def test_load_project_with_git_enrichment(
     rundb_mock,
 ):
     url = "git://github.com/mlrun/project-demo.git"
-    project = mlrun.load_project(context=str(context), url=url, save=True)
+    project = mlrun.load_project(
+        context=str(context), url=url, save=True, allow_cross_project=True
+    )
 
     assert (
         project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
@@ -1260,7 +1499,9 @@ def test_remove_owner_name_in_load_project_from_yaml():
     # Load the project from yaml and validate that the owner name was removed
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     project.export(str(project_file_path))
-    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    imported_project = mlrun.load_project(
+        "./", str(project_file_path), save=False, allow_cross_project=True
+    )
     assert project.spec.owner == "some_owner"
     assert imported_project.spec.owner is None
 
@@ -1321,9 +1562,9 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
 
 
 def test_get_or_create_project_no_db():
-    mlrun.config.config.dbpath = ""
+    mlrun.mlconf.dbpath = ""
     project_name = "project-name"
-    project = mlrun.get_or_create_project(project_name)
+    project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
     assert project.name == project_name
 
 
@@ -1439,6 +1680,7 @@ def test_init_function_from_dict_function_in_spec():
                     "base_image": "iguazio/spark-app:3.5.5-b697",
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
+                    "source_code_target_dir": "/home/mlrun_code/",
                 },
                 "description": "",
                 "disable_auto_mount": False,
@@ -1510,7 +1752,7 @@ def test_load_project_from_yaml_with_function(context):
         tag="latest",
     )
     project.save()
-    loaded_project = mlrun.load_project(context=str(context))
+    loaded_project = mlrun.load_project(context=str(context), allow_cross_project=True)
     for function_name in ["my-func", "my-other-func"]:
         assert (
             deepdiff.DeepDiff(
@@ -1525,13 +1767,227 @@ def test_load_project_from_yaml_with_function(context):
         )
 
 
+@pytest.mark.parametrize(
+    "kind_1 ,kind_2, canary, upstreams",
+    [
+        (
+            "nuclio",
+            "nuclio",
+            [20, 80],
+            [
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func1"}, percentage=80
+                ),
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func2"}, percentage=20
+                ),
+            ],
+        ),
+        (
+            "nuclio",
+            None,
+            None,
+            [
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "my-func1"}, percentage=0
+                ),
+            ],
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "authentication_mode",
+    [
+        mlrun.common.schemas.APIGatewayAuthenticationMode.none,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+    ],
+)
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
+def test_create_api_gateway_valid(
+    patched_create_api_gateway,
+    context,
+    kind_1,
+    kind_2,
+    canary,
+    upstreams,
+    authentication_mode,
+):
+    patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(
+            name="new-gw",
+            labels={"nuclio.io/project-name": "project-name"},
+        ),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="new-gw",
+            path="/",
+            host="gateway-f1-f2-project-name.some-domain.com",
+            upstreams=upstreams,
+            authenticationMode=authentication_mode,
+        ),
+        status=mlrun.common.schemas.APIGatewayStatus(
+            state=mlrun.common.schemas.APIGatewayState.ready,
+        ),
+    )
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    f1 = mlrun.code_to_function(
+        name="my-func1",
+        image="my-image",
+        kind=kind_1,
+        filename=str(assets_path() / "handler.py"),
+    )
+    f1.save()
+    functions = f1
+    project.set_function(f1)
+    if kind_2:
+        f2 = mlrun.code_to_function(
+            name="my-func2",
+            image="my-image",
+            kind=kind_2,
+            filename=str(assets_path() / "handler.py"),
+        )
+        f2.save()
+        project.set_function(f2)
+        functions = [f1, f2]
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="gateway-f1-f2",
+        ),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=functions,
+            canary=canary,
+            project=project_name,
+        ),
+    )
+    if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
+        api_gateway.with_basic_auth("test_username", "test_password")
+    elif (
+        authentication_mode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
+    ):
+        api_gateway.with_access_key_auth()
+
+    gateway = project.store_api_gateway(api_gateway)
+
+    gateway_dict = gateway.to_dict()
+    assert "metadata" in gateway_dict
+    assert "spec" in gateway_dict
+
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
+    if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
+        assert gateway.authentication.authentication_mode == "basicAuth"
+    elif (
+        authentication_mode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
+    ):
+        assert gateway.authentication.authentication_mode == "accessKey"
+    else:
+        assert gateway.authentication.authentication_mode == "none"
+
+
+@pytest.mark.parametrize(
+    "kind_1 ,kind_2, canary",
+    [
+        ("nuclio", "nuclio", [20]),
+        ("nuclio", "nuclio", [20, 10]),
+        ("nuclio", "job", [20, 80]),
+        ("job", None, None),
+    ],
+)
+def test_create_api_gateway_invalid(context, kind_1, kind_2, canary):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    f1 = mlrun.code_to_function(
+        name="my-func1",
+        image="my-image",
+        kind=kind_1,
+        filename=str(assets_path() / "handler.py"),
+    )
+    f1.save()
+    functions = f1
+    project.set_function(f1)
+    if kind_2:
+        f2 = mlrun.code_to_function(
+            name="my-func2",
+            image="my-image",
+            kind=kind_2,
+            filename=str(assets_path() / "handler.py"),
+        )
+        f2.save()
+        project.set_function(f2)
+        functions = [f1, f2]
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name="gateway-f1-f2",
+            ),
+            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=functions,
+                canary=canary,
+                project=project_name,
+            ),
+        )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
+def test_list_api_gateways(patched_list_api_gateways, context):
+    patched_list_api_gateways.return_value = mlrun.common.schemas.APIGatewaysOutput(
+        api_gateways={
+            "test": mlrun.common.schemas.APIGateway(
+                metadata=mlrun.common.schemas.APIGatewayMetadata(
+                    name="test",
+                    labels={"nuclio.io/project-name": "project-name"},
+                ),
+                spec=mlrun.common.schemas.APIGatewaySpec(
+                    name="test",
+                    path="/",
+                    host="http://gateway-f1-f2-project-name.some-domain.com",
+                    upstreams=[
+                        mlrun.common.schemas.APIGatewayUpstream(
+                            nucliofunction={"name": "my-func1"}, percentage=0
+                        ),
+                    ],
+                ),
+            ),
+            "test2": mlrun.common.schemas.APIGateway(
+                metadata=mlrun.common.schemas.APIGatewayMetadata(
+                    name="test2",
+                    labels={"nuclio.io/project-name": "project-name"},
+                ),
+                spec=mlrun.common.schemas.APIGatewaySpec(
+                    name="test2",
+                    path="/",
+                    host="http://test-basic-default.domain.com",
+                    upstreams=[
+                        mlrun.common.schemas.APIGatewayUpstream(
+                            nucliofunction={"name": "my-func1"}, percentage=0
+                        )
+                    ],
+                ),
+            ),
+        }
+    )
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    gateways = project.list_api_gateways()
+
+    assert gateways[0].name == "test"
+    assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
+    assert gateways[0].spec.functions == ["my-func1"]
+
+    assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
+
+
 def test_project_create_remote():
     # test calling create_remote without git_init=True on project creation
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         # create a project
         project_name = "project-name"
-        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
 
         project.create_remote(
             url="https://github.com/mlrun/some-git-repo.git",
@@ -1540,6 +1996,130 @@ def test_project_create_remote():
 
         assert project.spec.repo is not None
         assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
+
+
+@pytest.mark.parametrize(
+    "url,set_url,name,set_name,overwrite,expected_url,expected",
+    [
+        # Remote doesn't exist, create normally
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "https://github.com/mlrun/some-other-git-repo.git",
+            "mlrun-remote",
+            "mlrun-another-remote",
+            False,
+            "https://github.com/mlrun/some-other-git-repo.git",
+            does_not_raise(),
+        ),
+        # Remote exists, overwrite False, raise MLRunConflictError
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "https://github.com/mlrun/some-git-other-repo.git",
+            "mlrun-remote",
+            "mlrun-remote",
+            False,
+            "https://github.com/mlrun/some-git-repo.git",
+            pytest.raises(mlrun.errors.MLRunConflictError),
+        ),
+        # Remote exists, overwrite True, update remote
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "https://github.com/mlrun/some-git-other-repo.git",
+            "mlrun-remote",
+            "mlrun-remote",
+            True,
+            "https://github.com/mlrun/some-git-other-repo.git",
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_remote_as_update(
+    url, set_url, name, set_name, overwrite, expected_url, expected
+):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
+
+        project.create_remote(
+            url=url,
+            name=name,
+        )
+        with expected:
+            project.set_remote(
+                url=set_url,
+                name=set_name,
+                overwrite=overwrite,
+            )
+
+            if name != set_name:
+                assert project.spec.repo.remote(name).url == url
+            assert project.spec.repo.remote(set_name).url == expected_url
+
+
+@pytest.mark.parametrize(
+    "url,name,expected",
+    [
+        # Remote doesn't exist, create normally
+        (
+            "https://github.com/mlrun/some-other-git-repo.git",
+            "mlrun-remote2",
+            does_not_raise(),
+        ),
+        # Remote exists, raise MLRunConflictError
+        (
+            "https://github.com/mlrun/some-git-repo.git",
+            "mlrun-remote",
+            pytest.raises(mlrun.errors.MLRunConflictError),
+        ),
+    ],
+)
+def test_create_remote(url, name, expected):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        with expected:
+            project.create_remote(
+                url=url,
+                name=name,
+            )
+            assert project.spec.repo.remote(name).url == url
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        # Remote exists
+        "mlrun-remote",
+        # Remote doesn't exist
+        "non-existent-remote",
+    ],
+)
+def test_remove_remote(name):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(
+            project_name, context=tmp_dir, allow_cross_project=True
+        )
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+        project.remove_remote(name)
+        assert name not in project.spec.repo.remotes
 
 
 @pytest.mark.parametrize(
@@ -1589,3 +2169,153 @@ def test_project_build_image(
     # If no base image was used, then mlrun/mlrun is expected
     assert build_config.base_image == base_image or "mlrun/mlrun"
     assert project.default_image == image_name
+
+
+@pytest.mark.parametrize(
+    "project_name, valid",
+    [
+        ("project", True),
+        ("project-name", True),
+        ("project-name-1", True),
+        ("1project", True),
+        ("project_name", False),
+        ("project@", False),
+        ("project/a", False),
+    ],
+)
+def test_project_name_validation(project_name, valid):
+    assert valid == mlrun.projects.ProjectMetadata.validate_project_name(
+        project_name, raise_on_failure=False
+    )
+
+
+@pytest.mark.parametrize(
+    "project_labels, valid",
+    [
+        ({}, True),
+        ({"key": "value"}, True),
+        ({"some.key": "value"}, True),
+        ({"key.some/a": "value"}, True),
+        # too many subcomponents
+        ({"key/a/b": "value"}, False),
+        # must start with alphanumeric
+        ({".key": "value"}, False),
+        ({"/key": "value"}, False),
+        # no key
+        ({"": "value"}, False),
+        # long value
+        ({"key": "a" * 64}, False),
+        # long key
+        ({"a" * 64: "a"}, False),
+    ],
+)
+def test_project_labels_validation(project_labels, valid):
+    assert valid == mlrun.projects.ProjectMetadata.validate_project_labels(
+        project_labels, raise_on_failure=False
+    )
+
+
+@pytest.mark.parametrize(
+    "project_file_name, expectation",
+    [
+        ("project.yaml", does_not_raise()),
+        ("project.yml", does_not_raise()),
+        ("non-valid-file.yamrt", pytest.raises(mlrun.errors.MLRunNotFoundError)),
+    ],
+)
+def test_load_project_dir(project_file_name, expectation):
+    project_dir = "project-dir"
+    os.makedirs(project_dir, exist_ok=True)
+    try:
+        # copy project.yaml from assets to project_dir
+        shutil.copy(
+            str(assets_path() / "project.yaml"),
+            str(pathlib.Path(project_dir) / project_file_name),
+        )
+        with expectation:
+            project = mlrun.load_project(
+                project_dir, save=False, allow_cross_project=True
+            )
+            # just to make sure the project was loaded correctly from the file
+            assert project.name == "pipe2"
+    finally:
+        shutil.rmtree(project_dir)
+
+
+def test_workflow_path_with_project_workdir():
+    project_name = "project1"
+
+    project = mlrun.new_project(project_name, save=False, context="./context")
+    workflow_path = "workflow.py"
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec(path=workflow_path)
+    # with_out_workdir
+    path = workflow_spec.get_source_file(project.spec.get_code_path())
+    assert path == "./context/workflow.py"
+
+    # with__subpath
+    project = mlrun.new_project(
+        project_name, save=False, context="./context", subpath="./subpath"
+    )
+    path = workflow_spec.get_source_file(project.spec.get_code_path())
+    assert path == "./context/./subpath/workflow.py"
+
+    # with__workdir
+    project.spec.workdir = "./workdir"
+    path = workflow_spec.get_source_file(project.spec.get_code_path())
+    assert path == "./context/./workdir/workflow.py"
+
+
+class TestModelMonitoring:
+    """Test model monitoring project methods"""
+
+    @staticmethod
+    @pytest.fixture
+    def project() -> mlrun.projects.MlrunProject:
+        return unittest.mock.Mock()
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("delete_app", "expected_deleted_fns"),
+        [
+            (
+                True,
+                mm_consts.constants.MonitoringFunctionNames.list()
+                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
+            ),
+            (False, mm_consts.constants.MonitoringFunctionNames.list()),
+        ],
+    )
+    def test_disable(
+        project: mlrun.projects.MlrunProject,
+        delete_app: bool,
+        expected_deleted_fns: list[str],
+    ) -> None:
+        db_mock = unittest.mock.Mock(spec=mlrun.db.RunDBInterface)
+        with unittest.mock.patch(
+            "mlrun.db.get_run_db", unittest.mock.Mock(return_value=db_mock)
+        ):
+            mlrun.projects.MlrunProject.disable_model_monitoring(
+                project, delete_histogram_data_drift_app=delete_app
+            )
+
+        deleted_fns = [
+            call_args.kwargs["name"]
+            for call_args in db_mock.delete_function.call_args_list
+        ]
+        assert (
+            deleted_fns == expected_deleted_fns
+        ), "The deleted functions are different than expexted"
+
+    @staticmethod
+    def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:
+        with unittest.mock.patch.object(
+            project, "_wait_for_functions_deployment", autospec=True
+        ) as mock:
+            mlrun.projects.MlrunProject.enable_model_monitoring(
+                project, deploy_histogram_data_drift_app=False, wait_for_deployment=True
+            )
+
+        mock.assert_called_once()
+        assert (
+            mock.call_args_list[0].args[0] == mm_consts.MonitoringFunctionNames.list()
+        ), "Expected to wait for the infra functions"

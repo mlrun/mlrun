@@ -1,26 +1,32 @@
 [tool.ruff]
-select = [
-    "F",  # pyflakes
-    "W",  # pycodestyle
-    "E",  # pycodestyle
-    "I",  # isort
-    "UP", # pyupgrade
-]
-extend-exclude = [
-    "server/api/proto",
-    "playground",
-]
 extend-include = ["*.ipynb"]
 target-version = "py39"
+required-version = ">=0.4.2"
 
 [tool.ruff.lint]
+extend-select = [
+    "F",   # pyflakes
+    "W",   # pycodestyle
+    "E",   # pycodestyle
+    "I",   # isort
+    "UP",  # pyupgrade
+    "CPY", # flake8-copyright
+]
 exclude = ["*.ipynb"]
+explicit-preview-rules = true
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.extend-per-file-ignores]
 "__init__.py" = ["F401"]
+"docs/**.py" = ["CPY001"]
+
+[tool.ruff.lint.flake8-copyright]
+author = "Iguazio"
+
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
@@ -64,7 +70,6 @@ forbidden_modules = [
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
-    "mlrun.kfpops",
     "mlrun.lists",
     "mlrun.model",
     "mlrun.render",
@@ -108,7 +113,6 @@ source_modules = [
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
-    "mlrun.kfpops",
     "mlrun.lists",
     "mlrun.model",
     "mlrun.render",

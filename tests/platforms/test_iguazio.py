@@ -13,54 +13,19 @@
 # limitations under the License.
 #
 import os
-from http import HTTPStatus
 from unittest.mock import Mock
 
 import deepdiff
+import mlrun_pipelines.common.mounts
 import pytest
 import requests
 
 import mlrun
 import mlrun.errors
+from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
-
-
-def test_add_or_refresh_credentials_iguazio_2_8_success(monkeypatch):
-    username = "username"
-    password = "password"
-    control_session = "control_session"
-    api_url = "https://dashboard.default-tenant.app.hedingber-28-1.iguazio-cd2.com"
-    env = os.environ
-    env["V3IO_USERNAME"] = username
-    env["V3IO_PASSWORD"] = password
-
-    def mock_get(*args, **kwargs):
-        not_found_response_mock = Mock()
-        not_found_response_mock.ok = False
-        not_found_response_mock.status_code = HTTPStatus.NOT_FOUND.value
-        return not_found_response_mock
-
-    def mock_session(*args, **kwargs):
-        session_mock = Mock()
-
-        def _mock_successful_session_creation(*args, **kwargs):
-            assert session_mock.auth == (username, password)
-            successful_response_mock = Mock()
-            successful_response_mock.ok = True
-            successful_response_mock.json.return_value = {
-                "data": {"id": control_session}
-            }
-            return successful_response_mock
-
-        session_mock.post = _mock_successful_session_creation
-        return session_mock
-
-    monkeypatch.setattr(requests, "get", mock_get)
-    monkeypatch.setattr(requests, "Session", mock_session)
-
-    result_username, result_control_session, _ = add_or_refresh_credentials(api_url)
-    assert username == result_username
-    assert control_session == result_control_session
+from mlrun.platforms.iguazio import min_iguazio_versions
+from mlrun.utils import logger
 
 
 def test_add_or_refresh_credentials_iguazio_2_10_success(monkeypatch):
@@ -150,15 +115,21 @@ def test_mount_v3io():
         {"remote": "~/custom-remote", "expect_failure": True},
         {
             "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path")
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                )
             ],
             "remote": "~/custom-remote",
             "expect_failure": True,
         },
         {
             "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
-                mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                ),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path-2", "volume-sub-path-2"
+                ),
             ],
             "remote": "~/custom-remote",
             "set_user": True,
@@ -189,8 +160,12 @@ def test_mount_v3io():
         },
         {
             "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
-                mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                ),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path-2", "volume-sub-path-2"
+                ),
             ],
             "set_user": True,
             "expected_volume": {
@@ -266,3 +241,47 @@ def test_is_iguazio_session_cookie():
         is True
     )
     assert mlrun.platforms.is_iguazio_session_cookie("dummy") is False
+
+
+@pytest.mark.parametrize(
+    "min_versions",
+    [
+        ["3.5.5"],
+        ["3.5.5-b25.20231224135202"],
+        ["3.6.0"],
+        ["4.0.0"],
+        ["3.2.0", "3.6.0"],
+    ],
+)
+def test_min_iguazio_version_fail(min_versions):
+    mlconf.igz_version = "3.5.4"
+
+    logger.debug(f"Testing case: {min_versions}")
+
+    @min_iguazio_versions(*min_versions)
+    def fail():
+        pytest.fail("Should not enter this function")
+
+    with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+        fail()
+
+
+@pytest.mark.parametrize(
+    "min_versions",
+    [
+        ["3.5.5"],
+        ["3.5.5-b25.20231224135202"],
+        ["3.6.0"],
+        ["3.8.0"],
+        ["2.5.5"],
+        ["0.0.6", "1.3.0"],
+    ],
+)
+def test_min_iguazio_versions_success(min_versions):
+    mlconf.igz_version = "3.8.0"
+
+    @min_iguazio_versions(*min_versions)
+    def success():
+        pass
+
+    success()

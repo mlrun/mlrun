@@ -28,8 +28,8 @@ def test_kafka_source_with_old_nuclio():
     function.spec.min_replicas = 2
     function.spec.max_replicas = 2
 
-    original_nuclio_version = mlrun.config.config.nuclio_version
-    mlrun.config.config.nuclio_version = "1.12.9"
+    original_nuclio_version = mlrun.mlconf.nuclio_version
+    mlrun.mlconf.nuclio_version = "1.12.9"
     try:
         with pytest.warns(
             UserWarning,
@@ -37,7 +37,7 @@ def test_kafka_source_with_old_nuclio():
         ):
             kafka_source.add_nuclio_trigger(function)
     finally:
-        mlrun.config.config.nuclio_version = original_nuclio_version
+        mlrun.mlconf.nuclio_version = original_nuclio_version
 
     assert function.spec.min_replicas == 1
     assert function.spec.max_replicas == 1
@@ -49,8 +49,8 @@ def test_kafka_source_with_new_nuclio():
     function.spec.min_replicas = 2
     function.spec.max_replicas = 2
 
-    original_nuclio_version = mlrun.config.config.nuclio_version
-    mlrun.config.config.nuclio_version = "1.12.10"
+    original_nuclio_version = mlrun.mlconf.nuclio_version
+    mlrun.mlconf.nuclio_version = "1.12.10"
     try:
         with pytest.warns() as warnings:
             kafka_source.add_nuclio_trigger(function)
@@ -60,7 +60,7 @@ def test_kafka_source_with_new_nuclio():
                     str(warning.message),
                 )
     finally:
-        mlrun.config.config.nuclio_version = original_nuclio_version
+        mlrun.mlconf.nuclio_version = original_nuclio_version
 
     assert function.spec.min_replicas == 2
     assert function.spec.max_replicas == 2

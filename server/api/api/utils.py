@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import collections
 import copy
+import functools
 import json
 import re
+import time
 import traceback
 import typing
 import uuid
@@ -27,7 +30,7 @@ from pathlib import Path
 import kubernetes.client
 import semver
 import sqlalchemy.orm
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -62,6 +65,40 @@ from server.api.utils.singletons.scheduler import get_scheduler
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
+
+
+def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
+    """
+    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
+    https://stackoverflow.com/a/71634221/5257501
+    """
+
+    class Result:
+        __slots__ = ("value", "death")
+
+        def __init__(self, value, death):
+            self.value = value
+            self.death = death
+
+    def decorator(func):
+        @functools.lru_cache(maxsize=maxsize, typed=typed)
+        def cached_func(*args, **kwargs):
+            value = func(*args, **kwargs)
+            death = time.monotonic() + ttl_seconds
+            return Result(value, death)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = cached_func(*args, **kwargs)
+            if result.death < time.monotonic():
+                result.value = func(*args, **kwargs)
+                result.death = time.monotonic() + ttl_seconds
+            return result.value
+
+        wrapper.cache_clear = cached_func.cache_clear
+        return wrapper
+
+    return decorator
 
 
 def log_path(project, uid) -> Path:
@@ -514,10 +551,10 @@ def _mask_v3io_volume_credentials(
                     if isinstance(
                         volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
                     ):
-                        volume[
-                            "flexVolume"
-                        ] = k8s_api_client.sanitize_for_serialization(
-                            volume["flexVolume"]
+                        volume["flexVolume"] = (
+                            k8s_api_client.sanitize_for_serialization(
+                                volume["flexVolume"]
+                            )
                         )
                     else:
                         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -754,7 +791,7 @@ def ensure_function_has_auth_set(
             mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
         auth_env_vars = {
-            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
+            mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
                 secret_name,
                 access_key_secret_key,
             )
@@ -1068,8 +1105,8 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 
 def get_or_create_project_deletion_background_task(
-    project_name: str, deletion_strategy: str, db_session, auth_info
-) -> tuple[typing.Callable, str]:
+    project: mlrun.common.schemas.Project, deletion_strategy: str, db_session, auth_info
+) -> tuple[typing.Optional[typing.Callable], str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1114,12 +1151,13 @@ def get_or_create_project_deletion_background_task(
         # therefore doesn't wait for the project deletion to complete.
         wait_for_project_deletion = True
 
-    background_task_kind = background_task_kind_format.format(project_name)
+    background_task_kind = background_task_kind_format.format(project.metadata.name)
     try:
-        return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+        task = server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
             background_task_kind,
             raise_on_not_found=True,
         )
+        return None, task.metadata.name
     except mlrun.errors.MLRunNotFoundError:
         logger.debug(
             "Existing background task not found, creating new one",
@@ -1133,7 +1171,7 @@ def get_or_create_project_deletion_background_task(
         _delete_project,
         background_task_name,
         db_session=db_session,
-        project_name=project_name,
+        project=project,
         deletion_strategy=deletion_strategy,
         auth_info=auth_info,
         wait_for_project_deletion=wait_for_project_deletion,
@@ -1143,13 +1181,14 @@ def get_or_create_project_deletion_background_task(
 
 async def _delete_project(
     db_session: sqlalchemy.orm.Session,
-    project_name: str,
+    project: mlrun.common.schemas.Project,
     deletion_strategy: mlrun.common.schemas.DeletionStrategy,
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
     background_task_name: str,
 ):
-    force_deleted = False
+    force_delete = False
+    project_name = project.metadata.name
     try:
         await run_in_threadpool(
             get_project_member().delete_project,
@@ -1162,15 +1201,23 @@ async def _delete_project(
             background_task_name=background_task_name,
         )
     except mlrun.errors.MLRunNotFoundError as exc:
-        if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
-            logger.warning(
-                "Project not found in leader, ensuring project is deleted in mlrun",
-                project_name=project_name,
-                exc=err_to_str(exc),
-            )
-            force_deleted = True
+        if server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+            raise exc
 
-    if force_deleted:
+        if project.status.state != mlrun.common.schemas.ProjectState.archived:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Failed to delete project {project_name}. "
+                "Project not found in leader, but it is not in archived state."
+            )
+
+        logger.warning(
+            "Project not found in leader, ensuring project is deleted in mlrun",
+            project_name=project_name,
+            exc=err_to_str(exc),
+        )
+        force_delete = True
+
+    if force_delete:
         # In this case the wrapper delete project job is the one deleting the project because it
         # doesn't exist in the leader.
         await run_in_threadpool(
@@ -1230,3 +1277,121 @@ def verify_project_is_deleted(project_name, auth_info):
         True,
         _verify_project_is_deleted,
     )
+
+
+def create_function_deletion_background_task(
+    background_tasks: BackgroundTasks,
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    # create the background task for function deletion
+    return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+        db_session,
+        project_name,
+        background_tasks,
+        _delete_function,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
+        None,
+        db_session,
+        project_name,
+        function_name,
+        auth_info,
+    )
+
+
+async def _delete_function(
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    # getting all function tags
+    functions = await run_in_threadpool(
+        server.api.crud.Functions().list_functions,
+        db_session,
+        project,
+        function_name,
+    )
+    if len(functions) > 0:
+        # Since we request functions by a specific name and project,
+        # in MLRun terminology, they are all just versions of the same function
+        # therefore, it's enough to check the kind of the first one only
+        if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+            # generate Nuclio function names based on function tags
+            nuclio_function_names = [
+                mlrun.runtimes.nuclio.function.get_fullname(
+                    function_name, project, function.get("metadata", {}).get("tag")
+                )
+                for function in functions
+            ]
+            # delete Nuclio functions associated with the function tags in batches
+            failed_requests = await _delete_nuclio_functions_in_batches(
+                auth_info, project, nuclio_function_names
+            )
+            if failed_requests:
+                error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
+                raise mlrun.errors.MLRunInternalServerError(error_message)
+
+    # delete the function from the database
+    await run_in_threadpool(
+        server.api.crud.Functions().delete_function,
+        db_session,
+        project,
+        function_name,
+    )
+
+
+async def _delete_nuclio_functions_in_batches(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    project_name: str,
+    function_names: list[str],
+):
+    async def delete_function(
+        nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
+        project: str,
+        function: str,
+        _semaphore: asyncio.Semaphore,
+        k8s_helper: server.api.utils.singletons.k8s.K8sHelper,
+    ) -> tuple[str, str]:
+        async with _semaphore:
+            try:
+                await nuclio_client.delete_function(name=function, project_name=project)
+
+                config_map = k8s_helper.get_configmap(
+                    function, mlrun.common.constants.MLRUN_MODEL_CONF
+                )
+                if config_map:
+                    k8s_helper.delete_configmap(config_map.metadata.name)
+                return None
+            except Exception as exc:
+                # return tuple with failure info
+                return function, str(exc)
+
+    # Configure maximum concurrent deletions
+    max_concurrent_deletions = (
+        mlrun.mlconf.background_tasks.function_deletion_batch_size
+    )
+    semaphore = asyncio.Semaphore(max_concurrent_deletions)
+    failed_requests = []
+
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        tasks = [
+            delete_function(client, project_name, function_name, semaphore, k8s_helper)
+            for function_name in function_names
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # process results to identify failed deletion requests
+        for result in results:
+            if isinstance(result, tuple):
+                nuclio_name, error_message = result
+                if error_message:
+                    failed_requests.append(
+                        f"Failed to delete nuclio function {nuclio_name}: {error_message}"
+                    )
+
+    return failed_requests

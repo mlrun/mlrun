@@ -16,11 +16,13 @@ import base64
 import json
 import unittest.mock
 from http import HTTPStatus
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import kubernetes.client
 import pytest
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
+from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -35,6 +37,7 @@ import tests.api.conftest
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
 from server.api.api.utils import (
+    _delete_nuclio_functions_in_batches,
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
@@ -564,7 +567,7 @@ def test_ensure_function_has_auth_set(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     _assert_env_var_from_secret(
         function,
-        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
@@ -612,7 +615,7 @@ def test_ensure_function_has_auth_set(
     )
     _assert_env_var_from_secret(
         function,
-        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
@@ -653,7 +656,7 @@ def test_ensure_function_has_auth_set(
     )
     _assert_env_var_from_secret(
         function,
-        mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
         mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
@@ -839,18 +842,18 @@ def test_mask_v3io_volume_credentials(
         v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
             v3io_volume["flexVolume"]
         )
-        no_access_key_v3io_volume[
-            "flexVolume"
-        ] = k8s_api_client.sanitize_for_serialization(
-            no_access_key_v3io_volume["flexVolume"]
+        no_access_key_v3io_volume["flexVolume"] = (
+            k8s_api_client.sanitize_for_serialization(
+                no_access_key_v3io_volume["flexVolume"]
+            )
         )
         no_name_v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
             no_name_v3io_volume["flexVolume"]
         )
-        no_matching_mount_v3io_volume[
-            "flexVolume"
-        ] = k8s_api_client.sanitize_for_serialization(
-            no_matching_mount_v3io_volume["flexVolume"]
+        no_matching_mount_v3io_volume["flexVolume"] = (
+            k8s_api_client.sanitize_for_serialization(
+                no_matching_mount_v3io_volume["flexVolume"]
+            )
         )
         v3io_volume_mount = k8s_api_client.sanitize_for_serialization(v3io_volume_mount)
         conflicting_v3io_volume_mount = k8s_api_client.sanitize_for_serialization(
@@ -1658,3 +1661,32 @@ def _assert_env_var_from_secret(
         )
     assert env_var_value.secret_key_ref.name == secret_name
     assert env_var_value.secret_key_ref.key == secret_key
+
+
+@pytest.mark.asyncio
+async def test_delete_function_calls_k8s_helper_methods():
+    function_names = ["function1"]
+    async_client_mock = AsyncMock()
+
+    k8s_helper_mock = MagicMock()
+    configmap = V1ConfigMap()
+    configmap.metadata = V1ObjectMeta(name="config-map-1")
+    k8s_helper_mock.get_configmap.return_value = configmap
+
+    with (
+        patch(
+            "server.api.utils.clients.async_nuclio.Client",
+            return_value=async_client_mock,
+        ),
+        patch(
+            "server.api.utils.singletons.k8s.get_k8s_helper",
+            return_value=k8s_helper_mock,
+        ),
+    ):
+        failed_requests = await _delete_nuclio_functions_in_batches(
+            {}, "my-project", function_names
+        )
+
+        assert len(failed_requests) == 0
+        k8s_helper_mock.get_configmap.assert_called_with("function1", "model-conf")
+        k8s_helper_mock.delete_configmap.assert_called_with("config-map-1")

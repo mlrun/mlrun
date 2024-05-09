@@ -15,13 +15,16 @@ import enum
 import http
 import re
 import typing
+import warnings
 from base64 import b64encode
 from os import environ
 from typing import Callable, Optional, Union
 
 import requests.exceptions
+from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -35,7 +38,6 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
-from ..kfpops import mlrun_op
 from ..lists import RunList
 from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
@@ -125,7 +127,7 @@ class FunctionSpec(ModelObj):
         self.allow_empty_resources = None
         # The build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
-        self.clone_target_dir = clone_target_dir or None
+        self._clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -134,6 +136,28 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    @property
+    def clone_target_dir(self):
+        # TODO: remove this property in 1.9.0
+        if self.build.source_code_target_dir:
+            warnings.warn(
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
+                "Use spec.build.source_code_target_dir instead.",
+                FutureWarning,
+            )
+        return self.build.source_code_target_dir
+
+    @clone_target_dir.setter
+    def clone_target_dir(self, clone_target_dir):
+        # TODO: remove this property in 1.9.0
+        if clone_target_dir:
+            warnings.warn(
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
+                "Use spec.build.source_code_target_dir instead.",
+                FutureWarning,
+            )
+        self.build.source_code_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass
@@ -445,7 +469,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun.runtimes.constants.RunLabels.owner]
+            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
@@ -556,9 +580,9 @@ class BaseRuntime(ModelObj):
 
         elif (
             not was_none
-            and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state != mlrun.common.runtimes.constants.RunStates.completed
             and last_state
-            not in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)
@@ -611,7 +635,9 @@ class BaseRuntime(ModelObj):
         image = image or self.spec.image or ""
 
         image = enrich_image_url(image, client_version, client_python_version)
-        if not image.startswith("."):
+        if not image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
             return image
         registry, repository = get_parsed_docker_registry()
         if registry:
@@ -681,11 +707,11 @@ class BaseRuntime(ModelObj):
                                   "key": "the_key".
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
-        :return: KubeFlow containerOp
+        :return: mlrun_pipelines.models.PipelineNodeWrapper
         """
 
         # if the function contain KFP PipelineParams (futures) pass the full spec to the
-        # ContainerOp this way KFP will substitute the params with previous step outputs
+        # PipelineNodeWrapper this way KFP will substitute the params with previous step outputs
         if use_db and not self._has_pipeline_param():
             # if the same function is built as part of the pipeline we do not use the versioned function
             # rather the latest function w the same tag so we can pick up the updated image/status
@@ -763,7 +789,7 @@ class BaseRuntime(ModelObj):
         requirements: Optional[list[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: str = "",
+        requirements_file: Optional[str] = "",
     ):
         """add package requirements from file or list to build spec.
 
@@ -817,6 +843,12 @@ class BaseRuntime(ModelObj):
             or (build.source and not build.load_source_on_run)
         )
 
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        pass
+
     def prepare_image_for_deploy(self):
         """
         if a function has a 'spec.image' it is considered to be deployed,
@@ -851,7 +883,7 @@ class BaseRuntime(ModelObj):
             data = dict_to_json(struct)
         stores = store_manager.set(secrets)
         target = target or "function.yaml"
-        datastore, subpath = stores.get_or_create_store(target)
+        datastore, subpath, url = stores.get_or_create_store(target)
         datastore.put(subpath, data)
         logger.info(f"function spec saved to path: {target}")
         return self

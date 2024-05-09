@@ -1,3 +1,4 @@
+(project-setup)=
 # MLRun project bootstrapping with `project_setup.py`
 
 ## Overview
@@ -215,3 +216,21 @@ train_function = project.set_function(
 train_function.with_limits(gpus=gpus, cpu=cpu, mem=mem)
 train_function.save()
 ```
+
+### Loading a project from a template
+You can load a project from a template only if you make one of these changes:
+1. Set the allow_cross_project flag = True and change the name of the project.
+2. Change the name in the yaml file or delete the file.
+3. Change the context dir.
+
+```python
+import mlrun
+
+project = mlrun.load_project(
+    name="my-project",
+    context="./src",  # assuming here there is a project.yaml with name that is not my-project
+    allow_cross_project=True,
+)
+```
+
+**Note:** This is relevant also for the `get_or_create_project` function.

@@ -19,6 +19,7 @@ import typing
 
 import fastapi.concurrency
 import humanfriendly
+import mlrun_pipelines
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -162,7 +163,7 @@ class Projects(
             )
 
         # verify project can be deleted in nuclio
-        if mlrun.config.config.nuclio_dashboard_url:
+        if mlrun.mlconf.nuclio_dashboard_url:
             nuclio_client = server.api.utils.clients.nuclio.Client()
             nuclio_client.delete_project(
                 session,
@@ -200,6 +201,8 @@ class Projects(
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             server.api.crud.Logs().delete_project_logs_legacy(name)
+
+        server.api.crud.Events().delete_project_alert_events(name)
 
         # delete db resources
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
@@ -294,8 +297,11 @@ class Projects(
             project_to_schedule_count,
             project_to_feature_set_count,
             project_to_models_count,
+            project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+            project_to_recent_completed_pipelines_count,
+            project_to_recent_failed_pipelines_count,
             project_to_running_pipelines_count,
         ) = await self._get_project_resources_counters()
         project_summaries = []
@@ -307,12 +313,21 @@ class Projects(
                     schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
+                    runs_completed_recent_count=project_to_recent_completed_runs_count.get(
+                        project, 0
+                    ),
                     runs_failed_recent_count=project_to_recent_failed_runs_count.get(
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
-                    # project_to_running_pipelines_count is a defaultdict so it will return None if using dict.get()
+                    # project_.*_pipelines_count is a defaultdict so it will return None if using dict.get()
                     # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
+                    pipelines_completed_recent_count=project_to_recent_completed_pipelines_count[
+                        project
+                    ],
+                    pipelines_failed_recent_count=project_to_recent_failed_pipelines_count[
+                        project
+                    ],
                     pipelines_running_count=project_to_running_pipelines_count[project],
                 )
             )
@@ -327,6 +342,9 @@ class Projects(
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, typing.Union[int, None]],
+        dict[str, typing.Union[int, None]],
         dict[str, typing.Union[int, None]],
     ]:
         now = datetime.datetime.now()
@@ -348,17 +366,25 @@ class Projects(
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ) = results[0]
-            project_to_running_pipelines_count = results[1]
+            (
+                project_to_recent_completed_pipelines_count,
+                project_to_recent_failed_pipelines_count,
+                project_to_running_pipelines_count,
+            ) = results[1]
             self._cache["project_resources_counters"]["result"] = (
                 project_to_files_count,
                 project_to_schedule_count,
                 project_to_feature_set_count,
                 project_to_models_count,
+                project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
+                project_to_recent_completed_pipelines_count,
+                project_to_recent_failed_pipelines_count,
                 project_to_running_pipelines_count,
             )
             ttl_time = datetime.datetime.now() + datetime.timedelta(
@@ -373,36 +399,96 @@ class Projects(
     def _list_pipelines(
         session,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        page_token: str = "",
     ):
-        return server.api.crud.Pipelines().list_pipelines(session, "*", format_=format_)
+        return server.api.crud.Pipelines().list_pipelines(
+            session, "*", format_=format_, page_token=page_token
+        )
 
     async def _calculate_pipelines_counters(
         self,
-    ) -> dict[str, typing.Union[int, None]]:
+    ) -> (
+        dict[str, typing.Union[int, None]],
+        dict[str, typing.Union[int, None]],
+        dict[str, typing.Union[int, None]],
+    ):
         # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
         # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
+        project_to_recent_completed_pipelines_count = collections.defaultdict(lambda: 0)
+        project_to_recent_failed_pipelines_count = collections.defaultdict(lambda: 0)
         if not mlrun.mlconf.resolve_kfp_url():
             # If KFP is not configured, return dict with 0 counters (no running pipelines)
-            return project_to_running_pipelines_count
+            return (
+                project_to_recent_completed_pipelines_count,
+                project_to_recent_failed_pipelines_count,
+                project_to_running_pipelines_count,
+            )
 
         try:
-            _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
-                self._list_pipelines,
-            )
+            next_page_token = ""
+            while True:
+                (
+                    _,
+                    next_page_token,
+                    pipelines,
+                ) = await fastapi.concurrency.run_in_threadpool(
+                    server.api.db.session.run_function_with_new_db_session,
+                    self._list_pipelines,
+                    page_token=next_page_token,
+                )
+
+                for pipeline in pipelines:
+                    if (
+                        pipeline["status"]
+                        not in mlrun.run.RunStatuses.stable_statuses()
+                    ):
+                        project_to_running_pipelines_count[pipeline["project"]] += 1
+                    elif "finished_at" in pipeline:
+                        finished_at = datetime.datetime.strptime(
+                            pipeline["finished_at"], "%Y-%m-%d %H:%M:%S%z"
+                        )
+                        if finished_at > datetime.datetime.now().astimezone(
+                            tz=datetime.timezone.utc
+                        ) - datetime.timedelta(days=1):
+                            if pipeline["status"] in mlrun.run.RunStatuses.succeeded:
+                                project_to_recent_completed_pipelines_count[
+                                    pipeline["project"]
+                                ] += 1
+                            elif (
+                                pipeline["status"]
+                                in mlrun.run.RunStatuses.failed_statuses()
+                            ):
+                                project_to_recent_failed_pipelines_count[
+                                    pipeline["project"]
+                                ] += 1
+                if not next_page_token:
+                    break
+
         except Exception as exc:
             # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information
             logger.warning(
                 "Failed to list pipelines. Pipelines counters will be set to None",
                 exc=mlrun.errors.err_to_str(exc),
             )
-            return collections.defaultdict(lambda: None)
+            # this function should return project_to_recent_completed_pipelines_count,
+            # project_to_recent_failed_pipelines_count, project_to_running_pipelines_count,
+            # in case of exception we want to return 3 * defaultdict of None because this function
+            # returns 3 values
+            return [collections.defaultdict(lambda: None)] * 3
 
         for pipeline in pipelines:
-            if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
+            if (
+                pipeline["status"]
+                not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+            ):
                 project_to_running_pipelines_count[pipeline["project"]] += 1
-        return project_to_running_pipelines_count
+
+        return (
+            project_to_recent_completed_pipelines_count,
+            project_to_recent_failed_pipelines_count,
+            project_to_running_pipelines_count,
+        )
 
     @staticmethod
     def _wait_for_nuclio_project_deletion(
@@ -410,7 +496,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        if not mlrun.config.config.nuclio_dashboard_url:
+        if not mlrun.mlconf.nuclio_dashboard_url:
             return
 
         nuclio_client = server.api.utils.clients.nuclio.Client()

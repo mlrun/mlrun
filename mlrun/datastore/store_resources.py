@@ -17,7 +17,7 @@
 import mlrun
 import mlrun.artifacts
 from mlrun.config import config
-from mlrun.utils.helpers import is_legacy_artifact, parse_artifact_uri
+from mlrun.utils.helpers import parse_artifact_uri
 
 from ..common.helpers import parse_versioned_object_uri
 from ..platforms.iguazio import parse_path
@@ -167,11 +167,7 @@ def get_store_resource(
         )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
-            link_iteration = (
-                resource.get("link_iteration", 0)
-                if is_legacy_artifact(resource)
-                else resource["spec"].get("link_iteration", 0)
-            )
+            link_iteration = resource["spec"].get("link_iteration", 0)
 
             resource = db.read_artifact(
                 key,

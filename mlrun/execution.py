@@ -224,12 +224,12 @@ class MLClientCtx:
                     with context.get_child_context(myparam=param) as child:
                         accuracy = child_handler(child, df, **child.parameters)
                         accuracy_sum += accuracy
-                        child.log_result('accuracy', accuracy)
+                        child.log_result("accuracy", accuracy)
                         if accuracy > best_accuracy:
                             child.mark_as_best()
                             best_accuracy = accuracy
 
-                context.log_result('avg_accuracy', accuracy_sum / len(param_list))
+                context.log_result("avg_accuracy", accuracy_sum / len(param_list))
 
         :param params:  Extra (or override) params to parent context
         :param with_parent_params:  Child will copy the parent parameters and add to them
@@ -289,7 +289,9 @@ class MLClientCtx:
 
         Example::
 
-            feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
+            feature_vector = context.get_store_resource(
+                "store://feature-vectors/default/myvec"
+            )
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
         :param url:    Store resource uri/path, store://<type>/<project>/<name>:<version>
@@ -421,7 +423,7 @@ class MLClientCtx:
 
         Example::
 
-            data_path=context.artifact_subpath('data')
+            data_path = context.artifact_subpath("data")
 
         """
         return os.path.join(self.artifact_path, *subpaths)
@@ -525,7 +527,7 @@ class MLClientCtx:
 
         Example::
 
-            context.log_result('accuracy', 0.85)
+            context.log_result("accuracy", 0.85)
 
         :param key:    Result key
         :param value:  Result value
@@ -539,7 +541,7 @@ class MLClientCtx:
 
         Example::
 
-            context.log_results({'accuracy': 0.85, 'loss': 0.2})
+            context.log_results({"accuracy": 0.85, "loss": 0.2})
 
         :param results:  Key/value dict or results
         :param commit:   Commit (write to DB now vs wait for the end of the run)
@@ -559,9 +561,9 @@ class MLClientCtx:
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
             for artifact in get_in(task, ["status", run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[
-                    artifact["metadata"]["key"]
-                ] = artifact
+                self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
+                    artifact
+                )
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
@@ -674,7 +676,9 @@ class MLClientCtx:
                 "age": [42, 52, 36, 24, 73],
                 "testScore": [25, 94, 57, 62, 70],
             }
-            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            df = pd.DataFrame(
+                raw_data, columns=["first_name", "last_name", "age", "testScore"]
+            )
             context.log_dataset("mydf", df=df, stats=True)
 
         :param key:           Artifact key
@@ -752,13 +756,16 @@ class MLClientCtx:
 
         Example::
 
-            context.log_model("model", body=dumps(model),
-                              model_file="model.pkl",
-                              metrics=context.results,
-                              training_set=training_df,
-                              label_column='label',
-                              feature_vector=feature_vector_uri,
-                              labels={"app": "fraud"})
+            context.log_model(
+                "model",
+                body=dumps(model),
+                model_file="model.pkl",
+                metrics=context.results,
+                training_set=training_df,
+                label_column="label",
+                feature_vector=feature_vector_uri,
+                labels={"app": "fraud"},
+            )
 
         :param key:             Artifact key or artifact class ()
         :param body:            Will use the body as the artifact content

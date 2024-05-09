@@ -13,6 +13,8 @@
 # limitations under the License.
 import base64
 import hashlib
+import random
+import string
 import time
 import typing
 
@@ -22,6 +24,7 @@ from kubernetes.client.rest import ApiException
 import mlrun
 import mlrun.common.schemas
 import mlrun.common.secrets
+import mlrun.common.secrets as mlsecrets
 import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
@@ -68,7 +71,7 @@ class SecretTypes:
     v3io_fuse = "v3io/fuse"
 
 
-class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
+class K8sHelper(mlsecrets.SecretProviderInterface):
     def __init__(self, namespace=None, silent=False, log=True):
         self.namespace = namespace or mlrun.mlconf.namespace
         self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
@@ -207,7 +210,15 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
 
-    def delete_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+    def delete_crd(
+        self,
+        name,
+        crd_group,
+        crd_version,
+        crd_plural,
+        namespace=None,
+        grace_period_seconds=None,
+    ):
         try:
             namespace = self.resolve_namespace(namespace)
             self.crdapi.delete_namespaced_custom_object(
@@ -216,6 +227,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 namespace,
                 crd_plural,
                 name,
+                grace_period_seconds=grace_period_seconds,
             )
             logger.info(
                 "Deleted crd object",
@@ -252,7 +264,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         namespace = self.resolve_namespace(namespace)
         mpijob_crd_version = server.api.runtime_handlers.resolve_mpijob_crd_version()
         mpijob_role_label = (
-            mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+            mlrun.common.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version
             )
         )
@@ -392,7 +404,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             secret_data,
             namespace,
             type_=SecretTypes.v3io_fuse,
-            labels={"mlrun/username": username},
+            labels=self._resolve_secret_labels(username),
             retry_on_conflict=True,
         )
         return secret_name, action
@@ -530,6 +542,99 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         self.v1api.delete_namespaced_secret(secret_name, namespace)
         return mlrun.common.schemas.SecretEventActions.deleted
 
+    @raise_for_status_code
+    def ensure_configmap(
+        self,
+        resource: str,
+        name: str,
+        data: dict,
+        namespace: str = "",
+        labels: dict = None,
+    ):
+        namespace = self.resolve_namespace(namespace)
+        have_confmap = False
+        label_name = "resource_name"
+        full_name = f"{resource}-{name}"
+
+        configmap_with_label = self.get_configmap(name, resource, namespace)
+        if configmap_with_label:
+            name = configmap_with_label.metadata.name
+            have_confmap = True
+        else:
+            name = (
+                full_name
+                if len(full_name) <= 63
+                else full_name[:59] + self._generate_rand_string(4)
+            )
+
+        if labels is None:
+            labels = {label_name: full_name}
+        else:
+            labels[label_name] = full_name
+
+        body = client.V1ConfigMap(
+            kind="ConfigMap",
+            metadata=client.V1ObjectMeta(name=name, labels=labels),
+            data=data,
+        )
+
+        if have_confmap:
+            try:
+                self.v1api.replace_namespaced_config_map(
+                    name, namespace=namespace, body=body
+                )
+            except ApiException as exc:
+                logger.error(
+                    "Failed to replace k8s config map",
+                    name=name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                raise exc
+        else:
+            try:
+                self.v1api.create_namespaced_config_map(namespace=namespace, body=body)
+            except ApiException as exc:
+                logger.error(
+                    "Failed to create k8s config map",
+                    name=name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                raise exc
+        return name
+
+    @raise_for_status_code
+    def get_configmap(self, name: str, resource: str, namespace: str = ""):
+        namespace = self.resolve_namespace(namespace)
+        label_name = "resource_name"
+        full_name = f"{resource}-{name}"
+        configmaps_with_label = self.v1api.list_namespaced_config_map(
+            namespace=namespace, label_selector=f"{label_name}={full_name}"
+        )
+        if len(configmaps_with_label.items) > 1:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Received more than one config map for label: {full_name}"
+            )
+
+        return configmaps_with_label.items[0] if configmaps_with_label.items else None
+
+    @raise_for_status_code
+    def delete_configmap(self, name: str, namespace: str = "", raise_on_error=True):
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            self.v1api.delete_namespaced_config_map(
+                name=name,
+                namespace=namespace,
+            )
+        except ApiException as exc:
+            logger.error(
+                "Failed to delete k8s config map",
+                name=name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            if raise_on_error:
+                raise exc
+
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
         return self._get_secret_raw_data(secret_name, namespace)
@@ -577,6 +682,18 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             if encoded_value:
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
         return results
+
+    def _resolve_secret_labels(self, username):
+        if not username:
+            return {}
+        labels = {
+            "mlrun/username": username,
+        }
+        if "@" in username:
+            username, domain = username.split("@")
+            labels["mlrun/username"] = username
+            labels["mlrun/username_domain"] = domain
+        return labels
 
 
 class BasePod:
@@ -701,6 +818,10 @@ class BasePod:
 
     def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
+
+    @staticmethod
+    def _generate_rand_string(length):
+        return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
     def _get_spec(self, template=False):
         pod_obj = client.V1PodTemplate if template else client.V1Pod

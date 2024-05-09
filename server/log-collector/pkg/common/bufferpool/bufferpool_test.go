@@ -86,6 +86,6 @@ func (suite *sizedBytePoolTestSuite) TestByteBufferPoolBlocking() {
 	suite.Require().Equal(numOfBuffers, pool.NumPooled(), "Pool should have 4 pooled buffers")
 }
 
-func TestLogCollectorTestSuite(t *testing.T) {
+func TestSizedBytePoolTestSuite(t *testing.T) {
 	suite.Run(t, new(sizedBytePoolTestSuite))
 }

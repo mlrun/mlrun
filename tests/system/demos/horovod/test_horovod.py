@@ -14,6 +14,7 @@
 #
 import pathlib
 
+import mlrun_pipelines.mounts
 import pytest
 
 import mlrun
@@ -34,13 +35,13 @@ class TestHorovodTFv2(TestDemo):
             self.project_name, str(self.assets_path), init_git=True
         )
 
-        mlrun.mount_v3io()
+        mlrun_pipelines.mounts.mount_v3io()
 
         self._logger.debug("Uploading training file")
         trainer_src_path = str(self.assets_path / "horovod_training.py")
         trainer_dest_path = pathlib.Path("/assets/horovod_training.py")
         stores = mlrun.datastore.store_manager.set()
-        datastore, subpath = stores.get_or_create_store(
+        datastore, subpath, _ = stores.get_or_create_store(
             self._get_v3io_user_store_path(trainer_dest_path)
         )
         datastore.upload(subpath, trainer_src_path)

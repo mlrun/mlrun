@@ -60,47 +60,47 @@ def test_api_call_enum_conversion():
             "enabled",
             ConnectionError,
             ("some-error",),
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionError,
             ("Connection aborted",),
             # one try + the max retries
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionResetError,
             ("Connection reset by peer",),
             # one try + the max retries
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionRefusedError,
             ("Connection refused",),
             # one try + the max retries
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionAbortedError,
             ("Connection aborted",),
             # one try + the max retries
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             urllib3.exceptions.ReadTimeoutError,
             (urllib3.HTTPConnectionPool(host="dummy"), "dummy", ""),
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             requests.exceptions.ConnectionError,
             ("Connection aborted.",),
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         # feature disabled
         ("disabled", Exception, ("some-error",), 1),
@@ -131,7 +131,7 @@ def test_api_call_enum_conversion():
 def test_connection_reset_causes_retries(
     feature_config, exception_type, exception_args, call_amount
 ):
-    mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
+    mlrun.mlconf.httpdb.retry_api_call_on_exception = feature_config
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()
@@ -202,27 +202,27 @@ def test_resolve_artifacts_to_tag_objects():
     [
         (
             "projects/default/artifacts/uid/tag",
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "projects/default/artifacts/8bbaaa9f-919e-4438-8e6c-edbf6d37f3bf/v1",
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
         (
             "/projects/default/artifacts/uid/tag",
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
-        ("run/default/uid", 1 + mlrun.config.config.http_retry_defaults.max_retries),
+        ("run/default/uid", 1 + mlrun.mlconf.http_retry_defaults.max_retries),
         (
             "run/default/8bbaaa9f-919e-4438-8e6c-edbf6d37f3bf",
-            1 + mlrun.config.config.http_retry_defaults.max_retries,
+            1 + mlrun.mlconf.http_retry_defaults.max_retries,
         ),
-        ("/run/default/uid", 1 + mlrun.config.config.http_retry_defaults.max_retries),
+        ("/run/default/uid", 1 + mlrun.mlconf.http_retry_defaults.max_retries),
         ("/not/retriable", 1),
     ],
 )
 def test_retriable_post_requests(path, call_amount):
-    mlrun.config.config.httpdb.retry_api_call_on_exception = "enabled"
+    mlrun.mlconf.httpdb.retry_api_call_on_exception = "enabled"
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     # init the session to make sure it will be reinitialized when needed
     db.session = db._init_session(False)

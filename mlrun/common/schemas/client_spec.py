@@ -29,6 +29,7 @@ class ClientSpec(pydantic.BaseModel):
     ui_url: typing.Optional[str]
     artifact_path: typing.Optional[str]
     feature_store_data_prefixes: typing.Optional[dict[str, str]]
+    feature_store_default_targets: typing.Optional[str]
     spark_app_image: typing.Optional[str]
     spark_app_image_tag: typing.Optional[str]
     spark_history_server_path: typing.Optional[str]
@@ -65,3 +66,4 @@ class ClientSpec(pydantic.BaseModel):
     logs: typing.Optional[dict]
     packagers: typing.Optional[dict]
     external_platform_tracking: typing.Optional[dict]
+    alerts_mode: typing.Optional[str]

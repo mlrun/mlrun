@@ -51,35 +51,41 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         assert run["metadata"]["name"] == "run-name"
 
         k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
-        with unittest.mock.patch.object(
-            k8s_helper.v1api, "delete_namespaced_pod"
-        ) as delete_namespaced_pod_mock, unittest.mock.patch.object(
-            k8s_helper.v1api,
-            "list_namespaced_pod",
-            side_effect=[
-                k8s_client.V1PodList(
-                    items=[
-                        k8s_client.V1Pod(
-                            metadata=k8s_client.V1ObjectMeta(
-                                name="pod-name",
-                                labels={
-                                    "mlrun/class": "job",
-                                    "mlrun/project": project,
-                                    "mlrun/uid": "uid",
-                                },
-                            ),
-                            status=k8s_client.V1PodStatus(phase="Running"),
-                        )
-                    ]
-                ),
-                # 2nd time for waiting for pod to be deleted
-                k8s_client.V1PodList(items=[]),
-            ],
-        ), unittest.mock.patch.object(
-            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
-        ), unittest.mock.patch.object(
-            server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
-        ) as delete_logs_mock:
+        with (
+            unittest.mock.patch.object(
+                k8s_helper.v1api, "delete_namespaced_pod"
+            ) as delete_namespaced_pod_mock,
+            unittest.mock.patch.object(
+                k8s_helper.v1api,
+                "list_namespaced_pod",
+                side_effect=[
+                    k8s_client.V1PodList(
+                        items=[
+                            k8s_client.V1Pod(
+                                metadata=k8s_client.V1ObjectMeta(
+                                    name="pod-name",
+                                    labels={
+                                        "mlrun/class": "job",
+                                        "mlrun/project": project,
+                                        "mlrun/uid": "uid",
+                                    },
+                                ),
+                                status=k8s_client.V1PodStatus(phase="Running"),
+                            )
+                        ]
+                    ),
+                    # 2nd time for waiting for pod to be deleted
+                    k8s_client.V1PodList(items=[]),
+                ],
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
+            unittest.mock.patch.object(
+                server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+            ) as delete_logs_mock,
+        ):
             await server.api.crud.Runs().delete_run(db, "uid", 0, project)
             delete_namespaced_pod_mock.assert_called_once()
             delete_logs_mock.assert_called_once()
@@ -114,17 +120,23 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         assert len(runs) == 20
 
         k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
-        with unittest.mock.patch.object(
-            k8s_helper.v1api, "delete_namespaced_pod"
-        ) as delete_namespaced_pod_mock, unittest.mock.patch.object(
-            k8s_helper.v1api,
-            "list_namespaced_pod",
-            return_value=k8s_client.V1PodList(items=[]),
-        ), unittest.mock.patch.object(
-            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
-        ), unittest.mock.patch.object(
-            server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
-        ) as delete_logs_mock:
+        with (
+            unittest.mock.patch.object(
+                k8s_helper.v1api, "delete_namespaced_pod"
+            ) as delete_namespaced_pod_mock,
+            unittest.mock.patch.object(
+                k8s_helper.v1api,
+                "list_namespaced_pod",
+                return_value=k8s_client.V1PodList(items=[]),
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
+            unittest.mock.patch.object(
+                server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+            ) as delete_logs_mock,
+        ):
             await server.api.crud.Runs().delete_runs(db, name=run_name, project=project)
             runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 0
@@ -160,18 +172,21 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         assert len(runs) == 3
 
         k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
-        with unittest.mock.patch.object(
-            k8s_helper.v1api, "delete_namespaced_pod"
-        ), unittest.mock.patch.object(
-            k8s_helper.v1api,
-            "list_namespaced_pod",
-            side_effect=[
-                k8s_client.V1PodList(items=[]),
-                Exception("Boom!"),
-                k8s_client.V1PodList(items=[]),
-            ],
-        ), unittest.mock.patch.object(
-            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
+        with (
+            unittest.mock.patch.object(k8s_helper.v1api, "delete_namespaced_pod"),
+            unittest.mock.patch.object(
+                k8s_helper.v1api,
+                "list_namespaced_pod",
+                side_effect=[
+                    k8s_client.V1PodList(items=[]),
+                    Exception("Boom!"),
+                    k8s_client.V1PodList(items=[]),
+                ],
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
         ):
             with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
                 await server.api.crud.Runs().delete_runs(
@@ -186,8 +201,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     @pytest.mark.parametrize(
         "run_state",
         [
-            mlrun.runtimes.constants.RunStates.running,
-            mlrun.runtimes.constants.RunStates.pending,
+            mlrun.common.runtimes.constants.RunStates.running,
+            mlrun.common.runtimes.constants.RunStates.pending,
         ],
     )
     async def test_delete_run_failure(self, db: sqlalchemy.orm.Session, run_state):
@@ -230,14 +245,17 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             run_uid,
             project=project,
         )
-        with unittest.mock.patch.object(
-            server.api.crud.RuntimeResources(),
-            "delete_runtime_resources",
-            side_effect=mlrun.errors.MLRunInternalServerError("BOOM"),
-        ), pytest.raises(mlrun.errors.MLRunInternalServerError) as exc:
+        with (
+            unittest.mock.patch.object(
+                server.api.crud.RuntimeResources(),
+                "delete_runtime_resources",
+                side_effect=mlrun.errors.MLRunInternalServerError("BOOM"),
+            ),
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
             server.api.crud.Runs().abort_run(db, project, run_uid, 0)
         assert "BOOM" == str(exc.value)
 
         run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
-        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error
+        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"

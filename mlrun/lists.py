@@ -21,7 +21,7 @@ import mlrun.frameworks
 from .artifacts import Artifact, dict_to_artifact
 from .config import config
 from .render import artifacts_to_html, runs_to_html
-from .utils import flatten, get_artifact_target, get_in, is_legacy_artifact
+from .utils import flatten, get_artifact_target, get_in
 
 list_header = [
     "project",
@@ -184,7 +184,7 @@ class ArtifactList(list):
             "uri": ["uri", "uri"],
         }
         for artifact in self:
-            fields_index = 0 if is_legacy_artifact(artifact) else 1
+            fields_index = 1
             row = [get_in(artifact, v[fields_index], "") for k, v in head.items()]
             artifact_uri = dict_to_artifact(artifact).uri
             last_index = len(row) - 1

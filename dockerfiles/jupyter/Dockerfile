@@ -22,11 +22,13 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  graphviz \
- && rm -rf /var/lib/apt/lists/*
+RUN apt-get update  \
+    && apt-get install --no-install-recommends -y \
+      graphviz \
+      curl \
+      apt-transport-https \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y curl apt-transport-https
 # Download and install kubectl
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
@@ -58,12 +60,12 @@ RUN python -m pip install \
     -r /tmp/requirements/extras-requirement.txt \
     -r /tmp/requirements/requirement.txt
 
-COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
+COPY --chown=$NB_UID:$NB_GID . $HOME/mlrun
+RUN cd $HOME/mlrun && python -m pip install ".[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.5.x https://github.com/mlrun/demos.git $HOME/demos && \
+RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
     ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
     cd $HOME/demos && \
     ./community_edition_align.sh && \
@@ -81,8 +83,16 @@ RUN tar -cvf /tmp/basehome.tar $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
-# run the mlrun db (api) and the notebook in parallel
-CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
+# use tini as entrypoint to allow signal handling
+# and avoid zombie processes
+ENTRYPOINT ["tini", "--"]
+
+# run the mlrun api and the notebook in parallel
+CMD cd $HOME/mlrun && MLRUN_ARTIFACT_PATH=$HOME/data uvicorn server.api.main:app \
+    --proxy-headers \
+    --host="0.0.0.0" \
+    --log-config=server/api/uvicorn_log_config.yaml & \
+    MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \
     --NotebookApp.token='' \

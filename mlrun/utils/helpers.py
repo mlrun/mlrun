@@ -163,6 +163,7 @@ class run_keys:
     inputs = "inputs"
     returns = "returns"
     artifacts = "artifacts"
+    artifact_uris = "artifact_uris"
     outputs = "outputs"
     data_stores = "data_stores"
     secrets = "secret_sources"

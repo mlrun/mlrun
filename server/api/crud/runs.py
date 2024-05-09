@@ -19,6 +19,7 @@ import typing
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -55,6 +56,9 @@ class Runs(
             data, server.api.constants.MaskOperations.REDACT
         )
 
+        # Clients before 1.6.4 send the full artifact metadata in the run object, we need to strip it
+        # to avoid bloating the DB
+        self._strip_artifacts_metadata(data)
         server.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,
@@ -73,6 +77,11 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         logger.debug("Updating run", project=project, uid=uid, iter=iter)
+
+        # Clients before 1.6.4 send the full artifact metadata in the run object, we need to strip it
+        # to avoid bloating the DB
+        self._strip_artifacts_metadata(data)
+
         # TODO: Abort run moved to a separate endpoint, remove this section once in 1.8.0
         #  (once 1.5.x clients are not supported)
         if (
@@ -406,3 +415,14 @@ class Runs(
                 project,
                 uid,
             )
+
+    @staticmethod
+    def _strip_artifacts_metadata(run: dict):
+        artifacts = run.get("status", {}).get("artifacts", [])
+        artifact_uris = []
+        for artifact in artifacts:
+            if isinstance(artifact, dict):
+                artifact = mlrun.artifacts.dict_to_artifact(artifact)
+                artifact_uris.append(artifact.uri)
+
+        run["status"]["artifact_uris"] = artifact_uris

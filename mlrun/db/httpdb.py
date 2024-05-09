@@ -607,6 +607,11 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
+
+        # Artifacts are removed to avoid bloating the DB
+        if "status" in struct:
+            struct["status"].pop("artifacts")
+
         body = _as_json(struct)
         self.api_call("POST", path, error, params=params, body=body)
 

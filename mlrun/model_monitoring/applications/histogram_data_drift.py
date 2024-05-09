@@ -150,16 +150,19 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         self, metrics: list[mm_results.ModelMonitoringApplicationMetric]
     ) -> mm_results.ModelMonitoringApplicationResult:
         """Get the general drift result from the metrics list"""
-        value = np.mean(
-            [
-                metric.value
-                for metric in metrics
-                if metric.name
-                in [
-                    f"{HellingerDistance.NAME}_mean",
-                    f"{TotalVarianceDistance.NAME}_mean",
+        value = cast(
+            float,
+            np.mean(
+                [
+                    metric.value
+                    for metric in metrics
+                    if metric.name
+                    in [
+                        f"{HellingerDistance.NAME}_mean",
+                        f"{TotalVarianceDistance.NAME}_mean",
+                    ]
                 ]
-            ]
+            ),
         )
 
         status = self._value_classifier.value_to_status(value)

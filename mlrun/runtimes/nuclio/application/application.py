@@ -16,14 +16,13 @@ import typing
 
 import nuclio
 
+import mlrun.common.schemas as schemas
 import mlrun.errors
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
-from mlrun.common.schemas import AuthInfo
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
 from mlrun.runtimes.nuclio.api_gateway import (
     APIGateway,
-    APIGatewayAuthenticationMode,
     APIGatewayMetadata,
     APIGatewaySpec,
 )
@@ -248,7 +247,7 @@ class ApplicationRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: AuthInfo = None,
+        auth_info: schemas.AuthInfo = None,
         builder_env: dict = None,
         force_build: bool = False,
         with_mlrun=None,
@@ -258,7 +257,7 @@ class ApplicationRuntime(RemoteRuntime):
         show_on_failure: bool = False,
         skip_access_key_auth: bool = False,
         direct_port_access: bool = False,
-        authentication_mode: APIGatewayAuthenticationMode = None,
+        authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
     ):
         """
@@ -346,7 +345,7 @@ class ApplicationRuntime(RemoteRuntime):
         self,
         path: str = None,
         ports: list[int] = None,
-        authentication_mode: APIGatewayAuthenticationMode = None,
+        authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
     ):
         api_gateway = APIGateway(
@@ -368,9 +367,9 @@ class ApplicationRuntime(RemoteRuntime):
             authentication_mode
             or mlrun.mlconf.function.application.default_authentication_mode
         )
-        if authentication_mode == APIGatewayAuthenticationMode.ACCESS_KEY:
+        if authentication_mode == schemas.APIGatewayAuthenticationMode.access_key:
             api_gateway.with_access_key_auth()
-        elif authentication_mode == APIGatewayAuthenticationMode.BASIC:
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
 
         db = mlrun.get_run_db()
@@ -389,7 +388,7 @@ class ApplicationRuntime(RemoteRuntime):
         headers: dict = None,
         dashboard: str = "",
         force_external_address: bool = False,
-        auth_info: AuthInfo = None,
+        auth_info: schemas.AuthInfo = None,
         mock: bool = None,
         **http_client_kwargs,
     ):

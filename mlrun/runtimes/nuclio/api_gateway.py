@@ -21,7 +21,7 @@ from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
-import mlrun.common.schemas
+import mlrun.common.schemas as schemas
 import mlrun.common.types
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
@@ -32,22 +32,16 @@ from .function import get_fullname, min_nuclio_versions
 PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
-class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
-    NONE = "none"
-    BASIC = "basicAuth"
-    ACCESS_KEY = "accessKey"
-
-
 class APIGatewayAuthenticator(typing.Protocol):
     @property
     def authentication_mode(self) -> str:
-        return APIGatewayAuthenticationMode.NONE.value
+        return schemas.APIGatewayAuthenticationMode.none.value
 
     @classmethod
-    def from_scheme(cls, api_gateway_spec: mlrun.common.schemas.APIGatewaySpec):
+    def from_scheme(cls, api_gateway_spec: schemas.APIGatewaySpec):
         if (
             api_gateway_spec.authenticationMode
-            == APIGatewayAuthenticationMode.BASIC.value
+            == schemas.APIGatewayAuthenticationMode.basic.value
         ):
             if api_gateway_spec.authentication:
                 return BasicAuth(
@@ -58,7 +52,7 @@ class APIGatewayAuthenticator(typing.Protocol):
                 return BasicAuth()
         elif (
             api_gateway_spec.authenticationMode
-            == APIGatewayAuthenticationMode.ACCESS_KEY.value
+            == schemas.APIGatewayAuthenticationMode.access_key.value
         ):
             return AccessKeyAuth()
         else:
@@ -66,7 +60,7 @@ class APIGatewayAuthenticator(typing.Protocol):
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
+    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
         return None
 
 
@@ -92,13 +86,13 @@ class BasicAuth(APIGatewayAuthenticator):
 
     @property
     def authentication_mode(self) -> str:
-        return APIGatewayAuthenticationMode.BASIC.value
+        return schemas.APIGatewayAuthenticationMode.basic.value
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
+    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
         return {
-            "basicAuth": mlrun.common.schemas.APIGatewayBasicAuth(
+            "basicAuth": schemas.APIGatewayBasicAuth(
                 username=self._username, password=self._password
             )
         }
@@ -111,7 +105,7 @@ class AccessKeyAuth(APIGatewayAuthenticator):
 
     @property
     def authentication_mode(self) -> str:
-        return APIGatewayAuthenticationMode.ACCESS_KEY.value
+        return schemas.APIGatewayAuthenticationMode.access_key.value
 
 
 class APIGatewayMetadata(ModelObj):
@@ -385,7 +379,7 @@ class APIGateway(ModelObj):
 
         if (
             self.spec.authentication.authentication_mode
-            == APIGatewayAuthenticationMode.BASIC.value
+            == schemas.APIGatewayAuthenticationMode.basic.value
         ):
             if not credentials:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -397,7 +391,7 @@ class APIGateway(ModelObj):
 
         if (
             self.spec.authentication.authentication_mode
-            == APIGatewayAuthenticationMode.ACCESS_KEY.value
+            == schemas.APIGatewayAuthenticationMode.access_key.value
         ):
             # inject access key from env
             if credentials:
@@ -443,10 +437,10 @@ class APIGateway(ModelObj):
         )
 
     def is_ready(self):
-        if self.state is not mlrun.common.schemas.api_gateway.APIGatewayState.ready:
+        if self.state is not schemas.api_gateway.APIGatewayState.ready:
             # try to sync the state
             self.sync()
-        return self.state == mlrun.common.schemas.api_gateway.APIGatewayState.ready
+        return self.state == schemas.api_gateway.APIGatewayState.ready
 
     def sync(self):
         """
@@ -531,13 +525,13 @@ class APIGateway(ModelObj):
         )
 
     @classmethod
-    def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
+    def from_scheme(cls, api_gateway: schemas.APIGateway):
         project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
         state = (
             api_gateway.status.state
             if api_gateway.status
-            else mlrun.common.schemas.APIGatewayState.none
+            else schemas.APIGatewayState.none
         )
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
@@ -556,14 +550,14 @@ class APIGateway(ModelObj):
         new_api_gateway.state = state
         return new_api_gateway
 
-    def to_scheme(self) -> mlrun.common.schemas.APIGateway:
+    def to_scheme(self) -> schemas.APIGateway:
         upstreams = (
             [
-                mlrun.common.schemas.APIGatewayUpstream(
+                schemas.APIGatewayUpstream(
                     nucliofunction={"name": self.spec.functions[0]},
                     percentage=self.spec.canary[0],
                 ),
-                mlrun.common.schemas.APIGatewayUpstream(
+                schemas.APIGatewayUpstream(
                     # do not set percent for the second function,
                     # so we can define which function to display as a primary one in UI
                     nucliofunction={"name": self.spec.functions[1]},
@@ -571,7 +565,7 @@ class APIGateway(ModelObj):
             ]
             if self.spec.canary
             else [
-                mlrun.common.schemas.APIGatewayUpstream(
+                schemas.APIGatewayUpstream(
                     nucliofunction={"name": function_name},
                 )
                 for function_name in self.spec.functions
@@ -581,16 +575,14 @@ class APIGateway(ModelObj):
             for i, port in enumerate(self.spec.ports):
                 upstreams[i].port = port
 
-        api_gateway = mlrun.common.schemas.APIGateway(
-            metadata=mlrun.common.schemas.APIGatewayMetadata(
-                name=self.metadata.name, labels={}
-            ),
-            spec=mlrun.common.schemas.APIGatewaySpec(
+        api_gateway = schemas.APIGateway(
+            metadata=schemas.APIGatewayMetadata(name=self.metadata.name, labels={}),
+            spec=schemas.APIGatewaySpec(
                 name=self.metadata.name,
                 description=self.spec.description,
                 host=self.spec.host,
                 path=self.spec.path,
-                authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
+                authenticationMode=schemas.APIGatewayAuthenticationMode.from_str(
                     self.spec.authentication.authentication_mode
                 ),
                 upstreams=upstreams,
@@ -620,7 +612,7 @@ class APIGateway(ModelObj):
 
     @staticmethod
     def _resolve_canary(
-        upstreams: list[mlrun.common.schemas.APIGatewayUpstream],
+        upstreams: list[schemas.APIGatewayUpstream],
     ) -> tuple[Union[list[str], None], Union[list[int], None]]:
         if len(upstreams) == 1:
             return [upstreams[0].nucliofunction.get("name")], None

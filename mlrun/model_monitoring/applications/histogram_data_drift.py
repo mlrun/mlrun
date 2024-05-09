@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from dataclasses import dataclass
 from typing import Final, Optional, Protocol, Union, cast
 
@@ -147,7 +148,10 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         return metrics_per_feature
 
     def _get_general_drift_result(
-        self, metrics: list[mm_results.ModelMonitoringApplicationMetric]
+        self,
+        metrics: list[mm_results.ModelMonitoringApplicationMetric],
+        monitoring_context: mm_context.MonitoringApplicationContext,
+        metrics_per_feature: DataFrame,
     ) -> mm_results.ModelMonitoringApplicationResult:
         """Get the general drift result from the metrics list"""
         value = cast(
@@ -171,7 +175,13 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             value=value,
             kind=ResultKindApp.data_drift,
             status=status,
-            extra_data={},
+            extra_data={
+                EventFieldType.CURRENT_STATS: json.dumps(
+                    monitoring_context.feature_stats
+                ),
+                EventFieldType.DRIFT_MEASURES: metrics_per_feature.T.to_json(),
+                EventFieldType.DRIFT_STATUS: status.value,
+            },
         )
 
     def _get_metrics(
@@ -311,7 +321,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         monitoring_context.logger.debug("Computing average per metric")
         metrics = self._get_metrics(metrics_per_feature)
         result = self._get_general_drift_result(
-            metrics=metrics, monitoring_context=monitoring_context
+            metrics=metrics,
+            monitoring_context=monitoring_context,
+            metrics_per_feature=metrics_per_feature,
         )
         metrics_and_result = metrics + [result]
         monitoring_context.logger.debug(

@@ -180,3 +180,11 @@ def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str
             FutureWarning,
         )
     return kafka_bootstrap_servers
+
+
+def sort_df(df: pd.DataFrame, sort_column: str):
+    return (
+        df.reindex(sorted(df.columns), axis=1)
+        .sort_values(by=sort_column)
+        .reset_index(drop=True)
+    )

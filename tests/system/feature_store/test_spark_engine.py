@@ -27,6 +27,7 @@ from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
 
 import mlrun
+import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
 from mlrun.datastore.datastore_profile import (
@@ -384,8 +385,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"to_dataframe {datetime.now()}")
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
-        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
-        result = self._sort_df(result, "patient_id")
+        expected = mlrun.datastore.utils.sort_df(
+            filtered_df.query("bad == 95"), "patient_id"
+        )
+        result = mlrun.datastore.utils.sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):

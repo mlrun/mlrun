@@ -37,6 +37,7 @@ from storey import MapClass
 from storey.dtypes import V3ioError
 
 import mlrun
+import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
@@ -4851,8 +4852,10 @@ class TestFeatureStore(TestMLRunSystem):
         result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
         # We want to include patient_id in the comparison,
         # sort the columns alphabetically, and sort the rows by patient_id values.
-        result = self._sort_df(result, "patient_id")
-        expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
+        result = mlrun.datastore.utils.sort_df(result, "patient_id")
+        expected = mlrun.datastore.utils.sort_df(
+            filtered_df.query("room == 1"), "patient_id"
+        )
         # the content of category column is still checked:
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
         vec = fstore.FeatureVector(
@@ -4868,8 +4871,10 @@ class TestFeatureStore(TestMLRunSystem):
             .to_dataframe()
             .reset_index()
         )
-        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
-        result = self._sort_df(result, "patient_id")
+        expected = mlrun.datastore.utils.sort_df(
+            filtered_df.query("bad == 95"), "patient_id"
+        )
+        result = mlrun.datastore.utils.sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
 

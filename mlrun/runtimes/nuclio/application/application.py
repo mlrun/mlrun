@@ -370,7 +370,7 @@ class ApplicationRuntime(RemoteRuntime):
         )
         if authentication_mode == APIGatewayAuthenticationMode.ACCESS_KEY:
             api_gateway.with_access_key_auth()
-        if authentication_mode == "basic":
+        elif authentication_mode == APIGatewayAuthenticationMode.BASIC:
             api_gateway.with_basic_auth(*authentication_creds)
 
         db = mlrun.get_run_db()
@@ -408,14 +408,14 @@ class ApplicationRuntime(RemoteRuntime):
                 **http_client_kwargs,
             )
 
-        basic_auth = (auth_info.username, auth_info.password) if auth_info else None
+        credentials = (auth_info.username, auth_info.password) if auth_info else None
 
         if not method:
             method = "POST" if body else "GET"
         return self.status.api_gateway.invoke(
             method=method,
             headers=headers,
-            basic_auth=basic_auth,
+            credentials=credentials,
             path=path,
             **http_client_kwargs,
         )

@@ -18,7 +18,7 @@ from urllib.parse import urljoin
 
 import requests
 from nuclio.auth import AuthInfo as NuclioAuthInfo
-from requests.auth import HTTPBasicAuth
+from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
 import mlrun.common.schemas
@@ -353,7 +353,7 @@ class APIGateway(ModelObj):
         self,
         method="POST",
         headers: dict = None,
-        basic_auth: Optional[tuple[str, str]] = None,
+        credentials: Optional[tuple[str, str]] = None,
         path: Optional[str] = None,
         **kwargs,
     ):
@@ -362,7 +362,8 @@ class APIGateway(ModelObj):
 
         :param method: (str, optional) The HTTP method for the invocation.
         :param headers: (dict, optional) The HTTP headers for the invocation.
-        :param basic_auth: (Optional[tuple[str, str]], optional) The (username,password) for the invocation if required.
+        :param credentials: (Optional[tuple[str, str]], optional) The (username,password) for the invocation if required
+            can also be set by the environment variable (_, V3IO_ACCESS_KEY) for access key authentication.
         :param path: (str, optional) The sub-path for the invocation.
         :param kwargs: (dict) Additional keyword arguments.
 
@@ -386,18 +387,27 @@ class APIGateway(ModelObj):
             self.spec.authentication.authentication_mode
             == APIGatewayAuthenticationMode.BASIC.value
         ):
-            if not basic_auth:
+            if not credentials:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = HTTPBasicAuth(*basic_auth)
+            auth = NuclioAuthInfo(
+                username=credentials[0], password=credentials[1]
+            ).to_requests_auth()
 
         if (
             self.spec.authentication.authentication_mode
             == APIGatewayAuthenticationMode.ACCESS_KEY.value
         ):
             # inject access key from env
-            auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+            if credentials:
+                auth = NuclioAuthInfo(
+                    username=credentials[0],
+                    password=credentials[1],
+                    mode=NuclioAuthKinds.iguazio,
+                ).to_requests_auth()
+            else:
+                auth = NuclioAuthInfo().from_envvar().to_requests_auth()
             if not auth:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"

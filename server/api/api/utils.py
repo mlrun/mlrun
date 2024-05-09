@@ -1318,6 +1318,14 @@ async def _delete_function(
         project,
         function_name,
     )
+
+    logger.debug(
+        "Updating functions with deletion task id",
+        function_name=function_name,
+        functions_count=len(functions),
+        project=project,
+    )
+
     # update functions with deletion task id
     await _update_functions_with_deletion_task_ids(
         db_session, functions, project, background_task_name

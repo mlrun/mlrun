@@ -1318,49 +1318,49 @@ async def _delete_function(
         project,
         function_name,
     )
-    if len(functions) > 0:
-        logger.debug(
-            "Updating functions with deletion task id",
-            function_name=function_name,
-            functions_count=len(functions),
-            project=project,
-        )
-
-        # update functions with deletion task id
-        await _update_functions_with_deletion_task_ids(
-            db_session, functions, project, background_task_name
-        )
-
-        # Since we request functions by a specific name and project,
-        # in MLRun terminology, they are all just versions of the same function
-        # therefore, it's enough to check the kind of the first one only
-        if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-            # generate Nuclio function names based on function tags
-            nuclio_function_names = [
-                mlrun.runtimes.nuclio.function.get_fullname(
-                    function_name, project, function.get("metadata", {}).get("tag")
-                )
-                for function in functions
-            ]
-            # delete Nuclio functions associated with the function tags in batches
-            failed_requests = await _delete_nuclio_functions_in_batches(
-                auth_info, project, nuclio_function_names
-            )
-            if failed_requests:
-                error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
-                raise mlrun.errors.MLRunInternalServerError(error_message)
-
-        # delete the function from the database
-        await run_in_threadpool(
-            server.api.crud.Functions().delete_function,
-            db_session,
-            project,
-            function_name,
-        )
-    else:
+    if len(functions) == 0:
         logger.debug(
             "No functions to delete found", function_name=function_name, project=project
         )
+        return True
+    logger.debug(
+        "Updating functions with deletion task id",
+        function_name=function_name,
+        functions_count=len(functions),
+        project=project,
+    )
+
+    # update functions with deletion task id
+    await _update_functions_with_deletion_task_ids(
+        db_session, functions, project, background_task_name
+    )
+
+    # Since we request functions by a specific name and project,
+    # in MLRun terminology, they are all just versions of the same function
+    # therefore, it's enough to check the kind of the first one only
+    if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        # generate Nuclio function names based on function tags
+        nuclio_function_names = [
+            mlrun.runtimes.nuclio.function.get_fullname(
+                function_name, project, function.get("metadata", {}).get("tag")
+            )
+            for function in functions
+        ]
+        # delete Nuclio functions associated with the function tags in batches
+        failed_requests = await _delete_nuclio_functions_in_batches(
+            auth_info, project, nuclio_function_names
+        )
+        if failed_requests:
+            error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
+            raise mlrun.errors.MLRunInternalServerError(error_message)
+
+    # delete the function from the database
+    await run_in_threadpool(
+        server.api.crud.Functions().delete_function,
+        db_session,
+        project,
+        function_name,
+    )
 
 
 async def _update_functions_with_deletion_task_ids(

@@ -213,19 +213,19 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         alert_from_template.with_entities(entities=entities)
 
-        notifications = [
-            mlrun.common.schemas.Notification(
-                kind="slack",
-                name="slack_drift",
-                message="Ay caramba!",
-                severity="warning",
-                when=["now"],
-                secret_params={
-                    "webhook": "https://hooks.slack.com/services/",
-                },
-                condition="oops",
-            )
-        ]
+        notification = mlrun.common.schemas.Notification(
+            kind="slack",
+            name="slack_drift",
+            message="Ay caramba!",
+            severity="warning",
+            when=["now"],
+            secret_params={
+                "webhook": "https://hooks.slack.com/services/",
+            },
+            condition="oops",
+        )
+        notifications = [alert_constants.AlertNotification(notification=notification)]
+
         alert_from_template.with_notifications(notifications=notifications)
 
         self._validate_alert(

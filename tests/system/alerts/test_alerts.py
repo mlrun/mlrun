@@ -152,66 +152,67 @@ class TestAlerts(TestMLRunSystem):
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
-        return [
-            {
-                "kind": "webhook",
-                "name": "failure",
-                "message": "job failed !",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "params": {
-                    "url": nuclio_function_url,
-                    "override_body": {
-                        "operation": "add",
-                        "data": "notification failure",
-                    },
-                },
-                "secret_params": {
-                    "webhook": "some-webhook",
+        notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name="failure",
+            message="job failed !",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            params={
+                "url": nuclio_function_url,
+                "override_body": {
+                    "operation": "add",
+                    "data": "notification failure",
                 },
             },
-        ]
+            secret_params={
+                "webhook": "some-webhook",
+            },
+        )
+        return [alert_constants.AlertNotification(notification=notification)]
 
     @staticmethod
     def _generate_drift_notifications(nuclio_function_url):
+        first_notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name="drift",
+            message="A drift was detected",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            params={
+                "url": nuclio_function_url,
+                "override_body": {
+                    "operation": "add",
+                    "data": "first drift",
+                },
+            },
+            secret_params={
+                "webhook": "some-webhook",
+            },
+        )
+        second_notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name="drift2",
+            message="A drift was detected",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            params={
+                "url": nuclio_function_url,
+                "override_body": {
+                    "operation": "add",
+                    "data": "second drift",
+                },
+            },
+            secret_params={
+                "webhook": "some-webhook",
+            },
+        )
         return [
-            {
-                "kind": "webhook",
-                "name": "drift",
-                "message": "A drift was detected",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "params": {
-                    "url": nuclio_function_url,
-                    "override_body": {
-                        "operation": "add",
-                        "data": "first drift",
-                    },
-                },
-                "secret_params": {
-                    "webhook": "some-webhook",
-                },
-            },
-            {
-                "kind": "webhook",
-                "name": "drift2",
-                "message": "A drift was detected",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "params": {
-                    "url": nuclio_function_url,
-                    "override_body": {
-                        "operation": "add",
-                        "data": "second drift",
-                    },
-                },
-                "secret_params": {
-                    "webhook": "some-webhook",
-                },
-            },
+            alert_constants.AlertNotification(notification=first_notification),
+            alert_constants.AlertNotification(notification=second_notification),
         ]
 
     @staticmethod

@@ -364,11 +364,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=run_config,
         )
+        assert len(pd.read_parquet(feature_set.get_target_path())) == len(
+            filtered_df
+        )  # TODO improve
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
         vec.save()
-        target = ParquetTarget(
+        get_offline_target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
         print(f"fstore.get_offline_features {datetime.now()}")
@@ -376,7 +379,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             feature_vector=vec,
             additional_filters=[("bad", "=", 95)],
             with_indexes=True,
-            target=target,
+            target=get_offline_target,
             engine="spark",
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,

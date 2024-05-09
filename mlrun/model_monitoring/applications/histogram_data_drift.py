@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
+
 from dataclasses import dataclass
-from typing import Final, Optional, Protocol, cast
+from typing import Final, Optional, Protocol, Union, cast
 
 import numpy as np
 from pandas import DataFrame, Series
@@ -146,11 +146,10 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
 
         return metrics_per_feature
 
-    def _add_general_drift_result(
-        self,
-        metrics: list[mm_results.ModelMonitoringApplicationMetric],
-    ) -> None:
-        """Add the general drift result to the results list and log it"""
+    def _get_general_drift_result(
+        self, metrics: list[mm_results.ModelMonitoringApplicationMetric]
+    ) -> mm_results.ModelMonitoringApplicationResult:
+        """Get the general drift result from the metrics list"""
         value = np.mean(
             [
                 metric.value
@@ -164,13 +163,11 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         )
 
         status = self._value_classifier.value_to_status(value)
-        metrics.append(
-            mm_results.ModelMonitoringApplicationResult(
-                name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
-                value=value,
-                kind=ResultKindApp.data_drift,
-                status=status,
-            )
+        return mm_results.ModelMonitoringApplicationResult(
+            name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
+            value=value,
+            kind=ResultKindApp.data_drift,
+            status=status,
         )
 
     def _get_metrics(
@@ -281,7 +278,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> list[
-        typing.Union[
+        Union[
             mm_results.ModelMonitoringApplicationResult,
             mm_results.ModelMonitoringApplicationMetric,
         ]
@@ -308,15 +305,11 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             metrics_per_feature=metrics_per_feature,
         )
         monitoring_context.logger.debug("Computing average per metric")
-        metrics_and_result: list[
-            typing.Union[
-                mm_results.ModelMonitoringApplicationMetric,
-                mm_results.ModelMonitoringApplicationResult,
-            ]
-        ] = self._get_metrics(metrics_per_feature)
-        self._add_general_drift_result(
-            metrics=metrics_and_result,
+        metrics = self._get_metrics(metrics_per_feature)
+        result = self._get_general_drift_result(
+            metrics=metrics, monitoring_context=monitoring_context
         )
+        metrics_and_result = metrics + [result]
         monitoring_context.logger.debug(
             "Finished running the application", results=metrics_and_result
         )

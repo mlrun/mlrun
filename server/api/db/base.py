@@ -209,7 +209,7 @@ class DBInterface(ABC):
         as_records: bool = False,
         uid: str = None,
         producer_id: str = None,
-        run_uri: str = None,
+        producer_uri: str = None,
     ):
         pass
 

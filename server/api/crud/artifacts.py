@@ -148,7 +148,7 @@ class Artifacts(
         best_iteration: bool = False,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         producer_id: str = None,
-        run_uri: str = None,
+        producer_uri: str = None,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -166,7 +166,7 @@ class Artifacts(
             iter,
             best_iteration,
             producer_id=producer_id,
-            run_uri=run_uri,
+            producer_uri=producer_uri,
         )
         return artifacts
 

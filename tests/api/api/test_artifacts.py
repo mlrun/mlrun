@@ -264,14 +264,14 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     )
 
 
-def test_list_artifacts_with_run_uri(
+def test_list_artifacts_with_producer_uri(
     db: Session, unversioned_client: TestClient
 ) -> None:
     _create_project(unversioned_client, prefix="v1")
-    run_uri_1 = f"{PROJECT}/abc"
-    run_uri_2 = f"{PROJECT}/def"
-    run_uris = [run_uri_1, run_uri_1, run_uri_2, ""]
-    for run_uri in run_uris:
+    producer_uri_1 = f"{PROJECT}/abc"
+    producer_uri_2 = f"{PROJECT}/def"
+    producer_uris = [producer_uri_1, producer_uri_1, producer_uri_2, ""]
+    for producer_uri in producer_uris:
         data = {
             "kind": "artifact",
             "metadata": {
@@ -283,7 +283,7 @@ def test_list_artifacts_with_run_uri(
             },
             "spec": {
                 "db_key": "some-key",
-                "producer": {"kind": "api", "uri": run_uri},
+                "producer": {"kind": "api", "uri": producer_uri},
                 "target_path": "s3://aaa/aaa",
             },
             "status": {},
@@ -295,18 +295,18 @@ def test_list_artifacts_with_run_uri(
         assert resp.status_code == HTTPStatus.CREATED.value
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(f"{artifact_path}?run_uri={run_uri_1}")
+    resp = unversioned_client.get(f"{artifact_path}?producer_uri={producer_uri_1}")
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 2
     for artifact in artifacts:
-        assert artifact["spec"]["producer"]["uri"] == run_uri_1
+        assert artifact["spec"]["producer"]["uri"] == producer_uri_1
 
-    resp = unversioned_client.get(f"{artifact_path}?run_uri={run_uri_2}")
+    resp = unversioned_client.get(f"{artifact_path}?producer_uri={producer_uri_2}")
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 1
-    assert artifacts[0]["spec"]["producer"]["uri"] == run_uri_2
+    assert artifacts[0]["spec"]["producer"]["uri"] == producer_uri_2
 
     # Get all artifacts
     resp = unversioned_client.get(artifact_path)

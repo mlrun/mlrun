@@ -150,7 +150,7 @@ async def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     tree: str = None,
-    run_uri: str = None,
+    producer_uri: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -175,7 +175,7 @@ async def list_artifacts(
         best_iteration=best_iteration,
         format_=format_,
         producer_id=tree,
-        run_uri=run_uri,
+        producer_uri=producer_uri,
     )
 
     artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

@@ -962,6 +962,10 @@ class Config:
         return self.httpdb.clusterization.chief.url
 
     @staticmethod
+    def internal_labels():
+        return ["kind", "host"]
+
+    @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}
         if config.storage.auto_mount_params:

@@ -1286,6 +1286,8 @@ def create_function_deletion_background_task(
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
+    background_task_name = str(uuid.uuid4())
+
     # create the background task for function deletion
     return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db_session,
@@ -1293,11 +1295,12 @@ def create_function_deletion_background_task(
         background_tasks,
         _delete_function,
         mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
-        None,
+        background_task_name,
         db_session,
         project_name,
         function_name,
         auth_info,
+        background_task_name,
     )
 
 
@@ -1306,6 +1309,7 @@ async def _delete_function(
     project: str,
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
+    background_task_name: str,
 ):
     # getting all function tags
     functions = await run_in_threadpool(
@@ -1314,6 +1318,11 @@ async def _delete_function(
         project,
         function_name,
     )
+    # update functions with deletion task id
+    await _update_functions_with_deletion_task_ids(
+        db_session, functions, project, background_task_name
+    )
+
     if len(functions) > 0:
         # Since we request functions by a specific name and project,
         # in MLRun terminology, they are all just versions of the same function
@@ -1341,6 +1350,27 @@ async def _delete_function(
         project,
         function_name,
     )
+
+
+async def _update_functions_with_deletion_task_ids(
+    db_session, functions, project, background_task_name
+):
+    semaphore = asyncio.Semaphore(
+        mlrun.mlconf.background_tasks.function_deletion_batch_size
+    )
+
+    async def update_function_with_task_id(function):
+        async with semaphore:
+            await run_in_threadpool(
+                server.api.crud.Functions().set_function_deletion_task_id,
+                db_session,
+                function,
+                project,
+                background_task_name,
+            )
+
+    tasks = [update_function_with_task_id(function) for function in functions]
+    await asyncio.gather(*tasks)
 
 
 async def _delete_nuclio_functions_in_batches(

@@ -377,8 +377,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             with_indexes=True,
             target=target,
             engine="spark",
-            run_config=run_config,
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+            spark_service=self.spark_service,
         )
+
         print(f"to_dataframe {datetime.now()}")
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)

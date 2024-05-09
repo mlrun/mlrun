@@ -650,7 +650,7 @@ class TestProject(TestMLRunSystem):
             engine="remote",
             watch=True,
             notification_steps={
-                # gen data function build step (doesn't have a `kind` field)
+                # gen data function build step
                 "build": 1,
                 # workflow runner, gen data, summary, train, test and model testing steps
                 "run": 6,

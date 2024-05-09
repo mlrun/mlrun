@@ -96,7 +96,7 @@ class TestMLRunSystem:
 
     @staticmethod
     def _should_clean_resources():
-        return os.environ.get("MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES") != "false"
+        return False
 
     def _delete_test_project(self, name=None):
         if self._should_clean_resources():

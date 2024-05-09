@@ -14,6 +14,7 @@
 #
 import tempfile
 import unittest.mock
+import uuid
 from http import HTTPStatus
 
 import deepdiff
@@ -37,28 +38,14 @@ DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 
 # V2 endpoints
 V2_PREFIX = "v2/"
-STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
+STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
+LIST_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
     resp = client.get(f"projects/{PROJECT}/artifact-tags")
     assert resp.status_code == HTTPStatus.OK.value, "status"
     assert resp.json()["project"] == PROJECT, "project"
-
-
-def _create_project(
-    client: TestClient, project_name: str = PROJECT, prefix: str = None
-):
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(
-            description="banana", source="source", goals="some goals"
-        ),
-    )
-    url = "projects" if prefix is None else f"{prefix}/projects"
-    resp = client.post(url, json=project.dict())
-    assert resp.status_code == HTTPStatus.CREATED.value
-    return resp
 
 
 def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
@@ -277,6 +264,57 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     )
 
 
+def test_list_artifacts_with_run_uri(
+    db: Session, unversioned_client: TestClient
+) -> None:
+    _create_project(unversioned_client, prefix="v1")
+    run_uri_1 = f"{PROJECT}/abc"
+    run_uri_2 = f"{PROJECT}/def"
+    run_uris = [run_uri_1, run_uri_1, run_uri_2, ""]
+    for run_uri in run_uris:
+        data = {
+            "kind": "artifact",
+            "metadata": {
+                "description": "",
+                "labels": {},
+                "key": KEY,
+                "project": PROJECT,
+                "tree": str(uuid.uuid4()),
+            },
+            "spec": {
+                "db_key": "some-key",
+                "producer": {"kind": "api", "uri": run_uri},
+                "target_path": "s3://aaa/aaa",
+            },
+            "status": {},
+        }
+        resp = unversioned_client.post(
+            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+            json=data,
+        )
+        assert resp.status_code == HTTPStatus.CREATED.value
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(f"{artifact_path}?run_uri={run_uri_1}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2
+    for artifact in artifacts:
+        assert artifact["spec"]["producer"]["uri"] == run_uri_1
+
+    resp = unversioned_client.get(f"{artifact_path}?run_uri={run_uri_2}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1
+    assert artifacts[0]["spec"]["producer"]["uri"] == run_uri_2
+
+    # Get all artifacts
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 4
+
+
 def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
     _create_project(client)
     artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
@@ -484,3 +522,18 @@ def test_legacy_list_artifact_with_tree_as_tag_fallback(
     assert not is_legacy_artifact(artifact)
     assert artifact["metadata"]["key"] == KEY
     assert artifact["metadata"]["tree"] == tree
+
+
+def _create_project(
+    client: TestClient, project_name: str = PROJECT, prefix: str = None
+):
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana", source="source", goals="some goals"
+        ),
+    )
+    url = "projects" if prefix is None else f"{prefix}/projects"
+    resp = client.post(url, json=project.dict())
+    assert resp.status_code == HTTPStatus.CREATED.value
+    return resp

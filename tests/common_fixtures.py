@@ -640,7 +640,7 @@ def rundb_mock() -> RunDBMock:
         config.dbpath = orig_db_path
 
 
-class RemoteBuilderMock:
+class RemoteBuilderMock(RunDBMock):
     kind = "http"
 
     def __init__(self):
@@ -668,19 +668,10 @@ class RemoteBuilderMock:
                 },
             }
 
-        def _store_api_gateway_handler(
-            api_gateway: mlrun.common.schemas.APIGateway,
-            project: str,
-        ):
-            return api_gateway
-
+        super().__init__()
         self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
         self.deploy_nuclio_function = unittest.mock.Mock(
             side_effect=_remote_builder_handler
-        )
-
-        self.store_api_gateway = unittest.mock.Mock(
-            side_effect=_store_api_gateway_handler
         )
 
     def get_build_config_and_target_dir(self):
@@ -720,5 +711,8 @@ def remote_builder_mock(monkeypatch):
     )
     monkeypatch.setattr(
         mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    monkeypatch.setattr(
+        mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
     )
     return builder_mock

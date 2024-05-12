@@ -138,13 +138,6 @@ class ApplicationSpec(NuclioSpec):
 
 
 class ApplicationStatus(NuclioStatus):
-    _dict_fields = NuclioStatus._dict_fields + [
-        "application_image",
-        "sidecar_name",
-        "api_gateway_name",
-        "api_gateway",
-        "url",
-    ]
 
     def __init__(
         self,

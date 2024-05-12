@@ -405,11 +405,12 @@ class RunDBMock:
     def get_builder_status(
         self,
         func: BaseRuntime,
-        offset=0,
-        logs=True,
-        last_log_timestamp=0,
-        verbose=False,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0,
+        verbose: bool = False,
     ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
         return "ready", last_log_timestamp
 
     def deploy_nuclio_function(
@@ -425,6 +426,7 @@ class RunDBMock:
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
     ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
         return "ready", last_log_timestamp
 
     def store_api_gateway(
@@ -445,6 +447,7 @@ class RunDBMock:
         if api_gateway:
             if not api_gateway.status:
                 api_gateway.status = mlrun.common.schemas.APIGatewayStatus()
+            api_gateway.spec.host = "my-fake-host.com"
             api_gateway.status.state = mlrun.common.schemas.APIGatewayState.ready
             return api_gateway
         return None
@@ -684,10 +687,10 @@ class RemoteBuilderMock(RunDBMock):
     def get_builder_status(
         self,
         func: BaseRuntime,
-        offset=0,
-        logs=True,
-        last_log_timestamp=0,
-        verbose=False,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0,
+        verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
         return "ready", last_log_timestamp

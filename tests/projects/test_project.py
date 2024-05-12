@@ -1290,7 +1290,6 @@ def test_function_receives_project_default_function_node_selector():
     assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
 
 
-
 def test_project_exports_default_image():
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     default_image = "myrepo/myimage1"

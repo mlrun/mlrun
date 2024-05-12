@@ -364,9 +364,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=run_config,
         )
-        assert len(pd.read_parquet(feature_set.get_target_path())) == len(
-            filtered_df
-        )  # TODO improve
+        result = mlrun.datastore.utils.sort_df(
+            pd.read_parquet(feature_set.get_target_path()), "patient_id"
+        )
+        expected = mlrun.datastore.utils.sort_df(filtered_df, "patient_id")
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
@@ -374,7 +377,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         get_offline_target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
-        kind = None if self.local else "remote-spark"
+        kind = None if self.run_local else "remote-spark"
         resp = fstore.get_offline_features(
             feature_vector=vec,
             additional_filters=[("bad", "=", 95)],

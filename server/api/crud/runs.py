@@ -56,7 +56,7 @@ class Runs(
             data, server.api.constants.MaskOperations.REDACT
         )
 
-        # Clients before 1.6.4 send the full artifact metadata in the run object, we need to strip it
+        # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
         # to avoid bloating the DB
         self._strip_artifacts_metadata(data)
         server.api.utils.singletons.db.get_db().store_run(
@@ -78,7 +78,7 @@ class Runs(
         project = project or mlrun.mlconf.default_project
         logger.debug("Updating run", project=project, uid=uid, iter=iter)
 
-        # Clients before 1.6.4 send the full artifact metadata in the run object, we need to strip it
+        # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
         # to avoid bloating the DB
         self._strip_artifacts_metadata(data)
 

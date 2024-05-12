@@ -409,11 +409,13 @@ def runs_to_html(
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
         if not df["artifact_uris"].empty:
-            df["artifacts"] = df["artifact_uris"].apply(dict_html)
+            df["artifact_uris"] = df["artifact_uris"].apply(dict_html)
+            df.drop("artifacts", axis=1, inplace=True)
         else:
             df["artifacts"] = df["artifacts"].apply(
                 lambda artifacts: artifacts_html(artifacts, "target_path"),
             )
+            df.drop("artifact_uris", axis=1, inplace=True)
 
     def expand_error(x):
         if x["state"] == "error":

@@ -228,9 +228,11 @@ class TestAlerts(TestMLRunSystem):
             project=project,
             name=name,
             summary=summary,
-            severity="low",
-            entity={"kind": entity_kind, "project": project, "id": "*"},
-            trigger={"events": [event_name]},
+            severity=alert_constants.AlertSeverity.LOW,
+            entities=alert_constants.EventEntities(
+                kind=entity_kind, project=project, ids=["*"]
+            ),
+            trigger=alert_constants.AlertTrigger(events=[event_name]),
             criteria=criteria,
             notifications=notifications,
         )

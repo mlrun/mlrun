@@ -18,7 +18,8 @@
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
-|ML-5726|Can now define HDFS datastore profile for registering to a project. See [HDFS data store profile](../store/datastore.html#hdfs).
+|ML-5726|Can now define HDFS datastore profile for registering to a project. See [HDFS data store profile](../store/datastore.html#hdfs).|
+|ML-2585|Can now delete artifacts by project conts. See ??|
 
 ### Documentation
 | ID     |Description                                                                                         |
@@ -31,7 +32,7 @@
 |----------|---------------------------------------------------------------------------|
 |ML-3680|Function spec now gets updated when modifying it while running a workflow.|
 |ML-4248|You can now run a serving function with a large number of models.|
-|ML-5774|UI: Improved response time in the Workflows>Pipelines page.|
+|ML-5774|UI: Improved response time in the **Workflows | Pipelines** page.|
 
 
 

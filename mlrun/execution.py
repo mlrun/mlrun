@@ -951,7 +951,6 @@ class MLClientCtx(object):
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
         struct["status"][run_keys.artifacts] = self._artifacts_manager.artifact_list()
-        struct["status"][run_keys.artifact_uris] = self._artifact_uris()
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -1035,7 +1034,7 @@ class MLClientCtx(object):
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{run_keys.artifact_uris}"] = self._artifact_uris()
+        struct[f"status.{run_keys.artifacts}"] = self._artifacts_manager.artifact_list()
         return struct
 
     def _init_dbs(self, rundb):
@@ -1101,12 +1100,6 @@ class MLClientCtx(object):
             with open(self._tmpfile, "w") as fp:
                 fp.write(data)
                 fp.close()
-
-    def _artifact_uris(self):
-        artifact_uris = []
-        for artifact in self._artifacts_manager.artifact_list(as_dict=False):
-            artifact_uris.append(artifact.uri)
-        return artifact_uris
 
 
 def _cast_result(value):

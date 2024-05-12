@@ -150,17 +150,16 @@ class ArtifactManager:
                 f"Failed to log an artifact, file does not exists at path {path}"
             )
 
-    def artifact_list(
-        self, full: bool = False, as_dict: bool = True
-    ) -> typing.List[typing.Union[Artifact, dict]]:
+    def artifact_list(self, full=False):
         artifacts = []
         for artifact in self.artifacts.values():
-            if isinstance(artifact, dict) and not as_dict:
-                artifact = dict_to_artifact(artifact)
-            elif as_dict:
-                artifact = artifact.to_dict() if full else artifact.base_dict()
-
-            artifacts.append(artifact)
+            if isinstance(artifact, dict):
+                artifacts.append(artifact)
+            else:
+                if full:
+                    artifacts.append(artifact.to_dict())
+                else:
+                    artifacts.append(artifact.base_dict())
         return artifacts
 
     def log_artifact(

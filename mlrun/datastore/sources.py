@@ -315,8 +315,6 @@ class ParquetSource(BaseSourceDriver):
         end_time: Optional[Union[datetime, str]] = None,
         additional_filters: Optional[list[tuple]] = None,
     ):
-        print(f"init additional_filters: {additional_filters}")
-        print(f"init attributes: {attributes}")
         if additional_filters:
             additional_filters_dict = {"additional_filters": additional_filters}
             if attributes:
@@ -427,7 +425,6 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def _get_spark_additional_filters(self, column_types: dict):
-        print(f"additional_filters: {self.additional_filters}")
         if not self.additional_filters:
             return None
         from pyspark.sql.functions import col, isnan, lit

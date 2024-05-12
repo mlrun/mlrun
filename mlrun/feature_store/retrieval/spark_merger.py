@@ -195,7 +195,6 @@ class SparkFeatureMerger(BaseMerger):
         return merged_df
 
     def get_df(self, to_pandas=True):
-        print(f"get_df {datetime.datetime.now()}")
         if to_pandas:
             if self._pandas_df is None:
                 df = spark_df_to_pandas(self._result_df)
@@ -258,7 +257,6 @@ class SparkFeatureMerger(BaseMerger):
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
-        print(f"additional_filters in _get_engine_df in spark_merger: {additional_filters}")
         source = source_driver(
             name=self.vector.metadata.name,
             path=source_path,

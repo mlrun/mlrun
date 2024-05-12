@@ -374,7 +374,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         get_offline_target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
-        print(f"fstore.get_offline_features {datetime.now()}")
         kind = None if self.local else "remote-spark"
         resp = fstore.get_offline_features(
             feature_vector=vec,
@@ -386,7 +385,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_service=self.spark_service,
         )
 
-        print(f"to_dataframe {datetime.now()}")
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
         expected = mlrun.datastore.utils.sort_df(

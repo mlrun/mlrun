@@ -369,17 +369,17 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
   parameters
 * `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
 
-## Adding a data store profile
+% ## Adding a data store profile Return to doc when there are personas
 
-If you already have a functioning datastore, integrating it with a datastore profile is straightforward. Follow these steps:
-1. Derive a new datastore profile class from the `DatastoreProfile` class. During this process, specify the datastore profile type. 
-   This is usually the same as the schema associated with the datastore URL, although this is not strictly necessary.
-2. Incorporate all necessary parameters for accessing the datastore, ensuring they are appropriately classified as public or private.
-3. Implement two essential methods: `secrets()` and `url()`.
-   - The `url()` method constructs a URL path to a specific object. It takes a 'subpath' parameter, which is the relative path to the object, 
-   and returns the fully resolved URL that is used to access the object in the datastore.
-   - The `secrets()` method returns a dictionary containing environment variables that are used when accessing the datastore.
-4. In the `create_from_json()` function, introduce factory settings for the newly created profile. Use the profile type as a key for these settings.
+% If you already have a functioning datastore, integrating it with a datastore profile is straightforward. Follow these steps:
+% 1. Derive a new datastore profile class from the `DatastoreProfile` class. During this process, specify the datastore profile type. 
+%    This is usually the same as the schema associated with the datastore URL, although this is not strictly necessary.
+% 2. Incorporate all necessary parameters for accessing the datastore, ensuring they are appropriately classified as public or private.
+% 3. Implement two essential methods: `secrets()` and `url()`.
+%    - The `url()` method constructs a URL path to a specific object. It takes a 'subpath' parameter, which is the relative path to the object, 
+%    and returns the fully resolved URL that is used to access the object in the datastore.
+%    - The `secrets()` method returns a dictionary containing environment variables that are used when accessing the datastore.
+% 4. In the `create_from_json()` function, introduce factory settings for the newly created profile. Use the profile type as a key for these settings.
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

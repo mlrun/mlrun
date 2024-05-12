@@ -282,7 +282,7 @@ class Artifacts(
                 )
             path = artifact["spec"]["target_path"]
             server.api.crud.Files().delete_artifact_data(
-                auth_info, project, path, secrets
+                auth_info, project, path, secrets=secrets
             )
         except Exception as exc:
             logger.debug(
@@ -297,7 +297,7 @@ class Artifacts(
                 deletion_strategy
                 == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
             ):
-                if type(exc) is mlrun.errors.MLRunNotImplementServerError:
+                if isinstance(exc, mlrun.errors.MLRunNotImplementServerError):
                     raise
                 else:
                     raise mlrun.errors.MLRunInternalServerError(

@@ -408,7 +408,7 @@ def runs_to_html(
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        if not df["artifact_uris"].empty():
+        if not df["artifact_uris"].empty:
             df["artifacts"] = df["artifact_uris"].apply(dict_html)
         else:
             df["artifacts"] = df["artifacts"].apply(

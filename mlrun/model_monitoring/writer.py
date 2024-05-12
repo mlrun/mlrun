@@ -221,8 +221,12 @@ class ModelMonitoringWriter(StepToDict):
             and event[ResultData.RESULT_NAME]
             == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
         ):
-            # Update the model endpoint with metadata specific to the
-            # histogram data drift app
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            logger.info(
+                "Updating the model endpoint with metadata specific to the histogram "
+                "data drift app",
+                endpoint_id=endpoint_id,
+            )
             store = mlrun.model_monitoring.db.get_store_object(project=self.project)
             store.update_model_endpoint(
                 endpoint_id=endpoint_id,

@@ -24,6 +24,7 @@ import kfp
 import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.schemas
 import server.api.crud
@@ -66,7 +67,7 @@ def test_list_pipelines_formats(
         mlrun.common.schemas.PipelinesFormat.name_only,
     ]:
         runs = _generate_list_runs_mocks()
-        expected_runs = [run.to_dict() for run in runs]
+        expected_runs = [PipelineRun(run.to_dict()) for run in runs]
         expected_runs = server.api.crud.Pipelines()._format_runs(
             db, expected_runs, format_
         )
@@ -99,7 +100,9 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            db,
+            PipelineRun(api_run_detail),
+            format_,
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -154,7 +157,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            db, PipelineRun(api_run_detail), format_
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -244,7 +247,7 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = server.api.crud.Pipelines()._format_runs(
-        db, [run.to_dict() for run in runs if run.id in expected_runs_ids]
+        db, [PipelineRun(run.to_dict()) for run in runs if run.id in expected_runs_ids]
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
@@ -310,6 +313,7 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
             id="id1",
             name="run1",
             description="desc1",
+            created_at="0001-01-01 00:00:00+00:00",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
                 pipeline_id="pipe_id1",
                 workflow_manifest=workflow_manifest,

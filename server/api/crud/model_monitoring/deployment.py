@@ -242,6 +242,8 @@ class MonitoringDeployment:
                 writer_data=fn.to_dict(),
                 writer_ready=ready,
             )
+            # Create tsdb table for model monitoring application results
+            self._create_tsdb_application_tables(project=fn.metadata.project)
 
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
@@ -586,6 +588,19 @@ class MonitoringDeployment:
             )
             return False
         return True
+
+    @staticmethod
+    def _create_tsdb_application_tables(project: str):
+        """Each project writer service writes the application results into a single TSDB table and therefore the
+        target table is created during the writer deployment"""
+
+        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
+            mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+            )
+        )
+
+        tsdb_connector.create_tsdb_application_tables()
 
 
 def get_endpoint_features(

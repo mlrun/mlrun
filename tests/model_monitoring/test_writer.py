@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import json
 import os
@@ -101,6 +102,8 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
                 ),
             }
         )
+    else:
+        raise ValueError
 
 
 @pytest.fixture

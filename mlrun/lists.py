@@ -36,6 +36,7 @@ list_header = [
     "parameters",
     "results",
     "artifacts",
+    "artifact_uris",
     "error",
 ]
 

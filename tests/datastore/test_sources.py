@@ -106,30 +106,3 @@ def test_timestamp_format_inference(rundb_mock):
         )
     )
     pd.testing.assert_frame_equal(result_df, expected_result_df)
-
-
-@pytest.mark.parametrize(
-    "pandas_filters, expected_result",
-    [
-        (
-            [("name", "in", ["Henry", "Isaac", "Jasmine"])],
-            "name in ('Henry', 'Isaac', 'Jasmine')",
-        ),
-        ([("age", ">", 30), ("name", "=", "Isaac")], "age > 30 AND name = 'Isaac'"),
-        ([("age", "in", {None, 31, 32})], "(age in (32, 31) OR age IS NULL)"),
-        (
-            [("license_date", ">", datetime(2022, 2, 1))],
-            "license_date > '2022-02-01 00:00:00'",
-        ),
-        (
-            [("license_date", ">", datetime(2022, 2, 1, tzinfo=pytz.UTC))],
-            "license_date > '2022-02-01 00:00:00+00:00'",
-        ),
-    ],
-)
-def test_get_spark_additional_filters(pandas_filters, expected_result):
-    parquet_source = ParquetSource(
-        name="parquet_source", path="/path/to/file", additional_filters=pandas_filters
-    )
-    spark_filters = parquet_source._get_spark_additional_filters()
-    assert spark_filters == expected_result

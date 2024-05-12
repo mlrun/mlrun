@@ -375,13 +375,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
         print(f"fstore.get_offline_features {datetime.now()}")
+        kind = None if self.local else "remote-spark"
         resp = fstore.get_offline_features(
             feature_vector=vec,
             additional_filters=[("bad", "=", 95)],
             with_indexes=True,
             target=get_offline_target,
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local, kind=kind),
             spark_service=self.spark_service,
         )
 

@@ -1233,10 +1233,10 @@ def _create_resources_of_all_kinds(
         name="test_alert",
         summary="oops",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
-        entity={
+        entities={
             "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
             "project": project,
-            "id": "*",
+            "ids": ["*"],
         },
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
         notifications=[notification.to_dict()],

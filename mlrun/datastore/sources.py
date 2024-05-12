@@ -315,6 +315,8 @@ class ParquetSource(BaseSourceDriver):
         end_time: Optional[Union[datetime, str]] = None,
         additional_filters: Optional[list[tuple]] = None,
     ):
+        print(f"init additional_filters: {additional_filters}")
+        print(f"init attributes: {attributes}")
         if additional_filters:
             additional_filters_dict = {"additional_filters": additional_filters}
             if attributes:

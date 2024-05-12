@@ -214,6 +214,7 @@ async def test_get_grafana_service_url_success(
     )
     assert grafana_url == expected_grafana_url
 
+
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_cache(

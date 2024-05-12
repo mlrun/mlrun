@@ -21,10 +21,10 @@ import http
 import json
 import threading
 import typing
-import cachetools
 import urllib.parse
 
 import aiohttp
+import cachetools
 import fastapi
 import humanfriendly
 import igz_mgmt.schemas.manual_events

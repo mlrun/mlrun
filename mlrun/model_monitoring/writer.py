@@ -127,11 +127,11 @@ class ModelMonitoringWriter(StepToDict):
             or drift_status == ResultStatusApp.potential_detection.value
         ):
             logger.info("Sending an alert")
-            entity = {
-                "kind": alert_constants.EventEntityKind.MODEL,
-                "project": project_name,
-                "ids": [model_endpoint],
-            }
+            entity = mlrun.common.schemas.alert.EventEntities(
+                kind=alert_constants.EventEntityKind.MODEL,
+                project=project_name,
+                ids=[model_endpoint],
+            )
             event_kind = (
                 alert_constants.EventKind.DRIFT_DETECTED
                 if drift_status == ResultStatusApp.detected.value

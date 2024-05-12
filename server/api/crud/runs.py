@@ -58,16 +58,15 @@ class Runs(
 
         # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
         # to avoid bloating the DB.
-        data.setdefault("status", {}).setdefault("artifact_uris", {})
-        artifacts = data.get("status", {}).get("artifacts", [])
-        artifact_uris = {}
+        data.setdefault("status", {})
+        artifacts = data["status"].get("artifacts", [])
+        artifact_uris = data["status"].get("artifact_uris", {})
         for artifact in artifacts:
             artifact = mlrun.artifacts.dict_to_artifact(artifact)
             artifact_uris[artifact.key] = artifact.uri
 
-        data["status"]["artifact_uris"] = (
-            data["status"]["artifact_uris"] | artifact_uris
-        )
+        if artifact_uris:
+            data["status"]["artifact_uris"] = artifact_uris
         data["status"].pop("artifacts", None)
 
         server.api.utils.singletons.db.get_db().store_run(

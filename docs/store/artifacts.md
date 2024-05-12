@@ -21,6 +21,7 @@ Artifacts metadata is stored in the MLRun database.
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
+- [Deleting artifacts](#deleting-artifacts)
 
 **See also:**
 - {ref}`working-with-data-and-model-artifacts`
@@ -130,5 +131,19 @@ Example artifact URLs:
 
 <!-- ## Dataset artifacts moved to data coll and prep, model and plot artifacts to working-with-data-and-model-artifacts -->
 
+## Deleting artifacts
+
+Artifacts are deleted from a specific project. You can delete artifacts from v3IO, Google, Azure, DBFS, Filestore, and S3. </br>Options for deleting artifacts:
+-Deletion strategy: 
+   - metadata-only &mdash; (default) Delete only the artifact object. The related artifact data remains.
+   - data-optional &mdash; Delete the data of the artifact as a best-effort. If deletion fails, delete the artifact itself.
+   - data-force &mdash; Delete the data of the artifact. If it fails, don’t delete the artifact.
+- Secrets &mdash; Required when credentials are needed to access the artifact data. 
+
+```
+artifact = project.get_artifact("name")
+project.delete_artifact(artifact, deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force, secrets={"secret1": "user-secret"})
+```
+See {ref}`mlrun.projects.MlrunProject.delete_artifact`.
 
 [Back to top](#top)

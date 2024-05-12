@@ -722,7 +722,7 @@ def deploy(
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class.
 
-    KIND - resource type to list/get: run | runtime | workflow | artifact | function
+    KIND - resource type to list/get: pod | run | runtime | workflow | artifact | function
     NAME - optional, resource name or category
     """
 
@@ -834,7 +834,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 
     else:
         print(
-            "Currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
+            "Currently only get pod | runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
         )
 
 

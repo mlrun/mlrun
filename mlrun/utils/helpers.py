@@ -39,6 +39,7 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
+from mlrun_pipelines.models import PipelineRun
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -786,34 +787,6 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
-):
-    from kfp.dsl import PipelineConf
-
-    def _set_artifact_path(task):
-        from kubernetes import client as k8s_client
-
-        task.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_ARTIFACT_PATH", value=artifact_path)
-        )
-        return task
-
-    conf = PipelineConf()
-    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
-
-    if cleanup_ttl:
-        conf.set_ttl_seconds_after_finished(cleanup_ttl)
-    if artifact_path:
-        conf.add_op_transformer(_set_artifact_path)
-    if op_transformers:
-        for op_transformer in op_transformers:
-            conf.add_op_transformer(op_transformer)
-    return conf
-
-
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
@@ -1017,7 +990,7 @@ def is_igz_version_sufficient(required_version):
 
 
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=list[str]
+    exception: Exception, strings_list: list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1292,7 +1265,7 @@ def is_link_artifact(artifact):
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
-def format_run(run: dict, with_project=False) -> dict:
+def format_run(run: PipelineRun, with_project=False) -> dict:
     fields = [
         "id",
         "name",
@@ -1329,7 +1302,7 @@ def format_run(run: dict, with_project=False) -> dict:
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
-    if run["status"] is None:
+    if run.get("status", None) is None:
         run["status"] = inflection.titleize(
             mlrun.common.runtimes.constants.RunStates.unknown
         )
@@ -1589,3 +1562,44 @@ def additional_filters_warning(additional_filters, class_name):
             f"additional_filters parameter is not supported in {class_name},"
             f" parameter has been ignored."
         )
+
+
+def validate_component_version_compatibility(
+    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+):
+    """
+    :param component_name: Name of the component to validate compatibility for.
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
+    parsed_current_version = None
+    component_current_version = None
+    try:
+        if component_name == "iguazio":
+            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+            component_current_version = mlrun.mlconf.igz_version
+        if component_name == "nuclio":
+            parsed_current_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
+            component_current_version = mlrun.mlconf.nuclio_version
+        if not parsed_current_version:
+            return True
+    except ValueError:
+        # only log when version is set but invalid
+        if component_current_version:
+            logger.warning(
+                "Unable to parse current version, assuming compatibility",
+                component_name=component_name,
+                current_version=component_current_version,
+                min_versions=min_versions,
+            )
+        return True
+
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if parsed_current_version < parsed_min_version:
+            return False
+    return True

@@ -29,7 +29,7 @@ import mergedeep
 import pytz
 from sqlalchemy import MetaData, and_, distinct, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -67,6 +67,7 @@ from server.api.db.sqldb.helpers import (
 from server.api.db.sqldb.models import (
     AlertConfig,
     AlertState,
+    AlertTemplate,
     Artifact,
     ArtifactV2,
     BackgroundTask,
@@ -2883,6 +2884,10 @@ class SQLDB(DBInterface):
             )
             .label("row_number")
         )
+
+        # Retrieve only the ID from the subquery to minimize the inner table,
+        # in the final step we inner join the inner table with the full table.
+        query = query.with_entities(cls.id).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
                 func.max(sort_by_field)
@@ -2895,18 +2900,15 @@ class SQLDB(DBInterface):
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
-        subquery = query.add_column(row_number_column).subquery()
-
+        subquery = query.subquery()
         if max_partitions == 0:
-            # If we don't query on max-partitions, we end here. Need to alias the subquery so that the ORM will
-            # be able to properly map it to objects.
-            result_query = session.query(aliased(cls, subquery)).filter(
-                subquery.c.row_number <= rows_per_partition
+            result_query = (
+                session.query(cls)
+                .join(subquery, cls.id == subquery.c.id)
+                .filter(subquery.c.row_number <= rows_per_partition)
             )
             return result_query
 
-        # Otherwise no need for an alias, as this is an internal query and will be wrapped by another one where
-        # alias will apply. We just apply the filter here.
         result_query = session.query(subquery).filter(
             subquery.c.row_number <= rows_per_partition
         )
@@ -2918,9 +2920,11 @@ class SQLDB(DBInterface):
             .over(order_by=subquery.c.max_partition_value.desc())
             .label("partition_rank")
         )
-        result_query = result_query.add_column(partition_rank).subquery()
-        result_query = session.query(aliased(cls, result_query)).filter(
-            result_query.c.partition_rank <= max_partitions
+        subquery = result_query.add_column(partition_rank).subquery()
+        result_query = (
+            session.query(cls)
+            .join(subquery, cls.id == subquery.c.id)
+            .filter(subquery.c.partition_rank <= max_partitions)
         )
         return result_query
 
@@ -4214,6 +4218,42 @@ class SQLDB(DBInterface):
         data_version_record = DataVersion(version=version, created=now)
         self._upsert(session, [data_version_record])
 
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        template_record = self._get_alert_template_record(
+            session, template.template_name
+        )
+        if not template_record:
+            return self._create_alert_template(session, template)
+        template_record.full_object = template.dict()
+
+        self._upsert(session, [template_record])
+        return self._transform_alert_template_record_to_schema(
+            self._get_alert_template_record(session, template.template_name)
+        )
+
+    def _create_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        template_record = self._transform_alert_template_schema_to_record(template)
+        self._upsert(session, [template_record])
+        return self._transform_alert_template_record_to_schema(template_record)
+
+    def delete_alert_template(self, session, name: str):
+        self._delete(session, AlertTemplate, name=name)
+
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        query = self._query(session, AlertTemplate)
+        return list(map(self._transform_alert_template_record_to_schema, query.all()))
+
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        return self._transform_alert_template_record_to_schema(
+            self._get_alert_template_record(session, name)
+        )
+
     def store_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig
     ) -> mlrun.common.schemas.AlertConfig:
@@ -4307,6 +4347,28 @@ class SQLDB(DBInterface):
         ]
 
     @staticmethod
+    def _transform_alert_template_schema_to_record(
+        alert_template: mlrun.common.schemas.AlertTemplate,
+    ) -> AlertTemplate:
+        template_record = AlertTemplate(
+            id=alert_template.template_id,
+            name=alert_template.template_name,
+        )
+        template_record.full_object = alert_template.dict()
+        return template_record
+
+    @staticmethod
+    def _transform_alert_template_record_to_schema(
+        template_record: AlertTemplate,
+    ) -> mlrun.common.schemas.AlertTemplate:
+        if template_record is None:
+            return None
+
+        template = mlrun.common.schemas.AlertTemplate(**template_record.full_object)
+        template.template_id = template_record.id
+        return template
+
+    @staticmethod
     def _transform_alert_config_record_to_schema(
         alert_config_record: AlertConfig,
     ) -> mlrun.common.schemas.AlertConfig:
@@ -4328,6 +4390,9 @@ class SQLDB(DBInterface):
         )
         alert_record.full_object = alert.dict()
         return alert_record
+
+    def _get_alert_template_record(self, session, name: str) -> AlertTemplate:
+        return self._query(session, AlertTemplate, name=name).one_or_none()
 
     def _get_alert_record(self, session, name: str, project: str) -> AlertConfig:
         return self._query(

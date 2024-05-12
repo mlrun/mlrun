@@ -19,6 +19,7 @@ import typing
 import pytest
 
 import mlrun
+import mlrun.alerts
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
@@ -223,7 +224,7 @@ class TestAlerts(TestMLRunSystem):
         notifications,
         criteria=None,
     ):
-        alert_data = mlrun.common.schemas.AlertConfig(
+        alert_data = mlrun.alerts.alert.AlertConfig(
             project=project,
             name=name,
             summary=summary,

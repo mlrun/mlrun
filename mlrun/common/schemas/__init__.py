@@ -14,7 +14,7 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .alert import AlertActiveState, AlertConfig, Event
+from .alert import AlertActiveState, AlertConfig, AlertTemplate, Event
 from .api_gateway import (
     APIGateway,
     APIGatewayAuthenticationMode,
@@ -142,8 +142,10 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
+    MonitoringTSDBTables,
     PrometheusEndpoints,
-    TimeSeriesTarget,
+    TimeSeriesConnector,
+    TSDBTarget,
 )
 from .notification import (
     Notification,

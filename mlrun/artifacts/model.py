@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import tempfile
+import warnings
 from os import path
 from typing import Any, Optional
 
@@ -148,6 +149,12 @@ class ModelArtifact(Artifact):
         model_dir=None,
         **kwargs,
     ):
+        if key or body or format or target_path:
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:

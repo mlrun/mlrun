@@ -138,6 +138,7 @@ def update_default_configuration_data():
     try:
         db = server.api.db.sqldb.db.SQLDB()
         _add_default_hub_source_if_needed(db, db_session)
+        _add_default_alert_templates(db, db_session)
     finally:
         close_session(db_session)
 
@@ -819,6 +820,15 @@ def _delete_state_file():
         os.remove(config.artifacts.artifact_migration_state_file_path)
     except FileNotFoundError:
         pass
+
+
+def _add_default_alert_templates(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    for template in server.api.constants.pre_defined_templates:
+        record = db.get_alert_template(db_session, template.template_name)
+        if record is None or record.templates_differ(template):
+            db.store_alert_template(db_session, template)
 
 
 def main() -> None:

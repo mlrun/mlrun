@@ -14,11 +14,12 @@
 
 import warnings
 
+from mlrun_pipelines.common.ops import build_op
+
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
 
-from ..kfpops import build_op
 from ..model import RunObject
 from .pod import KubeResource
 

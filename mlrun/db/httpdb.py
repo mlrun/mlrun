@@ -15,7 +15,6 @@
 import enum
 import http
 import re
-import tempfile
 import time
 import traceback
 import typing
@@ -26,9 +25,9 @@ from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
 
-import kfp
 import requests
 import semver
+from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.schemas
@@ -38,6 +37,7 @@ import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
+from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
@@ -51,7 +51,6 @@ from ..utils import (
     datetime_to_iso,
     dict_to_json,
     logger,
-    new_pipe_metadata,
     normalize_name,
     version,
 )
@@ -590,7 +589,7 @@ class HTTPRunDB(RunDBInterface):
         if offset < 0:
             raise MLRunInvalidArgumentError("Offset cannot be negative")
         if size is None:
-            size = int(config.httpdb.logs.pull_logs_default_size_limit)
+            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:
             logger.warning(
                 "Retrieving all logs. This may be inefficient and can result in a large log."
@@ -636,23 +635,25 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode(errors=config.httpdb.logs.decode.errors))
+            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         nil_resp = 0
         while True:
             offset += len(text)
             # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
             # TODO: refactor this to use a conditional backoff mechanism
             if nil_resp < 3:
-                time.sleep(int(config.httpdb.logs.pull_logs_default_interval))
+                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
             else:
                 time.sleep(
-                    int(config.httpdb.logs.pull_logs_backoff_no_logs_default_interval)
+                    int(
+                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                    )
                 )
             state, text = self.get_log(uid, project, offset=offset)
             if text:
                 nil_resp = 0
                 print(
-                    text.decode(errors=config.httpdb.logs.decode.errors),
+                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
                     end="",
                 )
             else:
@@ -985,7 +986,18 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         return resp.json()
 
-    def del_artifact(self, key, tag=None, project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag=None,
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         """Delete an artifact.
 
         :param key: Identifying key of the artifact.
@@ -993,6 +1005,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         :param tree: The tree which generated this artifact.
         :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        :param deletion_strategy: The artifact deletion strategy types.
+        :param secrets: Credentials needed to access the artifact data.
         """
 
         endpoint_path = f"projects/{project}/artifacts/{key}"
@@ -1001,9 +1015,17 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "tree": tree,
             "uid": uid,
+            "deletion_strategy": deletion_strategy,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
+        self.api_call(
+            "DELETE",
+            endpoint_path,
+            error,
+            params=params,
+            version="v2",
+            body=dict_to_json(secrets),
+        )
 
     def list_artifacts(
         self,
@@ -1828,14 +1850,11 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_metadata(
+            pipe_file = compile_pipeline(
                 artifact_path=artifact_path,
                 cleanup_ttl=cleanup_ttl,
-                op_transformers=ops,
-            )
-            kfp.compiler.Compiler().compile(
-                pipeline, pipe_file, type_check=False, pipeline_conf=conf
+                ops=ops,
+                pipeline=pipeline,
             )
 
         if pipe_file.endswith(".yaml"):
@@ -3112,14 +3131,12 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
          label (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
-                                 days), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
-                                 days), or 0 for the earliest time.
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
+                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339 time, a
+                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
         """
@@ -3168,13 +3185,13 @@ class HTTPRunDB(RunDBInterface):
         :param project:                    The name of the project
         :param endpoint_id:                The unique id of the model endpoint.
         :param start:                      The start time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                           0 for the earliest time.
+                                           RFC 3339 time, a  Unix timestamp in milliseconds, a relative time
+                                           (`'now'` or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours,
+                                           `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
         :param end:                        The end time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                           0 for the earliest time.
+                                           RFC 3339 time, a  Unix timestamp in milliseconds, a relative time
+                                           (`'now'` or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours,
+                                           `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
         :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
                                            metrics for model endpoints such as predictions_per_second and
                                            latency_avg_5m but also custom metrics defined by the user. Please note that
@@ -3915,7 +3932,7 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(
                 "Building a function image to ECR and loading an S3 source to the image may require conflicting access "
                 "keys. Only the permissions granted to the platform's configured secret will take affect "
-                "(see mlrun.config.config.httpdb.builder.docker_registry_secret). "
+                "(see mlrun.mlconf.httpdb.builder.docker_registry_secret). "
                 "In case the permissions are limited to ECR scope, you may use pull_at_runtime=True instead",
                 source=func.spec.build.source,
                 load_source_on_run=func.spec.build.load_source_on_run,
@@ -3943,9 +3960,9 @@ class HTTPRunDB(RunDBInterface):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, AlertConfig],
         project="",
-    ):
+    ) -> AlertConfig:
         """
         Create/modify an alert.
         :param alert_name: The name of the alert.
@@ -3956,13 +3973,19 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
-        if isinstance(alert_data, mlrun.common.schemas.AlertConfig):
-            alert_data = alert_data.dict()
+        alert_instance = (
+            alert_data
+            if isinstance(alert_data, AlertConfig)
+            else AlertConfig.from_dict(alert_data)
+        )
+        alert_instance.validate_required_fields()
+
+        alert_data = alert_instance.to_dict()
         body = _as_json(alert_data)
         response = self.api_call("PUT", endpoint_path, error_message, body=body)
-        return mlrun.common.schemas.AlertConfig(**response.json())
+        return AlertConfig.from_dict(response.json())
 
-    def get_alert_config(self, alert_name: str, project=""):
+    def get_alert_config(self, alert_name: str, project="") -> AlertConfig:
         """
         Retrieve an alert.
         :param alert_name: The name of the alert to retrieve.
@@ -3973,9 +3996,9 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"get alert {project}/alerts/{alert_name}"
         response = self.api_call("GET", endpoint_path, error_message)
-        return mlrun.common.schemas.AlertConfig(**response.json())
+        return AlertConfig.from_dict(response.json())
 
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(self, project="") -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
         :param project: The project name.
@@ -3987,7 +4010,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message).json()
         results = []
         for item in response:
-            results.append(mlrun.common.schemas.AlertConfig(**item))
+            results.append(AlertConfig(**item))
         return results
 
     def delete_alert_config(self, alert_name: str, project=""):
@@ -4011,6 +4034,32 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/alerts/{alert_name}/reset"
         error_message = f"post alert {project}/alerts/{alert_name}/reset"
         self.api_call("POST", endpoint_path, error_message)
+
+    def get_alert_template(
+        self, template_name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        """
+        Retrieve a specific alert template.
+        :param template_name: The name of the template to retrieve.
+        :return: The template object.
+        """
+        endpoint_path = f"alert-templates/{template_name}"
+        error_message = f"get template alert-templates/{template_name}"
+        response = self.api_call("GET", endpoint_path, error_message)
+        return mlrun.common.schemas.AlertTemplate(**response.json())
+
+    def list_alert_templates(self) -> list[mlrun.common.schemas.AlertTemplate]:
+        """
+        Retrieve list of all alert templates.
+        :return: All the alert template objects in the database.
+        """
+        endpoint_path = "alert-templates"
+        error_message = "get templates /alert-templates"
+        response = self.api_call("GET", endpoint_path, error_message).json()
+        results = []
+        for item in response:
+            results.append(mlrun.common.schemas.AlertTemplate(**item))
+        return results
 
 
 def _as_json(obj):

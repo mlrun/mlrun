@@ -24,6 +24,7 @@ from uuid import uuid4
 import deepdiff
 import fastapi.testclient
 import mergedeep
+import mlrun_pipelines.common.models
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -1418,6 +1419,7 @@ def _assert_db_resources_in_project(
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
+        # alert_templates are not tied to project and are pre-populated anyway
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1433,6 +1435,7 @@ def _assert_db_resources_in_project(
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
             or cls.__tablename__ == "alert_states"
+            or cls.__tablename__ == "alert_templates"
         ):
             continue
         number_of_cls_records = 0
@@ -1703,9 +1706,9 @@ def _create_schedules(client: TestClient, project_name, schedules_count):
 def _mock_pipelines(project_name):
     mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
-        mlrun.run.RunStatuses.running: 4,
-        mlrun.run.RunStatuses.succeeded: 3,
-        mlrun.run.RunStatuses.failed: 2,
+        mlrun_pipelines.common.models.RunStatuses.running: 4,
+        mlrun_pipelines.common.models.RunStatuses.succeeded: 3,
+        mlrun_pipelines.common.models.RunStatuses.failed: 2,
     }
     pipelines = []
     for status, count in status_count_map.items():
@@ -1715,11 +1718,11 @@ def _mock_pipelines(project_name):
     def list_pipelines_return_value(*args, **kwargs):
         next_page_token = "some-token"
         if kwargs["page_token"] == "":
-            return (None, next_page_token, pipelines[: len(pipelines) // 2])
+            return None, next_page_token, pipelines[: len(pipelines) // 2]
         elif kwargs["page_token"] == next_page_token:
-            return (None, None, pipelines[len(pipelines) // 2 :])
+            return None, None, pipelines[len(pipelines) // 2 :]
 
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         side_effect=list_pipelines_return_value
     )
-    return status_count_map[mlrun.run.RunStatuses.running]
+    return status_count_map[mlrun_pipelines.common.models.RunStatuses.running]

@@ -18,16 +18,16 @@ import os
 import kfp
 import kfp.compiler
 import pytest
+from mlrun_pipelines.common.models import RunStatuses
+from mlrun_pipelines.mounts import mount_v3io
 
 import mlrun.utils
 from mlrun import (
     _run_pipeline,
     code_to_function,
-    mount_v3io,
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.run import RunStatuses
 from tests.system.base import TestMLRunSystem
 
 

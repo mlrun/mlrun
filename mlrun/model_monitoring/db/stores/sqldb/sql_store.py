@@ -21,12 +21,11 @@ import pandas as pd
 import sqlalchemy
 
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
-from mlrun.utils import logger
 
 
 class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -72,9 +71,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
                 connection_string=self._sql_connection_string
             )
         )
-        self._tables[
-            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS
-        ] = self.ModelEndpointsTable
+        self._tables[mm_constants.EventFieldType.MODEL_ENDPOINTS] = (
+            self.ModelEndpointsTable
+        )
 
     def _init_application_results_table(self):
         self.ApplicationResultsTable = (
@@ -82,17 +81,17 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
                 connection_string=self._sql_connection_string
             )
         )
-        self._tables[
-            mlrun.common.schemas.model_monitoring.FileTargetKind.APP_RESULTS
-        ] = self.ApplicationResultsTable
+        self._tables[mm_constants.FileTargetKind.APP_RESULTS] = (
+            self.ApplicationResultsTable
+        )
 
     def _init_monitoring_schedules_table(self):
         self.MonitoringSchedulesTable = mlrun.model_monitoring.db.stores.sqldb.models._get_monitoring_schedules_table(
             connection_string=self._sql_connection_string
         )
-        self._tables[
-            mlrun.common.schemas.model_monitoring.FileTargetKind.MONITORING_SCHEDULES
-        ] = self.MonitoringSchedulesTable
+        self._tables[mm_constants.FileTargetKind.MONITORING_SCHEDULES] = (
+            self.MonitoringSchedulesTable
+        )
 
     def _write(self, table: str, event: dict[str, typing.Any]):
         """
@@ -183,14 +182,12 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
 
         # Adjust timestamps fields
-        endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST] = (
-            endpoint
-        )[
-            mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST
+        endpoint[mm_constants.EventFieldType.FIRST_REQUEST] = (endpoint)[
+            mm_constants.EventFieldType.LAST_REQUEST
         ] = mlrun.utils.datetime_now()
 
         self._write(
-            table=mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS,
+            table=mm_constants.EventFieldType.MODEL_ENDPOINTS,
             event=endpoint,
         )
 
@@ -207,13 +204,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_model_endpoints_table()
 
-        attributes.pop(
-            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID, None
-        )
+        attributes.pop(mm_constants.EventFieldType.ENDPOINT_ID, None)
 
-        filter_endpoint = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.UID: endpoint_id
-        }
+        filter_endpoint = {mm_constants.EventFieldType.UID: endpoint_id}
 
         self._update(
             attributes=attributes, table=self.ModelEndpointsTable, **filter_endpoint
@@ -227,9 +220,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_model_endpoints_table()
 
-        filter_endpoint = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.UID: endpoint_id
-        }
+        filter_endpoint = {mm_constants.EventFieldType.UID: endpoint_id}
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(table=self.ModelEndpointsTable, **filter_endpoint)
 
@@ -249,9 +240,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self._init_model_endpoints_table()
 
         # Get the model endpoint record using sqlalchemy ORM
-        filter_endpoint = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.UID: endpoint_id
-        }
+        filter_endpoint = {mm_constants.EventFieldType.UID: endpoint_id}
         endpoint_record = self._get(table=self.ModelEndpointsTable, **filter_endpoint)
 
         if not endpoint_record:
@@ -303,36 +292,32 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
-                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.MODEL,
+                    key_filter=mm_constants.EventFieldType.MODEL,
                     filtered_values=[model],
                 )
             if function:
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
-                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION,
+                    key_filter=mm_constants.EventFieldType.FUNCTION,
                     filtered_values=[function],
                 )
             if uids:
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
-                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.UID,
+                    key_filter=mm_constants.EventFieldType.UID,
                     filtered_values=uids,
                     combined=False,
                 )
             if top_level:
-                node_ep = str(
-                    mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP.value
-                )
-                router_ep = str(
-                    mlrun.common.schemas.model_monitoring.EndpointType.ROUTER.value
-                )
+                node_ep = str(mm_constants.EndpointType.NODE_EP.value)
+                router_ep = str(mm_constants.EndpointType.ROUTER.value)
                 endpoint_types = [node_ep, router_ep]
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
-                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE,
+                    key_filter=mm_constants.EventFieldType.ENDPOINT_TYPE,
                     filtered_values=endpoint_types,
                     combined=False,
                 )
@@ -350,18 +335,28 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return endpoint_list
 
-    def write_application_result(self, event: dict[str, typing.Any]):
+    def write_application_event(
+        self,
+        event: dict[str, typing.Any],
+        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+    ):
         """
-        Write a new application result event in the target table.
+        Write a new application event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
-                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
+                      schema defined in the :py:class:`~mm_constants.constants.WriterEvent`
                       object.
+        :param kind: The type of the event, can be either "result" or "metric".
         """
+
+        if kind == mm_constants.WriterEventKind.METRIC:
+            # TODO : Implement the logic for writing metrics to MySQL
+            return
+
         self._init_application_results_table()
 
         application_filter_dict = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.UID: self._generate_application_result_uid(
+            mm_constants.EventFieldType.UID: self._generate_application_result_uid(
                 event
             )
         }
@@ -372,11 +367,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         if application_record:
             self._convert_to_datetime(
                 event=event,
-                key=mlrun.common.schemas.model_monitoring.WriterEvent.START_INFER_TIME,
+                key=mm_constants.WriterEvent.START_INFER_TIME,
             )
             self._convert_to_datetime(
                 event=event,
-                key=mlrun.common.schemas.model_monitoring.WriterEvent.END_INFER_TIME,
+                key=mm_constants.WriterEvent.END_INFER_TIME,
             )
             # Update an existing application result
             self._update(
@@ -386,14 +381,12 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             )
         else:
             # Write a new application result
-            event[mlrun.common.schemas.model_monitoring.EventFieldType.UID] = (
-                application_filter_dict[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.UID
-                ]
-            )
+            event[mm_constants.EventFieldType.UID] = application_filter_dict[
+                mm_constants.EventFieldType.UID
+            ]
 
             self._write(
-                table=mlrun.common.schemas.model_monitoring.FileTargetKind.APP_RESULTS,
+                table=mm_constants.FileTargetKind.APP_RESULTS,
                 event=event,
             )
 
@@ -405,11 +398,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     @staticmethod
     def _generate_application_result_uid(event: dict[str, typing.Any]) -> str:
         return (
-            event[mlrun.common.schemas.model_monitoring.WriterEvent.ENDPOINT_ID]
+            event[mm_constants.WriterEvent.ENDPOINT_ID]
             + "_"
-            + event[mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME]
+            + event[mm_constants.WriterEvent.APPLICATION_NAME]
             + "_"
-            + event[mlrun.common.schemas.model_monitoring.ResultData.RESULT_NAME]
+            + event[mm_constants.ResultData.RESULT_NAME]
         )
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
@@ -459,19 +452,17 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         if not monitoring_schedule_record:
             # Add a new record with empty last analyzed value
             self._write(
-                table=mlrun.common.schemas.model_monitoring.FileTargetKind.MONITORING_SCHEDULES,
+                table=mm_constants.FileTargetKind.MONITORING_SCHEDULES,
                 event={
-                    mlrun.common.schemas.model_monitoring.SchedulingKeys.UID: uuid.uuid4().hex,
-                    mlrun.common.schemas.model_monitoring.SchedulingKeys.APPLICATION_NAME: application_name,
-                    mlrun.common.schemas.model_monitoring.SchedulingKeys.ENDPOINT_ID: endpoint_id,
-                    mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED: last_analyzed,
+                    mm_constants.SchedulingKeys.UID: uuid.uuid4().hex,
+                    mm_constants.SchedulingKeys.APPLICATION_NAME: application_name,
+                    mm_constants.SchedulingKeys.ENDPOINT_ID: endpoint_id,
+                    mm_constants.SchedulingKeys.LAST_ANALYZED: last_analyzed,
                 },
             )
 
         self._update(
-            attributes={
-                mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED: last_analyzed
-            },
+            attributes={mm_constants.SchedulingKeys.LAST_ANALYZED: last_analyzed},
             table=self.MonitoringSchedulesTable,
             **application_filter_dict,
         )
@@ -567,9 +558,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         # Convert endpoint labels into dictionary
         endpoint_labels = json.loads(
-            endpoint_dict.get(
-                mlrun.common.schemas.model_monitoring.EventFieldType.LABELS
-            )
+            endpoint_dict.get(mm_constants.EventFieldType.LABELS)
         )
 
         for label in labels:
@@ -596,26 +585,25 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             )
         application_filter_dict = {}
         if endpoint_id:
-            application_filter_dict[
-                mlrun.common.schemas.model_monitoring.SchedulingKeys.ENDPOINT_ID
-            ] = endpoint_id
+            application_filter_dict[mm_constants.SchedulingKeys.ENDPOINT_ID] = (
+                endpoint_id
+            )
         if application_name:
-            application_filter_dict[
-                mlrun.common.schemas.model_monitoring.SchedulingKeys.APPLICATION_NAME
-            ] = application_name
+            application_filter_dict[mm_constants.SchedulingKeys.APPLICATION_NAME] = (
+                application_name
+            )
         return application_filter_dict
 
-    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
+    def delete_model_endpoints_resources(self):
         """
         Delete all model endpoints resources in both SQL and the time series DB.
 
-        :param endpoints: A list of model endpoints flattened dictionaries.
         """
 
+        endpoints = self.list_model_endpoints()
+
         for endpoint_dict in endpoints:
-            endpoint_id = endpoint_dict[
-                mlrun.common.schemas.model_monitoring.EventFieldType.UID
-            ]
+            endpoint_id = endpoint_dict[mm_constants.EventFieldType.UID]
 
             # Delete last analyzed records
             self._delete_last_analyzed(endpoint_id=endpoint_id)
@@ -625,38 +613,3 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
             # Delete model endpoint record
             self.delete_model_endpoint(endpoint_id=endpoint_id)
-
-    def get_endpoint_real_time_metrics(
-        self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
-        access_key: str = None,
-    ) -> dict[str, list[tuple[str, float]]]:
-        """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
-                                 provided, the access key will be retrieved from the environment variables.
-
-        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
-                 includes timestamps and the values.
-        """
-        # # TODO : Implement this method once Perometheus is supported
-        logger.warning(
-            "Real time metrics service using Prometheus will be implemented in 1.4.0"
-        )
-
-        return {}

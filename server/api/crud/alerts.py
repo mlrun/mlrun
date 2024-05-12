@@ -145,7 +145,7 @@ class Alerts(
 
         state_obj = None
         # check if the entity of the alert matches the one in event
-        if alert.entity.id in ["*", event_data.entity.id]:
+        if self._event_entity_matches(alert.entities, event_data.entity):
             send_notification = False
 
             if alert.criteria is not None:
@@ -191,6 +191,16 @@ class Alerts(
             )
 
     @staticmethod
+    def _event_entity_matches(alert_entity, event_entity):
+        if "*" in alert_entity.ids:
+            return True
+
+        if event_entity.ids[0] in alert_entity.ids:
+            return True
+
+        return False
+
+    @staticmethod
     def _validate_alert(alert, name, project):
         if name != alert.name:
             raise mlrun.errors.MLRunBadRequestError(
@@ -223,9 +233,9 @@ class Alerts(
             )
             notification_object.validate_notification()
 
-        if alert.entity.project != project:
+        if alert.entities.project != project:
             raise mlrun.errors.MLRunBadRequestError(
-                f"Invalid alert entity project ({alert.entity.project}) for alert {name} for project {project}"
+                f"Invalid alert entity project ({alert.entities.project}) for alert {name} for project {project}"
             )
 
     @staticmethod

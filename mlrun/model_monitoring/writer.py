@@ -129,7 +129,7 @@ class ModelMonitoringWriter(StepToDict):
             entity = {
                 "kind": alert_constants.EventEntityKind.MODEL,
                 "project": project_name,
-                "model_endpoint": model_endpoint,
+                "ids": [model_endpoint],
             }
             event_kind = (
                 alert_constants.EventKind.DRIFT_DETECTED

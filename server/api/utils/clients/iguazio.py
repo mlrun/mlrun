@@ -21,6 +21,7 @@ import http
 import json
 import threading
 import typing
+import cachetools
 import urllib.parse
 
 import aiohttp
@@ -340,6 +341,7 @@ class Client(
         """
         return True
 
+    @cachetools.cached(cache=cachetools.TTLCache(maxsize=1, ttl=120))
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL

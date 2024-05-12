@@ -214,6 +214,39 @@ async def test_get_grafana_service_url_success(
     )
     assert grafana_url == expected_grafana_url
 
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_grafana_service_url_cache(
+    api_url: str,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    expected_grafana_url = (
+        "https://grafana.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
+    )
+    grafana_service = {
+        "spec": {"kind": "grafana"},
+        "status": {
+            "state": "ready",
+            "urls": [
+                {"kind": "http", "url": "https-has-precedence"},
+                {"kind": "https", "url": expected_grafana_url},
+            ],
+        },
+    }
+    response_body = _generate_app_services_manifests_body([grafana_service])
+    requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
+    assert grafana_url == expected_grafana_url
+
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
+    assert requests_mock.called_once
+    assert grafana_url == expected_grafana_url
+
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio

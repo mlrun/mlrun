@@ -14,7 +14,6 @@
 #
 import typing
 
-import cachetools
 import fastapi
 import semver
 
@@ -89,7 +88,6 @@ def get_frontend_spec(
     )
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=1, ttl=120))
 def try_get_grafana_service_url(session):
     if mlrun.mlconf.grafana_url:
         return mlrun.mlconf.grafana_url

@@ -156,7 +156,7 @@ class TestTSDB:
     @staticmethod
     @pytest.fixture
     def writer(
-        tsdb_connector: tsdb_connector,
+        tsdb_connector: mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector,
     ) -> ModelMonitoringWriter:
         writer = Mock(spec=ModelMonitoringWriter)
         writer.project = TEST_PROJECT

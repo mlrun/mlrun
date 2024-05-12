@@ -425,9 +425,9 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def _get_spark_additional_filters(self, column_types: dict):
+        print(f"additional_filters: {self.additional_filters}")
         if not self.additional_filters:
             return None
-        print(self.additional_filters)
         from pyspark.sql.functions import col, isnan, lit
 
         operators = {

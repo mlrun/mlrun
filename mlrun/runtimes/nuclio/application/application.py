@@ -138,7 +138,6 @@ class ApplicationSpec(NuclioSpec):
 
 
 class ApplicationStatus(NuclioStatus):
-
     def __init__(
         self,
         state=None,
@@ -150,6 +149,9 @@ class ApplicationStatus(NuclioStatus):
         container_image=None,
         application_image=None,
         sidecar_name=None,
+        api_gateway_name=None,
+        api_gateway=None,
+        url=None,
     ):
         super().__init__(
             state=state,
@@ -162,9 +164,9 @@ class ApplicationStatus(NuclioStatus):
         )
         self.application_image = application_image or None
         self.sidecar_name = sidecar_name or None
-        self.api_gateway_name = None
-        self.api_gateway = None
-        self.url = None
+        self.api_gateway_name = api_gateway_name or None
+        self.api_gateway = api_gateway or None
+        self.url = url or None
 
 
 class ApplicationRuntime(RemoteRuntime):

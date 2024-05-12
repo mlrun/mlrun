@@ -641,8 +641,9 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         project = project or config.default_project
 
@@ -665,6 +666,7 @@ class SQLDB(DBInterface):
             uid=uid,
             producer_id=producer_id,
             best_iteration=best_iteration,
+            producer_uri=producer_uri,
         )
         if as_records:
             return artifact_records
@@ -1234,6 +1236,7 @@ class SQLDB(DBInterface):
         producer_id=None,
         best_iteration=False,
         most_recent=False,
+        producer_uri=None,
     ):
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1281,6 +1284,18 @@ class SQLDB(DBInterface):
                 query = query.filter(ArtifactV2.kind.in_(kinds))
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
+
+        # Producer URI usually points to a run and is used to filter artifacts by the run that produced them when
+        # the artifact producer id is a workflow id (artifact was created as part of a workflow).
+        if producer_uri:
+            artifacts = []
+            for artifact in query:
+                artifact_struct = artifact.full_object
+                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
+                if artifact_struct["spec"]["producer"].get("uri") == producer_uri:
+                    artifacts.append(artifact)
+
+            return artifacts
 
         return query.all()
 

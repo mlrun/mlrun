@@ -22,13 +22,13 @@ import typing
 from concurrent.futures import ThreadPoolExecutor
 
 import kfp
+import mlrun_pipelines.common.ops
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
 import mlrun.errors
-import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -392,15 +392,15 @@ class NotificationPusher(_NotificationPusherBase):
         steps = []
         db = mlrun.get_run_db()
 
-        def _add_run_step(_node_name, _):
-            steps.append(
-                db.list_runs(
-                    project=run.metadata.project,
-                    labels=f"mlrun/runner-pod={_node_name}",
-                )[0]
-            )
+        def _add_run_step(_node_name, _node_template, _step_kind):
+            _run = db.list_runs(
+                project=run.metadata.project,
+                labels=f"mlrun/runner-pod={_node_name}",
+            )[0]
+            _run["step_kind"] = _step_kind
+            steps.append(_run)
 
-        def _add_deploy_function_step(_, _node_template):
+        def _add_deploy_function_step(_, _node_template, _step_kind):
             project, name, hash_key = self._extract_function_uri(
                 _node_template["metadata"]["annotations"]["mlrun/function-uri"]
             )
@@ -428,12 +428,13 @@ class NotificationPusher(_NotificationPusherBase):
                     function["metadata"]["updated"] = function["metadata"][
                         "updated"
                     ].isoformat()
+                function["step_kind"] = _step_kind
                 steps.append(function)
 
         step_methods = {
-            mlrun.kfpops.PipelineRunType.run: _add_run_step,
-            mlrun.kfpops.PipelineRunType.build: _add_deploy_function_step,
-            mlrun.kfpops.PipelineRunType.deploy: _add_deploy_function_step,
+            mlrun_pipelines.common.ops.PipelineRunType.run: _add_run_step,
+            mlrun_pipelines.common.ops.PipelineRunType.build: _add_deploy_function_step,
+            mlrun_pipelines.common.ops.PipelineRunType.deploy: _add_deploy_function_step,
         }
 
         workflow_id = run.status.results.get("workflow_id", None)
@@ -464,7 +465,7 @@ class NotificationPusher(_NotificationPusherBase):
                 )
                 step_method = step_methods.get(step_type)
                 if step_method:
-                    step_method(node_name, node_template)
+                    step_method(node_name, node_template, step_type)
             return steps
         except Exception:
             # If we fail to read the pipeline steps, we will return the list of runs that have the same workflow id
@@ -481,7 +482,7 @@ class NotificationPusher(_NotificationPusherBase):
 
     @staticmethod
     def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
-        kfp_client = kfp.Client(namespace=mlrun.config.config.namespace)
+        kfp_client = kfp.Client(namespace=mlrun.mlconf.namespace)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

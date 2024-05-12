@@ -20,7 +20,6 @@ from io import StringIO
 from sys import stderr
 
 import pandas as pd
-from kubernetes import client
 
 import mlrun
 import mlrun.common.constants
@@ -278,43 +277,6 @@ def get_item_name(item, attr="name"):
         return item.get(attr)
     else:
         return getattr(item, attr, None)
-
-
-def apply_kfp(modify, cop, runtime):
-    modify(cop)
-
-    # Have to do it here to avoid circular dependencies
-    from .pod import AutoMountType
-
-    if AutoMountType.is_auto_modifier(modify):
-        runtime.spec.disable_auto_mount = True
-
-    api = client.ApiClient()
-    for k, v in cop.pod_labels.items():
-        runtime.metadata.labels[k] = v
-    for k, v in cop.pod_annotations.items():
-        runtime.metadata.annotations[k] = v
-    if cop.container.env:
-        env_names = [
-            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
-        ]
-        for e in api.sanitize_for_serialization(cop.container.env):
-            name = e["name"]
-            if name in env_names:
-                runtime.spec.env[env_names.index(name)] = e
-            else:
-                runtime.spec.env.append(e)
-                env_names.append(name)
-        cop.container.env.clear()
-
-    if cop.volumes and cop.container.volume_mounts:
-        vols = api.sanitize_for_serialization(cop.volumes)
-        mounts = api.sanitize_for_serialization(cop.container.volume_mounts)
-        runtime.spec.update_vols_and_mounts(vols, mounts)
-        cop.volumes.clear()
-        cop.container.volume_mounts.clear()
-
-    return runtime
 
 
 def verify_limits(

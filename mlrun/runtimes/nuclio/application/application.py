@@ -138,6 +138,14 @@ class ApplicationSpec(NuclioSpec):
 
 
 class ApplicationStatus(NuclioStatus):
+    _dict_fields = NuclioStatus._dict_fields + [
+        "application_image",
+        "sidecar_name",
+        "api_gateway_name",
+        "api_gateway",
+        "url",
+    ]
+
     def __init__(
         self,
         state=None,
@@ -202,6 +210,10 @@ class ApplicationRuntime(RemoteRuntime):
         if not self.status.api_gateway:
             self._sync_api_gateway()
         return self.status.api_gateway.invoke_url
+
+    @url.setter
+    def url(self, url):
+        self.status.url = url
 
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
@@ -379,6 +391,7 @@ class ApplicationRuntime(RemoteRuntime):
         self.status.api_gateway_name = api_gateway.metadata.name
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
+        self.url = self.status.api_gateway.invoke_url
 
     def invoke(
         self,
@@ -494,4 +507,4 @@ class ApplicationRuntime(RemoteRuntime):
         )
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
-        self.status.url = self.status.api_gateway.invoke_url
+        self.url = self.status.api_gateway.invoke_url

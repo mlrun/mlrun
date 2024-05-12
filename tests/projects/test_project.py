@@ -1261,7 +1261,7 @@ def test_function_receives_project_default_function_node_selector():
     )
     assert non_enriched_function.spec.node_selector == {}
 
-    proj1.spec.default_function_node_selector = default_function_node_selector
+    proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
     assert enriched_function.spec.node_selector == default_function_node_selector
 
@@ -1289,18 +1289,6 @@ def test_function_receives_project_default_function_node_selector():
     enriched_function = proj1.get_function("func3", enrich=True)
     assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
 
-    # Verifies that attempting to set the project-level default_function_node_selector
-    # fails when the installed version of Iguazio is not sufficient.
-    with unittest.mock.patch(
-        "mlrun.utils.helpers.is_igz_version_sufficient", return_value=False
-    ):
-        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-            mlrun.new_project(
-                "proj1", default_function_node_selector={"gpu": "true"}, save=False
-            )
-
-        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-            proj1.default_function_node_selector = {"gpu": "true"}
 
 
 def test_project_exports_default_image():

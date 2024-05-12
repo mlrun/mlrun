@@ -15,10 +15,12 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
+* Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class. See [Adding a data store profile](#adding-a-data-store-profile)
 
 **In this section**
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
 - [Data store profiles](#data-store-profiles)
+- [Alibaba Cloud Object Storage Service (OSS)](#alibaba-cloud-object-storage-service-oss)
 - [Azure data store](#azure-data-store)
 - [Databricks file system](#databricks-file-system)
 - [Google cloud storage](#google-cloud-storage)
@@ -97,26 +99,43 @@ Create a data store profile in the context of a project. Example of creating a R
 2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
-   `RedisNoSqlTarget(path="ds://profile-name/a/b")`<br>
-    If you want to use a profile from a different project, you can specify it 
-	explicitly in the URI using the format:<br>
-    `RedisNoSqlTarget(path="ds://another_project@profile-name")`
-
-
-To access a profile from the client/sdk, register the profile locally by calling
+   `RedisNoSqlTarget(path="ds://profile-name/a/b")`
+   
+More options:
+- To access a profile from the client/sdk, register the profile locally by calling
    `register_temporary_client_datastore_profile()` with a profile object.
-You can also choose to retrieve the public information of an already registered profile by calling 
+- You can also choose to retrieve the public information of an already registered profile by calling 
    `project.get_datastore_profile()` and then adding the private credentials before registering it locally.
-For example, using Redis:
-```python
-redis_profile = project.get_datastore_profile("my_profile")
-local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
-register_temporary_client_datastore_profile(local_redis_profile)
-```
+
+    For example, using Redis:
+    ```python
+    redis_profile = project.get_datastore_profile("my_profile")
+    local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
+    register_temporary_client_datastore_profile(local_redis_profile)
+    ```
 
 ```{admonition} Notes
 - Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
+
+See also:
+- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
+- {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
+- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
+- {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
+
+The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
+the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
+
+## Alibaba Cloud Object Storage Service (OSS)
+### Alibaba Cloud Object Storage Service credentials and parameters
+
+* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
+  parameters
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
+
+
+
 
 ## Azure data store
 
@@ -178,6 +197,7 @@ The equivalent to this parameter in environment authentication is "AZURE_STORAGE
 Credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
+- `container` &mdash; A string representing the container. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user. This parameter will become mandatory starting with version 1.9.
 
 ## Databricks file system 
 ### DBFS credentials and parameters
@@ -251,11 +271,10 @@ ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 - `port` &mdash; HDFS namenode port
 - `http_port` &mdash; WebHDFS port
 - `user` &mdash; User name. Only affects WebHDFS. When using Spark, or when this parameter is not defined, the user name is the value of the `HADOOP_USER_NAME` environment variable. If this environment variable is also not defined, the current user's user name is used. In Spark, this is evaluated at the time that the spark context is created.
->>>>>>> 728f9361 ([Docs] Re-arrange data store content (#5226))
-
 
 
 ## S3
+
 ### S3 credentials and parameters
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
@@ -311,14 +330,19 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 - `name` &mdash; Name of the profile
 - `v3io_access_key` &mdash; Optional. Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
 
-## See also
-- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
-- {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
-- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
-- {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
 
-The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
-the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
 
+% ## Adding a data store profile Return to doc when there are personas
+
+% If you already have a functioning datastore, integrating it with a datastore profile is straightforward. Follow these steps:
+% 1. Derive a new datastore profile class from the `DatastoreProfile` class. During this process, specify the datastore profile type. 
+%    This is usually the same as the schema associated with the datastore URL, although this is not strictly necessary.
+% 2. Incorporate all necessary parameters for accessing the datastore, ensuring they are appropriately classified as public or private.
+% 3. Implement two essential methods: `secrets()` and `url()`.
+%    - The `url()` method constructs a URL path to a specific object. It takes a 'subpath' parameter, which is the relative path to the object, 
+%    and returns the fully resolved URL that is used to access the object in the datastore.
+%    - The `secrets()` method returns a dictionary containing environment variables that are used when accessing the datastore.
+% 4. In the `create_from_json()` function, introduce factory settings for the newly created profile. Use the profile type as a key for these settings.
+	
 
 

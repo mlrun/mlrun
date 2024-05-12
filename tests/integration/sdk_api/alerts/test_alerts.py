@@ -208,10 +208,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         # test modifiers on the alert config
-        entity = alert_constants.EventEntity(
-            kind=alert_constants.EventEntityKind.MODEL, project=project_name, id="*"
+        entities = alert_constants.EventEntities(
+            kind=alert_constants.EventEntityKind.MODEL, project=project_name, ids=["*"]
         )
-        alert_from_template.with_entity(entity=entity)
+        alert_from_template.with_entities(entities=entities)
 
         notifications = [
             mlrun.common.schemas.Notification(
@@ -237,7 +237,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert_severity=drift_template.severity,
             alert_trigger=drift_template.trigger,
             alert_reset_policy=drift_template.reset_policy,
-            alert_entity=entity,
+            alert_entity=entities,
             alert_notifications=notifications,
         )
 
@@ -591,7 +591,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_reset_policy:
             assert alert.reset_policy == alert_reset_policy
         if alert_entity:
-            assert alert.entity == alert_entity
+            assert alert.entities == alert_entity
         if alert_notifications:
             assert alert.notifications == alert_notifications
 
@@ -599,7 +599,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _generate_event_request(project, event_kind, entity_kind):
         return mlrun.common.schemas.Event(
             kind=event_kind,
-            entity={"kind": entity_kind, "project": project, "id": 1234},
+            entity={"kind": entity_kind, "project": project, "ids": [1234]},
             value_dict={"value": 0.2},
         )
 
@@ -635,7 +635,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=name,
             summary=summary,
             severity=severity,
-            entity={"kind": entity_kind, "project": entity_project, "id": "*"},
+            entities={"kind": entity_kind, "project": entity_project, "ids": ["*"]},
             trigger={"events": [event_name]},
             criteria=criteria,
             notifications=notifications,

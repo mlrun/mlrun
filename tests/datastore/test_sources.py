@@ -13,15 +13,13 @@
 # limitations under the License.
 import pathlib
 import re
-from datetime import datetime
 
 import pandas as pd
 import pytest
-import pytz
 
 import mlrun.config
 from mlrun import new_function
-from mlrun.datastore import CSVSource, KafkaSource, ParquetSource
+from mlrun.datastore import CSVSource, KafkaSource
 
 
 def test_kafka_source_with_old_nuclio():

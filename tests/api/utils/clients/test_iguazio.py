@@ -25,7 +25,6 @@ import deepdiff
 import fastapi
 import pytest
 import requests_mock as requests_mock_package
-import semver
 import starlette.datastructures
 from aioresponses import CallbackResult
 from requests.cookies import cookiejar_from_dict
@@ -906,14 +905,15 @@ async def test_format_as_leader_project(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
 ):
+    project = _generate_project()
     with unittest.mock.patch(
-        "mlrun.mlconf.get_parsed_igz_version",
-        return_value=semver.VersionInfo.parse("3.5.5"),
+        "mlrun.utils.helpers.is_igz_version_sufficient",
+        return_value=True,
     ):
-        project = _generate_project()
-    iguazio_project = await maybe_coroutine(
-        iguazio_client.format_as_leader_project(project)
-    )
+        iguazio_project = await maybe_coroutine(
+            iguazio_client.format_as_leader_project(project)
+        )
+
     assert (
         deepdiff.DeepDiff(
             _build_project_response(iguazio_client, project, with_mlrun_project=True),

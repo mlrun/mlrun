@@ -1073,7 +1073,8 @@ class RunStatus(ModelObj):
         self.ui_url = ui_url
         self.reason = reason
         self.notifications = notifications or {}
-        self.artifact_uris = artifact_uris or []
+        # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
+        self.artifact_uris = artifact_uris or {}
 
     def is_failed(self) -> Optional[bool]:
         """

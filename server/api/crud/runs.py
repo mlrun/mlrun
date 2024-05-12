@@ -57,8 +57,19 @@ class Runs(
         )
 
         # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
-        # to avoid bloating the DB
-        self._strip_artifacts_metadata(data)
+        # to avoid bloating the DB.
+        data.setdefault("status", {}).setdefault("artifact_uris", {})
+        artifacts = data.get("status", {}).get("artifacts", [])
+        artifact_uris = {}
+        for artifact in artifacts:
+            artifact = mlrun.artifacts.dict_to_artifact(artifact)
+            artifact_uris[artifact.key] = artifact.uri
+
+        data["status"]["artifact_uris"] = (
+            data["status"]["artifact_uris"] | artifact_uris
+        )
+        data["status"].pop("artifacts", None)
+
         server.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,
@@ -79,8 +90,19 @@ class Runs(
         logger.debug("Updating run", project=project, uid=uid, iter=iter)
 
         # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
-        # to avoid bloating the DB
-        self._strip_artifacts_metadata(data)
+        # to avoid bloating the DB.
+        artifacts = data.get("status.artifacts", None)
+        artifact_uris = data.get("status.artifact_uris", None)
+        # If neither was given, nothing to do. Otherwise, we merge the two fields into artifact_uris.
+        if artifacts is not None or artifact_uris is not None:
+            artifacts = artifacts or []
+            artifact_uris = artifact_uris or {}
+            for artifact in artifacts:
+                artifact = mlrun.artifacts.dict_to_artifact(artifact)
+                artifact_uris[artifact.key] = artifact.uri
+
+            data["status.artifact_uris"] = artifact_uris
+        data.pop("status.artifacts", None)
 
         # TODO: Abort run moved to a separate endpoint, remove this section once in 1.8.0
         #  (once 1.5.x clients are not supported)
@@ -415,16 +437,3 @@ class Runs(
                 project,
                 uid,
             )
-
-    @staticmethod
-    def _strip_artifacts_metadata(run: dict):
-        artifacts = run.get("status", {}).get("artifacts", [])
-        artifact_uris = []
-        for artifact in artifacts:
-            if isinstance(artifact, dict):
-                artifact = mlrun.artifacts.dict_to_artifact(artifact)
-                artifact_uris.append(artifact.uri)
-
-        run["status"]["artifact_uris"] = list(
-            set(run["status"]["artifact_uris"]) | (set(artifact_uris))
-        )

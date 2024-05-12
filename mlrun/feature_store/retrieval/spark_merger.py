@@ -258,7 +258,7 @@ class SparkFeatureMerger(BaseMerger):
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
-
+        print(f"additional_filters in _get_engine_df in spark_merger: {additional_filters}")
         source = source_driver(
             name=self.vector.metadata.name,
             path=source_path,

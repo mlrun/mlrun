@@ -271,6 +271,11 @@ class Artifacts(
                 producer_id=producer_id,
                 object_uid=object_uid,
             )
+            artifact_kind = artifact["kind"]
+            if artifact_kind in ["model", "dataset", "dir"]:
+                raise mlrun.errors.MLRunNotImplementServerError(
+                    f"Deleting artifact data kind: {artifact_kind} is currently not supported"
+                )
             path = artifact["spec"]["target_path"]
             server.api.crud.Files().delete_artifact_data(
                 auth_info, project, path, secrets
@@ -288,6 +293,9 @@ class Artifacts(
                 deletion_strategy
                 == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
             ):
-                raise mlrun.errors.MLRunInternalServerError(
-                    "Failed to delete artifact data"
-                ) from exc
+                if type(exc) is mlrun.errors.MLRunNotImplementServerError:
+                    raise
+                else:
+                    raise mlrun.errors.MLRunInternalServerError(
+                        "Failed to delete artifact data"
+                    ) from exc

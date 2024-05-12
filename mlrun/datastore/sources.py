@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import operator
 import os
 import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from typing import Optional, Union
-import operator
+
 import numpy as np
 import pandas as pd
 import semver
@@ -314,6 +315,13 @@ class ParquetSource(BaseSourceDriver):
         end_time: Optional[Union[datetime, str]] = None,
         additional_filters: Optional[list[tuple]] = None,
     ):
+        if additional_filters:
+            additional_filters_dict = {"additional_filters": additional_filters}
+            if attributes:
+                attributes = dict(attributes)
+                attributes.update(additional_filters_dict)
+            else:
+                attributes = additional_filters_dict
         super().__init__(
             name,
             path,
@@ -324,7 +332,6 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
-        self.additional_filters = additional_filters
 
     @property
     def start_time(self):
@@ -341,6 +348,10 @@ class ParquetSource(BaseSourceDriver):
     @end_time.setter
     def end_time(self, end_time):
         self._end_time = self._convert_to_datetime(end_time)
+
+    @property
+    def additional_filters(self):
+        return self.attributes.get("additional_filters", None)
 
     @staticmethod
     def _convert_to_datetime(time):
@@ -362,13 +373,13 @@ class ParquetSource(BaseSourceDriver):
     ):
         import storey
 
-        attributes = self.attributes or {}
+        attributes = self.attributes.copy() or {}
+        attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
-
         return storey.ParquetSource(
             paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
@@ -416,8 +427,9 @@ class ParquetSource(BaseSourceDriver):
     def _get_spark_additional_filters(self, column_types: dict):
         if not self.additional_filters:
             return None
-
+        print(self.additional_filters)
         from pyspark.sql.functions import col, isnan, lit
+
         operators = {
             "==": operator.eq,
             "=": operator.eq,
@@ -425,10 +437,10 @@ class ParquetSource(BaseSourceDriver):
             "<": operator.lt,
             ">=": operator.ge,
             "<=": operator.le,
-            "!=": operator.ne
+            "!=": operator.ne,
         }
 
-        none_values = [None, np.nan, np.NaN, float('nan')]
+        none_values = [None, np.nan, np.NaN, float("nan")]
         spark_filter = None
         new_filter = lit(True)
         for filter_tuple in self.additional_filters:
@@ -446,18 +458,38 @@ class ParquetSource(BaseSourceDriver):
                     filter_nan = column_types[col_name] != "timestamp"
                     if value:
                         if op.lower() == "in":
-                            new_filter = col(col_name).isin(value) | col(col_name).isNull()
-                            new_filter = new_filter | isnan(col(col_name)) if filter_nan else new_filter
+                            new_filter = (
+                                col(col_name).isin(value) | col(col_name).isNull()
+                            )
+                            new_filter = (
+                                new_filter | isnan(col(col_name))
+                                if filter_nan
+                                else new_filter
+                            )
                         else:
-                            new_filter = ~col(col_name).isin(value) & ~col(col_name).isNull()
-                            new_filter = new_filter & ~isnan(col(col_name)) if filter_nan else new_filter
+                            new_filter = (
+                                ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            )
+                            new_filter = (
+                                new_filter & ~isnan(col(col_name))
+                                if filter_nan
+                                else new_filter
+                            )
                     else:
                         if op.lower() == "in":
                             new_filter = col(col_name).isNull()
-                            new_filter = new_filter & isnan(col(col_name)) if filter_nan else new_filter
+                            new_filter = (
+                                new_filter & isnan(col(col_name))
+                                if filter_nan
+                                else new_filter
+                            )
                         else:
                             new_filter = ~col(col_name).isNull() & ~isnan(col(col_name))
-                            new_filter = new_filter & ~isnan(col(col_name)) if filter_nan else new_filter
+                            new_filter = (
+                                new_filter & ~isnan(col(col_name))
+                                if filter_nan
+                                else new_filter
+                            )
                 else:
                     if op.lower() == "in":
                         new_filter = col(col_name).isin(value)
@@ -472,7 +504,9 @@ class ParquetSource(BaseSourceDriver):
         return spark_filter
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
-        spark_additional_filters = self._get_spark_additional_filters(column_types=dict(df.dtypes))
+        spark_additional_filters = self._get_spark_additional_filters(
+            column_types=dict(df.dtypes)
+        )
         if spark_additional_filters is not None:
             df = df.filter(spark_additional_filters)
         return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)

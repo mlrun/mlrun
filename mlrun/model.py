@@ -1058,7 +1058,7 @@ class RunStatus(ModelObj):
         ui_url=None,
         reason: str = None,
         notifications: Dict[str, Notification] = None,
-        artifact_uris: list[str] = None,
+        artifact_uris: dict[str] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text

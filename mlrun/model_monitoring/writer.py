@@ -122,25 +122,21 @@ class ModelMonitoringWriter(StepToDict):
     def _generate_event_on_drift(
         model_endpoint: str, drift_status: str, event_value: dict, project_name: str
     ) -> None:
-        if (
-            drift_status == ResultStatusApp.detected.value
-            or drift_status == ResultStatusApp.potential_detection.value
-        ):
-            logger.info("Sending an alert")
-            entity = mlrun.common.schemas.alert.EventEntities(
-                kind=alert_constants.EventEntityKind.MODEL,
-                project=project_name,
-                ids=[model_endpoint],
-            )
-            event_kind = (
-                alert_constants.EventKind.DRIFT_DETECTED
-                if drift_status == ResultStatusApp.detected.value
-                else alert_constants.EventKind.DRIFT_SUSPECTED
-            )
-            event_data = mlrun.common.schemas.Event(
-                kind=event_kind, entity=entity, value_dict=event_value
-            )
-            mlrun.get_run_db().generate_event(event_kind, event_data)
+        logger.info("Sending an alert")
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_constants.EventEntityKind.MODEL,
+            project=project_name,
+            ids=[model_endpoint],
+        )
+        event_kind = (
+            alert_constants.EventKind.DRIFT_DETECTED
+            if drift_status == ResultStatusApp.detected.value
+            else alert_constants.EventKind.DRIFT_SUSPECTED
+        )
+        event_data = mlrun.common.schemas.Event(
+            kind=event_kind, entity=entity, value_dict=event_value
+        )
+        mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, str]:
@@ -194,6 +190,11 @@ class ModelMonitoringWriter(StepToDict):
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
             and kind == WriterEventKind.RESULT
+            and (
+                event[ResultData.RESULT_STATUS] == ResultStatusApp.detected.value
+                or event[ResultData.RESULT_STATUS]
+                == ResultStatusApp.potential_detection.value
+            )
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             endpoint_record = self._endpoints_records.setdefault(

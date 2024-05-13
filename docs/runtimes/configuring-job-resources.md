@@ -1,4 +1,4 @@
-(configuring-job-resources)=
+ (configuring-job-resources)=
 # Configuring runs and functions
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
@@ -94,15 +94,15 @@ Configure requests and limits in the service's **Common Parameters** tab and in 
 ## Number of workers and GPUs
 
 For each Nuclio or serving function, MLRun creates an HTTP trigger with the default of 1 worker.  When using GPU in remote functions you must ensure 
-that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](#cpu-gpu-and-memory-limits-for-user-jobs).
+that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](#cpu-gpu-and-memory-requests-and-limits-for-user-jobs).
 
 You can change the number of workers after you create the trigger (function object), then you need to 
 redeploy the function. Examples of changing the number of workers:
 
-Using {py:meth}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_http`:</br>
+Using {py:meth}`~mlrun.runtimes.KubeResource.with_http`:</br>
 `serve.with_http(workers=8, worker_timeout=10)`
 
-Using {py:meth}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
+Using {py:meth}`~mlrun.runtimes.KubeResource.add_v3io_stream_trigger`:</br>
 `serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
 
 ## Volumes
@@ -142,7 +142,7 @@ You can specify a list of the v3io path to use and how they map inside the conta
 mlrun.mount_v3io(name='data',access_key='XYZ123..',volume_mounts=[mlrun.VolumeMount("/data", "projects/proj1/data")])
 ```
 
-See full details in {py:meth}`~#mlrun.platforms.mount_v3io`.
+See full details in {py:meth}`~mlrun.platforms.mount_v3io`.
 
 Alternatively, using a PVC volume:
 ```
@@ -200,27 +200,27 @@ it would have to be designed so that the job/function state will be saved when s
 
 ### Supported preemption modes
 
-Preemption mode has three values:
-- Allow: The function pod can run on a spot node if one is available.
-- Constrain: The function pod only runs on spot nodes, and does not run if none is available. 
-- Prevent: Default. The function pod cannot run on a spot node. 
+Preemption mode has these values:
+- allow: The function pod can run on a spot node if one is available.
+- constrain: The function pod only runs on spot nodes, and does not run if none is available. 
+- prevent: Default. The function pod cannot run on a spot node. 
+- none: No preemptible configuration is applied to the function
 
-To change the default function preemption mode, it is required to override mlrun the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREENPTION_MODE" envvar to either one of the above modes).
+To change the default function preemption mode, it is required to override the api configuration 
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" envvar to either one of the above modes).
 
 ### SDK configuration
 
-Configure preemption mode by adding the `with_preemption_mode` parameter in your Jupyter notebook, and specifying a mode from the list of values above. <br>
+Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter in your Jupyter notebook,  specifying a mode from the list of values above. <br>
 This example illustrates a function that cannot be scheduled on preemptible nodes:
 
 
 ```
-# Only run on non-spot instances
-fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
+# Can be scheduled on a preemptible (spot) node
+fn. with_preemption_mode("allow")
 ```
 
 And another function that can only be scheduled on preemptible noodes:
-
 
 ```
 import mlrun
@@ -231,11 +231,9 @@ train_fn = mlrun.code_to_function('training',
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="prevent") 
 train_fn.run(inputs={"dataset": my_data})
-   
 ```
 
-
-See {py:meth}`~#RemoteRuntime.with_preemption_mode.
+See {py:meth}`~KubeResource.with_preemption_mode.
 
 Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that 
 the pod/function runs only on non-preemptible nodes:
@@ -255,8 +253,8 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptib
 ```
 
 See:
-- py:meth}`~#mlrun.runtimes.RemoteRuntime.with_priority_class`
-- {py:meth}`~#mlrun.runtimes.RemoteRuntime.with_node_selection`
+- {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class`
+- {py:meth}`~mlrun.runtimes.KubeResource.with_node_selection`
 
 ### UI configuration
 
@@ -276,7 +274,9 @@ evictions in case the node’s memory is pressured (called Node-pressure Evictio
 
 Pod priority is relevant for all of the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
 
-Pod priority is specified through Priority classes, which map to a priority value. The priority values are: High, Medium, Low. The default is Medium. 
+Pod priority is specified through Priority classes, which map to a priority value. Use these to view the priority classes and the default:
+- `fn.list_valid_priority_class_names()`
+- `fn.get_default_priority_class_name()`
 
 ### SDK configuration
 
@@ -294,7 +294,7 @@ train_fn.run(inputs={"dataset" :my_data})
  
 ```
 
-See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_priority_class`.
+See {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class`.
 
 ### UI configuration
 
@@ -321,7 +321,7 @@ For example:
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
 ```
 
-See {py:meth}`~#mlrun.runtimes.RemoteRuntime.with_node_selection`.
+See {py:meth}`~#mlrun.runtimes.KubeResource.with_node_selection`.
 
 ### UI configuration
 ```{admonition} Note
@@ -355,7 +355,6 @@ fn.apply(mlrun.mount_v3io())
 fn.apply(mlrun.platforms.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
 ```
 
-
 ## Preventing stuck pods
 
 The runtimes spec has four "state_threshold" attributes that can determine when to abort a run. 
@@ -388,4 +387,3 @@ See {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
 ```{admonition} Note
 State thresholds are not supported for Nuclio/serving runtimes (since they have their own monitoring) or for the Dask runtime (which can be monitored by the client).
 ```
-

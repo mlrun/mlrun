@@ -15,7 +15,7 @@
 from typing import Union
 
 import mlrun
-import mlrun.common.schemas.alert as alert_constants
+import mlrun.common.schemas.alert as alert_objects
 from mlrun.model import ModelObj
 
 
@@ -35,17 +35,17 @@ class AlertConfig(ModelObj):
         self,
         project: str = None,
         name: str = None,
-        template: Union[alert_constants.AlertTemplate, str] = None,
+        template: Union[alert_objects.AlertTemplate, str] = None,
         description: str = None,
         summary: str = None,
-        severity: alert_constants.AlertSeverity = None,
-        trigger: alert_constants.AlertTrigger = None,
-        criteria: alert_constants.AlertCriteria = None,
-        reset_policy: alert_constants.ResetPolicy = None,
-        notifications: list[alert_constants.AlertNotification] = None,
-        entities: alert_constants.EventEntities = None,
+        severity: alert_objects.AlertSeverity = None,
+        trigger: alert_objects.AlertTrigger = None,
+        criteria: alert_objects.AlertCriteria = None,
+        reset_policy: alert_objects.ResetPolicy = None,
+        notifications: list[alert_objects.AlertNotification] = None,
+        entities: alert_objects.EventEntities = None,
         id: int = None,
-        state: alert_constants.AlertActiveState = None,
+        state: alert_objects.AlertActiveState = None,
         created: str = None,
         count: int = None,
     ):
@@ -96,30 +96,27 @@ class AlertConfig(ModelObj):
 
         entity_data = struct.get("entities")
         if entity_data:
-            entity_obj = alert_constants.EventEntities.parse_obj(entity_data)
+            entity_obj = alert_objects.EventEntities.parse_obj(entity_data)
             new_obj.entities = entity_obj
 
         notifications_data = struct.get("notifications")
         if notifications_data:
             notifications_objs = [
-                alert_constants.AlertNotification.parse_obj(notification)
+                alert_objects.AlertNotification.parse_obj(notification)
                 for notification in notifications_data
             ]
             new_obj.notifications = notifications_objs
 
         trigger_data = struct.get("trigger")
         if trigger_data:
-            trigger_obj = alert_constants.AlertTrigger.parse_obj(trigger_data)
+            trigger_obj = alert_objects.AlertTrigger.parse_obj(trigger_data)
             new_obj.trigger = trigger_obj
 
         return new_obj
 
-    def with_notifications(
-        self, notifications: list[alert_constants.AlertNotification]
-    ):
+    def with_notifications(self, notifications: list[alert_objects.AlertNotification]):
         if not isinstance(notifications, list) or not all(
-            isinstance(item, alert_constants.AlertNotification)
-            for item in notifications
+            isinstance(item, alert_objects.AlertNotification) for item in notifications
         ):
             raise ValueError(
                 "Notifications parameter must be a list of AlertNotification"
@@ -128,8 +125,8 @@ class AlertConfig(ModelObj):
             self.notifications.append(notification_data)
         return self
 
-    def with_entities(self, entities: alert_constants.EventEntities):
-        if not isinstance(entities, alert_constants.EventEntities):
+    def with_entities(self, entities: alert_objects.EventEntities):
+        if not isinstance(entities, alert_objects.EventEntities):
             raise ValueError("Entities parameter must be of type: EventEntities")
         self.entities = entities
         return self

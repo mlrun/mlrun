@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
+
+import json
 from dataclasses import dataclass
-from typing import Final, Optional, Protocol, cast
+from typing import Final, Optional, Protocol, Union, cast
 
 import numpy as np
 from pandas import DataFrame, Series
@@ -90,9 +91,27 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
     """
     MLRun's default data drift application for model monitoring.
 
-    The application calculates the metrics over the features' histograms.
-    Each metric is calculated over all the features, the mean is taken,
-    and the status is returned.
+    The application expects tabular numerical data, and calculates three metrics over the features' histograms.
+    The three metrics are:
+
+    * Hellinger distance.
+    * Total variance distance.
+    * Kullback-Leibler divergence.
+
+    Each metric is calculated over all the features individually and the mean is taken as the metric value.
+    The average of Hellinger and total variance distance is taken as the result.
+
+    The application logs two artifacts:
+
+    * A JSON with the general drift per feature.
+    * A plotly table different metrics per feature.
+
+    This application is deployed by default when calling:
+
+    .. code-block:: python
+
+        project.enable_model_monitoring()
+
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
@@ -107,8 +126,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
 
     def __init__(self, value_classifier: Optional[ValueClassifier] = None) -> None:
         """
-        Initialize the data drift application.
-
         :param value_classifier: Classifier object that adheres to the `ValueClassifier` protocol.
                                  If not provided, the default `DataDriftClassifier()` is used.
         """
@@ -146,35 +163,46 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
 
         return metrics_per_feature
 
-    def _add_general_drift_result(
+    def _get_general_drift_result(
         self,
         metrics: list[mm_results.ModelMonitoringApplicationMetric],
-    ) -> None:
-        """Add the general drift result to the results list and log it"""
-        value = np.mean(
-            [
-                metric.value
-                for metric in metrics
-                if metric.name
-                in [
-                    f"{HellingerDistance.NAME}_mean",
-                    f"{TotalVarianceDistance.NAME}_mean",
+        monitoring_context: mm_context.MonitoringApplicationContext,
+        metrics_per_feature: DataFrame,
+    ) -> mm_results.ModelMonitoringApplicationResult:
+        """Get the general drift result from the metrics list"""
+        value = cast(
+            float,
+            np.mean(
+                [
+                    metric.value
+                    for metric in metrics
+                    if metric.name
+                    in [
+                        f"{HellingerDistance.NAME}_mean",
+                        f"{TotalVarianceDistance.NAME}_mean",
+                    ]
                 ]
-            ]
+            ),
         )
 
         status = self._value_classifier.value_to_status(value)
-        metrics.append(
-            mm_results.ModelMonitoringApplicationResult(
-                name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
-                value=value,
-                kind=ResultKindApp.data_drift,
-                status=status,
-            )
+        return mm_results.ModelMonitoringApplicationResult(
+            name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
+            value=value,
+            kind=ResultKindApp.data_drift,
+            status=status,
+            extra_data={
+                EventFieldType.CURRENT_STATS: json.dumps(
+                    monitoring_context.feature_stats
+                ),
+                EventFieldType.DRIFT_MEASURES: metrics_per_feature.T.to_json(),
+                EventFieldType.DRIFT_STATUS: status.value,
+            },
         )
 
+    @staticmethod
     def _get_metrics(
-        self, metrics_per_feature: DataFrame
+        metrics_per_feature: DataFrame,
     ) -> list[mm_results.ModelMonitoringApplicationMetric]:
         """Average the metrics over the features and add the status"""
         metrics: list[mm_results.ModelMonitoringApplicationMetric] = []
@@ -206,8 +234,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             del sample_set_statistics[EventFieldType.TIMESTAMP]
         return sample_set_statistics
 
+    @staticmethod
     def _log_json_artifact(
-        self,
         drift_per_feature_values: Series,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> None:
@@ -247,7 +275,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             mm_drift_table.FeaturesDriftTablePlot().produce(
                 sample_set_statistics=sample_set_statistics,
                 inputs_statistics=inputs_statistics,
-                metrics=metrics_per_feature.T.to_dict(),
+                metrics=metrics_per_feature.T.to_dict(),  # pyright: ignore[reportArgumentType]
                 drift_results=drift_results,
             )
         )
@@ -281,7 +309,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> list[
-        typing.Union[
+        Union[
             mm_results.ModelMonitoringApplicationResult,
             mm_results.ModelMonitoringApplicationMetric,
         ]
@@ -308,15 +336,13 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             metrics_per_feature=metrics_per_feature,
         )
         monitoring_context.logger.debug("Computing average per metric")
-        metrics_and_result: list[
-            typing.Union[
-                mm_results.ModelMonitoringApplicationMetric,
-                mm_results.ModelMonitoringApplicationResult,
-            ]
-        ] = self._get_metrics(metrics_per_feature)
-        self._add_general_drift_result(
-            metrics=metrics_and_result,
+        metrics = self._get_metrics(metrics_per_feature)
+        result = self._get_general_drift_result(
+            metrics=metrics,
+            monitoring_context=monitoring_context,
+            metrics_per_feature=metrics_per_feature,
         )
+        metrics_and_result = metrics + [result]
         monitoring_context.logger.debug(
             "Finished running the application", results=metrics_and_result
         )

@@ -273,9 +273,18 @@ class Artifacts(
                 producer_id=producer_id,
                 object_uid=object_uid,
             )
+
+            # Data artifacts that are ModelArtifact, DirArtifact, or DatasetArtifact
+            # must not be removed because we do not yet support the deletion of artifacts that contain multiple files
+            # TODO: must be removed once it is supported
+            artifact_kind = artifact["kind"]
+            if artifact_kind in ["model", "dataset", "dir"]:
+                raise mlrun.errors.MLRunNotImplementedServerError(
+                    f"Deleting artifact data kind: {artifact_kind} is currently not supported"
+                )
             path = artifact["spec"]["target_path"]
             server.api.crud.Files().delete_artifact_data(
-                auth_info, project, path, secrets
+                auth_info, project, path, secrets=secrets
             )
         except Exception as exc:
             logger.debug(
@@ -290,6 +299,4 @@ class Artifacts(
                 deletion_strategy
                 == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
             ):
-                raise mlrun.errors.MLRunInternalServerError(
-                    "Failed to delete artifact data"
-                ) from exc
+                raise

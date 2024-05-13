@@ -148,21 +148,21 @@ class Runs(
             db_session, uid, project, iter
         )
 
-        artifact_uris = run.get("status", {}).get("artifact_uris", {})
-        artifacts = []
-        for key, uri in artifact_uris.items():
-            _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, tree = mlrun.utils.parse_artifact_uri(
-                uri, project
-            )
-            artifact = server.api.crud.Artifacts().get_artifact(
-                db_session, key, tag, iteration, project
-            )
-            artifacts.append(artifact)
+        producer_uri = None
+        producer_id = run["metadata"]["labels"].get("workflow")
+        if not producer_id:
+            producer_id = run["metadata"]["uid"]
+        else:
+            producer_uri = f"{project}/{run['metadata']['uid']}"
 
-        if artifacts:
-            run.setdefault("status", {})
-            run["status"]["artifacts"] = artifacts
+        artifacts = server.api.crud.Artifacts().list_artifacts(
+            db_session,
+            producer_id=producer_id,
+            producer_uri=producer_uri,
+            project=project,
+        )
+        run.setdefault("status", {})
+        run["status"]["artifacts"] = artifacts
 
         return run
 

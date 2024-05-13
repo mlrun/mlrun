@@ -40,6 +40,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": "uid",
                     "labels": {
                         "kind": "job",
                     },
@@ -238,6 +239,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": run_uid,
                     "labels": {
                         "kind": "job",
                     },
@@ -393,25 +395,115 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         run_uid = str(uuid.uuid4())
         artifacts = [
             {
+                "kind": "artifact",
                 "metadata": {
                     "key": "key1",
-                    "tree": "tree1",
+                    "tree": run_uid,
                     "uid": "uid1",
                     "project": project,
+                    "iter": None,
                 },
                 "spec": {
                     "db_key": "db_key1",
+                },
+                "status": {},
+            },
+            {
+                "kind": "artifact",
+                "metadata": {
+                    "key": "key3",
+                    "tree": run_uid,
+                    "uid": "uid3",
+                    "project": project,
+                    "iter": None,
+                },
+                "spec": {
+                    "db_key": "db_key3",
+                },
+                "status": {},
+            },
+        ]
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert "artifacts" in run["status"]
+        enriched_artifacts = list(run["status"]["artifacts"])
+
+        def sort_by_key(e):
+            return e["metadata"]["key"]
+
+        enriched_artifacts.sort(key=sort_by_key)
+        artifacts.sort(key=sort_by_key)
+        for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
+            assert (
+                deepdiff.DeepDiff(
+                    artifact,
+                    enriched_artifact,
+                    exclude_paths="root['metadata']['tag']",
+                )
+                == {}
+            )
+
+    def test_get_workflow_run_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        artifacts = [
+            {
+                "metadata": {
+                    "key": "key1",
+                    "tree": workflow_uid,
+                    "uid": "uid1",
+                    "project": project,
+                    "iter": None,
+                },
+                "spec": {
+                    "db_key": "db_key1",
+                    "producer": {
+                        "uri": f"{project}/{run_uid}",
+                    },
                 },
             },
             {
                 "metadata": {
                     "key": "key3",
-                    "tree": "tree3",
+                    "tree": workflow_uid,
                     "uid": "uid3",
                     "project": project,
+                    "iter": None,
                 },
                 "spec": {
                     "db_key": "db_key3",
+                    "producer": {
+                        "uri": f"{project}/{run_uid}",
+                    },
                 },
             },
         ]
@@ -429,14 +521,13 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": run_uid,
                     "labels": {
                         "kind": "job",
+                        "workflow": workflow_uid,
                     },
                 },
                 "status": {
-                    "artifact_uris": {
-                        "key1": "this should be replaced",
-                    },
                     "artifacts": artifacts,
                 },
             },
@@ -446,4 +537,19 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
 
         run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
         assert "artifacts" in run["status"]
-        assert deepdiff.DeepDiff(run["status"]["artifacts"], artifacts) == {}
+        enriched_artifacts = list(run["status"]["artifacts"])
+
+        def sort_by_key(e):
+            return e["metadata"]["key"]
+
+        enriched_artifacts.sort(key=sort_by_key)
+        artifacts.sort(key=sort_by_key)
+        for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
+            assert (
+                deepdiff.DeepDiff(
+                    artifact,
+                    enriched_artifact,
+                    exclude_paths="root['metadata']['tag']",
+                )
+                == {}
+            )

@@ -91,9 +91,27 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
     """
     MLRun's default data drift application for model monitoring.
 
-    The application calculates the metrics over the features' histograms.
-    Each metric is calculated over all the features, the mean is taken,
-    and the status is returned.
+    The application expects tabular numerical data, and calculates three metrics over the features' histograms.
+    The three metrics are:
+
+    * Hellinger distance.
+    * Total variance distance.
+    * Kullback-Leibler divergence.
+
+    Each metric is calculated over all the features individually and the mean is taken as the metric value.
+    The average of Hellinger and total variance distance is taken as the result.
+
+    The application logs two artifacts:
+
+    * A JSON with the general drift per feature.
+    * A plotly table different metrics per feature.
+
+    This application is deployed by default when calling:
+
+    .. code-block:: python
+
+        project.enable_model_monitoring()
+
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
@@ -108,8 +126,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
 
     def __init__(self, value_classifier: Optional[ValueClassifier] = None) -> None:
         """
-        Initialize the data drift application.
-
         :param value_classifier: Classifier object that adheres to the `ValueClassifier` protocol.
                                  If not provided, the default `DataDriftClassifier()` is used.
         """

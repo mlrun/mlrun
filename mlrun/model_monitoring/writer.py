@@ -19,7 +19,6 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
     HistogramDataDriftApplicationConstants,
@@ -228,7 +227,7 @@ class ModelMonitoringWriter(StepToDict):
                 "data drift app",
                 endpoint_id=endpoint_id,
             )
-            store = mlrun.model_monitoring.db.get_store_object(project=self.project)
+            store = mlrun.model_monitoring.get_store_object(project=self.project)
             store.update_model_endpoint(
                 endpoint_id=endpoint_id,
                 attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),

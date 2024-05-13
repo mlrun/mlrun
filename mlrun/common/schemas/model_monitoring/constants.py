@@ -233,6 +233,7 @@ class MonitoringTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"
+    PREDICTIONS = "predictions"
 
 
 @dataclass

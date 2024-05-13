@@ -165,8 +165,8 @@ class V3IOTSDBConnector(TSDBConnector):
             index_cols=[
                 mm_constants.EventFieldType.ENDPOINT_ID,
             ],
-            aggrs="count,avg",
-            aggregation_granularity="1m",
+            aggr="count,avg",
+            aggr_granularity="1m",
             max_events=tsdb_batching_max_events,
             flush_after_seconds=tsdb_batching_timeout_secs,
             key=mm_constants.EventFieldType.ENDPOINT_ID,

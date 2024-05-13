@@ -141,12 +141,30 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().read_run(
+        run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
+
+        artifact_uris = run.get("status", {}).get("artifact_uris", {})
+        artifacts = []
+        for key, uri in artifact_uris.items():
+            _, uri = mlrun.datastore.parse_store_uri(uri)
+            project, key, iteration, tag, tree = mlrun.utils.parse_artifact_uri(
+                uri, project
+            )
+            artifact = server.api.crud.Artifacts().get_artifact(
+                db_session, key, tag, iteration, project
+            )
+            artifacts.append(artifact)
+
+        if artifacts:
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
+
+        return run
 
     def list_runs(
         self,

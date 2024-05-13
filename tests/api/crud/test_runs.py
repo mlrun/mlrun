@@ -15,6 +15,7 @@
 import unittest.mock
 import uuid
 
+import deepdiff
 import pytest
 import sqlalchemy.orm
 from kubernetes import client as k8s_client
@@ -307,7 +308,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
 
-        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        runs = server.api.crud.Runs().list_runs(db, project=project)
+        assert len(runs) == 1
+        run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
             "key1": "store://artifacts/project-name/db_key1@tree1",
@@ -375,10 +378,72 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             },
         )
 
-        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        runs = server.api.crud.Runs().list_runs(db, project=project)
+        assert len(runs) == 1
+        run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
             "key1": "store://artifacts/project-name/db_key1@tree1",
             "key2": "store://artifacts/project-name/db_key2@tree2",
             "key3": "store://artifacts/project-name/db_key3@tree3",
         }
+
+    def test_get_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = [
+            {
+                "metadata": {
+                    "key": "key1",
+                    "tree": "tree1",
+                    "uid": "uid1",
+                    "project": project,
+                },
+                "spec": {
+                    "db_key": "db_key1",
+                },
+            },
+            {
+                "metadata": {
+                    "key": "key3",
+                    "tree": "tree3",
+                    "uid": "uid3",
+                    "project": project,
+                },
+                "spec": {
+                    "db_key": "db_key3",
+                },
+            },
+        ]
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+                "status": {
+                    "artifact_uris": {
+                        "key1": "this should be replaced",
+                    },
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert "artifacts" in run["status"]
+        assert deepdiff.DeepDiff(run["status"]["artifacts"], artifacts) == {}

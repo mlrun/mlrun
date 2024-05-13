@@ -279,7 +279,7 @@ jobs:
           
   update-demos:
     name: Bundle demos
-    needs: [ prepare-inputs ]
+    needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

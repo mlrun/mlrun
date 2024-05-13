@@ -277,7 +277,7 @@ class Artifacts(
             # TODO: must be removed once it is supported
             artifact_kind = artifact["kind"]
             if artifact_kind in ["model", "dataset", "dir"]:
-                raise mlrun.errors.MLRunNotImplementServerError(
+                raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
             path = artifact["spec"]["target_path"]
@@ -297,9 +297,4 @@ class Artifacts(
                 deletion_strategy
                 == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
             ):
-                if isinstance(exc, mlrun.errors.MLRunNotImplementServerError):
-                    raise
-                else:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Failed to delete artifact data"
-                    ) from exc
+                raise

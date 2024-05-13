@@ -274,7 +274,7 @@ def test_fails_deleting_artifact_data(
 
     with unittest.mock.patch(
         "server.api.crud.files.Files.delete_artifact_data",
-        side_effect=Exception("some error"),
+        side_effect=mlrun.errors.MLRunInternalServerError("some error"),
     ):
         resp = unversioned_client.delete(
             url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)

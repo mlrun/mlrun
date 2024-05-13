@@ -156,7 +156,7 @@ class V3IOTSDBConnector(TSDBConnector):
             "storey.TSDBTarget",
             name="tsdb_predictions",
             after="MapFeatureNames",
-            path=f"{self.container}/{self.tables[mm_constants.MonitoringTSDBTables.PREDICTIONS]}",
+            path=f"{self.container}/{self.tables[mm_constants.FileTargetKind.PREDICTIONS]}",
             rate="1/s",
             time_col=mm_constants.EventFieldType.TIMESTAMP,
             container=self.container,

@@ -184,8 +184,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             },
         )
 
+    @staticmethod
     def _get_metrics(
-        self, metrics_per_feature: DataFrame
+        metrics_per_feature: DataFrame,
     ) -> list[mm_results.ModelMonitoringApplicationMetric]:
         """Average the metrics over the features and add the status"""
         metrics: list[mm_results.ModelMonitoringApplicationMetric] = []
@@ -217,8 +218,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             del sample_set_statistics[EventFieldType.TIMESTAMP]
         return sample_set_statistics
 
+    @staticmethod
     def _log_json_artifact(
-        self,
         drift_per_feature_values: Series,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> None:

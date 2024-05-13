@@ -188,6 +188,7 @@ class SchedulingKeys:
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
+    PREDICTIONS = "endpoints"
     STREAM = "stream"
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
@@ -233,7 +234,6 @@ class MonitoringTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"
-    PREDICTIONS = "predictions"
 
 
 @dataclass

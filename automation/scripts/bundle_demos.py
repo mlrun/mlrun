@@ -13,16 +13,19 @@
 # limitations under the License.
 #
 import os
-import tarfile
-from git import Repo
 import shutil
-import requests
+import tarfile
+
+from git import Repo
 
 # List of repositories to archive
 repos = [
     {"url": "https://github.com/mlrun/demo-azure-ML.git", "name": "demo-azure-ML"},
     {"url": "https://github.com/mlrun/demo-fraud.git", "name": "demo-fraud"},
-    {"url": "https://github.com/mlrun/demo-mask-detection.git", "name": "demo-mask-detection"},
+    {
+        "url": "https://github.com/mlrun/demo-mask-detection.git",
+        "name": "demo-mask-detection",
+    },
     # Add more repositories as needed
 ]
 
@@ -46,12 +49,12 @@ for repo_info in repos:
         print(e)
 
 # Copying update_demos.sh from mlrun
-shutil.copyfile('automation/scripts/update_demos.sh', 'demos/update_demos.sh')
-    
+shutil.copyfile("automation/scripts/update_demos.sh", "demos/update_demos.sh")
+
 # Create a tar archive of the temporary directory
 with tarfile.open("mlrun-demos.tar", "w") as tar:
     tar.add(temp_dir, arcname=os.path.basename(temp_dir))
-    
+
 print("Archive created successfully!")
 
 # Cleanup: Delete the temporary directory

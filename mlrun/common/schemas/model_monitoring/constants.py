@@ -188,7 +188,7 @@ class SchedulingKeys:
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
-    PREDICTIONS = "endpoints"
+    PREDICTIONS = "predictions"
     STREAM = "stream"
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"

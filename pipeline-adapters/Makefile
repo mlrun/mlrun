@@ -1,5 +1,8 @@
 PACKAGES := mlrun-pipelines-kfp-common mlrun-pipelines-kfp-v1-8 mlrun-pipelines-kfp-v2
 
+TWINE_USERNAME ?= __token__
+TWINE_PASSWORD ?= "replace with your token"
+
 .PHONY: build release clean
 
 build:
@@ -12,7 +15,7 @@ build:
 release:
 	@for pkg in $(PACKAGES); do \
         echo "Releasing $$pkg to PyPI"; \
-        cd $$pkg && twine upload dist/*; \
+        cd $$pkg && TWINE_USERNAME=$(TWINE_USERNAME) TWINE_PASSWORD=$(TWINE_PASSWORD) twine upload dist/*; \
         cd ..; \
     done
 

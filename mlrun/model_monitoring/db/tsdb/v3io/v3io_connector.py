@@ -98,8 +98,16 @@ class V3IOTSDBConnector(TSDBConnector):
         self.tables[mm_constants.MonitoringTSDBTables.METRICS] = (
             monitoring_application_path + mm_constants.MonitoringTSDBTables.METRICS
         )
+
+        monitoring_endpoints_full_path = (
+            mlrun.mlconf.get_model_monitoring_file_target_path(
+                project=self.project,
+                kind=mm_constants.FileTargetKind.ENDPOINTS,
+            )
+        )
         self.tables[mm_constants.MonitoringTSDBTables.PREDICTIONS] = (
-            monitoring_application_path + mm_constants.MonitoringTSDBTables.PREDICTIONS
+            monitoring_endpoints_full_path
+            + mm_constants.MonitoringTSDBTables.PREDICTIONS
         )
 
     def create_tsdb_application_tables(self):

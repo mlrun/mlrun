@@ -393,36 +393,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     def test_get_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):
         project = "project-name"
         run_uid = str(uuid.uuid4())
-        artifacts = [
-            {
-                "kind": "artifact",
-                "metadata": {
-                    "key": "key1",
-                    "tree": run_uid,
-                    "uid": "uid1",
-                    "project": project,
-                    "iter": None,
-                },
-                "spec": {
-                    "db_key": "db_key1",
-                },
-                "status": {},
-            },
-            {
-                "kind": "artifact",
-                "metadata": {
-                    "key": "key3",
-                    "tree": run_uid,
-                    "uid": "uid3",
-                    "project": project,
-                    "iter": None,
-                },
-                "spec": {
-                    "db_key": "db_key3",
-                },
-                "status": {},
-            },
-        ]
+        artifacts = self._generate_artifacts(project, run_uid)
 
         for artifact in artifacts:
             server.api.crud.Artifacts().store_artifact(
@@ -450,24 +421,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
 
-        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
-        assert "artifacts" in run["status"]
-        enriched_artifacts = list(run["status"]["artifacts"])
-
-        def sort_by_key(e):
-            return e["metadata"]["key"]
-
-        enriched_artifacts.sort(key=sort_by_key)
-        artifacts.sort(key=sort_by_key)
-        for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
-            assert (
-                deepdiff.DeepDiff(
-                    artifact,
-                    enriched_artifact,
-                    exclude_paths="root['metadata']['tag']",
-                )
-                == {}
-            )
+        self._validate_run_artifacts(artifacts, db, project, run_uid)
 
     def test_get_workflow_run_restore_artifacts_metadata(
         self, db: sqlalchemy.orm.Session
@@ -475,38 +429,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         workflow_uid = str(uuid.uuid4())
-        artifacts = [
-            {
-                "metadata": {
-                    "key": "key1",
-                    "tree": workflow_uid,
-                    "uid": "uid1",
-                    "project": project,
-                    "iter": None,
-                },
-                "spec": {
-                    "db_key": "db_key1",
-                    "producer": {
-                        "uri": f"{project}/{run_uid}",
-                    },
-                },
-            },
-            {
-                "metadata": {
-                    "key": "key3",
-                    "tree": workflow_uid,
-                    "uid": "uid3",
-                    "project": project,
-                    "iter": None,
-                },
-                "spec": {
-                    "db_key": "db_key3",
-                    "producer": {
-                        "uri": f"{project}/{run_uid}",
-                    },
-                },
-            },
-        ]
+        artifacts = self._generate_artifacts(project, run_uid, workflow_uid)
 
         for artifact in artifacts:
             server.api.crud.Artifacts().store_artifact(
@@ -535,6 +458,34 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
 
+        self._validate_run_artifacts(artifacts, db, project, run_uid)
+
+    @staticmethod
+    def _generate_artifacts(project, run_uid, workflow_uid=None, artifacts_len=2):
+        artifacts = []
+        i = 0
+        while len(artifacts) < artifacts_len:
+            artifacts.append(
+                {
+                    "kind": "artifact",
+                    "metadata": {
+                        "key": f"key{i}",
+                        "tree": workflow_uid or run_uid,
+                        "uid": f"uid{i}",
+                        "project": project,
+                        "iter": None,
+                    },
+                    "spec": {
+                        "db_key": f"db_key{i}",
+                    },
+                    "status": {},
+                }
+            )
+            i += 1
+        return artifacts
+
+    @staticmethod
+    def _validate_run_artifacts(artifacts, db, project, run_uid):
         run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
         assert "artifacts" in run["status"]
         enriched_artifacts = list(run["status"]["artifacts"])

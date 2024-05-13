@@ -286,10 +286,10 @@ jobs:
       - name: install prerequisits
         run: |
           pip install gitpython
-      - name: Create tutorials tar
+      - name: Create mlrun demos tar
         run: |
           python automation/scripts/bundle_demos.py
-      - name: Add tutorials tar to release
+      - name: Add mlrun-demos tar to release
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true

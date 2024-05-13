@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.3](#v1-6-3-13-may-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.3](#v1-6-3-14-may-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -13,7 +13,7 @@
 - [Deprecations and removed code](#deprecations-and-removed-code)
  
 
-## v1.6.3 (13 May 2024)
+## v1.6.3 (14 May 2024)
 
 ### Workflows
 | ID          |Description                                                               |
@@ -41,7 +41,8 @@
 |ML-6045|UI: User-filters return all of the matching users.|
 |ML-6048|UI: An admin user can now change its role in the project. |  
 |ML-6051|UI: After an admin user deletes itself from a project, the user is redirected.|
-
+|ML-6384|Improved resource consumption of list runs with partitioning query |
+|ML-6397|Artifacts are no longer stored in the run body in the DB, instead a map of artifact keys to URIs is maintained.|
 
 
 ## v1.6.2 (29 March 2024)

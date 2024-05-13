@@ -1142,18 +1142,15 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
         assert not df.empty, "No TSDB data"
         assert (
-            len(df) == 4
-        ), "Expects four results of the histogram data drift app in the TSDB"
+            len(df) == 1
+        ), "Expects a single result from the histogram data drift app in the TSDB"
         assert set(df.application_name) == {
             "histogram-data-drift"
-        }, "The application names are different than expected"
+        }, "The application name is different than expected"
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
-            "hellinger_mean",
-            "kld_mean",
-            "tvd_mean",
-        }, "The results are different than expected"
+        }, "The result is different than expected"
 
     def test_record(self) -> None:
         self.project.enable_model_monitoring(

@@ -22,3 +22,6 @@ mlrun.model_monitoring
    :members:
    :exclude-members: do
 
+.. automodule:: mlrun.model_monitoring.applications.histogram_data_drift
+   :members:
+

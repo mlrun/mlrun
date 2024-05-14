@@ -555,7 +555,7 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[list[str]] = None,
         features: bool = False,
-    ):
+    ) -> mlrun.model_monitoring.ModelEndpoint:
         pass
 
     @abstractmethod

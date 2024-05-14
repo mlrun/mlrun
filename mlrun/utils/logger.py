@@ -224,7 +224,7 @@ class FormatterKinds(Enum):
 
 def resolve_formatter_by_kind(
     formatter_kind: FormatterKinds,
-) -> typing.Type[
+) -> type[
     typing.Union[HumanReadableFormatter, HumanReadableExtendedFormatter, JSONFormatter]
 ]:
     return {

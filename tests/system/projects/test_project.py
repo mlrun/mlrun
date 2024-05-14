@@ -650,14 +650,12 @@ class TestProject(TestMLRunSystem):
             engine="remote",
             watch=True,
             notification_steps={
-                # workflow runner, summary, train, test and model testing steps
-                "run": 5,
-                # gen data step
-                "job": 1,
+                # gen data function build step
+                "build": 1,
+                # workflow runner, gen data, summary, train, test and model testing steps
+                "run": 6,
                 # serving step
-                "serving": 1,
-                # gen data function build step (doesn't have a `kind` field)
-                None: 1,
+                "deploy": 1,
             },
         )
         self._test_remote_pipeline_from_github(
@@ -1585,7 +1583,7 @@ class TestProject(TestMLRunSystem):
         )[0]
         notification_data_steps = {}
         for step in notification_data:
-            notification_data_steps.setdefault(step.get("kind"), 0)
-            notification_data_steps[step.get("kind")] += 1
+            notification_data_steps.setdefault(step.get("step_kind"), 0)
+            notification_data_steps[step.get("step_kind")] += 1
 
         assert notification_data_steps == notification_steps

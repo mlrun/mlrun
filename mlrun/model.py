@@ -1207,6 +1207,7 @@ class RunStatus(ModelObj):
         ui_url=None,
         reason: str = None,
         notifications: dict[str, Notification] = None,
+        artifact_uris: dict[str, str] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1221,6 +1222,8 @@ class RunStatus(ModelObj):
         self.ui_url = ui_url
         self.reason = reason
         self.notifications = notifications or {}
+        # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
+        self.artifact_uris = artifact_uris or {}
 
     def is_failed(self) -> Optional[bool]:
         """
@@ -1539,8 +1542,10 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            self.status = RunStatus.from_dict(run.get("status", {}))
-            self.status.from_dict(run.get("status", {}))
+            run_status = run.get("status", {})
+            # Artifacts are not stored in the DB, so we need to preserve them here
+            run_status["artifacts"] = self.status.artifacts
+            self.status = RunStatus.from_dict(run_status)
             return self
 
     def show(self):

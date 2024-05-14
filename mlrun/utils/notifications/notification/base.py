@@ -77,7 +77,7 @@ class NotificationBase:
                 return f"[{severity}] {message}"
             return (
                 f"[{severity}] {message} for project {alert.project} "
-                f"UID {event_data.entity.id}. Value {event_data.value}"
+                f"UID {event_data.entity.ids[0]}. Values {event_data.value_dict}"
             )
 
         if not runs:

@@ -483,7 +483,7 @@ class ParquetSource(BaseSourceDriver):
                                 else new_filter
                             )
                         else:
-                            new_filter = ~col(col_name).isNull() & ~isnan(col(col_name))
+                            new_filter = ~col(col_name).isNull()
                             new_filter = (
                                 new_filter & ~isnan(col(col_name))
                                 if filter_nan

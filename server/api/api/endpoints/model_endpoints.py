@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -341,18 +342,39 @@ async def get_model_endpoint_monitoring_metrics(
 
     :returns:           A list of the application results for this model endpoint.
     """
-    if type != "results":
-        raise NotImplementedError
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
-    return await run_in_threadpool(
-        mlrun.model_monitoring.get_store_object(
-            project=project
-        ).get_model_endpoint_metrics,
-        endpoint_id=endpoint_id,
-        type=mm_endpoints.ModelEndpointMonitoringMetricType.RESULT,
-    )
+
+    get_model_endpoint_metrics = mlrun.model_monitoring.get_store_object(
+        project=project
+    ).get_model_endpoint_metrics
+    tasks: list[asyncio.Task] = []
+    if type == "results" or type == "all":
+        tasks.append(
+            asyncio.create_task(
+                run_in_threadpool(
+                    get_model_endpoint_metrics,
+                    endpoint_id=endpoint_id,
+                    type=mm_endpoints.ModelEndpointMonitoringMetricType.RESULT,
+                )
+            )
+        )
+    if type == "metrics" or type == "all":
+        tasks.append(
+            asyncio.create_task(
+                run_in_threadpool(
+                    get_model_endpoint_metrics,
+                    endpoint_id=endpoint_id,
+                    type=mm_endpoints.ModelEndpointMonitoringMetricType.METRIC,
+                )
+            )
+        )
+    await asyncio.wait(tasks)
+    metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
+    for task in tasks:
+        metrics.extend(task.result())
+    return metrics
 
 
 @dataclass

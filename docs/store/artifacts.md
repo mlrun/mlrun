@@ -135,9 +135,9 @@ Example artifact URLs:
 
 Artifacts are deleted from a specific project. You can delete artifacts from v3IO, Google, Azure, DBFS, Filestore, and S3. </br>Options for deleting artifacts:
 -Deletion strategy: 
-   - metadata-only &mdash; (default) Delete only the artifact object. The related artifact data remains.
-   - data-optional &mdash; Delete the data of the artifact as a best-effort. If deletion fails, delete the artifact itself.
-   - data-force &mdash; Delete the data of the artifact. If it fails, don’t delete the artifact.
+   - metadata-only: Delete only the artifact object. The related artifact data remains.
+   - data optional: Delete the artifact object and the data. If data deletion is unsuccessful, deletes only the object.
+   - data force: Delete the artifact object and the data. If data deletion is unsuccessful, does not delete the object either.
 - Secrets &mdash; Required when credentials are needed to access the artifact data. 
 
 ```

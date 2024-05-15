@@ -68,4 +68,4 @@ COPY . .
 RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
 
-CMD ["python",  "-m",  "server.api",  "db"]
+CMD ["bash", "./dockerfiles/mlrun-api/start_api.sh"]

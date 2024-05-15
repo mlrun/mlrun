@@ -460,35 +460,24 @@ class ParquetSource(BaseSourceDriver):
                             new_filter = (
                                 col(col_name).isin(value) | col(col_name).isNull()
                             )
-                            new_filter = (
-                                new_filter | isnan(col(col_name))
-                                if filter_nan
-                                else new_filter
-                            )
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+
                         else:
                             new_filter = (
                                 ~col(col_name).isin(value) & ~col(col_name).isNull()
                             )
-                            new_filter = (
-                                new_filter & ~isnan(col(col_name))
-                                if filter_nan
-                                else new_filter
-                            )
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
                     else:
                         if op.lower() == "in":
                             new_filter = col(col_name).isNull()
-                            new_filter = (
-                                new_filter & isnan(col(col_name))
-                                if filter_nan
-                                else new_filter
-                            )
+                            if filter_nan:
+                                new_filter = new_filter & isnan(col(col_name))
                         else:
                             new_filter = ~col(col_name).isNull()
-                            new_filter = (
-                                new_filter & ~isnan(col(col_name))
-                                if filter_nan
-                                else new_filter
-                            )
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
                 else:
                     if op.lower() == "in":
                         new_filter = col(col_name).isin(value)

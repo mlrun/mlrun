@@ -8,3 +8,4 @@ mlrun.common.schemas
   :glob:
 
   mlrun.common.schemas.artifact
+  mlrun.common.schemas.notification

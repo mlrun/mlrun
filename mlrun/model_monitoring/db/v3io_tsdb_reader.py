@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: Move this module into the TSDB abstraction once it is in.
+# TODO: Move this module into the TSDB abstraction:
+# mlrun/model_monitoring/db/tsdb/v3io/v3io_connector.py
 
 from datetime import datetime
 from io import StringIO

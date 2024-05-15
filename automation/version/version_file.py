@@ -15,6 +15,7 @@
 import argparse
 import json
 import logging
+import os
 import os.path
 import pathlib
 import re
@@ -23,8 +24,11 @@ import typing
 
 import packaging.version
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("version_file")
+logger.setLevel(os.getenv("LOG_LEVEL", logging.INFO))
+ch = logging.StreamHandler()
+ch.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+logger.addHandler(ch)
 
 
 def main():

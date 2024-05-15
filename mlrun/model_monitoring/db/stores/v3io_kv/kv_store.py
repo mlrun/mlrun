@@ -33,6 +33,14 @@ fields_to_encode_decode = [
     mm_constants.EventFieldType.CURRENT_STATS,
 ]
 
+_METRIC_FIELDS: list[str] = [
+    mm_constants.WriterEvent.APPLICATION_NAME,
+    mm_constants.MetricData.METRIC_NAME,
+    mm_constants.MetricData.METRIC_VALUE,
+    mm_constants.WriterEvent.START_INFER_TIME,
+    mm_constants.WriterEvent.END_INFER_TIME,
+]
+
 
 class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     """
@@ -287,7 +295,9 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         endpoint_id = event.pop(mm_constants.WriterEvent.ENDPOINT_ID)
 
         if kind == mm_constants.WriterEventKind.METRIC:
-            raise NotImplementedError
+            table_path = f"{endpoint_id}_metrics"
+            key = f"{event[mm_constants.WriterEvent.APPLICATION_NAME]}.{event[mm_constants.MetricData.METRIC_NAME]}"
+            attributes = {event_key: event[event_key] for event_key in _METRIC_FIELDS}
         elif kind == mm_constants.WriterEventKind.RESULT:
             table_path = endpoint_id
             key = event.pop(mm_constants.WriterEvent.APPLICATION_NAME)

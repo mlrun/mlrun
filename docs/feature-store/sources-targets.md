@@ -131,17 +131,16 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
 
 
-| Class name                                    | Description                                                  | storey | spark | pandas |
-| ----------------------------------------------| -------------------------------------------------------------| ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.CSVTarget`        |Offline. Writes events to a CSV file.                          | Y      | Y     | Y      |
-| [Kafka target](#kafka-target)                |Offline. Writes all incoming events into a Kafka stream.        | Y      | N     | N |
-| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
+| Class name                                    | Description                                                             | storey | spark | pandas |
+| ----------------------------------------------| ------------------------------------------------------------------------| ---    | ---   | ---    |
+| {py:meth}`~mlrun.datastore.CSVTarget`        |Offline. Writes events to a CSV file.                                     | Y      | Y     | Y      |
+| [Kafka target](#kafka-target)                |Offline. Writes all incoming events into a Kafka stream.                  | Y      | N     | N |
 | [ParquetTarget](#parquet-target)             |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.| Y      | Y     | Y      |
-| [SnowflakeTarget](#snowflake-target)          |Offline. Writes all incoming events                             | N      | Y      | N    |
-| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
-| [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key. | Y      | Y     | N      |
-| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
+| [SnowflakeTarget](#snowflake-target)         |Offline. Write events into tables within the Snowflake data warehouse.    | N      | Y      | N    |
+| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.                   | Y      | N     | N      |
+| [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key. | Y      | Y     | Y      |
+| [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key.| Y      | Y     | N      |
+| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.  | Y      | N     | Y      |
 
 
 ## Kafka target

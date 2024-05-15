@@ -22,6 +22,7 @@ import v3io.dataplane.response
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_constants
+import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -151,7 +152,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         """Getting path and container based on the model monitoring configurations"""
         path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
             project=self.project,
-            kind=mlrun.common.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=mm_constants.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -272,7 +273,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         self,
         event: dict[str, typing.Any],
         kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a new application event in the target table.
 
@@ -281,44 +282,43 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                       object.
         :param kind: The type of the event, can be either "result" or "metric".
         """
-        if kind == mm_constants.WriterEventKind.METRIC:
-            # TODO : Implement the logic for writing metrics to KV
-            return
 
+        container = self.get_v3io_monitoring_apps_container(project_name=self.project)
         endpoint_id = event.pop(mm_constants.WriterEvent.ENDPOINT_ID)
-        app_name = event.pop(mm_constants.WriterEvent.APPLICATION_NAME)
-        metric_name = event.pop(mm_constants.ResultData.RESULT_NAME)
-        attributes = {metric_name: json.dumps(event)}
 
-        v3io_monitoring_apps_container = self.get_v3io_monitoring_apps_container(
-            project_name=self.project
-        )
+        if kind == mm_constants.WriterEventKind.METRIC:
+            raise NotImplementedError
+        elif kind == mm_constants.WriterEventKind.RESULT:
+            table_path = endpoint_id
+            key = event.pop(mm_constants.WriterEvent.APPLICATION_NAME)
+            metric_name = event.pop(mm_constants.ResultData.RESULT_NAME)
+            attributes = {metric_name: json.dumps(event)}
+        else:
+            raise ValueError(f"Invalid {kind = }")
 
         self.client.kv.update(
-            container=v3io_monitoring_apps_container,
-            table_path=endpoint_id,
-            key=app_name,
+            container=container,
+            table_path=table_path,
+            key=key,
             attributes=attributes,
         )
 
         schema_file = self.client.kv.new_cursor(
-            container=v3io_monitoring_apps_container,
-            table_path=endpoint_id,
+            container=container,
+            table_path=table_path,
             filter_expression='__name==".#schema"',
         )
 
         if not schema_file.all():
             logger.info(
-                "Generate a new V3IO KV schema file",
-                container=v3io_monitoring_apps_container,
-                endpoint_id=endpoint_id,
+                "Generating a new V3IO KV schema file",
+                container=container,
+                table_path=table_path,
             )
-            self._generate_kv_schema(endpoint_id, v3io_monitoring_apps_container)
-        logger.info("Updated V3IO KV successfully", key=app_name)
+            self._generate_kv_schema(table_path, container)
+        logger.info("Updated V3IO KV successfully", key=key)
 
-    def _generate_kv_schema(
-        self, endpoint_id: str, v3io_monitoring_apps_container: str
-    ):
+    def _generate_kv_schema(self, table_path: str, container: str) -> None:
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
             {
@@ -328,19 +328,17 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             }
         ]
         res = self.client.kv.create_schema(
-            container=v3io_monitoring_apps_container,
-            table_path=endpoint_id,
+            container=container,
+            table_path=table_path,
             key=mm_constants.WriterEvent.APPLICATION_NAME,
             fields=fields,
         )
         if res.status_code != HTTPStatus.OK:
             raise mlrun.errors.MLRunBadRequestError(
-                f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
+                f"Couldn't infer schema for endpoint {table_path} which is required for Grafana dashboards"
             )
         else:
-            logger.info(
-                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
-            )
+            logger.info("Generated V3IO KV schema successfully", table_path=table_path)
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
         """
@@ -399,7 +397,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         full_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS,
+                kind=mm_constants.ModelMonitoringStoreKinds.EVENTS,
             )
         )
 

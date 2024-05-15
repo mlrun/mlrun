@@ -116,7 +116,7 @@ class StoreBase(ABC):
         self,
         event: dict[str, typing.Any],
         kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a new event in the target table.
 

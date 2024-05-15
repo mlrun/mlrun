@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import argparse
 import json
@@ -24,10 +23,6 @@ import typing
 
 import packaging.version
 
-# NOTE
-# this script is being used in all build flows before building to add version information to the code
-# therefore it needs to be runnable in several environments - GH action, Jenkins, etc...
-# therefore this script should be kept python 2 and 3 compatible, and should not require external dependencies
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("version_file")
 

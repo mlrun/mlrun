@@ -4348,7 +4348,11 @@ class SQLDB(DBInterface):
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
         self._store_notifications(
-            session, AlertConfig, alert.notifications, alert_record.id, alert.project
+            session,
+            AlertConfig,
+            alert.get_raw_notifications(),
+            alert_record.id,
+            alert.project,
         )
 
         self._upsert(session, [alert_record, alert_state])
@@ -4365,7 +4369,11 @@ class SQLDB(DBInterface):
         )
 
         self._store_notifications(
-            session, AlertConfig, alert.notifications, alert_record.id, alert.project
+            session,
+            AlertConfig,
+            alert.get_raw_notifications(),
+            alert_record.id,
+            alert.project,
         )
 
         state = AlertState(count=0, parent_id=alert_record.id)
@@ -4420,13 +4428,24 @@ class SQLDB(DBInterface):
                 _notification["when"] = [_notification["when"]]
             return _notification
 
-        alert.notifications = [
+        notifications = [
             mlrun.common.schemas.notification.Notification(
                 **_enrich_notification(notification)
             )
             for notification in self._get_db_notifications(
                 session, AlertConfig, parent_id=alert.id
             )
+        ]
+
+        cooldowns = [
+            notification.cooldown_period for notification in alert.notifications
+        ]
+
+        alert.notifications = [
+            mlrun.common.schemas.alert.AlertNotification(
+                cooldown_period=cooldown, notification=notification
+            )
+            for cooldown, notification in zip(cooldowns, notifications)
         ]
 
     @staticmethod

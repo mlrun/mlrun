@@ -28,3 +28,4 @@ class ObjectTypeReport(pydantic.BaseModel):
     start_index: typing.Optional[int]
     max_depth: int
     object_report: typing.List[typing.Dict[str, typing.Any]]
+    gc_collect: bool

@@ -41,6 +41,7 @@ import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
+import server.api.utils.memory_reports
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -215,6 +216,10 @@ async def move_api_to_online():
             _start_periodic_runs_monitoring()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
+
+    if config.debug.periodic_memory_profiling.internal_secs != "0":
+        logger.info("Starting debug periodic function")
+        _start_periodic_memory_profiling()
 
 
 async def _start_periodic_logs_collection():
@@ -481,6 +486,16 @@ def _start_periodic_cleanup():
         logger.info("Starting periodic runtimes cleanup", interval=interval)
         run_function_periodically(
             interval, _cleanup_runtimes.__name__, False, _cleanup_runtimes
+        )
+
+
+def _start_periodic_memory_profiling():
+    interval = int(config.debug.periodic_memory_profiling.internal_secs)
+    if interval > 0:
+        logger.info("Starting periodic memory profiling", interval=interval)
+        report = server.api.utils.memory_reports.MemoryUsageReport()
+        run_function_periodically(
+            interval, report.periodic.__name__, False, report.periodic
         )
 
 

@@ -39,10 +39,11 @@ def get_memory_usage_report(
     start_index: int = None,
     create_graph: bool = False,
     max_depth: int = 3,
+    gc_collect: bool = False,
 ):
     report = (
         server.api.utils.memory_reports.MemoryUsageReport().create_memory_usage_report(
-            object_type, sample_size, start_index, create_graph, max_depth
+            object_type, sample_size, start_index, create_graph, max_depth, gc_collect
         )
     )
     return mlrun.common.schemas.ObjectTypeReport(

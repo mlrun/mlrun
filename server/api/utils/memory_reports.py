@@ -17,6 +17,8 @@ import gc
 import io
 import typing
 
+from pympler import muppy, summary, tracker
+
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -27,6 +29,7 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
         import objgraph
 
         self._objgraph = objgraph
+        self._memory_summary_tracker = tracker.SummaryTracker()
 
     def create_most_common_objects_report(self) -> typing.List[typing.Tuple[str, int]]:
         gc.collect()
@@ -39,8 +42,10 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
         start_index: int = None,
         create_graph: bool = False,
         max_depth: int = 3,
+        collect: bool = False,
     ) -> typing.List[typing.Dict[str, typing.Any]]:
-        gc.collect()
+        if collect:
+            gc.collect()
         report = []
         requested_objects = self._objgraph.by_type(object_type)
 
@@ -72,6 +77,19 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
             )
 
         return report
+
+    def periodic(self):
+        gc.collect()
+        logger.debug(
+            "Recorded memory",
+            memory_consumption=list(
+                summary.format_(summary.summarize(muppy.get_objects()))
+            ),
+            memory_consumption_diff=list(self._memory_summary_tracker.format_diff()),
+        )
+        logger.debug(
+            "Most common objects", most_common=str(self._objgraph.most_common_types())
+        )
 
     def _create_object_report(
         self,

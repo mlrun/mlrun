@@ -608,6 +608,11 @@ default_config = {
     },
     "debug": {
         "expose_internal_api_endpoints": False,
+        "periodic_memory_profiling": {
+            # when 0, memory profiling is disabled
+            # alternatively, represents the interval in seconds between each memory profiling sampling
+            "internal_secs": "0",
+        },
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",

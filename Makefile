@@ -367,7 +367,6 @@ DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 api: compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
-		--platform linux/arm64/v8 \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \

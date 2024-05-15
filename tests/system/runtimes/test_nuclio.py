@@ -596,21 +596,21 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
     def test_basic_api_gateway_flow(self):
         api_gateway = self._get_basic_gateway()
-        api_gateway = self.project.store_api_gateway(api_gateway)
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_basic_auth("test", "test")
-        api_gateway = self.project.store_api_gateway(api_gateway)
-        res = api_gateway.invoke(auth=("test", "test"), verify=False)
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+        res = api_gateway.invoke(credentials=("test", "test"), verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
-        api_gateway = self.project.store_api_gateway(api_gateway)
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
 
@@ -620,7 +620,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
                 name=self.gw_name,
             ),
             spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
-                functions=[self.f1, self.f2], project=self.project_name
+                functions=[self.f1], project=self.project_name
             ),
         )
 

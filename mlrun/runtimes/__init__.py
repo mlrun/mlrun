@@ -43,6 +43,7 @@ from .nuclio import (
     new_v2_model_server,
     nuclio_init_hook,
 )
+from .nuclio.api_gateway import APIGateway
 from .nuclio.application import ApplicationRuntime
 from .nuclio.serving import serving_subkind
 from .remotesparkjob import RemoteSparkRuntime

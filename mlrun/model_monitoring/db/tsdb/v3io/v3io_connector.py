@@ -99,6 +99,23 @@ class V3IOTSDBConnector(TSDBConnector):
             monitoring_application_path + mm_constants.MonitoringTSDBTables.METRICS
         )
 
+        monitoring_predictions_full_path = (
+            mlrun.mlconf.get_model_monitoring_file_target_path(
+                project=self.project,
+                kind=mm_constants.FileTargetKind.PREDICTIONS,
+            )
+        )
+        (
+            _,
+            _,
+            monitoring_predictions_path,
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            monitoring_predictions_full_path
+        )
+        self.tables[mm_constants.FileTargetKind.PREDICTIONS] = (
+            monitoring_predictions_path
+        )
+
     def create_tsdb_application_tables(self):
         """
         Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
@@ -133,6 +150,27 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
+
+        # Write latency per prediction, labeled by endpoint ID only
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_predictions",
+            after="MapFeatureNames",
+            path=f"{self.container}/{self.tables[mm_constants.FileTargetKind.PREDICTIONS]}",
+            rate="1/s",
+            time_col=mm_constants.EventFieldType.TIMESTAMP,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            columns=["latency"],
+            index_cols=[
+                mm_constants.EventFieldType.ENDPOINT_ID,
+            ],
+            aggr="count,avg",
+            aggr_granularity="1m",
+            max_events=tsdb_batching_max_events,
+            flush_after_seconds=tsdb_batching_timeout_secs,
+            key=mm_constants.EventFieldType.ENDPOINT_ID,
+        )
 
         # Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
         # stats and details about the events

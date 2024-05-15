@@ -16,6 +16,7 @@
 
 from datetime import datetime
 from io import StringIO
+from typing import Union
 
 import pandas as pd
 
@@ -29,7 +30,6 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
-    _ModelEndpointMonitoringResultValuesBase,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import _TSDB_BE
@@ -80,7 +80,9 @@ def read_data(
     start: datetime,
     end: datetime,
     metrics: list[ModelEndpointMonitoringMetric],
-) -> list[_ModelEndpointMonitoringResultValuesBase]:
+) -> list[
+    Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringResultNoData]
+]:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
         container=KVStoreBase.get_v3io_monitoring_apps_container(project),
@@ -96,7 +98,9 @@ def read_data(
 
     metrics_without_data = {metric.full_name: metric for metric in metrics}
 
-    metrics_values: list[_ModelEndpointMonitoringResultValuesBase] = []
+    metrics_values: list[
+        Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringResultNoData]
+    ] = []
     if not df.empty:
         grouped = df.groupby(
             [mm_writer.WriterEvent.APPLICATION_NAME, mm_writer.ResultData.RESULT_NAME],

@@ -284,7 +284,9 @@ class APIGatewaySpec(ModelObj):
         function_names = []
         for func in functions:
             if isinstance(func, str):
-                function_names.append(func)
+                # if mlrun name is passed as string we assume that tag is latest
+                nuclio_name = f"{project}-{func}"
+                function_names.append(nuclio_name)
                 continue
 
             function_name = (

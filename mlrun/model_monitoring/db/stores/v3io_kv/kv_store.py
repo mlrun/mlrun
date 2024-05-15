@@ -63,11 +63,27 @@ _RESULT_SCHEMA: list[SchemaField] = [
     )
 ]
 
+_METRIC_SCHEMA: list[SchemaField] = [
+    SchemaField(
+        name=mm_constants.WriterEvent.APPLICATION_NAME,
+        type=mm_constants.GrafanaColumnType.STRING,
+        nullable=False,
+    ),
+    SchemaField(
+        name=mm_constants.MetricData.METRIC_NAME,
+        type=mm_constants.GrafanaColumnType.STRING,
+        nullable=False,
+    ),
+]
+
 
 _KIND_TO_SCHEMA_PARAMS: dict[mm_constants.WriterEventKind, SchemaParams] = {
     mm_constants.WriterEventKind.RESULT: SchemaParams(
         key=mm_constants.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
-    )
+    ),
+    mm_constants.WriterEventKind.METRIC: SchemaParams(
+        key="metric_id", fields=_METRIC_SCHEMA
+    ),
 }
 
 
@@ -354,12 +370,16 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 container=container,
                 table_path=table_path,
             )
-            self._generate_kv_schema(table_path, container)
+            self._generate_kv_schema(
+                container=container, table_path=table_path, kind=kind
+            )
         logger.info("Updated V3IO KV successfully", key=key)
 
-    def _generate_kv_schema(self, table_path: str, container: str) -> None:
+    def _generate_kv_schema(
+        self, *, container: str, table_path: str, kind: mm_constants.WriterEventKind
+    ) -> None:
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
-        schema_params = _KIND_TO_SCHEMA_PARAMS[mm_constants.WriterEventKind.RESULT]
+        schema_params = _KIND_TO_SCHEMA_PARAMS[kind]
         res = self.client.kv.create_schema(
             container=container,
             table_path=table_path,

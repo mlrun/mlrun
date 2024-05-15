@@ -2964,7 +2964,9 @@ class MlrunProject(ModelObj):
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
         if not inner_engine and workflow_engine.engine == "remote":
             # if inner engine is set to remote, assume kfp as the default inner engine with remote as the runner
-            engine_kind = workflow_spec.engine if workflow_spec.engine != "remote" else "kfp"
+            engine_kind = (
+                workflow_spec.engine if workflow_spec.engine != "remote" else "kfp"
+            )
             inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
 

@@ -303,6 +303,12 @@ class ApplicationRuntime(RemoteRuntime):
 
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
+
+        # we only allow accessing the application via the API Gateway
+        name_tag = tag or self.metadata.tag
+        self.status.api_gateway_name = (
+            f"{self.metadata.name}-{name_tag}" if name_tag else self.metadata.name
+        )
         self.spec.add_templated_ingress_host_mode = (
             NuclioIngressAddTemplatedIngressModes.never
         )
@@ -317,6 +323,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         ports = self.spec.internal_application_port if direct_port_access else []
         self.create_api_gateway(
+            name=self.status.api_gateway_name,
             ports=ports,
             authentication_mode=authentication_mode,
             authentication_creds=authentication_creds,
@@ -350,6 +357,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def create_api_gateway(
         self,
+        name: str = None,
         path: str = None,
         ports: list[int] = None,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
@@ -357,7 +365,7 @@ class ApplicationRuntime(RemoteRuntime):
     ):
         api_gateway = APIGateway(
             APIGatewayMetadata(
-                name=self.metadata.name,
+                name=name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels,
                 annotations=self.metadata.annotations,
@@ -383,7 +391,8 @@ class ApplicationRuntime(RemoteRuntime):
         api_gateway_scheme = db.store_api_gateway(
             api_gateway=api_gateway.to_scheme(), project=self.metadata.project
         )
-        self.status.api_gateway_name = api_gateway.metadata.name
+        if not self.status.api_gateway_name:
+            self.status.api_gateway_name = api_gateway_scheme.metadata.name
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url

@@ -164,8 +164,10 @@ class Runs(
             producer_uri=producer_uri,
             project=project,
         )
-        run.setdefault("status", {})
-        run["status"]["artifacts"] = artifacts
+
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
 
         return run
 

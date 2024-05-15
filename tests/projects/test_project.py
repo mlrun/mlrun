@@ -1813,6 +1813,7 @@ def test_create_api_gateway_valid(
     upstreams,
     authentication_mode,
 ):
+    mlrun.mlconf.igz_version = "3.6.0"
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",

@@ -13,12 +13,14 @@
 # limitations under the License.
 
 
+from typing import Union
+
 import pandas as pd
 
 
-def sort_df(df: pd.DataFrame, sort_column: str):
+def sort_df(df: pd.DataFrame, sort_columns: Union[str, list[str]]):
     return (
         df.reindex(sorted(df.columns), axis=1)
-        .sort_values(by=sort_column)
+        .sort_values(by=sort_columns)
         .reset_index(drop=True)
     )

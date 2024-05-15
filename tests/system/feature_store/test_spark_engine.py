@@ -20,6 +20,7 @@ import uuid
 from datetime import datetime
 
 import fsspec
+import numpy as np
 import pandas as pd
 import pytest
 import v3iofs
@@ -336,17 +337,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_parquet_filters(self):
         parquet_source_path = self.get_pq_source_path()
-        df = pd.read_parquet(parquet_source_path)
-        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
-
+        parquet_source_path = parquet_source_path.replace(
+            self.pq_source, "testdata_with_none.parquet"
+        )
+        filters = [("department", "in", ["01e9fe31-76de-45f0-9aed-0f94cc97bca0", None])]
+        filtered_df = pd.read_parquet(parquet_source_path, filters=filters)
         base_path = self.get_test_output_subdir_path()
         parquet_target_path = f"{base_path}_spark"
         parquet_source = ParquetSource(
             "parquet_source",
             path=parquet_source_path,
-            additional_filters=[
-                ("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")
-            ],
+            additional_filters=filters,
         )
         feature_set = fstore.FeatureSet(
             "parquet-filters-fs", entities=[fstore.Entity("patient_id")], engine="spark"
@@ -355,8 +356,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         target = ParquetTarget(
             name="department_based_target",
             path=parquet_target_path,
-            partitioned=True,
-            partition_cols=["department"],
         )
         run_config = fstore.RunConfig(local=self.run_local)
         feature_set.ingest(
@@ -379,7 +378,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         kind = None if self.run_local else "remote-spark"
         resp = fstore.get_offline_features(
             feature_vector=vec,
-            additional_filters=[("bad", "=", 95)],
+            additional_filters=[
+                ("bad", "not in", [38, 100]),
+                ("movements", "not in", [np.nan]),
+            ],
             with_indexes=True,
             target=get_offline_target,
             engine="spark",
@@ -389,8 +391,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
-        expected = sort_df(filtered_df.query("bad == 95"), "patient_id")
-        result = sort_df(result, "patient_id")
+        expected = sort_df(
+            filtered_df.query("bad not in [38,100] & not movements.isna()"),
+            ["patient_id", "timestamp"],
+        )
+        result = sort_df(result, ["patient_id", "timestamp"])
         assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):

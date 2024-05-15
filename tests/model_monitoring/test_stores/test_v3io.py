@@ -51,7 +51,6 @@ def store(
     ("store", "items", "expected_metrics"),
     [
         ("", [], []),
-        ("default", [{"__name": ".#schema"}], []),
         (
             "default",
             [
@@ -84,8 +83,7 @@ def store(
                 {
                     "__name": "app1",
                     "drift-res": "{'d':0.4}",
-                },
-                {"__name": ".#schema"},
+                }
             ],
             [
                 ModelEndpointMonitoringMetric(
@@ -173,7 +171,6 @@ class TestGetModelEndpointMetrics:
         decoded_body=Entry.DecodedBody(LastItemIncluded="TRUE", NextMarker=_M0),
         items=[
             {"__name": "model-as-a-judge-app", "distance": ""},
-            {"__name": ".#schema"},
         ],
     )
     METRICS = [
@@ -201,6 +198,7 @@ class TestGetModelEndpointMetrics:
         container: str,
         table_path: str,
         marker: Optional[str] = None,
+        filter_expression: Optional[str] = None,
     ) -> v3io.dataplane.response.Response:
         if (
             container != cls.CONTAINER

@@ -619,12 +619,10 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _extract_results_from_items(
         self, app_items: list[dict[str, str]]
     ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """Assuming .#schema items are filtered out"""
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
         for app_item in app_items:
-            # See https://www.iguazio.com/docs/latest-release/services/data-layer/reference/system-attributes/#sys-attr-__name
             app_name = app_item.pop("__name")
-            if app_name == ".#schema":
-                continue
             for result_name in app_item:
                 metrics.append(
                     mm_schemas.ModelEndpointMonitoringMetric(
@@ -670,6 +668,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 container=container,
                 table_path=table_path,
                 marker=response.output.next_marker,
+                filter_expression='__name!=".#schema"',
             )
 
         return metrics

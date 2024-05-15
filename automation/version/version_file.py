@@ -38,7 +38,7 @@ def main():
         "ensure", help="ensure the version file is up to date"
     )
     ensure_parser.add_argument(
-        "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
+        "--mlrun-version", type=str, required=False, default="unstable"
     )
 
     subparsers.add_parser(

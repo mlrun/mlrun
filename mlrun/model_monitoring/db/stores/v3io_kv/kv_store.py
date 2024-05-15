@@ -321,6 +321,14 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
 
+    @staticmethod
+    def _get_results_table_path(endpoint_id: str) -> str:
+        return endpoint_id
+
+    @staticmethod
+    def _get_metrics_table_path(endpoint_id: str) -> str:
+        return f"{endpoint_id}_metrics"
+
     def write_application_event(
         self,
         event: dict[str, typing.Any],
@@ -339,11 +347,11 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         endpoint_id = event.pop(mm_schemas.WriterEvent.ENDPOINT_ID)
 
         if kind == mm_schemas.WriterEventKind.METRIC:
-            table_path = f"{endpoint_id}_metrics"
+            table_path = self._get_metrics_table_path(endpoint_id)
             key = f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}.{event[mm_schemas.MetricData.METRIC_NAME]}"
             attributes = {event_key: event[event_key] for event_key in _METRIC_FIELDS}
         elif kind == mm_schemas.WriterEventKind.RESULT:
-            table_path = endpoint_id
+            table_path = self._get_results_table_path(endpoint_id)
             key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
             metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
             attributes = {metric_name: json.dumps(event)}

@@ -780,7 +780,7 @@ def _generate_event_on_failed_runs(
         entity = {
             "kind": alert_constants.EventEntityKind.JOB,
             "project": project,
-            "id": uid,
+            "ids": [uid],
         }
         event_data = mlrun.common.schemas.Event(
             kind=alert_constants.EventKind.FAILED, entity=entity

@@ -13,15 +13,20 @@
 # limitations under the License.
 
 import json
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
+import mlrun.model_monitoring.db.v3io_tsdb_reader
+import mlrun.utils.helpers
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -260,6 +265,18 @@ async def list_model_endpoints(
     return endpoints
 
 
+async def _verify_model_endpoint_read_permission(
+    *, project: str, endpoint_id: str, auth_info: mlrun.common.schemas.AuthInfo
+) -> None:
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+
+
 @router.get(
     "/{endpoint_id}",
     response_model=mlrun.common.schemas.ModelEndpoint,
@@ -300,12 +317,8 @@ async def get_model_endpoint(
 
     :return:  A `ModelEndpoint` object.
     """
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
 
     return await run_in_threadpool(
@@ -343,16 +356,116 @@ async def get_model_endpoint_monitoring_metrics(
 
     :returns:           A list of the application results for this model endpoint.
     """
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project_name=project,
-        resource_name=endpoint_id,
-        action=mlrun.common.schemas.AuthorizationAction.read,
-        auth_info=auth_info,
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
     return await run_in_threadpool(
         mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(
             project=project
         ).get_model_endpoint_metrics,
         endpoint_id=endpoint_id,
+    )
+
+
+@dataclass
+class _MetricsValuesParams:
+    project: str
+    endpoint_id: str
+    metrics: list[
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringMetric
+    ]
+    start: datetime
+    end: datetime
+
+
+async def _get_metrics_values_data(
+    project: str,
+    endpoint_id: str,
+    name: Annotated[
+        list[str],
+        Query(
+            pattern=mlrun.common.schemas.model_monitoring.model_endpoints._FQN_PATTERN
+        ),
+    ],
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        server.api.api.deps.authenticate_request
+    ),
+) -> _MetricsValuesParams:
+    """
+    Verify authorization, validate parameters and initialize the parameters.
+
+    :param project:     The name of the project.
+    :param endpoint_id: The unique id of the model endpoint.
+    :param name:        The full names of the requested results. At least one is required.
+    :param start:       Start and end times are optional, and must be timezone aware.
+    :param end:         See the `start` parameter.
+    :param auth_info:   The auth info of the request.
+
+    :return:            _MetricsValuesData object with the validated data.
+    """
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
+    )
+    if start is None and end is None:
+        end = mlrun.utils.helpers.datetime_now()
+        start = end - timedelta(days=1)
+    elif start is not None and end is not None:
+        if start.tzinfo is None or end.tzinfo is None:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                "Custom start and end times must contain the timezone."
+            )
+        if start > end:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The start time must precede the end time."
+            )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Provided only one of start time, end time. Please provide both or neither."
+        )
+    metrics = [
+        mlrun.common.schemas.model_monitoring.model_endpoints._parse_metric_fqn_to_monitoring_metric(
+            fqn
+        )
+        for fqn in name
+    ]
+    return _MetricsValuesParams(
+        project=project,
+        endpoint_id=endpoint_id,
+        metrics=metrics,
+        start=start,
+        end=end,
+    )
+
+
+@router.get(
+    "/{endpoint_id}/metrics-values",
+    response_model=list[
+        Union[
+            mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
+            mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+        ]
+    ],
+)
+async def get_model_endpoint_monitoring_metrics_values(
+    params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
+) -> list[
+    Union[
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
+        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+    ]
+]:
+    """
+    :param params: A combined object with all the request parameters.
+
+    :returns:      A list of the results values for this model endpoint.
+    """
+    return await run_in_threadpool(
+        mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
+        project=params.project,
+        endpoint_id=params.endpoint_id,
+        metrics=params.metrics,
+        start=params.start,
+        end=params.end,
     )

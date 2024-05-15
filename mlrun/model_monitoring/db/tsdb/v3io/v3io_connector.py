@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 
 import pandas as pd
@@ -23,16 +23,15 @@ from v3io_frames.frames_pb2 import IGNORE
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_constants
 import mlrun.feature_store.steps
-import mlrun.model_monitoring.db
-import mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 
 
-class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
+class V3IOTSDBConnector(TSDBConnector):
     """
     Handles the TSDB operations when the TSDB connector is of type V3IO. To manage these operations we use V3IO Frames
     Client that provides API for executing commands on the V3IO TSDB table.
@@ -100,6 +99,23 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
             monitoring_application_path + mm_constants.MonitoringTSDBTables.METRICS
         )
 
+        monitoring_predictions_full_path = (
+            mlrun.mlconf.get_model_monitoring_file_target_path(
+                project=self.project,
+                kind=mm_constants.FileTargetKind.PREDICTIONS,
+            )
+        )
+        (
+            _,
+            _,
+            monitoring_predictions_path,
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            monitoring_predictions_full_path
+        )
+        self.tables[mm_constants.FileTargetKind.PREDICTIONS] = (
+            monitoring_predictions_path
+        )
+
     def create_tsdb_application_tables(self):
         """
         Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
@@ -134,6 +150,27 @@ class V3IOTSDBConnector(mlrun.model_monitoring.db.TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
+
+        # Write latency per prediction, labeled by endpoint ID only
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_predictions",
+            after="MapFeatureNames",
+            path=f"{self.container}/{self.tables[mm_constants.FileTargetKind.PREDICTIONS]}",
+            rate="1/s",
+            time_col=mm_constants.EventFieldType.TIMESTAMP,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            columns=["latency"],
+            index_cols=[
+                mm_constants.EventFieldType.ENDPOINT_ID,
+            ],
+            aggr="count,avg",
+            aggr_granularity="1m",
+            max_events=tsdb_batching_max_events,
+            flush_after_seconds=tsdb_batching_timeout_secs,
+            key=mm_constants.EventFieldType.ENDPOINT_ID,
+        )
 
         # Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
         # stats and details about the events

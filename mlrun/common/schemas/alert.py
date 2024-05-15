@@ -26,10 +26,10 @@ class EventEntityKind(StrEnum):
     JOB = "job"
 
 
-class EventEntity(pydantic.BaseModel):
+class EventEntities(pydantic.BaseModel):
     kind: EventEntityKind
     project: str
-    id: str
+    ids: pydantic.conlist(str, min_items=1, max_items=1)
 
 
 class EventKind(StrEnum):
@@ -48,7 +48,7 @@ _event_kind_entity_map = {
 class Event(pydantic.BaseModel):
     kind: EventKind
     timestamp: Union[str, datetime] = None  # occurrence time
-    entity: EventEntity
+    entity: EventEntities
     value_dict: Optional[dict] = pydantic.Field(default_factory=dict)
 
     def is_valid(self):
@@ -117,7 +117,7 @@ class AlertConfig(pydantic.BaseModel):
     ]
     created: Union[str, datetime] = None
     severity: AlertSeverity
-    entity: EventEntity
+    entities: EventEntities
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
     reset_policy: ResetPolicy = ResetPolicy.MANUAL

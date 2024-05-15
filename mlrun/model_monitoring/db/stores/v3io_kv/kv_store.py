@@ -582,13 +582,8 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                         app=app_name,
                         type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
                         name=result_name,
-                        full_name=".".join(
-                            [
-                                self.project,
-                                app_name,
-                                mm_constants.ModelEndpointMonitoringMetricType.RESULT,
-                                result_name,
-                            ]
+                        full_name=mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+                            project=self.project, app=app_name, name=result_name
                         ),
                     )
                 )

@@ -337,6 +337,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_parquet_filters(self):
         parquet_source_path = self.get_pq_source_path()
+        if not self.run_local:
+            df = pd.read_parquet(self.get_local_pq_source_path().replace(self.pq_source, "testdata_with_none.parquet"))
+            df.to_parquet(parquet_source_path)
+
         parquet_source_path = parquet_source_path.replace(
             self.pq_source, "testdata_with_none.parquet"
         )

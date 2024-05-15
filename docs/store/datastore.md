@@ -20,7 +20,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 **In this section**
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
 - [Data store profiles](#data-store-profiles)
-- [Alibaba Cloud Object Storage Service](#alibaba-cloud-object-storage-service)
+- [Alibaba Cloud Object Storage Service (OSS)](#alibaba-cloud-object-storage-service-oss)
 - [Azure data store](#azure-data-store)
 - [Databricks file system](#databricks-file-system)
 - [Google cloud storage](#google-cloud-storage)
@@ -127,7 +127,7 @@ See also:
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
 the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
 
-## Alibaba Cloud Object Storage Service
+## Alibaba Cloud Object Storage Service (OSS)
 
 ### Alibaba Cloud Object Storage Service credentials and parameters
 

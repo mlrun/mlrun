@@ -27,7 +27,7 @@ Artifacts metadata is stored in the MLRun database.
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`
 - {ref}`logging_datasets`
-- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
+- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact)
 
 
 ## Viewing artifacts
@@ -133,17 +133,19 @@ Example artifact URLs:
 
 ## Deleting artifacts
 
-Artifacts are deleted from a specific project. You can delete artifacts from v3IO, Google, Azure, DBFS, Filestore, and S3. </br>Options for deleting artifacts:
--Deletion strategy: 
-   - metadata-only: Delete only the artifact object. The related artifact data remains.
-   - data optional: Delete the artifact object and the data. If data deletion is unsuccessful, deletes only the object.
-   - data force: Delete the artifact object and the data. If data deletion is unsuccessful, does not delete the object either.
-- Secrets &mdash; Required when credentials are needed to access the artifact data. 
+Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You can delete artifacts from a specific project 
+and choose what you want to delete. Deleting artifacts is supported for v3IO, Google, Azure, DBFS, Filestore, and S3. 
 
+The options for {py:meth}`~mlrun.projects.MlrunProject.delete_artifact`:
+- metadata-only: Delete only the artifact object. The related artifact data remains.
+- data optional: Delete the artifact object and the data. If data deletion is unsuccessful, deletes only the object.
+- data force: Delete the artifact object and the data. If data deletion is unsuccessful, does not delete the object either.
+
+For example:
 ```
 artifact = project.get_artifact("name")
 project.delete_artifact(artifact, deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force, secrets={"secret1": "user-secret"})
 ```
-See {ref}`mlrun.projects.MlrunProject.delete_artifact`.
+Be sure to include `secrets` if credentials are needed to access the artifact data. 
 
 [Back to top](#top)

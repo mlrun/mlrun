@@ -12,7 +12,7 @@ You can apply this method to the project object or the context object when loggi
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`
 - {ref}`logging_datasets`
-- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
+- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact)
 ## Basic logging of an artifacts file
 `log_artifact` can be used to log many kinds of files, for example `html`,`pkl` and more. This is the most general method of logging artifacts. 
 ```{admonition} Tip

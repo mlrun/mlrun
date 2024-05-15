@@ -108,6 +108,8 @@ project.set_artifact('model', 'https://mystuff.com/models/mymodel.zip')
 Local file paths are relative to the context dir.
 ```
 
+You can delete artifacts per project. See [Deleting artifacts](../store/artifacts.html#deleting-artifacts).
+
 **Registering workflows:**
 
 Projects contain one or more workflows (pipelines). The workflows can be registered using the {py:meth}`~mlrun.projects.set_workflow`) method.
@@ -254,4 +256,5 @@ Example:
 
 ## Deleting a project
 
-See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project`.
+See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project`. Deleting a project also deletes the project's objects (artifact metadata, runs, etc.). 
+After you delete a project, the only way to delete the artifact files is by browsing the storage where they are located and deleting the files. 

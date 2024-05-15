@@ -18,7 +18,7 @@ import sys
 import tempfile
 import uuid
 from datetime import datetime
-import tests.system.feature_store.utils.sort_df
+
 import fsspec
 import pandas as pd
 import pytest
@@ -54,6 +54,7 @@ from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
+from tests.system.feature_store.utils import sort_df
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -364,10 +365,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=run_config,
         )
-        result = tests.system.feature_store.utils.sort_df(
-            pd.read_parquet(feature_set.get_target_path()), "patient_id"
-        )
-        expected = tests.system.feature_store.utils.sort_df(filtered_df, "patient_id")
+        result = sort_df(pd.read_parquet(feature_set.get_target_path()), "patient_id")
+        expected = sort_df(filtered_df, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
         vec = fstore.FeatureVector(
@@ -390,10 +389,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
-        expected = tests.system.feature_store.utils.sort_df(
-            filtered_df.query("bad == 95"), "patient_id"
-        )
-        result = tests.system.feature_store.utils.sort_df(result, "patient_id")
+        expected = sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):

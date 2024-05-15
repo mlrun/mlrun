@@ -22,7 +22,7 @@ import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from time import sleep
-import tests.system.feature_store.utils.sort_df
+
 import fsspec
 import mlrun_pipelines.mounts
 import numpy as np
@@ -71,6 +71,7 @@ from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotE
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
+from tests.system.feature_store.utils import sort_df
 
 from .data_sample import quotes, stocks, trades
 
@@ -4852,10 +4853,8 @@ class TestFeatureStore(TestMLRunSystem):
         result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
         # We want to include patient_id in the comparison,
         # sort the columns alphabetically, and sort the rows by patient_id values.
-        result = tests.system.feature_store.utils.sort_df(result, "patient_id")
-        expected = tests.system.feature_store.utils.sort_df(
-            filtered_df.query("room == 1"), "patient_id"
-        )
+        result = sort_df(result, "patient_id")
+        expected = sort_df(filtered_df.query("room == 1"), "patient_id")
         # the content of category column is still checked:
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
         vec = fstore.FeatureVector(
@@ -4871,10 +4870,8 @@ class TestFeatureStore(TestMLRunSystem):
             .to_dataframe()
             .reset_index()
         )
-        expected = tests.system.feature_store.utils.sort_df(
-            filtered_df.query("bad == 95"), "patient_id"
-        )
-        result = tests.system.feature_store.utils.sort_df(result, "patient_id")
+        expected = sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
 

@@ -1575,8 +1575,8 @@ def validate_component_version_compatibility(
             component_current_version = mlrun.mlconf.igz_version
             parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
 
-            # ignore pre-release versions and build metadata, as iguazio version is not semver compliant
-            # (we will always have a "pre-release" version even on GA releases)
+            # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+            # major, minor, and patch versions
             parsed_current_version = semver.VersionInfo.parse(
                 f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
             )

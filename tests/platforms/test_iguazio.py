@@ -278,7 +278,7 @@ def test_min_iguazio_version_fail(min_versions):
     ],
 )
 def test_min_iguazio_versions_success(min_versions):
-    mlconf.igz_version = "3.8.0+b953.20240321124232"
+    mlconf.igz_version = "3.8.0-b953.20240321124232"
 
     logger.debug(f"Testing case: {min_versions}")
 

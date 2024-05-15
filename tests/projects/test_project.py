@@ -30,6 +30,7 @@ import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring as mm_consts
+import mlrun.db.nopdb
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base

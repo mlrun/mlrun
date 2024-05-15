@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import math
 import operator
 import os
 import warnings
@@ -19,7 +20,7 @@ from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from typing import Optional, Union
-import math
+
 import numpy as np
 import pandas as pd
 import semver
@@ -424,7 +425,7 @@ class ParquetSource(BaseSourceDriver):
             **reader_args,
         )
 
-    def _get_spark_additional_filters(self, column_types: dict):
+    def _build_spark_additional_filters(self, column_types: dict):
         if not self.additional_filters:
             return None
         from pyspark.sql.functions import col, isnan, lit
@@ -487,8 +488,13 @@ class ParquetSource(BaseSourceDriver):
                         new_filter = col(col_name).isin(value)
                     elif op.lower() == "not in":
                         new_filter = ~col(col_name).isin(value)
-            else:
+            elif op in operators:
                 new_filter = operators[op](col(col_name), value)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"additional filter operator is not supported,"
+                    f"given Operator: {op} ."
+                )
             if spark_filter is not None:
                 spark_filter = spark_filter & new_filter
             else:
@@ -496,7 +502,7 @@ class ParquetSource(BaseSourceDriver):
         return spark_filter
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
-        spark_additional_filters = self._get_spark_additional_filters(
+        spark_additional_filters = self._build_spark_additional_filters(
             column_types=dict(df.dtypes)
         )
         if spark_additional_filters is not None:

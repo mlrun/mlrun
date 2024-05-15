@@ -138,7 +138,7 @@ class ModelMonitoringWriter(StepToDict):
         mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
-    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, str]:
+    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
         """
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`

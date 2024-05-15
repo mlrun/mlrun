@@ -15,6 +15,7 @@
 import json
 import os
 import typing
+from dataclasses import dataclass
 from http import HTTPStatus
 
 import v3io.dataplane
@@ -40,6 +41,34 @@ _METRIC_FIELDS: list[str] = [
     mm_constants.WriterEvent.START_INFER_TIME,
     mm_constants.WriterEvent.END_INFER_TIME,
 ]
+
+
+class SchemaField(typing.TypedDict):
+    name: str
+    type: str
+    nullable: bool
+
+
+@dataclass
+class SchemaParams:
+    key: str
+    fields: list[SchemaField]
+
+
+_RESULT_SCHEMA: list[SchemaField] = [
+    SchemaField(
+        name=mm_constants.ResultData.RESULT_NAME,
+        type=mm_constants.GrafanaColumnType.STRING,
+        nullable=False,
+    )
+]
+
+
+_KIND_TO_SCHEMA_PARAMS: dict[mm_constants.WriterEventKind, SchemaParams] = {
+    mm_constants.WriterEventKind.RESULT: SchemaParams(
+        key=mm_constants.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
+    )
+}
 
 
 class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -330,18 +359,12 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     def _generate_kv_schema(self, table_path: str, container: str) -> None:
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
-        fields = [
-            {
-                "name": mm_constants.ResultData.RESULT_NAME,
-                "type": "string",
-                "nullable": False,
-            }
-        ]
+        schema_params = _KIND_TO_SCHEMA_PARAMS[mm_constants.WriterEventKind.RESULT]
         res = self.client.kv.create_schema(
             container=container,
             table_path=table_path,
-            key=mm_constants.WriterEvent.APPLICATION_NAME,
-            fields=fields,
+            key=schema_params.key,
+            fields=schema_params.fields,
         )
         if res.status_code != HTTPStatus.OK:
             raise mlrun.errors.MLRunBadRequestError(

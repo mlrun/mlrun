@@ -133,7 +133,9 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        state: typing.Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
+        state: typing.Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,

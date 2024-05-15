@@ -19,13 +19,13 @@ from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 import server.api.crud
 import server.api.db.session
-import mlrun.common.runtimes.constants
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
 from server.api.db.base import DBError

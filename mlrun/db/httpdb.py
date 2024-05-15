@@ -30,6 +30,7 @@ import semver
 from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
@@ -37,7 +38,6 @@ import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils
-import mlrun.common.runtimes
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
@@ -753,7 +753,9 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,

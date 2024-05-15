@@ -17,8 +17,8 @@ import datetime
 from typing import Optional, Union
 
 import mlrun.alerts
-import mlrun.common.schemas
 import mlrun.common.runtimes.constants
+import mlrun.common.schemas
 import mlrun.errors
 
 from ..config import config
@@ -81,7 +81,9 @@ class NopDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,

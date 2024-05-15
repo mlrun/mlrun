@@ -39,12 +39,12 @@ import yaml
 from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
-import mlrun.common.runtimes.constants
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
@@ -3686,7 +3686,9 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,

@@ -20,6 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, R
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -193,7 +194,7 @@ async def list_runs(
     name: str = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
-    states: list[str] = Query([], alias="state"),
+    states: list[mlrun.common.runtimes.constants.RunStates] = Query([], alias="state"),
     last: int = 0,
     sort: bool = True,
     iter: bool = True,

@@ -141,12 +141,35 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().read_run(
+        run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
+
+        # Since we don't store the artifacts in the run body, we need to fetch them separately
+        # The client may be using them as in pipeline as input for the next step
+        producer_uri = None
+        producer_id = run["metadata"].get("labels", {}).get("workflow")
+        if not producer_id:
+            producer_id = uid
+        else:
+            # Producer URI is the URI of the MLClientCtx object that produced the artifact
+            producer_uri = f"{project}/{run['metadata']['uid']}"
+
+        artifacts = server.api.crud.Artifacts().list_artifacts(
+            db_session,
+            producer_id=producer_id,
+            producer_uri=producer_uri,
+            project=project,
+        )
+
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
+
+        return run
 
     def list_runs(
         self,

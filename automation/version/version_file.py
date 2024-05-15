@@ -89,6 +89,7 @@ def main():
         version_file_path = os.path.join(
             repo_root, "mlrun", "utils", "version", "version.json"
         )
+        logger.debug(f"{args.mlrun_version = }")
         create_or_update_version_file(args.mlrun_version, version_file_path)
 
     elif args.command == "is-stable":
@@ -279,6 +280,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         feature_name = resolve_feature_name(git_branch)
         if not mlrun_version.endswith(feature_name):
             mlrun_version = f"{mlrun_version}+{feature_name}"
+            logger.debug(f"With feature_name: {mlrun_version = }")
 
     # Check if the provided version is a semver and followed by a "-"
     semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"  # e.g. 0.6.0-
@@ -302,7 +304,9 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         "git_commit": git_commit,
     }
 
-    logger.info(f"Writing version info to file: {str(version_info)}")
+    logger.info(
+        f"Writing version info to file: {str(version_info)}, {version_file_path = }"
+    )
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 

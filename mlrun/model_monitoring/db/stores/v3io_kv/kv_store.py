@@ -645,21 +645,49 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 )
         return metrics
 
+    def _extract_metrics_from_items(
+        self, result_items: list[dict[str, str]]
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
+        for result_item in result_items:
+            app = result_item[mm_schemas.WriterEvent.APPLICATION_NAME]
+            name = result_item[mm_schemas.MetricData.METRIC_NAME]
+            metrics.append(
+                mm_schemas.ModelEndpointMonitoringMetric(
+                    project=self.project,
+                    app=app,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                    name=name,
+                    full_name=mm_schemas.model_endpoints._compose_full_name(
+                        project=self.project,
+                        app=app,
+                        name=name,
+                        type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                    ),
+                )
+            )
+        return metrics
+
     def get_model_endpoint_metrics(
         self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
     ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
         """Get model monitoring results and metrics on the endpoint"""
-        if type != mm_schemas.ModelEndpointMonitoringMetricType.RESULT:
-            raise NotImplementedError
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
         container = self.get_v3io_monitoring_apps_container(self.project)
-        table_path = endpoint_id
+        if type == mm_schemas.ModelEndpointMonitoringMetricType.METRIC:
+            table_path = self._get_metrics_table_path(endpoint_id)
+            items_extractor = self._extract_metrics_from_items
+        elif type == mm_schemas.ModelEndpointMonitoringMetricType.RESULT:
+            table_path = self._get_results_table_path(endpoint_id)
+            items_extractor = self._extract_results_from_items
+        else:
+            raise ValueError(f"Invalid metric {type = }")
         try:
             response = self.client.kv.scan(container=container, table_path=table_path)
         except v3io.dataplane.response.HttpResponseError as err:
             if err.status_code == HTTPStatus.NOT_FOUND:
                 logger.warning(
-                    "Attempt getting metrics and results - no data. Check the "
+                    f"Attempt getting {type}s - no data. Check the "
                     "project name, endpoint, or wait for the applications to start.",
                     container=container,
                     table_path=table_path,
@@ -668,7 +696,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             raise
 
         while True:
-            metrics.extend(self._extract_results_from_items(response.output.items))
+            metrics.extend(items_extractor(response.output.items))
             if response.output.last:
                 break
             # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`

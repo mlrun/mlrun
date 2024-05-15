@@ -98,12 +98,79 @@ def store(
     ],
     indirect=["store"],
 )
-def test_extract_metrics_from_items(
+def test_extract_results_from_items(
     store: KVStoreBase,
     items: list[dict[str, str]],
     expected_metrics: list[ModelEndpointMonitoringMetric],
 ) -> None:
     assert store._extract_results_from_items(items) == expected_metrics
+
+
+@pytest.mark.parametrize(
+    ("store", "items", "expected_metrics"),
+    [
+        ("", [], []),
+        (
+            "default",
+            [
+                {
+                    "__name": "histogram-data-drift.tvd_mean",
+                    "application_name": "histogram-data-drift",
+                    "metric_name": "tvd_mean",
+                    "metric_value": 1.0,
+                    "start_infer_time": "2024-05-15 17:25:28.000000+00:00",
+                    "end_infer_time": "2024-05-15 17:26:28.000000+00:00",
+                },
+                {
+                    "__name": "histogram-data-drift.kld_mean",
+                    "application_name": "histogram-data-drift",
+                    "metric_name": "kld_mean",
+                    "metric_value": 15.7973460213887,
+                    "start_infer_time": "2024-05-15 17:25:28.000000+00:00",
+                    "end_infer_time": "2024-05-15 17:26:28.000000+00:00",
+                },
+                {
+                    "__name": "histogram-data-drift.hellinger_mean",
+                    "application_name": "histogram-data-drift",
+                    "metric_name": "hellinger_mean",
+                    "metric_value": 1.0,
+                    "start_infer_time": "2024-05-15 17:25:28.000000+00:00",
+                    "end_infer_time": "2024-05-15 17:26:28.000000+00:00",
+                },
+            ],
+            [
+                ModelEndpointMonitoringMetric(
+                    project="default",
+                    app="histogram-data-drift",
+                    type=ModelEndpointMonitoringMetricType.METRIC,
+                    name="tvd_mean",
+                    full_name="default.histogram-data-drift.metric.tvd_mean",
+                ),
+                ModelEndpointMonitoringMetric(
+                    project="default",
+                    app="histogram-data-drift",
+                    type=ModelEndpointMonitoringMetricType.METRIC,
+                    name="kld_mean",
+                    full_name="default.histogram-data-drift.metric.kld_mean",
+                ),
+                ModelEndpointMonitoringMetric(
+                    project="default",
+                    app="histogram-data-drift",
+                    type=ModelEndpointMonitoringMetricType.METRIC,
+                    name="hellinger_mean",
+                    full_name="default.histogram-data-drift.metric.hellinger_mean",
+                ),
+            ],
+        ),
+    ],
+    indirect=["store"],
+)
+def test_extract_metrics_from_items(
+    store: KVStoreBase,
+    items: list[dict[str, str]],
+    expected_metrics: list[ModelEndpointMonitoringMetric],
+) -> None:
+    assert store._extract_metrics_from_items(items) == expected_metrics
 
 
 @pytest.fixture

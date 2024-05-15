@@ -509,7 +509,7 @@ def _get_extra(target, extra_data, is_dir=False):
 def _remove_tag_from_spec_yaml(model_spec):
     spec_dict = model_spec.to_dict()
     spec_dict["metadata"].pop("tag", None)
-    return yaml.dump(spec_dict)
+    return yaml.safe_dump(spec_dict)
 
 
 def update_model(

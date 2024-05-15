@@ -18,7 +18,7 @@ import sys
 import tempfile
 import uuid
 from datetime import datetime
-
+import tests.system.feature_store.utils.sort_df
 import fsspec
 import pandas as pd
 import pytest
@@ -364,10 +364,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=run_config,
         )
-        result = mlrun.datastore.utils.sort_df(
+        result = tests.system.feature_store.utils.sort_df(
             pd.read_parquet(feature_set.get_target_path()), "patient_id"
         )
-        expected = mlrun.datastore.utils.sort_df(filtered_df, "patient_id")
+        expected = tests.system.feature_store.utils.sort_df(filtered_df, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
         vec = fstore.FeatureVector(
@@ -390,10 +390,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
-        expected = mlrun.datastore.utils.sort_df(
+        expected = tests.system.feature_store.utils.sort_df(
             filtered_df.query("bad == 95"), "patient_id"
         )
-        result = mlrun.datastore.utils.sort_df(result, "patient_id")
+        result = tests.system.feature_store.utils.sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):

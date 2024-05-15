@@ -465,22 +465,25 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         artifacts = []
         i = 0
         while len(artifacts) < artifacts_len:
-            artifacts.append(
-                {
-                    "kind": "artifact",
-                    "metadata": {
-                        "key": f"key{i}",
-                        "tree": workflow_uid or run_uid,
-                        "uid": f"uid{i}",
-                        "project": project,
-                        "iter": None,
-                    },
-                    "spec": {
-                        "db_key": f"db_key{i}",
-                    },
-                    "status": {},
+            artifact = {
+                "kind": "artifact",
+                "metadata": {
+                    "key": f"key{i}",
+                    "tree": workflow_uid or run_uid,
+                    "uid": f"uid{i}",
+                    "project": project,
+                    "iter": None,
+                },
+                "spec": {
+                    "db_key": f"db_key{i}",
+                },
+                "status": {},
+            }
+            if workflow_uid:
+                artifact["spec"]["producer"] = {
+                    "uri": f"{project}/{run_uid}",
                 }
-            )
+            artifacts.append(artifact)
             i += 1
         return artifacts
 

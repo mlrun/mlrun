@@ -351,7 +351,7 @@ class ParquetSource(BaseSourceDriver):
 
     @property
     def additional_filters(self):
-        return self.attributes.get("additional_filters", None)
+        return self.attributes.get("additional_filters")
 
     @staticmethod
     def _convert_to_datetime(time):

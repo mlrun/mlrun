@@ -19,7 +19,7 @@
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
 |ML-5726|Can now define HDFS datastore profile for registering to a project. See [HDFS data store profile](../store/datastore.html#hdfs).|
-|ML-2585|Can now delete artifacts by project conts. See ??|
+|ML-2585|Can now delete artifact matadata and/or artifact files per project. See [Deleting artifacts](../store/artifacts.html#deleting-artifacts).|
 
 ### Documentation
 | ID     |Description                                                                                         |

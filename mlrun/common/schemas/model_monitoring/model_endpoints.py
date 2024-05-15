@@ -298,6 +298,7 @@ class ModelEndpointList(BaseModel):
 
 class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
     RESULT = "result"
+    METRIC = "metric"
 
 
 class ModelEndpointMonitoringMetric(BaseModel):
@@ -322,7 +323,7 @@ _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
 _FQN_PATTERN = (
     rf"^(?P<project>{_FQN_PART_PATTERN})\."
     rf"(?P<app>{_FQN_PART_PATTERN})\."
-    rf"(?P<type>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
     rf"(?P<name>{_FQN_PART_PATTERN})$"
 )
 _FQN_REGEX = re.compile(_FQN_PATTERN)

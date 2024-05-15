@@ -454,7 +454,7 @@ class ParquetSource(BaseSourceDriver):
                         value.remove(none_value)
                         none_exists = True
                 if none_exists:
-                    filter_nan = column_types[col_name] != "timestamp"
+                    filter_nan = column_types[col_name] not in ("timestamp", "date")
                     if value:
                         if op.lower() == "in":
                             new_filter = (

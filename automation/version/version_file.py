@@ -16,7 +16,6 @@ import argparse
 import json
 import logging
 import os
-import os.path
 import pathlib
 import re
 import subprocess
@@ -83,11 +82,9 @@ def main():
         print(next_version)
 
     elif args.command == "ensure":
-        repo_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        version_file_path = os.path.join(
-            repo_root, "mlrun", "utils", "version", "version.json"
+        repo_root = pathlib.Path(__file__).parents[2]
+        version_file_path = str(
+            (repo_root / "mlrun/utils/version/version.json").absolute()
         )
         logger.debug(f"{args.mlrun_version = }")
         create_or_update_version_file(args.mlrun_version, version_file_path)

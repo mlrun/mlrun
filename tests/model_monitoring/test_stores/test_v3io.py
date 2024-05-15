@@ -17,14 +17,16 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from http import HTTPStatus
-from typing import Optional, TypedDict
+from typing import Any, Optional, TypedDict
 from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
+import v3io.dataplane.kv
 import v3io.dataplane.output
 import v3io.dataplane.response
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
@@ -36,7 +38,7 @@ from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_data
 
 
-@pytest.fixture
+@pytest.fixture(params=["default-project"])
 def store(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> KVStoreBase:
@@ -104,6 +106,47 @@ def test_extract_metrics_from_items(
     expected_metrics: list[ModelEndpointMonitoringMetric],
 ) -> None:
     assert store._extract_metrics_from_items(items) == expected_metrics
+
+
+@pytest.fixture
+def kv_client_mock() -> v3io.dataplane.kv.Model:
+    kv_mock = Mock(spec=v3io.dataplane.kv.Model)
+    schema_file = Mock(all=Mock(return_value=False))
+    kv_mock.new_cursor = Mock(return_value=schema_file)
+    kv_mock.create_schema = Mock(return_value=Mock(status_code=HTTPStatus.OK))
+    return kv_mock
+
+
+@pytest.fixture
+def mocked_client_store(
+    store: KVStoreBase, kv_client_mock: v3io.dataplane.kv.Model
+) -> KVStoreBase:
+    store.client.kv = kv_client_mock
+    return store
+
+
+@pytest.fixture
+def metric_event() -> dict[str, Any]:
+    return {
+        mm_constants.WriterEvent.ENDPOINT_ID: "ep-id",
+        mm_constants.WriterEvent.APPLICATION_NAME: "some-app",
+        mm_constants.MetricData.METRIC_NAME: "metric_1",
+        mm_constants.MetricData.METRIC_VALUE: 0.345,
+        mm_constants.WriterEvent.START_INFER_TIME: "2024-05-10T13:00:00.0+00:00",
+        mm_constants.WriterEvent.END_INFER_TIME: "2024-05-10T14:00:00.0+00:00",
+    }
+
+
+def test_write_application_metric(
+    mocked_client_store: KVStoreBase,
+    kv_client_mock: v3io.dataplane.kv.Model,
+    metric_event: dict[str, Any],
+) -> None:
+    mocked_client_store.write_application_event(
+        event=metric_event, kind=mm_constants.WriterEventKind.METRIC
+    )
+    kv_client_mock.update.assert_called_once()
+    kv_client_mock.create_schema.assert_called_once()
 
 
 class TestGetModelEndpointMetrics:

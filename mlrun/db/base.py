@@ -555,7 +555,7 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[list[str]] = None,
         features: bool = False,
-    ):
+    ) -> mlrun.model_monitoring.ModelEndpoint:
         pass
 
     @abstractmethod
@@ -629,8 +629,8 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_api_gateway(
         self,
-        project: str,
         api_gateway: mlrun.common.schemas.APIGateway,
+        project: str = None,
     ):
         pass
 

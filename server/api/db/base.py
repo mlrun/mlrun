@@ -312,6 +312,18 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        pass
+
+    @abstractmethod
     def create_schedule(
         self,
         session,

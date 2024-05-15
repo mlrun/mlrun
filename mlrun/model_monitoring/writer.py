@@ -19,9 +19,9 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_constants
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
+    HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
     ResultStatusApp,
@@ -121,25 +121,21 @@ class ModelMonitoringWriter(StepToDict):
     def _generate_event_on_drift(
         model_endpoint: str, drift_status: str, event_value: dict, project_name: str
     ) -> None:
-        if (
-            drift_status == ResultStatusApp.detected.value
-            or drift_status == ResultStatusApp.potential_detection.value
-        ):
-            logger.info("Sending an alert")
-            entity = {
-                "kind": alert_constants.EventEntityKind.MODEL,
-                "project": project_name,
-                "ids": [model_endpoint],
-            }
-            event_kind = (
-                alert_constants.EventKind.DRIFT_DETECTED
-                if drift_status == ResultStatusApp.detected.value
-                else alert_constants.EventKind.DRIFT_SUSPECTED
-            )
-            event_data = mlrun.common.schemas.Event(
-                kind=event_kind, entity=entity, value_dict=event_value
-            )
-            mlrun.get_run_db().generate_event(event_kind, event_data)
+        logger.info("Sending an alert")
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_constants.EventEntityKind.MODEL,
+            project=project_name,
+            ids=[model_endpoint],
+        )
+        event_kind = (
+            alert_constants.EventKind.DRIFT_DETECTED
+            if drift_status == ResultStatusApp.detected.value
+            else alert_constants.EventKind.DRIFT_SUSPECTED
+        )
+        event_data = mlrun.common.schemas.Event(
+            kind=event_kind, entity=entity, value_dict=event_value
+        )
+        mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, str]:
@@ -193,6 +189,11 @@ class ModelMonitoringWriter(StepToDict):
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
             and kind == WriterEventKind.RESULT
+            and (
+                event[ResultData.RESULT_STATUS] == ResultStatusApp.detected.value
+                or event[ResultData.RESULT_STATUS]
+                == ResultStatusApp.potential_detection.value
+            )
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             endpoint_record = self._endpoints_records.setdefault(
@@ -211,4 +212,23 @@ class ModelMonitoringWriter(StepToDict):
                 event[ResultData.RESULT_STATUS],
                 event_value,
                 self.project,
+            )
+
+        if (
+            kind == WriterEventKind.RESULT
+            and event[WriterEvent.APPLICATION_NAME]
+            == HistogramDataDriftApplicationConstants.NAME
+            and event[ResultData.RESULT_NAME]
+            == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+        ):
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            logger.info(
+                "Updating the model endpoint with metadata specific to the histogram "
+                "data drift app",
+                endpoint_id=endpoint_id,
+            )
+            store = mlrun.model_monitoring.get_store_object(project=self.project)
+            store.update_model_endpoint(
+                endpoint_id=endpoint_id,
+                attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
             )

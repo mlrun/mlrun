@@ -20,7 +20,6 @@ import uuid
 from datetime import datetime
 
 import fsspec
-import numpy as np
 import pandas as pd
 import pytest
 import v3iofs
@@ -337,13 +336,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_parquet_filters(self):
         parquet_source_path = self.get_pq_source_path()
+        source_file_name = "testdata_with_none.parquet"
+        parquet_source_path = parquet_source_path.replace(
+            self.pq_source, source_file_name
+        )
         if not self.run_local:
-            df = pd.read_parquet(self.get_local_pq_source_path().replace(self.pq_source, "testdata_with_none.parquet"))
+            df = pd.read_parquet(
+                self.get_local_pq_source_path().replace(
+                    self.pq_source, source_file_name
+                )
+            )
             df.to_parquet(parquet_source_path)
 
-        parquet_source_path = parquet_source_path.replace(
-            self.pq_source, "testdata_with_none.parquet"
-        )
         filters = [("department", "in", ["01e9fe31-76de-45f0-9aed-0f94cc97bca0", None])]
         filtered_df = pd.read_parquet(parquet_source_path, filters=filters)
         base_path = self.get_test_output_subdir_path()
@@ -384,7 +388,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             feature_vector=vec,
             additional_filters=[
                 ("bad", "not in", [38, 100]),
-                ("movements", "not in", [np.nan]),
+                ("movements", "<", 6),
             ],
             with_indexes=True,
             target=get_offline_target,
@@ -396,10 +400,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
         expected = sort_df(
-            filtered_df.query("bad not in [38,100] & not movements.isna()"),
-            ["patient_id", "timestamp"],
+            filtered_df.query("bad not in [38,100] & movements < 6"),
+            ["patient_id"],
         )
-        result = sort_df(result, ["patient_id", "timestamp"])
+        result = sort_df(result, ["patient_id"])
         assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):

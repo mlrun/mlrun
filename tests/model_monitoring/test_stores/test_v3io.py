@@ -105,7 +105,7 @@ def test_extract_metrics_from_items(
     items: list[dict[str, str]],
     expected_metrics: list[ModelEndpointMonitoringMetric],
 ) -> None:
-    assert store._extract_metrics_from_items(items) == expected_metrics
+    assert store._extract_results_from_items(items) == expected_metrics
 
 
 @pytest.fixture
@@ -257,13 +257,20 @@ class TestGetModelEndpointMetrics:
         endpoint_id: str,
         expected_metrics: list[ModelEndpointMonitoringMetric],
     ) -> None:
-        assert store.get_model_endpoint_metrics(endpoint_id) == expected_metrics
+        assert (
+            store.get_model_endpoint_metrics(
+                endpoint_id, type=ModelEndpointMonitoringMetricType.RESULT
+            )
+            == expected_metrics
+        )
 
     @classmethod
     def test_response_error(cls, store_with_err: KVStoreBase) -> None:
         """Test that non 404 errors are not silenced"""
         with pytest.raises(v3io.dataplane.response.HttpResponseError):
-            store_with_err.get_model_endpoint_metrics(cls.ENDPOINT)
+            store_with_err.get_model_endpoint_metrics(
+                cls.ENDPOINT, type=ModelEndpointMonitoringMetricType.RESULT
+            )
 
 
 @pytest.mark.parametrize(

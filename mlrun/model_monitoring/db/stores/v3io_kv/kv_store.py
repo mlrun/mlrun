@@ -22,24 +22,23 @@ import v3io.dataplane
 import v3io.dataplane.response
 
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas.model_monitoring as mm_constants
-import mlrun.common.schemas.model_monitoring.model_endpoints
+import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
 # Fields to encode before storing in the KV table or to decode after retrieving
 fields_to_encode_decode = [
-    mm_constants.EventFieldType.FEATURE_STATS,
-    mm_constants.EventFieldType.CURRENT_STATS,
+    mm_schemas.EventFieldType.FEATURE_STATS,
+    mm_schemas.EventFieldType.CURRENT_STATS,
 ]
 
 _METRIC_FIELDS: list[str] = [
-    mm_constants.WriterEvent.APPLICATION_NAME,
-    mm_constants.MetricData.METRIC_NAME,
-    mm_constants.MetricData.METRIC_VALUE,
-    mm_constants.WriterEvent.START_INFER_TIME,
-    mm_constants.WriterEvent.END_INFER_TIME,
+    mm_schemas.WriterEvent.APPLICATION_NAME,
+    mm_schemas.MetricData.METRIC_NAME,
+    mm_schemas.MetricData.METRIC_VALUE,
+    mm_schemas.WriterEvent.START_INFER_TIME,
+    mm_schemas.WriterEvent.END_INFER_TIME,
 ]
 
 
@@ -57,31 +56,31 @@ class SchemaParams:
 
 _RESULT_SCHEMA: list[SchemaField] = [
     SchemaField(
-        name=mm_constants.ResultData.RESULT_NAME,
-        type=mm_constants.GrafanaColumnType.STRING,
+        name=mm_schemas.ResultData.RESULT_NAME,
+        type=mm_schemas.GrafanaColumnType.STRING,
         nullable=False,
     )
 ]
 
 _METRIC_SCHEMA: list[SchemaField] = [
     SchemaField(
-        name=mm_constants.WriterEvent.APPLICATION_NAME,
-        type=mm_constants.GrafanaColumnType.STRING,
+        name=mm_schemas.WriterEvent.APPLICATION_NAME,
+        type=mm_schemas.GrafanaColumnType.STRING,
         nullable=False,
     ),
     SchemaField(
-        name=mm_constants.MetricData.METRIC_NAME,
-        type=mm_constants.GrafanaColumnType.STRING,
+        name=mm_schemas.MetricData.METRIC_NAME,
+        type=mm_schemas.GrafanaColumnType.STRING,
         nullable=False,
     ),
 ]
 
 
-_KIND_TO_SCHEMA_PARAMS: dict[mm_constants.WriterEventKind, SchemaParams] = {
-    mm_constants.WriterEventKind.RESULT: SchemaParams(
-        key=mm_constants.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
+_KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
+    mm_schemas.WriterEventKind.RESULT: SchemaParams(
+        key=mm_schemas.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
     ),
-    mm_constants.WriterEventKind.METRIC: SchemaParams(
+    mm_schemas.WriterEventKind.METRIC: SchemaParams(
         key="metric_id", fields=_METRIC_SCHEMA
     ),
 }
@@ -118,7 +117,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         self.client.kv.put(
             container=self.container,
             table_path=self.path,
-            key=endpoint[mm_constants.EventFieldType.UID],
+            key=endpoint[mm_schemas.EventFieldType.UID],
             attributes=endpoint,
         )
 
@@ -205,7 +204,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         """Getting path and container based on the model monitoring configurations"""
         path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
             project=self.project,
-            kind=mm_constants.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=mm_schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -271,11 +270,11 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         if uids is None:
             uids = []
             for item in items:
-                if mm_constants.EventFieldType.UID not in item:
+                if mm_schemas.EventFieldType.UID not in item:
                     # This is kept for backwards compatibility - in old versions the key column named endpoint_id
-                    uids.append(item[mm_constants.EventFieldType.ENDPOINT_ID])
+                    uids.append(item[mm_schemas.EventFieldType.ENDPOINT_ID])
                 else:
-                    uids.append(item[mm_constants.EventFieldType.UID])
+                    uids.append(item[mm_schemas.EventFieldType.UID])
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
@@ -295,11 +294,11 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
-            if mm_constants.EventFieldType.UID not in endpoint_dict:
+            if mm_schemas.EventFieldType.UID not in endpoint_dict:
                 # This is kept for backwards compatibility - in old versions the key column named endpoint_id
-                endpoint_id = endpoint_dict[mm_constants.EventFieldType.ENDPOINT_ID]
+                endpoint_id = endpoint_dict[mm_schemas.EventFieldType.ENDPOINT_ID]
             else:
-                endpoint_id = endpoint_dict[mm_constants.EventFieldType.UID]
+                endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
             self.delete_model_endpoint(
                 endpoint_id,
             )
@@ -325,7 +324,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     def write_application_event(
         self,
         event: dict[str, typing.Any],
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
     ) -> None:
         """
         Write a new application event in the target table.
@@ -337,16 +336,16 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
 
         container = self.get_v3io_monitoring_apps_container(project_name=self.project)
-        endpoint_id = event.pop(mm_constants.WriterEvent.ENDPOINT_ID)
+        endpoint_id = event.pop(mm_schemas.WriterEvent.ENDPOINT_ID)
 
-        if kind == mm_constants.WriterEventKind.METRIC:
+        if kind == mm_schemas.WriterEventKind.METRIC:
             table_path = f"{endpoint_id}_metrics"
-            key = f"{event[mm_constants.WriterEvent.APPLICATION_NAME]}.{event[mm_constants.MetricData.METRIC_NAME]}"
+            key = f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}.{event[mm_schemas.MetricData.METRIC_NAME]}"
             attributes = {event_key: event[event_key] for event_key in _METRIC_FIELDS}
-        elif kind == mm_constants.WriterEventKind.RESULT:
+        elif kind == mm_schemas.WriterEventKind.RESULT:
             table_path = endpoint_id
-            key = event.pop(mm_constants.WriterEvent.APPLICATION_NAME)
-            metric_name = event.pop(mm_constants.ResultData.RESULT_NAME)
+            key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
+            metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
             attributes = {metric_name: json.dumps(event)}
         else:
             raise ValueError(f"Invalid {kind = }")
@@ -376,7 +375,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         logger.info("Updated V3IO KV successfully", key=key)
 
     def _generate_kv_schema(
-        self, *, container: str, table_path: str, kind: mm_constants.WriterEventKind
+        self, *, container: str, table_path: str, kind: mm_schemas.WriterEventKind
     ) -> None:
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         schema_params = _KIND_TO_SCHEMA_PARAMS[kind]
@@ -412,7 +411,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
+            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
             logger.debug("Error while getting last analyzed time", err=err)
             raise mlrun.errors.MLRunNotFoundError(
@@ -437,7 +436,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             ),
             table_path=endpoint_id,
             key=application_name,
-            attributes={mm_constants.SchedulingKeys.LAST_ANALYZED: last_analyzed},
+            attributes={mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed},
         )
 
     def _generate_tsdb_paths(self) -> tuple[str, str]:
@@ -450,7 +449,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         full_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=mm_constants.ModelMonitoringStoreKinds.EVENTS,
+                kind=mm_schemas.ModelMonitoringStoreKinds.EVENTS,
             )
         )
 
@@ -546,8 +545,8 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(
-                f"(endpoint_type=='{str(mm_constants.EndpointType.NODE_EP.value)}' "
-                f"OR  endpoint_type=='{str(mm_constants.EndpointType.ROUTER.value)}')"
+                f"(endpoint_type=='{str(mm_schemas.EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(mm_schemas.EndpointType.ROUTER.value)}')"
             )
 
         return " AND ".join(filter_expression)
@@ -567,30 +566,30 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Validate default value for `error_count`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
         if (
-            mm_constants.EventFieldType.ERROR_COUNT in endpoint
-            and endpoint[mm_constants.EventFieldType.ERROR_COUNT] == "null"
+            mm_schemas.EventFieldType.ERROR_COUNT in endpoint
+            and endpoint[mm_schemas.EventFieldType.ERROR_COUNT] == "null"
         ):
-            endpoint[mm_constants.EventFieldType.ERROR_COUNT] = "0"
+            endpoint[mm_schemas.EventFieldType.ERROR_COUNT] = "0"
 
         # Validate default value for `metrics`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
         if (
-            mm_constants.EventFieldType.METRICS in endpoint
-            and endpoint[mm_constants.EventFieldType.METRICS] == "null"
+            mm_schemas.EventFieldType.METRICS in endpoint
+            and endpoint[mm_schemas.EventFieldType.METRICS] == "null"
         ):
-            endpoint[mm_constants.EventFieldType.METRICS] = json.dumps(
+            endpoint[mm_schemas.EventFieldType.METRICS] = json.dumps(
                 {
-                    mm_constants.EventKeyMetrics.GENERIC: {
-                        mm_constants.EventLiveStats.LATENCY_AVG_1H: 0,
-                        mm_constants.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                    mm_schemas.EventKeyMetrics.GENERIC: {
+                        mm_schemas.EventLiveStats.LATENCY_AVG_1H: 0,
+                        mm_schemas.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                     }
                 }
             )
         # Validate key `uid` instead of `endpoint_id`
         # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
-        if mm_constants.EventFieldType.ENDPOINT_ID in endpoint:
-            endpoint[mm_constants.EventFieldType.UID] = endpoint[
-                mm_constants.EventFieldType.ENDPOINT_ID
+        if mm_schemas.EventFieldType.ENDPOINT_ID in endpoint:
+            endpoint[mm_schemas.EventFieldType.UID] = endpoint[
+                mm_schemas.EventFieldType.ENDPOINT_ID
             ]
 
     @staticmethod
@@ -617,10 +616,10 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
 
-    def _extract_metrics_from_items(
+    def _extract_results_from_items(
         self, app_items: list[dict[str, str]]
-    ) -> list[mm_constants.ModelEndpointMonitoringMetric]:
-        metrics: list[mm_constants.ModelEndpointMonitoringMetric] = []
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
         for app_item in app_items:
             # See https://www.iguazio.com/docs/latest-release/services/data-layer/reference/system-attributes/#sys-attr-__name
             app_name = app_item.pop("__name")
@@ -628,12 +627,12 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 continue
             for result_name in app_item:
                 metrics.append(
-                    mm_constants.ModelEndpointMonitoringMetric(
+                    mm_schemas.ModelEndpointMonitoringMetric(
                         project=self.project,
                         app=app_name,
-                        type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
+                        type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
                         name=result_name,
-                        full_name=mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+                        full_name=mm_schemas.model_endpoints._compose_full_name(
                             project=self.project, app=app_name, name=result_name
                         ),
                     )
@@ -641,32 +640,35 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         return metrics
 
     def get_model_endpoint_metrics(
-        self, endpoint_id: str
-    ) -> list[mm_constants.ModelEndpointMonitoringMetric]:
+        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
         """Get model monitoring results and metrics on the endpoint"""
-        metrics: list[mm_constants.ModelEndpointMonitoringMetric] = []
+        if type != mm_schemas.ModelEndpointMonitoringMetricType.RESULT:
+            raise NotImplementedError
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
         container = self.get_v3io_monitoring_apps_container(self.project)
+        table_path = endpoint_id
         try:
-            response = self.client.kv.scan(container=container, table_path=endpoint_id)
+            response = self.client.kv.scan(container=container, table_path=table_path)
         except v3io.dataplane.response.HttpResponseError as err:
             if err.status_code == HTTPStatus.NOT_FOUND:
                 logger.warning(
                     "Attempt getting metrics and results - no data. Check the "
                     "project name, endpoint, or wait for the applications to start.",
                     container=container,
-                    table_path=endpoint_id,
+                    table_path=table_path,
                 )
                 return []
             raise
 
         while True:
-            metrics.extend(self._extract_metrics_from_items(response.output.items))
+            metrics.extend(self._extract_results_from_items(response.output.items))
             if response.output.last:
                 break
             # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
             response = self.client.kv.scan(
                 container=container,
-                table_path=endpoint_id,
+                table_path=table_path,
                 marker=response.output.next_marker,
             )
 

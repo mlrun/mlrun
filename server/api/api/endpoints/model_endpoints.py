@@ -22,9 +22,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.model_endpoints
-import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
+import mlrun.common.schemas as schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring.db.v3io_tsdb_reader
 import mlrun.utils.helpers
 import server.api.api.deps
@@ -37,17 +36,15 @@ router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
 @router.post(
     "/{endpoint_id}",
-    response_model=mlrun.common.schemas.ModelEndpoint,
+    response_model=schemas.ModelEndpoint,
 )
 async def create_model_endpoint(
     project: str,
     endpoint_id: str,
-    model_endpoint: mlrun.common.schemas.ModelEndpoint,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
+    model_endpoint: schemas.ModelEndpoint,
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
     db_session: Session = Depends(server.api.api.deps.get_db_session),
-) -> mlrun.common.schemas.ModelEndpoint:
+) -> schemas.ModelEndpoint:
     """
     Create a DB record of a given `ModelEndpoint` object.
 
@@ -63,10 +60,10 @@ async def create_model_endpoint(
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.common.schemas.AuthorizationAction.store,
+        action=schemas.AuthorizationAction.store,
         auth_info=auth_info,
     )
 
@@ -89,16 +86,14 @@ async def create_model_endpoint(
 
 @router.patch(
     "/{endpoint_id}",
-    response_model=mlrun.common.schemas.ModelEndpoint,
+    response_model=schemas.ModelEndpoint,
 )
 async def patch_model_endpoint(
     project: str,
     endpoint_id: str,
     attributes: str = None,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
-) -> mlrun.common.schemas.ModelEndpoint:
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
+) -> schemas.ModelEndpoint:
     """
     Update a DB record of a given `ModelEndpoint` object.
 
@@ -118,10 +113,10 @@ async def patch_model_endpoint(
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.common.schemas.AuthorizationAction.update,
+        action=schemas.AuthorizationAction.update,
         auth_info=auth_info,
     )
 
@@ -144,9 +139,7 @@ async def patch_model_endpoint(
 async def delete_model_endpoint(
     project: str,
     endpoint_id: str,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
 ):
     """
     Clears endpoint record from the DB based on endpoint_id.
@@ -158,10 +151,10 @@ async def delete_model_endpoint(
     """
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.common.schemas.AuthorizationAction.delete,
+        action=schemas.AuthorizationAction.delete,
         auth_info=auth_info,
     )
 
@@ -174,7 +167,7 @@ async def delete_model_endpoint(
 
 @router.get(
     "",
-    response_model=mlrun.common.schemas.ModelEndpointList,
+    response_model=schemas.ModelEndpointList,
 )
 async def list_model_endpoints(
     project: str,
@@ -186,10 +179,8 @@ async def list_model_endpoints(
     metrics: list[str] = Query([], alias="metric"),
     top_level: bool = Query(False, alias="top-level"),
     uids: list[str] = Query(None, alias="uid"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
-) -> mlrun.common.schemas.ModelEndpointList:
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
+) -> schemas.ModelEndpointList:
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
     labels or top level. By default, when no filters are applied, all available endpoints for the given project will be
@@ -234,7 +225,7 @@ async def list_model_endpoints(
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
-        action=mlrun.common.schemas.AuthorizationAction.read,
+        action=schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
 
@@ -252,7 +243,7 @@ async def list_model_endpoints(
         uids=uids,
     )
     allowed_endpoints = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (
             _endpoint.metadata.project,
@@ -266,20 +257,20 @@ async def list_model_endpoints(
 
 
 async def _verify_model_endpoint_read_permission(
-    *, project: str, endpoint_id: str, auth_info: mlrun.common.schemas.AuthInfo
+    *, project: str, endpoint_id: str, auth_info: schemas.AuthInfo
 ) -> None:
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+        schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.common.schemas.AuthorizationAction.read,
+        action=schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
 
 
 @router.get(
     "/{endpoint_id}",
-    response_model=mlrun.common.schemas.ModelEndpoint,
+    response_model=schemas.ModelEndpoint,
 )
 async def get_model_endpoint(
     project: str,
@@ -288,10 +279,8 @@ async def get_model_endpoint(
     end: str = Query(default="now"),
     metrics: list[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
-) -> mlrun.common.schemas.ModelEndpoint:
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
+) -> schemas.ModelEndpoint:
     """Get a single model endpoint object. You can apply different time series metrics that will be added to the
        result.
 
@@ -335,18 +324,14 @@ async def get_model_endpoint(
 
 @router.get(
     "/{endpoint_id}/metrics",
-    response_model=list[
-        mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric
-    ],
+    response_model=list[mm_endpoints.ModelEndpointMonitoringMetric],
 )
 async def get_model_endpoint_monitoring_metrics(
     project: str,
     endpoint_id: str,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
-) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
+) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
     """
     :param project:     The name of the project.
     :param endpoint_id: The unique id of the model endpoint.
@@ -362,10 +347,11 @@ async def get_model_endpoint_monitoring_metrics(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
     return await run_in_threadpool(
-        mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(
+        mlrun.model_monitoring.get_store_object(
             project=project
         ).get_model_endpoint_metrics,
         endpoint_id=endpoint_id,
+        type=mm_endpoints.ModelEndpointMonitoringMetricType.RESULT,
     )
 
 
@@ -373,9 +359,7 @@ async def get_model_endpoint_monitoring_metrics(
 class _MetricsValuesParams:
     project: str
     endpoint_id: str
-    metrics: list[
-        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringMetric
-    ]
+    metrics: list[mm_endpoints.ModelEndpointMonitoringMetric]
     start: datetime
     end: datetime
 
@@ -385,15 +369,11 @@ async def _get_metrics_values_data(
     endpoint_id: str,
     name: Annotated[
         list[str],
-        Query(
-            pattern=mlrun.common.schemas.model_monitoring.model_endpoints._FQN_PATTERN
-        ),
+        Query(pattern=mm_endpoints._FQN_PATTERN),
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        server.api.api.deps.authenticate_request
-    ),
+    auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
 ) -> _MetricsValuesParams:
     """
     Verify authorization, validate parameters and initialize the parameters.
@@ -426,12 +406,7 @@ async def _get_metrics_values_data(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Provided only one of start time, end time. Please provide both or neither."
         )
-    metrics = [
-        mlrun.common.schemas.model_monitoring.model_endpoints._parse_metric_fqn_to_monitoring_metric(
-            fqn
-        )
-        for fqn in name
-    ]
+    metrics = [mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn) for fqn in name]
     return _MetricsValuesParams(
         project=project,
         endpoint_id=endpoint_id,
@@ -445,8 +420,8 @@ async def _get_metrics_values_data(
     "/{endpoint_id}/metrics-values",
     response_model=list[
         Union[
-            mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
-            mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+            mm_endpoints.ModelEndpointMonitoringResultValues,
+            mm_endpoints.ModelEndpointMonitoringResultNoData,
         ]
     ],
 )
@@ -454,8 +429,8 @@ async def get_model_endpoint_monitoring_metrics_values(
     params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
 ) -> list[
     Union[
-        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
-        mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+        mm_endpoints.ModelEndpointMonitoringResultValues,
+        mm_endpoints.ModelEndpointMonitoringResultNoData,
     ]
 ]:
     """

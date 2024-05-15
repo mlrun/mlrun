@@ -25,7 +25,8 @@ class TrackerExample(Tracker):
     # just some random module
     TRACKED_MODULE_NAME = "os"
 
-    def is_enabled(self):
+    @staticmethod
+    def is_enabled():
         return True
 
     def pre_run(self, context) -> dict:

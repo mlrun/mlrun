@@ -24,7 +24,6 @@ import typing
 import urllib.parse
 
 import aiohttp
-import cachetools
 import fastapi
 import humanfriendly
 import igz_mgmt.schemas.manual_events
@@ -36,6 +35,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import server.api.api.utils
 import server.api.utils.projects.remotes.leader as project_leader
 from mlrun.utils import get_in, logger
 
@@ -341,7 +341,7 @@ class Client(
         """
         return True
 
-    @cachetools.cached(cache=cachetools.TTLCache(maxsize=1, ttl=120))
+    @server.api.api.utils.lru_cache_with_ttl(maxsize=1, ttl_seconds=60 * 2)
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL

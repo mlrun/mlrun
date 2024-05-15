@@ -345,17 +345,19 @@ async def get_model_endpoint_monitoring_metrics(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
-    type: Literal["results"] = "results",
+    type: Literal["results", "metrics", "all"] = "all",
 ) -> list[mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetric]:
     """
     :param project:     The name of the project.
     :param endpoint_id: The unique id of the model endpoint.
     :param auth_info:   The auth info of the request.
-    :param type:        The type of the metrics to return. Currently, only "results"
-                        is supported.
+    :param type:        The type of the metrics to return. "all" means "results"
+                        and "metrics".
 
     :returns:           A list of the application results for this model endpoint.
     """
+    if type != "results":
+        raise NotImplementedError
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )

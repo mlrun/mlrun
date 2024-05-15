@@ -34,6 +34,7 @@ def test_create_application_runtime():
 
 
 def test_create_application_runtime_with_command(rundb_mock):
+    mlrun.mlconf.igz_version = "3.6.0"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun", command="echo"
     )
@@ -47,6 +48,7 @@ def test_create_application_runtime_with_command(rundb_mock):
 
 
 def test_deploy_application_runtime(rundb_mock):
+    mlrun.mlconf.igz_version = "3.6.0"
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test", kind="application", image=image
@@ -56,6 +58,7 @@ def test_deploy_application_runtime(rundb_mock):
 
 
 def test_consecutive_deploy_application_runtime(rundb_mock):
+    mlrun.mlconf.igz_version = "3.6.0"
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test", kind="application", image=image
@@ -158,6 +161,7 @@ def test_image_enriched_on_build_application_image(remote_builder_mock):
 
 
 def test_application_image_build(remote_builder_mock):
+    mlrun.mlconf.igz_version = "3.6.0"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test",
         kind="application",
@@ -171,6 +175,7 @@ def test_application_image_build(remote_builder_mock):
 
 
 def test_application_api_gateway(rundb_mock):
+    mlrun.mlconf.igz_version = "3.6.0"
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test",

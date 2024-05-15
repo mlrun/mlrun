@@ -657,8 +657,9 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         project = project or config.default_project
 
@@ -681,6 +682,7 @@ class SQLDB(DBInterface):
             uid=uid,
             producer_id=producer_id,
             best_iteration=best_iteration,
+            producer_uri=producer_uri,
         )
         if as_records:
             return artifact_records
@@ -1247,6 +1249,7 @@ class SQLDB(DBInterface):
         producer_id=None,
         best_iteration=False,
         most_recent=False,
+        producer_uri=None,
     ):
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1294,6 +1297,18 @@ class SQLDB(DBInterface):
                 query = query.filter(ArtifactV2.kind.in_(kinds))
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
+
+        # Producer URI usually points to a run and is used to filter artifacts by the run that produced them when
+        # the artifact producer id is a workflow id (artifact was created as part of a workflow).
+        if producer_uri:
+            artifacts = []
+            for artifact in query:
+                artifact_struct = artifact.full_object
+                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
+                if artifact_struct["spec"]["producer"].get("uri") == producer_uri:
+                    artifacts.append(artifact)
+
+            return artifacts
 
         return query.all()
 
@@ -1663,23 +1678,39 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        project = project or config.default_project
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session, name=name, tag=tag, hash_key=hash_key, project=project
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        function = query.one_or_none()
+        if function:
+            struct = function.struct
+            for key, val in updates.items():
+                update_in(struct, key, val)
+            function.struct = struct
+            self._upsert(session, [function])
+            return function.struct
+
     def _get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
-        tag_function_uid = None
-        if not tag and hash_key:
-            uid = hash_key
-        else:
-            tag_function_uid = self._resolve_class_tag_uid(
-                session, Function, project, name, computed_tag
-            )
-            if tag_function_uid is None:
-                function_uri = generate_object_uri(project, name, tag)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Function tag not found {function_uri}"
-                )
-            uid = tag_function_uid
+        uid = self._get_function_uid(
+            session=session, name=name, tag=tag, hash_key=hash_key, project=project
+        )
+        tag_function_uid = None if not tag and hash_key else uid
         if uid:
             query = query.filter(Function.uid == uid)
         obj = query.one_or_none()
@@ -1701,6 +1732,23 @@ class SQLDB(DBInterface):
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
+
+    def _get_function_uid(
+        self, session, name: str, tag: str, hash_key: str, project: str
+    ):
+        computed_tag = tag or "latest"
+        if not tag and hash_key:
+            return hash_key
+        else:
+            tag_function_uid = self._resolve_class_tag_uid(
+                session, Function, project, name, computed_tag
+            )
+            if tag_function_uid is None:
+                function_uri = generate_object_uri(project, name, tag)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Function tag not found {function_uri}"
+                )
+            return tag_function_uid
 
     def _delete_functions(self, session: Session, project: str):
         for function_name in self._list_project_function_names(session, project):

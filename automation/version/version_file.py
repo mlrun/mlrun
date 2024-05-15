@@ -272,7 +272,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
 
     # Enrich the version with the feature name (unless version is unstable)
     if (
-        "+unstable" not in mlrun_version
+        "unstable" not in mlrun_version
         and git_branch
         and git_branch.startswith("feature/")
     ):

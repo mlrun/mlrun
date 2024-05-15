@@ -440,7 +440,7 @@ class ParquetSource(BaseSourceDriver):
             "!=": operator.ne,
         }
 
-        none_values = [None, np.nan, np.NaN, float("nan")]
+        none_values = [None, np.nan, float("nan")]
         spark_filter = None
         new_filter = lit(True)
         for filter_tuple in self.additional_filters:

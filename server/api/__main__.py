@@ -96,6 +96,14 @@ def db(
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "server.api.main"]
+    if env.get("MLRUN_MEMRAY") != 0:
+        cmd = [executable, "-m", "memray", "run"]
+        output_file = env.get("MLRUN_MEMRAY_OUTPUT_FILE", None)
+        if output_file:
+            cmd += ["--output", output_file, "--force"]
+
+        cmd += ["-m", "server.api.main"]
+
     pid = None
     if background:
         print("Starting MLRun API service in the background...")

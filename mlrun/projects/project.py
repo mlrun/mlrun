@@ -44,6 +44,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.common.runtimes.constants
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
@@ -3685,8 +3686,8 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,  # Backward compatibility
-        states: typing.Optional[list[str]] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -3721,6 +3722,7 @@ class MlrunProject(ModelObj):
                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                 key (i.e. "key").
         :param state: List only runs whose state is specified.
+        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used (will be removed in 1.8.0).

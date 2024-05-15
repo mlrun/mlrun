@@ -25,6 +25,7 @@ import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 import server.api.crud
 import server.api.db.session
+import mlrun.common.runtimes.constants
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
 from server.api.db.base import DBError
@@ -113,8 +114,8 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
-        states: Optional[list[str]] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,

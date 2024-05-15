@@ -19,7 +19,7 @@ from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from typing import Optional, Union
-
+import math
 import numpy as np
 import pandas as pd
 import semver
@@ -453,6 +453,10 @@ class ParquetSource(BaseSourceDriver):
                     if none_value in value:
                         value.remove(none_value)
                         none_exists = True
+                    for sub_value in value:
+                        if isinstance(sub_value, float) and math.isnan(sub_value):
+                            value.remove(sub_value)
+                            none_exists = True
                 if none_exists:
                     filter_nan = column_types[col_name] not in ("timestamp", "date")
                     if value:

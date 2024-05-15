@@ -133,8 +133,8 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        state: typing.Optional[str] = None,
-        states: typing.Optional[list[str]] = None,  # Backward compatibility
+        state: typing.Optional[str] = None,  # Backward compatibility
+        states: typing.Optional[list[str]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -199,7 +199,9 @@ class Runs(
             uid=uid,
             project=project,
             labels=labels,
-            states=[state] if state is not None else states or None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,

@@ -80,7 +80,8 @@ class NopDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[str] = None,  # Backward compatibility
+        states: Optional[list[str]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,

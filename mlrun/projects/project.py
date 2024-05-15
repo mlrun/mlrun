@@ -3685,7 +3685,8 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[str] = None,  # Backward compatibility
+        states: typing.Optional[list[str]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -3736,7 +3737,9 @@ class MlrunProject(ModelObj):
             uid,
             self.metadata.name,
             labels=labels,
-            state=state,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,

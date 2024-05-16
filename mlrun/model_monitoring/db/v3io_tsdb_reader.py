@@ -17,7 +17,7 @@
 
 from datetime import datetime
 from io import StringIO
-from typing import Union
+from typing import Literal, Union
 
 import pandas as pd
 
@@ -29,6 +29,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricType,
+    ModelEndpointMonitoringMetricValues,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
 )
@@ -85,22 +86,54 @@ def read_metrics_data(
     start: datetime,
     end: datetime,
     metrics: list[ModelEndpointMonitoringMetric],
-) -> list[
-    Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringMetricNoData]
+    type: Literal["metrics", "results"] = "results",
+) -> Union[
+    list[
+        Union[
+            ModelEndpointMonitoringResultValues,
+            ModelEndpointMonitoringMetricNoData,
+        ],
+    ],
+    list[
+        Union[
+            ModelEndpointMonitoringMetricValues,
+            ModelEndpointMonitoringMetricNoData,
+        ],
+    ],
 ]:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
         container=KVStoreBase.get_v3io_monitoring_apps_container(project),
     )
+
+    if type == "metrics":
+        table_name = mm_constants.MonitoringTSDBTables.METRICS
+        df_handler = df_to_metrics_values
+    elif type == "results":
+        table_name = mm_constants.MonitoringTSDBTables.APP_RESULTS
+        df_handler = df_to_results_values
+    else:
+        raise ValueError(f"Invalid {type = }")
+
     df: pd.DataFrame = client.read(
         backend=_TSDB_BE,
         query=_get_sql_query(
-            endpoint_id, [(metric.app, metric.name) for metric in metrics]
+            endpoint_id,
+            [(metric.app, metric.name) for metric in metrics],
+            table_name=table_name,
         ),
         start=start,
         end=end,
     )
 
+    return df_handler(df=df, metrics=metrics, project=project)
+
+
+def df_to_results_values(
+    *, df: pd.DataFrame, metrics: list[ModelEndpointMonitoringMetric], project: str
+) -> list[
+    Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringMetricNoData]
+]:
     metrics_without_data = {metric.full_name: metric for metric in metrics}
 
     metrics_values: list[
@@ -136,6 +169,49 @@ def read_metrics_data(
             ModelEndpointMonitoringMetricNoData(
                 full_name=metric.full_name,
                 type=ModelEndpointMonitoringMetricType.RESULT,
+            )
+        )
+
+    return metrics_values
+
+
+def df_to_metrics_values(
+    *, df: pd.DataFrame, metrics: list[ModelEndpointMonitoringMetric], project: str
+) -> list[
+    Union[ModelEndpointMonitoringMetricValues, ModelEndpointMonitoringMetricNoData]
+]:
+    metrics_without_data = {metric.full_name: metric for metric in metrics}
+
+    metrics_values: list[
+        Union[ModelEndpointMonitoringMetricValues, ModelEndpointMonitoringMetricNoData]
+    ] = []
+    if not df.empty:
+        grouped = df.groupby(
+            [mm_writer.WriterEvent.APPLICATION_NAME, mm_writer.MetricData.METRIC_NAME],
+            observed=False,
+        )
+    else:
+        grouped = []
+    for (app_name, result_name), sub_df in grouped:
+        full_name = _compose_full_name(project=project, app=app_name, name=result_name)
+        metrics_values.append(
+            ModelEndpointMonitoringMetricValues(
+                full_name=full_name,
+                values=list(
+                    zip(
+                        sub_df.index,
+                        sub_df[mm_writer.MetricData.METRIC_VALUE],
+                    )
+                ),  # pyright: ignore[reportArgumentType]
+            )
+        )
+        del metrics_without_data[full_name]
+
+    for metric in metrics_without_data.values():
+        metrics_values.append(
+            ModelEndpointMonitoringMetricNoData(
+                full_name=metric.full_name,
+                type=ModelEndpointMonitoringMetricType.METRIC,
             )
         )
 

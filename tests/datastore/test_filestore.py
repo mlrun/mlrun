@@ -37,7 +37,6 @@ class TestFileStore:
                 with pytest.raises(FileNotFoundError):
                     data_item.stat()
                 assert not os.path.exists(temp_file.name)
-        except Exception as e:
+        finally:
             if os.path.exists(temp_file.name):
                 os.remove(temp_file.name)
-            raise e

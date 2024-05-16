@@ -14,6 +14,7 @@
 #
 
 import json
+import typing
 from typing import Any, Union
 
 from kfp.dsl import ContainerOp
@@ -28,6 +29,34 @@ ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 PipelineNodeWrapper = ContainerOp
 
 
+class PipelineStep(FlexibleMapper):
+    def __init__(self, step_type, node_name, node, node_template):
+        data = {
+            "step_type": step_type,
+            "node_name": node_name,
+            "node": node,
+            "node_template": node_template,
+        }
+        super().__init__(data)
+
+    @property
+    def step_type(self):
+        return self._external_data["step_type"]
+
+    @property
+    def node_name(self):
+        return self._external_data["node_name"]
+
+    @property
+    def phase(self):
+        return self._external_data["node"]["phase"]
+
+    def get_annotation(self, annotation_name: str):
+        return self._external_data["node_template"]["metadata"]["annotations"].get(
+            annotation_name
+        )
+
+
 class PipelineManifest(FlexibleMapper):
     def __init__(
         self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"
@@ -40,6 +69,26 @@ class PipelineManifest(FlexibleMapper):
             pipeline_manifest = json.loads(pipeline_manifest)
             main_manifest["status"] = pipeline_manifest.get("status", {})
         super().__init__(main_manifest)
+
+    def get_steps(self) -> typing.Generator[PipelineStep, None, None]:
+        nodes = sorted(
+            self._external_data["status"]["nodes"].items(),
+            key=lambda _node: _node[1]["finishedAt"],
+        )
+        for node_name, node in nodes:
+            if node["type"] != "Pod":
+                # Skip the parent DAG node
+                continue
+
+            node_template = next(
+                template
+                for template in self._external_data["spec"]["templates"]
+                if template["name"] == node["templateName"]
+            )
+            step_type = node_template["metadata"]["annotations"].get(
+                "mlrun/pipeline-step-type"
+            )
+            yield PipelineStep(step_type, node_name, node, node_template)
 
 
 class PipelineRun(FlexibleMapper):

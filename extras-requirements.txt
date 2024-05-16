@@ -46,3 +46,16 @@ databricks-sdk~=0.13.0
 sqlalchemy~=1.4
 dask~=2023.9.0
 distributed~=2023.9.0
+
+evaluate
+transformers
+torch==2.0.0
+# torch 2.0.0 works with our current cuda driver 11.7, the newer versions will require a newer driver
+torchvision
+nltk
+rouge_score
+accelerate
+einops
+mpi4py
+openmpi
+

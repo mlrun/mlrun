@@ -297,7 +297,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
                             {"text": "*Runs*", "type": "mrkdwn"},
                             {"text": "*Results*", "type": "mrkdwn"},
                             {"text": ":x:  test-run", "type": "mrkdwn"},
-                            {"text": "**", "type": "mrkdwn"},
+                            {"text": "*error*", "type": "mrkdwn"},
                         ],
                         "type": "section",
                     },

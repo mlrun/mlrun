@@ -21,6 +21,7 @@ from time import monotonic, sleep
 from typing import Optional, Union
 
 import fsspec
+import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pytest
@@ -268,8 +269,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun.auto_mount())
-
+        ).apply(mlrun_pipelines.mounts.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
         project.enable_model_monitoring(
@@ -534,7 +534,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun.auto_mount())
+        ).apply(mlrun_pipelines.mounts.auto_mount())
 
         serving_fn.set_topology(
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
@@ -915,7 +915,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=self.project_name
-        ).apply(mlrun.auto_mount())
+        ).apply(mlrun_pipelines.mounts.auto_mount())
 
         model_name = "sklearn_RandomForestClassifier"
 
@@ -1142,18 +1142,15 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
         assert not df.empty, "No TSDB data"
         assert (
-            len(df) == 4
-        ), "Expects four results of the histogram data drift app in the TSDB"
+            len(df) == 1
+        ), "Expects a single result from the histogram data drift app in the TSDB"
         assert set(df.application_name) == {
             "histogram-data-drift"
-        }, "The application names are different than expected"
+        }, "The application name is different than expected"
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
-            "hellinger_mean",
-            "kld_mean",
-            "tvd_mean",
-        }, "The results are different than expected"
+        }, "The result is different than expected"
 
     def test_record(self) -> None:
         self.project.enable_model_monitoring(

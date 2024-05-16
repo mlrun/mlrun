@@ -16,11 +16,14 @@ import base64
 import json
 import unittest.mock
 from http import HTTPStatus
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import kubernetes.client
 import pytest
+import sqlalchemy.orm
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
+from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -35,9 +38,11 @@ import tests.api.conftest
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
 from server.api.api.utils import (
+    _delete_nuclio_functions_in_batches,
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
+    _update_functions_with_deletion_task_ids,
     ensure_function_has_auth_set,
     ensure_function_security_context,
     get_scheduler,
@@ -1658,3 +1663,55 @@ def _assert_env_var_from_secret(
         )
     assert env_var_value.secret_key_ref.name == secret_name
     assert env_var_value.secret_key_ref.key == secret_key
+
+
+@pytest.mark.asyncio
+async def test_delete_function_calls_k8s_helper_methods():
+    function_names = ["function1"]
+    async_client_mock = AsyncMock()
+
+    k8s_helper_mock = MagicMock()
+    configmap = V1ConfigMap()
+    configmap.metadata = V1ObjectMeta(name="config-map-1")
+    k8s_helper_mock.get_configmap.return_value = configmap
+
+    with (
+        patch(
+            "server.api.utils.clients.async_nuclio.Client",
+            return_value=async_client_mock,
+        ),
+        patch(
+            "server.api.utils.singletons.k8s.get_k8s_helper",
+            return_value=k8s_helper_mock,
+        ),
+    ):
+        failed_requests = await _delete_nuclio_functions_in_batches(
+            {}, "my-project", function_names
+        )
+
+        assert len(failed_requests) == 0
+        k8s_helper_mock.get_configmap.assert_called_with("function1", "model-conf")
+        k8s_helper_mock.delete_configmap.assert_called_with("config-map-1")
+
+
+@pytest.mark.asyncio
+async def test_update_functions_with_deletion_task_ids(db: sqlalchemy.orm.Session):
+    project = "my_project"
+    deletion_task_id = "12345"
+    function_name = "test_function"
+    function_tag = "latest"
+    function = {
+        "metadata": {"name": function_name, "tag": function_tag},
+    }
+    server.api.crud.Functions().store_function(
+        db, project=project, function=function, name=function_name, tag=function_tag
+    )
+    functions = [function]
+
+    await _update_functions_with_deletion_task_ids(
+        db, functions, project, deletion_task_id
+    )
+    function = server.api.crud.Functions().get_function(
+        db, name=function_name, project=project, tag=function_tag
+    )
+    assert function["status"]["deletion_task_id"] == deletion_task_id

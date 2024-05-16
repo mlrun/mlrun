@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import fsspec
+import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pyarrow
@@ -1700,7 +1701,9 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set.ingest(
             source,
             overwrite=True,
-            run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            run_config=fstore.RunConfig(local=False).apply(
+                mlrun_pipelines.mounts.mount_v3io()
+            ),
             targets=targets,
         )
 
@@ -2558,7 +2561,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
@@ -2875,7 +2878,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=v3io_source,
@@ -3094,7 +3097,7 @@ class TestFeatureStore(TestMLRunSystem):
         function.spec.default_content_type = "application/json"
         function.spec.image_pull_policy = "Always"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=source, run_config=run_config, targets=targets
@@ -3154,7 +3157,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -3727,7 +3730,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4084,7 +4087,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4206,7 +4209,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4504,7 +4507,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -4570,7 +4573,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()

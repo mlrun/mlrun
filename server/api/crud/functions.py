@@ -134,3 +134,17 @@ class Functions(
             client_python_version=client_python_version,
         )
         function.save(versioned=False)
+
+    def set_function_deletion_task_id(
+        self, db_session: sqlalchemy.orm.Session, function, project, deletion_task_id
+    ):
+        deleting_updates = {
+            "status.deletion_task_id": deletion_task_id,
+        }
+        return server.api.utils.singletons.db.get_db().update_function(
+            session=db_session,
+            name=function["metadata"]["name"],
+            tag=function["metadata"]["tag"],
+            project=project,
+            updates=deleting_updates,
+        )

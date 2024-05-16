@@ -14,7 +14,9 @@
 
 import enum
 import json
-from typing import Any, Optional
+import re
+from datetime import datetime
+from typing import Any, NamedTuple, Optional
 
 from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
@@ -29,6 +31,8 @@ from .constants import (
     EventKeyMetrics,
     EventLiveStats,
     ModelMonitoringMode,
+    ResultKindApp,
+    ResultStatusApp,
 )
 
 
@@ -302,6 +306,61 @@ class ModelEndpointMonitoringMetric(BaseModel):
     type: ModelEndpointMonitoringMetricType
     name: str
     full_name: str
+
+
+def _compose_full_name(
+    *,
+    project: str,
+    app: str,
+    name: str,
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT,
+) -> str:
+    return ".".join([project, app, type, name])
+
+
+_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_FQN_PATTERN = (
+    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"(?P<app>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{_FQN_PART_PATTERN})\."
+    rf"(?P<name>{_FQN_PART_PATTERN})$"
+)
+_FQN_REGEX = re.compile(_FQN_PATTERN)
+
+
+def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
+    match = _FQN_REGEX.fullmatch(fqn)
+    if match is None:
+        raise ValueError("The fully qualified name is not in the expected format")
+    return ModelEndpointMonitoringMetric.parse_obj(
+        match.groupdict() | {"full_name": fqn}
+    )
+
+
+class _ResultPoint(NamedTuple):
+    timestamp: datetime
+    value: float
+    status: ResultStatusApp
+
+
+class _ModelEndpointMonitoringResultValuesBase(BaseModel):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    data: bool
+
+
+class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringResultValuesBase):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    result_kind: ResultKindApp
+    values: list[_ResultPoint]
+    data: bool = True
+
+
+class ModelEndpointMonitoringResultNoData(_ModelEndpointMonitoringResultValuesBase):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    data: bool = False
 
 
 def _mapping_attributes(

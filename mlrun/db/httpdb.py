@@ -15,7 +15,6 @@
 import enum
 import http
 import re
-import tempfile
 import time
 import traceback
 import typing
@@ -26,9 +25,9 @@ from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
 
-import kfp
 import requests
 import semver
+from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.schemas
@@ -52,7 +51,6 @@ from ..utils import (
     datetime_to_iso,
     dict_to_json,
     logger,
-    new_pipe_metadata,
     normalize_name,
     version,
 )
@@ -591,7 +589,7 @@ class HTTPRunDB(RunDBInterface):
         if offset < 0:
             raise MLRunInvalidArgumentError("Offset cannot be negative")
         if size is None:
-            size = int(config.httpdb.logs.pull_logs_default_size_limit)
+            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:
             logger.warning(
                 "Retrieving all logs. This may be inefficient and can result in a large log."
@@ -637,23 +635,25 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode(errors=config.httpdb.logs.decode.errors))
+            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         nil_resp = 0
         while True:
             offset += len(text)
             # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
             # TODO: refactor this to use a conditional backoff mechanism
             if nil_resp < 3:
-                time.sleep(int(config.httpdb.logs.pull_logs_default_interval))
+                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
             else:
                 time.sleep(
-                    int(config.httpdb.logs.pull_logs_backoff_no_logs_default_interval)
+                    int(
+                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                    )
                 )
             state, text = self.get_log(uid, project, offset=offset)
             if text:
                 nil_resp = 0
                 print(
-                    text.decode(errors=config.httpdb.logs.decode.errors),
+                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
                     end="",
                 )
             else:
@@ -1040,6 +1040,7 @@ class HTTPRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        producer_uri: str = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1068,9 +1069,12 @@ class HTTPRunDB(RunDBInterface):
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
-        :param kind: Return artifacts of the requested kind.
-        :param category: Return artifacts of the requested category.
-        :param tree: Return artifacts of the requested tree.
+        :param kind:            Return artifacts of the requested kind.
+        :param category:        Return artifacts of the requested category.
+        :param tree:            Return artifacts of the requested tree.
+        :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
+            points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
+            is a workflow id (artifact was created as part of a workflow).
         """
 
         project = project or config.default_project
@@ -1089,6 +1093,7 @@ class HTTPRunDB(RunDBInterface):
             "category": category,
             "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "producer_uri": producer_uri,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
@@ -1850,14 +1855,11 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
-            pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_metadata(
+            pipe_file = compile_pipeline(
                 artifact_path=artifact_path,
                 cleanup_ttl=cleanup_ttl,
-                op_transformers=ops,
-            )
-            kfp.compiler.Compiler().compile(
-                pipeline, pipe_file, type_check=False, pipeline_conf=conf
+                ops=ops,
+                pipeline=pipeline,
             )
 
         if pipe_file.endswith(".yaml"):

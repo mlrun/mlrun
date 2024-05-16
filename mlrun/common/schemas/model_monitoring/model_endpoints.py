@@ -298,6 +298,7 @@ class ModelEndpointList(BaseModel):
 
 class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
     RESULT = "result"
+    METRIC = "metric"
 
 
 class ModelEndpointMonitoringMetric(BaseModel):

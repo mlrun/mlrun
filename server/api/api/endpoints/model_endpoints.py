@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -359,12 +359,25 @@ async def get_model_endpoint_monitoring_metrics(
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
-    return await run_in_threadpool(
-        mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(
-            project=project
-        ).get_model_endpoint_metrics,
-        endpoint_id=endpoint_id,
+
+    metrics_data, prediction_metric = await asyncio.gather(
+        run_in_threadpool(
+            mlrun.model_monitoring.db.stores.v3io_kv.kv_store.KVStoreBase(
+                project=project
+            ).get_model_endpoint_metrics,
+            endpoint_id=endpoint_id,
+        ),
+        run_in_threadpool(
+            mlrun.model_monitoring.db.v3io_tsdb_reader.prediction_metric_for_endpoint,
+            project=project,
+            endpoint_id=endpoint_id,
+        ),
     )
+
+    if prediction_metric:
+        metrics_data.append(prediction_metric)
+
+    return metrics_data
 
 
 @dataclass
@@ -376,6 +389,7 @@ class _MetricsValuesParams:
     ]
     start: datetime
     end: datetime
+    aggregation_window: Optional[str]
 
 
 async def _get_metrics_values_data(
@@ -389,6 +403,7 @@ async def _get_metrics_values_data(
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
+    aggregation_window: Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
@@ -396,14 +411,15 @@ async def _get_metrics_values_data(
     """
     Verify authorization, validate parameters and initialize the parameters.
 
-    :param project:     The name of the project.
-    :param endpoint_id: The unique id of the model endpoint.
-    :param name:        The full names of the requested results. At least one is required.
-    :param start:       Start and end times are optional, and must be timezone aware.
-    :param end:         See the `start` parameter.
-    :param auth_info:   The auth info of the request.
+    :param project:            The name of the project.
+    :param endpoint_id:        The unique id of the model endpoint.
+    :param name:               The full names of the requested results. At least one is required.
+    :param start:              Start and end times are optional, and must be timezone aware.
+    :param end:                See the `start` parameter.
+    :param aggregation_window: Time window to group the results by.
+    :param auth_info:          The auth info of the request.
 
-    :return:            _MetricsValuesData object with the validated data.
+    :return: _MetricsValuesData object with the validated data.
     """
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
@@ -436,6 +452,7 @@ async def _get_metrics_values_data(
         metrics=metrics,
         start=start,
         end=end,
+        aggregation_window=aggregation_window,
     )
 
 
@@ -461,11 +478,23 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     :returns:      A list of the results values for this model endpoint.
     """
-    return await run_in_threadpool(
-        mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
-        project=params.project,
-        endpoint_id=params.endpoint_id,
-        metrics=params.metrics,
-        start=params.start,
-        end=params.end,
+    data, predictions = asyncio.gather(
+        run_in_threadpool(
+            mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
+            project=params.project,
+            endpoint_id=params.endpoint_id,
+            metrics=params.metrics,
+            start=params.start,
+            end=params.end,
+        ),
+        run_in_threadpool(
+            mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
+            project=params.project,
+            endpoint_id=params.endpoint_id,
+            start=str(params.start.timestamp()),
+            end=str(params.end.timestamp()),
+            aggregation_window=params.aggregation_window or "1m",
+        ),
     )
+
+    return data

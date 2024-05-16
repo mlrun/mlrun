@@ -16,6 +16,7 @@
 
 from datetime import datetime
 from io import StringIO
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -132,3 +133,81 @@ def read_data(
         )
 
     return metrics_values
+
+
+def read_predictions(
+    *,
+    project: str,
+    endpoint_id: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    aggregation_window: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> Union[
+    mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
+    mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
+]:
+    client = mlrun.utils.v3io_clients.get_frames_client(
+        address=mlrun.mlconf.v3io_framesd,
+        container="users",
+    )
+    frames_client_kwargs = {}
+    if aggregation_window:
+        frames_client_kwargs["step"] = aggregation_window
+        frames_client_kwargs["aggregation_window"] = aggregation_window
+    if limit:
+        frames_client_kwargs["limit"] = limit
+    df: pd.DataFrame = client.read(
+        backend=_TSDB_BE,
+        table=f"pipelines/{project}/model-endpoints/predictions",
+        filter=f"endpoint_id=='{endpoint_id}'",
+        start=start,
+        end=end,
+        aggregators="count",
+        **frames_client_kwargs,
+    )
+
+    full_name = (
+        mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+            project=project, app="mlrun-infra", name="invocations-rate"
+        ),
+    )
+
+    if df.empty:
+        return ModelEndpointMonitoringResultNoData(
+            full_name=full_name,
+            type=ModelEndpointMonitoringMetricType.METRIC,
+        )
+
+    rows = df.reset_index().to_dict(orient="records")
+    values = []
+    for row in rows:
+        values.append([row["time"], row["count(latency)"], "???"])
+    return ModelEndpointMonitoringResultValues(
+        full_name=full_name,
+        type=ModelEndpointMonitoringMetricType.RESULT,
+        result_kind="invocations-rate???",
+        values=values,
+    )
+
+
+def prediction_metric_for_endpoint(
+    *,
+    project: str,
+    endpoint_id: str,
+) -> Optional[ModelEndpointMonitoringMetric]:
+    predictions = read_predictions(
+        project=project,
+        endpoint_id=endpoint_id,
+        limit=1,
+    )
+    if predictions:
+        return ModelEndpointMonitoringMetric(
+            project=project,
+            app="mlrun-infra",
+            type=ModelEndpointMonitoringMetricType.METRIC,
+            name="invocations-rate",
+            full_name=mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+                project=project, app="mlrun-infra", name="invocations-rate"
+            ),
+        )

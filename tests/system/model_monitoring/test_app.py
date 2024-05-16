@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import concurrent
 import concurrent.futures
 import json
 import pickle
 import time
 import typing
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -292,7 +290,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for app_data in self.apps_data:
                 if app_data.deploy:
                     fn = self.project.set_model_monitoring_function(
@@ -407,7 +405,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
                 deploy_histogram_data_drift_app=_DefaultDataDriftAppData
@@ -573,7 +571,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def test_inference_feature_set(self) -> None:
         self._log_model()
 
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
@@ -776,7 +774,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             deploy_histogram_data_drift_app=False,
         )
         futures = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for model_name, model_dict in self.models.items():
                 self._log_model(
                     model_name,
@@ -790,7 +788,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             future.result()
 
         futures_2 = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
             endpoints = self.db.list_model_endpoints()
             for endpoint in endpoints:

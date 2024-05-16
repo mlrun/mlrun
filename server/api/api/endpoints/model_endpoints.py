@@ -488,7 +488,7 @@ async def get_model_endpoint_monitoring_metrics_values(
         end=params.end,
     )
 
-    if any([metric.name == "invocations-rate" for metric in params.metrics]):
+    if any([metric.name == "invocations" for metric in params.metrics]):
         data, predictions = asyncio.gather(
             read_data_coroutine,
             run_in_threadpool(

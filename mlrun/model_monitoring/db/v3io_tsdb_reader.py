@@ -27,6 +27,7 @@ import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
+    ModelEndpointMonitoringMetricValues,
     ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
@@ -169,7 +170,7 @@ def read_predictions(
 
     full_name = (
         mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-            project=project, app="mlrun-infra", name="invocations-rate"
+            project=project, app="mlrun-infra", name="invocations"
         )
     )
 
@@ -189,10 +190,9 @@ def read_predictions(
                 mm_constants.ResultStatusApp.irrelevant,
             ]
         )
-    return ModelEndpointMonitoringResultValues(
+    return ModelEndpointMonitoringMetricValues(
         full_name=full_name,
-        type=ModelEndpointMonitoringMetricType.RESULT,
-        result_kind=mm_constants.ResultKindApp.system_performance,
+        type=ModelEndpointMonitoringMetricType.METRIC,
         values=values,
     )
 
@@ -212,8 +212,8 @@ def prediction_metric_for_endpoint(
             project=project,
             app="mlrun-infra",
             type=ModelEndpointMonitoringMetricType.METRIC,
-            name="invocations-rate",
+            name="invocations",
             full_name=mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-                project=project, app="mlrun-infra", name="invocations-rate"
+                project=project, app="mlrun-infra", name="invocations"
             ),
         )

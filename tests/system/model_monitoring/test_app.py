@@ -105,7 +105,7 @@ class _V3IORecordsChecker:
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
     @classmethod
-    def _test_kv_record(cls, ep_id: str) -> None:
+    def _test_results_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
             app_name = app_data.class_.NAME
             cls._logger.debug("Checking the KV record of app", app_name=app_name)
@@ -174,7 +174,7 @@ class _V3IORecordsChecker:
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:
         cls._test_apps_parquet(ep_id, inputs, outputs)
-        cls._test_kv_record(ep_id)
+        cls._test_results_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
 
     @classmethod

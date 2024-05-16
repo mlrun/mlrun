@@ -178,13 +178,17 @@ class _V3IORecordsChecker:
         cls._test_tsdb_record(ep_id)
 
     @classmethod
-    def _test_api_get_results(
-        cls, ep_id: str, app_data: _AppData, run_db: mlrun.db.httpdb.HTTPRunDB
+    def _test_api_get_metrics(
+        cls,
+        ep_id: str,
+        app_data: _AppData,
+        run_db: mlrun.db.httpdb.HTTPRunDB,
+        type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
-        cls._logger.debug("Checking GET /metrics API")
+        cls._logger.debug("Checking GET /metrics API", type=type)
         response = run_db.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type=results",
+            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type={type}",
         )
         get_app_results: set[str] = set()
         app_results_full_names: list[str] = []
@@ -193,8 +197,8 @@ class _V3IORecordsChecker:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert app_data.results == get_app_results
-        assert app_results_full_names, "No results"
+        assert getattr(app_data, type) == get_app_results
+        assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
     @classmethod
@@ -222,8 +226,11 @@ class _V3IORecordsChecker:
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
-        results_full_names = cls._test_api_get_results(
-            ep_id=ep_id, app_data=app_data, run_db=run_db
+        cls._test_api_get_metrics(
+            ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
+        )
+        results_full_names = cls._test_api_get_metrics(
+            ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
         cls._test_api_get_values(
             ep_id=ep_id, results_full_names=results_full_names, run_db=run_db

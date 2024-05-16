@@ -27,7 +27,6 @@ import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
-    ModelEndpointMonitoringMetricValues,
     ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
@@ -190,9 +189,10 @@ def read_predictions(
                 mm_constants.ResultStatusApp.irrelevant,
             ]
         )
-    return ModelEndpointMonitoringMetricValues(
+    return ModelEndpointMonitoringResultValues(
         full_name=full_name,
-        type=ModelEndpointMonitoringMetricType.METRIC,
+        type=ModelEndpointMonitoringMetricType.RESULT,
+        result_kind=mm_constants.ResultKindApp.system_performance,
         values=values,
     )
 

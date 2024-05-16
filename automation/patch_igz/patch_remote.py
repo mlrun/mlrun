@@ -86,10 +86,10 @@ class MLRunPatcher:
 
             if self._reset_db:
                 self._reset_mlrun_db()
-                self._wait_deployment_ready()
             else:
                 self._rollout_deployment()
-                self._wait_deployment_ready()
+
+            self._wait_deployment_ready()
 
         finally:
             out = self._exec_remote(

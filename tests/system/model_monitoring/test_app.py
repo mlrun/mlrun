@@ -253,14 +253,16 @@ class _V3IORecordsChecker:
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
-        cls._test_api_get_metrics(
+        metrics_full_names = cls._test_api_get_metrics(
             ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
         )
         results_full_names = cls._test_api_get_metrics(
             ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
         cls._test_api_get_values(
-            ep_id=ep_id, results_full_names=results_full_names, run_db=run_db
+            ep_id=ep_id,
+            results_full_names=metrics_full_names + results_full_names,
+            run_db=run_db,
         )
 
 

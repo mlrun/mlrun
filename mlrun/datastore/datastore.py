@@ -242,7 +242,9 @@ class StoreManager:
         if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
         # in file stores in windows path like c:\a\b the drive letter is dropped from the path, so we return the url
-        return store, url if store.kind == "file" else subpath, url
+        if store.kind == "file":
+            subpath = url.replace("file://", "", 1)
+        return store, subpath, url
 
     def reset_secrets(self):
         self._secrets = {}

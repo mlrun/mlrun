@@ -22,6 +22,9 @@ import mlrun
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
+# Disable the warning about reusing components
+kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
 # converts it to a k8s object. As part of the flow in the Compile.compile() method,

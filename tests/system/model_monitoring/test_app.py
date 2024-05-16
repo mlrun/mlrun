@@ -108,7 +108,9 @@ class _V3IORecordsChecker:
     def _test_results_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
             app_name = app_data.class_.NAME
-            cls._logger.debug("Checking the KV record of app", app_name=app_name)
+            cls._logger.debug(
+                "Checking the results KV record of app", app_name=app_name
+            )
 
             resp = cls._kv_storage.client.kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
@@ -120,6 +122,30 @@ class _V3IORecordsChecker:
                 assert (
                     data.keys() == app_data.results
                 ), "The KV saved metrics are different than expected"
+
+    @classmethod
+    def _test_metrics_kv_record(cls, ep_id: str) -> None:
+        for app_data in cls.apps_data:
+            if not app_data.metrics:
+                return
+
+            app_name = app_data.class_.NAME
+            table_path = f"{ep_id}_metrics"
+
+            for metric in app_data.metrics:
+                cls._logger.debug(
+                    "Checking a metric KV record of app",
+                    app_name=app_name,
+                    metric=metric,
+                )
+                resp = cls._kv_storage.client.kv.get(
+                    container=cls._v3io_container,
+                    table_path=table_path,
+                    key=f"{app_name}.{metric}",
+                )
+                assert (
+                    resp.output.item
+                ), f"V3IO KV app data is empty for app {app_name} and metric {metric}"
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
@@ -175,6 +201,7 @@ class _V3IORecordsChecker:
     ) -> None:
         cls._test_apps_parquet(ep_id, inputs, outputs)
         cls._test_results_kv_record(ep_id)
+        cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
 
     @classmethod

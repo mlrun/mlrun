@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 
 import v3io.dataplane
+import v3io.dataplane.output
 import v3io.dataplane.response
 
 import mlrun.common.model_monitoring.helpers
@@ -84,6 +85,8 @@ _KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
         key="metric_id", fields=_METRIC_SCHEMA
     ),
 }
+
+_EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
 
 
 class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -649,6 +652,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         self, result_items: list[dict[str, str]]
     ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
+        logger.debug("Result items", result_items=result_items)
         for result_item in result_items:
             app = result_item[mm_schemas.WriterEvent.APPLICATION_NAME]
             name = result_item[mm_schemas.MetricData.METRIC_NAME]
@@ -682,8 +686,20 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             items_extractor = self._extract_results_from_items
         else:
             raise ValueError(f"Invalid metric {type = }")
+
+        def scan(
+            marker: typing.Optional[str] = None,
+        ) -> v3io.dataplane.response.Response:
+            # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
+            return self.client.kv.scan(
+                container=container,
+                table_path=table_path,
+                marker=marker,
+                filter_expression=_EXCLUDE_SCHEMA_FILTER_EXPRESSION,
+            )
+
         try:
-            response = self.client.kv.scan(container=container, table_path=table_path)
+            response = scan()
         except v3io.dataplane.response.HttpResponseError as err:
             if err.status_code == HTTPStatus.NOT_FOUND:
                 logger.warning(
@@ -696,15 +712,10 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             raise
 
         while True:
-            metrics.extend(items_extractor(response.output.items))
-            if response.output.last:
+            output = typing.cast(v3io.dataplane.output.GetItemsOutput, response.output)
+            metrics.extend(items_extractor(output.items))
+            if output.last:
                 break
-            # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
-            response = self.client.kv.scan(
-                container=container,
-                table_path=table_path,
-                marker=response.output.next_marker,
-                filter_expression='__name!=".#schema"',
-            )
+            response = scan(marker=output.next_marker)
 
         return metrics

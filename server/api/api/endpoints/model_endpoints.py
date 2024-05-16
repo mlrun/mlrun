@@ -461,7 +461,7 @@ async def get_model_endpoint_monitoring_metrics_values(
     :returns:      A list of the results values for this model endpoint.
     """
     return await run_in_threadpool(
-        mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
+        mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
         project=params.project,
         endpoint_id=params.endpoint_id,
         metrics=params.metrics,

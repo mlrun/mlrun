@@ -35,7 +35,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringResultValues,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_data
+from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_metrics_data
 
 
 @pytest.fixture(params=["default-project"])
@@ -419,8 +419,8 @@ def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
 
 
 @pytest.mark.usefixtures("_mock_frames_client")
-def test_read_data() -> None:
-    data = read_data(
+def test_read_results_data() -> None:
+    data = read_metrics_data(
         project="fictitious-one",
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),

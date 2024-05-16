@@ -37,10 +37,14 @@ from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import _TSDB_BE
 from mlrun.utils import logger
 
 
-def _get_sql_query(endpoint_id: str, names: list[tuple[str, str]]) -> str:
+def _get_sql_query(
+    endpoint_id: str,
+    names: list[tuple[str, str]],
+    table_name: str = mm_constants.MonitoringTSDBTables.APP_RESULTS,
+) -> str:
     with StringIO() as query:
         query.write(
-            f"SELECT * FROM '{mm_constants.MonitoringTSDBTables.APP_RESULTS}' "
+            f"SELECT * FROM '{table_name}' "
             f"WHERE {mm_writer.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
         )
         if names:
@@ -74,7 +78,7 @@ def _get_result_kind(result_df: pd.DataFrame) -> mm_constants.ResultKindApp:
     return unique_kinds[0]
 
 
-def read_data(
+def read_metrics_data(
     *,
     project: str,
     endpoint_id: str,

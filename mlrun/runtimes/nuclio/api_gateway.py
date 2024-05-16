@@ -214,7 +214,7 @@ class APIGatewaySpec(ModelObj):
 
     def enrich_and_validate(
         self,
-        project,
+        project: str,
         functions: Union[
             list[
                 Union[

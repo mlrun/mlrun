@@ -478,23 +478,30 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     :returns:      A list of the results values for this model endpoint.
     """
-    data, predictions = asyncio.gather(
-        run_in_threadpool(
-            mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
-            project=params.project,
-            endpoint_id=params.endpoint_id,
-            metrics=params.metrics,
-            start=params.start,
-            end=params.end,
-        ),
-        run_in_threadpool(
-            mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
-            project=params.project,
-            endpoint_id=params.endpoint_id,
-            start=str(params.start.timestamp()),
-            end=str(params.end.timestamp()),
-            aggregation_window=params.aggregation_window or "1m",
-        ),
+
+    read_data_coroutine = run_in_threadpool(
+        mlrun.model_monitoring.db.v3io_tsdb_reader.read_data,
+        project=params.project,
+        endpoint_id=params.endpoint_id,
+        metrics=params.metrics,
+        start=params.start,
+        end=params.end,
     )
+
+    if any([metric.name == "invocations-rate" for metric in params.metrics]):
+        data, predictions = asyncio.gather(
+            read_data_coroutine,
+            run_in_threadpool(
+                mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
+                project=params.project,
+                endpoint_id=params.endpoint_id,
+                start=str(params.start.timestamp()),
+                end=str(params.end.timestamp()),
+                aggregation_window=params.aggregation_window or "1m",
+            ),
+        )
+        data = data + predictions
+    else:
+        data = await read_data_coroutine
 
     return data

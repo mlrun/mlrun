@@ -42,6 +42,7 @@ def _get_sql_query(
     endpoint_id: str,
     names: list[tuple[str, str]],
     table_name: str = mm_constants.MonitoringTSDBTables.APP_RESULTS,
+    name: str = mm_writer.ResultData.RESULT_NAME,
 ) -> str:
     with StringIO() as query:
         query.write(
@@ -54,7 +55,7 @@ def _get_sql_query(
             for i, (app_name, result_name) in enumerate(names):
                 sub_cond = (
                     f"({mm_writer.WriterEvent.APPLICATION_NAME}='{app_name}' "
-                    f"AND {mm_writer.ResultData.RESULT_NAME}='{result_name}')"
+                    f"AND {name}='{result_name}')"
                 )
                 if i != 0:  # not first sub condition
                     query.write(" OR ")
@@ -108,22 +109,33 @@ def read_metrics_data(
 
     if type == "metrics":
         table_name = mm_constants.MonitoringTSDBTables.METRICS
+        name = mm_constants.MetricData.METRIC_NAME
         df_handler = df_to_metrics_values
     elif type == "results":
         table_name = mm_constants.MonitoringTSDBTables.APP_RESULTS
+        name = mm_constants.ResultData.RESULT_NAME
         df_handler = df_to_results_values
     else:
         raise ValueError(f"Invalid {type = }")
 
+    query = _get_sql_query(
+        endpoint_id,
+        [(metric.app, metric.name) for metric in metrics],
+        table_name=table_name,
+        name=name,
+    )
+
+    logger.debug("Querying V3IO TSDB", query=query)
+
     df: pd.DataFrame = client.read(
         backend=_TSDB_BE,
-        query=_get_sql_query(
-            endpoint_id,
-            [(metric.app, metric.name) for metric in metrics],
-            table_name=table_name,
-        ),
+        query=query,
         start=start,
         end=end,
+    )
+
+    logger.debug(
+        "Read a data-frame", project=project, endpoint_id=endpoint_id, is_empty=df.empty
     )
 
     return df_handler(df=df, metrics=metrics, project=project)
@@ -146,9 +158,10 @@ def df_to_results_values(
         )
     else:
         grouped = []
-    for (app_name, result_name), sub_df in grouped:
+        logger.debug("No results", missing_results=metrics_without_data.keys())
+    for (app_name, name), sub_df in grouped:
         result_kind = _get_result_kind(sub_df)
-        full_name = _compose_full_name(project=project, app=app_name, name=result_name)
+        full_name = _compose_full_name(project=project, app=app_name, name=name)
         metrics_values.append(
             ModelEndpointMonitoringResultValues(
                 full_name=full_name,
@@ -191,9 +204,15 @@ def df_to_metrics_values(
             observed=False,
         )
     else:
+        logger.debug("No metrics", missing_metrics=metrics_without_data.keys())
         grouped = []
-    for (app_name, result_name), sub_df in grouped:
-        full_name = _compose_full_name(project=project, app=app_name, name=result_name)
+    for (app_name, name), sub_df in grouped:
+        full_name = _compose_full_name(
+            project=project,
+            app=app_name,
+            name=name,
+            type=ModelEndpointMonitoringMetricType.METRIC,
+        )
         metrics_values.append(
             ModelEndpointMonitoringMetricValues(
                 full_name=full_name,

@@ -137,8 +137,6 @@ class HTTPRunDB(RunDBInterface):
         self.base_url = base_url
         username = parsed_url.username or config.httpdb.user
         password = parsed_url.password or config.httpdb.password
-        self.user = username
-        self.password = password
         self.token_provider = None
 
         if config.auth_with_client_id.enabled:
@@ -155,6 +153,9 @@ class HTTPRunDB(RunDBInterface):
 
             if token:
                 self.token_provider = StaticTokenProvider(token)
+
+        self.user = username
+        self.password = password
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -943,6 +944,7 @@ class HTTPRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        producer_uri: str = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -969,9 +971,12 @@ class HTTPRunDB(RunDBInterface):
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
-        :param kind: Return artifacts of the requested kind.
-        :param category: Return artifacts of the requested category.
-        :param tree: Return artifacts of the requested tree.
+        :param kind:            Return artifacts of the requested kind.
+        :param category:        Return artifacts of the requested category.
+        :param tree:            Return artifacts of the requested tree.
+        :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
+            points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
+            is a workflow id (artifact was created as part of a workflow).
         """
 
         project = project or config.default_project
@@ -990,6 +995,7 @@ class HTTPRunDB(RunDBInterface):
             "category": category,
             "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "producer_uri": producer_uri,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"

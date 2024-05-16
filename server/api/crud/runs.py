@@ -19,6 +19,7 @@ import typing
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -55,6 +56,19 @@ class Runs(
             data, server.api.constants.MaskOperations.REDACT
         )
 
+        # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
+        # to avoid bloating the DB.
+        data.setdefault("status", {})
+        artifacts = data["status"].get("artifacts", [])
+        artifact_uris = data["status"].get("artifact_uris", {})
+        for artifact in artifacts:
+            artifact = mlrun.artifacts.dict_to_artifact(artifact)
+            artifact_uris[artifact.key] = artifact.uri
+
+        if artifact_uris:
+            data["status"]["artifact_uris"] = artifact_uris
+        data["status"].pop("artifacts", None)
+
         server.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,
@@ -73,6 +87,22 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         logger.debug("Updating run", project=project, uid=uid, iter=iter)
+
+        # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
+        # to avoid bloating the DB.
+        artifacts = data.get("status.artifacts", None)
+        artifact_uris = data.get("status.artifact_uris", None)
+        # If neither was given, nothing to do. Otherwise, we merge the two fields into artifact_uris.
+        if artifacts is not None or artifact_uris is not None:
+            artifacts = artifacts or []
+            artifact_uris = artifact_uris or {}
+            for artifact in artifacts:
+                artifact = mlrun.artifacts.dict_to_artifact(artifact)
+                artifact_uris[artifact.key] = artifact.uri
+
+            data["status.artifact_uris"] = artifact_uris
+        data.pop("status.artifacts", None)
+
         # TODO: Abort run moved to a separate endpoint, remove this section once in 1.8.0
         #  (once 1.5.x clients are not supported)
         if (
@@ -111,12 +141,35 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().read_run(
+        run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
+
+        # Since we don't store the artifacts in the run body, we need to fetch them separately
+        # The client may be using them as in pipeline as input for the next step
+        producer_uri = None
+        producer_id = run["metadata"].get("labels", {}).get("workflow")
+        if not producer_id:
+            producer_id = uid
+        else:
+            # Producer URI is the URI of the MLClientCtx object that produced the artifact
+            producer_uri = f"{project}/{run['metadata']['uid']}"
+
+        artifacts = server.api.crud.Artifacts().list_artifacts(
+            db_session,
+            producer_id=producer_id,
+            producer_uri=producer_uri,
+            project=project,
+        )
+
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
+
+        return run
 
     def list_runs(
         self,

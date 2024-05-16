@@ -15,6 +15,7 @@
 import unittest.mock
 import uuid
 
+import deepdiff
 import pytest
 import sqlalchemy.orm
 from kubernetes import client as k8s_client
@@ -39,6 +40,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": "uid",
                     "labels": {
                         "kind": "job",
                     },
@@ -237,6 +239,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": run_uid,
                     "labels": {
                         "kind": "job",
                     },
@@ -259,3 +262,248 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
         assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"
+
+    def test_store_run_strip_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+                "status": {
+                    "artifact_uris": {
+                        "key1": "this should be replaced",
+                        "key2": "store://artifacts/project-name/db_key2@tree2",
+                    },
+                    "artifacts": [
+                        {
+                            "metadata": {
+                                "key": "key1",
+                                "tree": "tree1",
+                                "uid": "uid1",
+                                "project": project,
+                            },
+                            "spec": {
+                                "db_key": "db_key1",
+                            },
+                        },
+                        {
+                            "metadata": {
+                                "key": "key3",
+                                "tree": "tree3",
+                                "uid": "uid3",
+                                "project": project,
+                            },
+                            "spec": {
+                                "db_key": "db_key3",
+                            },
+                        },
+                    ],
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        runs = server.api.crud.Runs().list_runs(db, project=project)
+        assert len(runs) == 1
+        run = runs[0]
+        assert "artifacts" not in run["status"]
+        assert run["status"]["artifact_uris"] == {
+            "key1": "store://artifacts/project-name/db_key1@tree1",
+            "key2": "store://artifacts/project-name/db_key2@tree2",
+            "key3": "store://artifacts/project-name/db_key3@tree3",
+        }
+
+    def test_update_run_strip_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+                "status": {
+                    "artifact_uris": {
+                        "key1": "this should be replaced",
+                        "key2": "store://artifacts/project-name/db_key2@tree2",
+                    },
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        server.api.crud.Runs().update_run(
+            db,
+            project,
+            run_uid,
+            iter=0,
+            data={
+                "status.artifact_uris": {
+                    "key1": "this should be replaced",
+                    "key2": "store://artifacts/project-name/db_key2@tree2",
+                },
+                "status.artifacts": [
+                    {
+                        "metadata": {
+                            "key": "key1",
+                            "tree": "tree1",
+                            "uid": "uid1",
+                            "project": project,
+                        },
+                        "spec": {
+                            "db_key": "db_key1",
+                        },
+                    },
+                    {
+                        "metadata": {
+                            "key": "key3",
+                            "tree": "tree3",
+                            "uid": "uid3",
+                            "project": project,
+                        },
+                        "spec": {
+                            "db_key": "db_key3",
+                        },
+                    },
+                ],
+            },
+        )
+
+        runs = server.api.crud.Runs().list_runs(db, project=project)
+        assert len(runs) == 1
+        run = runs[0]
+        assert "artifacts" not in run["status"]
+        assert run["status"]["artifact_uris"] == {
+            "key1": "store://artifacts/project-name/db_key1@tree1",
+            "key2": "store://artifacts/project-name/db_key2@tree2",
+            "key3": "store://artifacts/project-name/db_key3@tree3",
+        }
+
+    def test_get_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(project, run_uid)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts, db, project, run_uid)
+
+    def test_get_workflow_run_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(project, run_uid, workflow_uid)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {
+                        "kind": "job",
+                        "workflow": workflow_uid,
+                    },
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts, db, project, run_uid)
+
+    @staticmethod
+    def _generate_artifacts(project, run_uid, workflow_uid=None, artifacts_len=2):
+        artifacts = []
+        i = 0
+        while len(artifacts) < artifacts_len:
+            artifact = {
+                "kind": "artifact",
+                "metadata": {
+                    "key": f"key{i}",
+                    "tree": workflow_uid or run_uid,
+                    "uid": f"uid{i}",
+                    "project": project,
+                    "iter": None,
+                },
+                "spec": {
+                    "db_key": f"db_key{i}",
+                },
+                "status": {},
+            }
+            if workflow_uid:
+                artifact["spec"]["producer"] = {
+                    "uri": f"{project}/{run_uid}",
+                }
+            artifacts.append(artifact)
+            i += 1
+        return artifacts
+
+    @staticmethod
+    def _validate_run_artifacts(artifacts, db, project, run_uid):
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert "artifacts" in run["status"]
+        enriched_artifacts = list(run["status"]["artifacts"])
+
+        def sort_by_key(e):
+            return e["metadata"]["key"]
+
+        enriched_artifacts.sort(key=sort_by_key)
+        artifacts.sort(key=sort_by_key)
+        for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
+            assert (
+                deepdiff.DeepDiff(
+                    artifact,
+                    enriched_artifact,
+                    exclude_paths="root['metadata']['tag']",
+                )
+                == {}
+            )

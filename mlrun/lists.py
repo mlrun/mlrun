@@ -36,6 +36,7 @@ list_header = [
     "parameters",
     "results",
     "artifacts",
+    "artifact_uris",
     "error",
 ]
 
@@ -63,6 +64,7 @@ class RunList(list):
                 get_in(run, "spec.parameters", ""),
                 get_in(run, "status.results", ""),
                 get_in(run, "status.artifacts", []),
+                get_in(run, "status.artifact_uris", {}),
                 get_in(run, "status.error", ""),
             ]
             if extend_iterations and iterations:

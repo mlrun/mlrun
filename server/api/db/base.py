@@ -51,7 +51,7 @@ class DBInterface(ABC):
     def store_run(
         self,
         session,
-        struct,
+        run_data,
         uid,
         project="",
         iter=0,
@@ -207,8 +207,9 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         pass
 

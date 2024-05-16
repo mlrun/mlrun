@@ -26,14 +26,20 @@ import v3io.dataplane.output
 import v3io.dataplane.response
 
 import mlrun.utils.v3io_clients
+from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
     ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
+    _ResultPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.v3io_tsdb_reader import _get_sql_query, read_data
+from mlrun.model_monitoring.db.v3io_tsdb_reader import (
+    _get_sql_query,
+    read_data,
+    read_predictions,
+)
 
 
 @pytest.fixture
@@ -293,9 +299,38 @@ def tsdb_df() -> pd.DataFrame:
 
 
 @pytest.fixture
+def predictions_df() -> pd.DataFrame:
+    return pd.DataFrame.from_records(
+        [
+            (
+                pd.Timestamp("2024-04-02 18:00:00+0000", tz="UTC"),
+                5,
+            ),
+            (pd.Timestamp("2024-04-02 18:01:00+0000", tz="UTC"), 10),
+        ],
+        index="time",
+        columns=[
+            "time",
+            "count(latency)",
+        ],
+    )
+
+
+@pytest.fixture
 def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
     frames_client_mock = Mock()
     frames_client_mock.read = Mock(return_value=tsdb_df)
+
+    with patch.object(
+        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
+    ):
+        yield
+
+
+@pytest.fixture
+def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[None]:
+    frames_client_mock = Mock()
+    frames_client_mock.read = Mock(return_value=predictions_df)
 
     with patch.object(
         mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
@@ -338,3 +373,27 @@ def test_read_data() -> None:
     counter = Counter([type(values) for values in data])
     assert counter[ModelEndpointMonitoringResultValues] == 2
     assert counter[ModelEndpointMonitoringResultNoData] == 1
+
+
+@pytest.mark.usefixtures("_mock_frames_client_predictions")
+def test_read_predictions() -> None:
+    result = read_predictions(
+        project="fictitious-one",
+        endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+        start="0",
+        end="now",
+        aggregation_window="1m",
+    )
+    assert result.full_name == "fictitious-one.mlrun-infra.result.invocations"
+    assert result.values == [
+        _ResultPoint(
+            timestamp=pd.Timestamp("2024-04-02 18:00:00+0000", tz="UTC"),
+            value=5,
+            status=ResultStatusApp.irrelevant,
+        ),
+        _ResultPoint(
+            timestamp=pd.Timestamp("2024-04-02 18:01:00+0000", tz="UTC"),
+            value=10,
+            status=ResultStatusApp.irrelevant,
+        ),
+    ]

@@ -247,42 +247,43 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         event: dict,
         kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """Write a single result or metric to TSDB"""
 
         event[mm_schemas.WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
             event[mm_schemas.WriterEvent.END_INFER_TIME]
         )
+        index_cols_base = [
+            mm_schemas.WriterEvent.END_INFER_TIME,
+            mm_schemas.WriterEvent.ENDPOINT_ID,
+            mm_schemas.WriterEvent.APPLICATION_NAME,
+        ]
 
         if kind == mm_schemas.WriterEventKind.METRIC:
-            # TODO : Implement the logic for writing metrics to V3IO TSDB
-            return
+            table = self.tables[mm_schemas.MonitoringTSDBTables.METRICS]
+            index_cols = index_cols_base + [mm_schemas.MetricData.METRIC_NAME]
+        elif kind == mm_schemas.WriterEventKind.RESULT:
+            table = self.tables[mm_schemas.MonitoringTSDBTables.APP_RESULTS]
+            index_cols = index_cols_base + [mm_schemas.ResultData.RESULT_NAME]
+            del event[mm_schemas.ResultData.RESULT_EXTRA_DATA]
+        else:
+            raise ValueError(f"Invalid {kind = }")
 
-        del event[mm_schemas.ResultData.RESULT_EXTRA_DATA]
         try:
             self._frames_client.write(
                 backend=_TSDB_BE,
-                table=self.tables[mm_schemas.MonitoringTSDBTables.APP_RESULTS],
+                table=table,
                 dfs=pd.DataFrame.from_records([event]),
-                index_cols=[
-                    mm_schemas.WriterEvent.END_INFER_TIME,
-                    mm_schemas.WriterEvent.ENDPOINT_ID,
-                    mm_schemas.WriterEvent.APPLICATION_NAME,
-                    mm_schemas.ResultData.RESULT_NAME,
-                ],
+                index_cols=index_cols,
             )
-            logger.info(
-                "Updated V3IO TSDB successfully",
-                table=self.tables[mm_schemas.MonitoringTSDBTables.APP_RESULTS],
-            )
+            logger.info("Updated V3IO TSDB successfully", table=table)
         except v3io_frames.errors.Error as err:
-            logger.warn(
+            logger.exception(
                 "Could not write drift measures to TSDB",
                 err=err,
-                table=self.tables[mm_schemas.MonitoringTSDBTables.APP_RESULTS],
+                table=table,
                 event=event,
             )
-
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed to write application result to TSDB: {err}"
             )

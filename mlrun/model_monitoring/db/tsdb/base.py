@@ -57,13 +57,12 @@ class TSDBConnector(ABC):
         self,
         event: dict,
         kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a single application or metric to TSDB.
 
         :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
         """
-        pass
 
     def delete_tsdb_resources(self):
         """

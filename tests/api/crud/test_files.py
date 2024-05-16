@@ -34,24 +34,24 @@ def test_delete_artifact_data(
     full_secrets = project_secrets.copy()
     full_secrets.update(env_secrets)
     k8s_secrets_mock.store_project_secrets(project, project_secrets)
-    mlrun.datastore.store_manager.object = unittest.mock.Mock()
+    with unittest.mock.patch(
+        "mlrun.datastore.store_manager.object"
+    ) as store_manager_object_mock:
+        server.api.crud.Files().delete_artifact_data(
+            mlrun.common.schemas.AuthInfo(), project, path
+        )
+        store_manager_object_mock.assert_called_once_with(
+            url=path, secrets=full_secrets, project=project
+        )
+        store_manager_object_mock.reset_mock()
 
-    server.api.crud.Files().delete_artifact_data(
-        mlrun.common.schemas.AuthInfo(), project, path
-    )
-    mlrun.datastore.store_manager.object.assert_called_once_with(
-        url=path, secrets=full_secrets, project=project
-    )
-    mlrun.datastore.store_manager.object.reset_mock()
-
-    # user supplied secrets - use the same key to override project secrets
-    user_secrets = {"secret1": "user-secret"}
-    override_secrets = full_secrets.copy()
-    override_secrets.update(user_secrets)
-    server.api.crud.Files().delete_artifact_data(
-        mlrun.common.schemas.AuthInfo(), project, path, secrets=user_secrets
-    )
-    mlrun.datastore.store_manager.object.assert_called_once_with(
-        url=path, secrets=override_secrets, project=project
-    )
-    mlrun.datastore.store_manager.object.reset_mock()
+        # user supplied secrets - use the same key to override project secrets
+        user_secrets = {"secret1": "user-secret"}
+        override_secrets = full_secrets.copy()
+        override_secrets.update(user_secrets)
+        server.api.crud.Files().delete_artifact_data(
+            mlrun.common.schemas.AuthInfo(), project, path, secrets=user_secrets
+        )
+        store_manager_object_mock.assert_called_once_with(
+            url=path, secrets=override_secrets, project=project
+        )

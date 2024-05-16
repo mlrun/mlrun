@@ -145,6 +145,7 @@ class Functions(
             session=db_session,
             name=function["metadata"]["name"],
             tag=function["metadata"]["tag"],
+            hash_key=function.get("metadata", {}).get("hash"),
             project=project,
             updates=deleting_updates,
         )

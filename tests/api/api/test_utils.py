@@ -1708,9 +1708,7 @@ async def test_update_functions_with_deletion_task_ids(db: sqlalchemy.orm.Sessio
     )
     functions = [function]
 
-    await _update_functions_with_deletion_task_ids(
-        db, functions, project, deletion_task_id
-    )
+    await _update_functions_with_deletion_task_ids(functions, project, deletion_task_id)
     function = server.api.crud.Functions().get_function(
         db, name=function_name, project=project, tag=function_tag
     )

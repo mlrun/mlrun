@@ -1296,7 +1296,7 @@ async def _delete_function(
 
     # update functions with deletion task id
     await _update_functions_with_deletion_task_ids(
-        db_session, functions, project, background_task_name
+        functions, project, background_task_name
     )
 
     # Since we request functions by a specific name and project,
@@ -1328,7 +1328,7 @@ async def _delete_function(
 
 
 async def _update_functions_with_deletion_task_ids(
-    db_session, functions, project, background_task_name
+    functions, project, background_task_name
 ):
     semaphore = asyncio.Semaphore(
         mlrun.mlconf.background_tasks.function_deletion_batch_size
@@ -1337,8 +1337,8 @@ async def _update_functions_with_deletion_task_ids(
     async def update_function_with_task_id(function):
         async with semaphore:
             await run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Functions().set_function_deletion_task_id,
-                db_session,
                 function,
                 project,
                 background_task_name,

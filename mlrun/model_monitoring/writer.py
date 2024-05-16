@@ -17,7 +17,7 @@ from typing import Any, NewType
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
-import mlrun.common.schemas.alert as alert_constants
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
@@ -123,14 +123,14 @@ class ModelMonitoringWriter(StepToDict):
     ) -> None:
         logger.info("Sending an alert")
         entity = mlrun.common.schemas.alert.EventEntities(
-            kind=alert_constants.EventEntityKind.MODEL,
+            kind=alert_objects.EventEntityKind.MODEL,
             project=project_name,
             ids=[model_endpoint],
         )
         event_kind = (
-            alert_constants.EventKind.DRIFT_DETECTED
+            alert_objects.EventKind.DRIFT_DETECTED
             if drift_status == ResultStatusApp.detected.value
-            else alert_constants.EventKind.DRIFT_SUSPECTED
+            else alert_objects.EventKind.DRIFT_SUSPECTED
         )
         event_data = mlrun.common.schemas.Event(
             kind=event_kind, entity=entity, value_dict=event_value

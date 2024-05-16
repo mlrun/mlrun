@@ -1254,7 +1254,7 @@ def _create_resources_of_all_kinds(
             "ids": ["*"],
         },
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
-        notifications=[notification.to_dict()],
+        notifications=[{"notification": notification.to_dict()}],
         reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
     )
     alert = db.store_alert(db_session, alert)

@@ -382,6 +382,7 @@ class _MetricsValuesParams:
     project: str
     endpoint_id: str
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric]
+    results: list[mm_endpoints.ModelEndpointMonitoringMetric]
     start: datetime
     end: datetime
 
@@ -428,11 +429,23 @@ async def _get_metrics_values_data(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Provided only one of start time, end time. Please provide both or neither."
         )
-    metrics = [mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn) for fqn in name]
+
+    metrics_and_results = [
+        mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn) for fqn in name
+    ]
+    metrics = []
+    results = []
+    for m in metrics_and_results:
+        if m.type == mm_endpoints.ModelEndpointMonitoringMetricType.METRIC:
+            metrics.append(m)
+        else:
+            results.append(m)
+
     return _MetricsValuesParams(
         project=project,
         endpoint_id=endpoint_id,
         metrics=metrics,
+        results=results,
         start=start,
         end=end,
     )
@@ -442,6 +455,7 @@ async def _get_metrics_values_data(
     "/{endpoint_id}/metrics-values",
     response_model=list[
         Union[
+            mm_endpoints.ModelEndpointMonitoringMetricValues,
             mm_endpoints.ModelEndpointMonitoringResultValues,
             mm_endpoints.ModelEndpointMonitoringMetricNoData,
         ]
@@ -451,6 +465,7 @@ async def get_model_endpoint_monitoring_metrics_values(
     params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
 ) -> list[
     Union[
+        mm_endpoints.ModelEndpointMonitoringMetricValues,
         mm_endpoints.ModelEndpointMonitoringResultValues,
         mm_endpoints.ModelEndpointMonitoringMetricNoData,
     ]
@@ -460,11 +475,25 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     :returns:      A list of the results values for this model endpoint.
     """
-    return await run_in_threadpool(
-        mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
-        project=params.project,
-        endpoint_id=params.endpoint_id,
-        metrics=params.metrics,
-        start=params.start,
-        end=params.end,
-    )
+    tasks: list[asyncio.Task] = []
+
+    for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
+        if metrics:
+            tasks.append(
+                asyncio.Task(
+                    run_in_threadpool(
+                        mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
+                        project=params.project,
+                        endpoint_id=params.endpoint_id,
+                        start=params.start,
+                        end=params.end,
+                        metrics=metrics,
+                        type=type,
+                    )
+                )
+            )
+    await asyncio.wait(tasks)
+    metrics_values = []
+    for task in tasks:
+        metrics_values.extend(task.result())
+    return metrics_values

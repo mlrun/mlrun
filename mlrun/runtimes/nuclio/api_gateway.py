@@ -172,6 +172,7 @@ class APIGatewaySpec(ModelObj):
         authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
         canary: Optional[list[int]] = None,
         ports: Optional[list[int]] = None,
+        enrich_functions: bool = True,
     ):
         """
         :param functions: The list of functions associated with the API gateway
@@ -189,6 +190,11 @@ class APIGatewaySpec(ModelObj):
         :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80] (optional)
         :param ports: The ports of the API gateway, as a list of integers that correspond to the functions in the
             functions list. for instance: [8050] or [8050, 8081] (optional)
+        :param enrich_functions: Used internally. MLRun function names can differ from Nuclio function names.
+         If a list of MLRun function names is passed as strings, we automatically add the `<project>-` prefix.
+         Function enrichment is enabled by default for this purpose. However, in certain internal use cases,
+         such as when translating an API gateway scheme to an `APIGateway` object (see from_scheme()),
+         we might want to skip populating the project name. (optional)
         """
         self.description = description
         self.host = host
@@ -198,12 +204,17 @@ class APIGatewaySpec(ModelObj):
         self.canary = canary
         self.project = project
         self.ports = ports
+        self.enrich_and_validate(
+            project=project,
+            functions=functions,
+            canary=canary,
+            ports=ports,
+            enrich_functions=enrich_functions,
+        )
 
-        self.validate(project=project, functions=functions, canary=canary, ports=ports)
-
-    def validate(
+    def enrich_and_validate(
         self,
-        project: str,
+        project,
         functions: Union[
             list[
                 Union[
@@ -219,9 +230,20 @@ class APIGatewaySpec(ModelObj):
         ],
         canary: Optional[list[int]] = None,
         ports: Optional[list[int]] = None,
+        enrich_functions: bool = True,
     ):
-        self.functions = self._validate_functions(project=project, functions=functions)
+        if enrich_functions:
+            self.functions = self._enrich_functions(
+                project=project, functions=functions
+            )
+        self._validate(canary=canary, ports=ports)
 
+    def _validate(
+        self,
+        canary: Optional[list[int]] = None,
+        ports: Optional[list[int]] = None,
+    ):
+        self._validate_functions()
         # validating canary
         if canary:
             self.canary = self._validate_canary(canary)
@@ -255,7 +277,7 @@ class APIGatewaySpec(ModelObj):
         return ports
 
     @staticmethod
-    def _validate_functions(
+    def _enrich_functions(
         project: str,
         functions: Union[
             list[
@@ -273,13 +295,6 @@ class APIGatewaySpec(ModelObj):
     ):
         if not isinstance(functions, list):
             functions = [functions]
-
-        # validating functions
-        if not 1 <= len(functions) <= 2:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Gateway can be created from one or two functions, "
-                f"the number of functions passed is {len(functions)}"
-            )
 
         function_names = []
         for func in functions:
@@ -304,6 +319,14 @@ class APIGatewaySpec(ModelObj):
             nuclio_name = get_fullname(function_name, project, func.metadata.tag)
             function_names.append(nuclio_name)
         return function_names
+
+    def _validate_functions(self):
+        # validating functions
+        if not 1 <= len(self.functions) <= 2:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Gateway can be created from one or two functions, "
+                f"the number of functions passed is {len(self.functions)}"
+            )
 
 
 class APIGateway(ModelObj):
@@ -511,7 +534,8 @@ class APIGateway(ModelObj):
                 f"Gateway with canary can be created only with two functions, "
                 f"the number of functions passed is {len(functions)}"
             )
-        self.spec.validate(
+
+        self.spec.enrich_and_validate(
             project=self.spec.project, functions=functions, canary=canary
         )
 
@@ -522,7 +546,7 @@ class APIGateway(ModelObj):
         :param ports: The ports of the API gateway, as a list of integers that correspond to the functions in the
             functions list. for instance: [8050] or [8050, 8081]
         """
-        self.spec.validate(
+        self.spec.enrich_and_validate(
             project=self.spec.project, functions=self.spec.functions, ports=ports
         )
 
@@ -547,6 +571,7 @@ class APIGateway(ModelObj):
                 authentication=APIGatewayAuthenticator.from_scheme(api_gateway.spec),
                 functions=functions,
                 canary=canary,
+                enrich_functions=False,
             ),
         )
         new_api_gateway.state = state

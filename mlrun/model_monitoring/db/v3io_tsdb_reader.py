@@ -170,7 +170,7 @@ def read_predictions(
     full_name = (
         mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
             project=project, app="mlrun-infra", name="invocations-rate"
-        ),
+        )
     )
 
     if df.empty:
@@ -182,11 +182,17 @@ def read_predictions(
     rows = df.reset_index().to_dict(orient="records")
     values = []
     for row in rows:
-        values.append([row["time"], row["count(latency)"], "???"])
+        values.append(
+            [
+                row["time"],
+                row["count(latency)"],
+                mm_constants.ResultStatusApp.irrelevant,
+            ]
+        )
     return ModelEndpointMonitoringResultValues(
         full_name=full_name,
         type=ModelEndpointMonitoringMetricType.RESULT,
-        result_kind="invocations-rate???",
+        result_kind=mm_constants.ResultKindApp.system_performance,
         values=values,
     )
 

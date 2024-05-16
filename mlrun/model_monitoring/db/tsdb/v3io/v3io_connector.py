@@ -114,7 +114,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         self.tables[mm_schemas.FileTargetKind.PREDICTIONS] = monitoring_predictions_path
 
-    def create_tsdb_application_tables(self):
+    def create_tsdb_application_tables(self) -> None:
         """
         Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
@@ -124,11 +124,12 @@ class V3IOTSDBConnector(TSDBConnector):
             mm_schemas.MonitoringTSDBTables.APP_RESULTS,
             mm_schemas.MonitoringTSDBTables.METRICS,
         ]
-        for table in application_tables:
-            logger.info("Creating table in V3IO TSDB", table=table)
+        for table_name in application_tables:
+            logger.info("Creating table in V3IO TSDB", table_name=table_name)
+            table = self.tables[table_name]
             self._frames_client.create(
                 backend=_TSDB_BE,
-                table=self.tables[table],
+                table=table,
                 if_exists=IGNORE,
                 rate=_TSDB_RATE,
             )

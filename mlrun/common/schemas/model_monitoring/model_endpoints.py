@@ -338,27 +338,37 @@ def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringM
     )
 
 
+class _MetricPoint(NamedTuple):
+    timestamp: datetime
+    value: float
+
+
 class _ResultPoint(NamedTuple):
     timestamp: datetime
     value: float
     status: ResultStatusApp
 
 
-class _ModelEndpointMonitoringResultValuesBase(BaseModel):
+class _ModelEndpointMonitoringMetricValuesBase(BaseModel):
     full_name: str
     type: ModelEndpointMonitoringMetricType
     data: bool
 
 
-class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringResultValuesBase):
-    full_name: str
-    type: ModelEndpointMonitoringMetricType
+class ModelEndpointMonitoringMetricValues(_ModelEndpointMonitoringMetricValuesBase):
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.METRIC
+    values: list[_MetricPoint]
+    data: bool = True
+
+
+class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringMetricValuesBase):
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT
     result_kind: ResultKindApp
     values: list[_ResultPoint]
     data: bool = True
 
 
-class ModelEndpointMonitoringResultNoData(_ModelEndpointMonitoringResultValuesBase):
+class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBase):
     full_name: str
     type: ModelEndpointMonitoringMetricType
     data: bool = False

@@ -443,7 +443,7 @@ async def _get_metrics_values_data(
     response_model=list[
         Union[
             mm_endpoints.ModelEndpointMonitoringResultValues,
-            mm_endpoints.ModelEndpointMonitoringResultNoData,
+            mm_endpoints.ModelEndpointMonitoringMetricNoData,
         ]
     ],
 )
@@ -452,7 +452,7 @@ async def get_model_endpoint_monitoring_metrics_values(
 ) -> list[
     Union[
         mm_endpoints.ModelEndpointMonitoringResultValues,
-        mm_endpoints.ModelEndpointMonitoringResultNoData,
+        mm_endpoints.ModelEndpointMonitoringMetricNoData,
     ]
 ]:
     """

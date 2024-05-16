@@ -30,8 +30,8 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricType,
-    ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
@@ -452,4 +452,4 @@ def test_read_data() -> None:
     assert len(data) == 3
     counter = Counter([type(values) for values in data])
     assert counter[ModelEndpointMonitoringResultValues] == 2
-    assert counter[ModelEndpointMonitoringResultNoData] == 1
+    assert counter[ModelEndpointMonitoringMetricNoData] == 1

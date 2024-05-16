@@ -27,8 +27,8 @@ import mlrun.model_monitoring.writer as mm_writer
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricType,
-    ModelEndpointMonitoringResultNoData,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
 )
@@ -82,7 +82,7 @@ def read_data(
     end: datetime,
     metrics: list[ModelEndpointMonitoringMetric],
 ) -> list[
-    Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringResultNoData]
+    Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringMetricNoData]
 ]:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
@@ -100,7 +100,7 @@ def read_data(
     metrics_without_data = {metric.full_name: metric for metric in metrics}
 
     metrics_values: list[
-        Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringResultNoData]
+        Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringMetricNoData]
     ] = []
     if not df.empty:
         grouped = df.groupby(
@@ -115,7 +115,6 @@ def read_data(
         metrics_values.append(
             ModelEndpointMonitoringResultValues(
                 full_name=full_name,
-                type=ModelEndpointMonitoringMetricType.RESULT,
                 result_kind=result_kind,
                 values=list(
                     zip(
@@ -130,7 +129,7 @@ def read_data(
 
     for metric in metrics_without_data.values():
         metrics_values.append(
-            ModelEndpointMonitoringResultNoData(
+            ModelEndpointMonitoringMetricNoData(
                 full_name=metric.full_name,
                 type=ModelEndpointMonitoringMetricType.RESULT,
             )

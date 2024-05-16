@@ -278,6 +278,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             ),
         ]
 
+        cls.run_db = mlrun.get_run_db()
+
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(
@@ -366,9 +368,31 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     @classmethod
     def _get_model_endpoint_id(cls) -> str:
-        endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
+        endpoints = cls.run_db.list_model_endpoints(project=cls.project_name)
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
+
+    @classmethod
+    def _test_model_endpoint_stats(cls, ep_id: str) -> None:
+        cls._logger.debug("Checking model endpoint", ep_id=ep_id)
+        ep = cls.run_db.get_model_endpoint(project=cls.project_name, endpoint_id=ep_id)
+        assert (
+            ep.status.current_stats.keys()
+            == ep.status.feature_stats.keys()
+            == set(ep.spec.feature_names)
+        ), "The endpoint current stats keys are not the same as feature stats and feature names"
+        assert ep.status.drift_status, "The general drift status is empty"
+        assert ep.status.drift_measures, "The drift measures are empty"
+
+        drift_table = pd.DataFrame.from_dict(ep.status.drift_measures, orient="index")
+        assert set(drift_table.columns) == {
+            "hellinger",
+            "kld",
+            "tvd",
+        }, "The drift metrics are not as expected"
+        assert set(drift_table.index) == set(
+            ep.spec.feature_names
+        ), "The feature names are not as expected"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
@@ -412,6 +436,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         if with_training_set:
             self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
+            self._test_model_endpoint_stats(ep_id=ep_id)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

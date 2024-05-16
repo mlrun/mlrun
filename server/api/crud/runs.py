@@ -136,7 +136,7 @@ class Runs(
         state: typing.Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
-        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        states: typing.Optional[typing.Union[str, list[str]]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,

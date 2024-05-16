@@ -24,8 +24,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
-import server.api.api.endpoints.artifacts_v2
-import server.api.crud.files
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
@@ -273,14 +271,15 @@ def test_fails_deleting_artifact_data(
 def test_delete_artifact_data_default_deletion_strategy(
     db: Session, unversioned_client: TestClient
 ):
-    server.api.crud.Files.delete_artifact_data = unittest.mock.MagicMock()
-
-    # checking metadata-only as default deletion_strategy
-    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
-    resp = unversioned_client.delete(url)
-    server.api.crud.Files.delete_artifact_data.assert_not_called()
-    server.api.crud.Files.delete_artifact_data.reset_mock()
-    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+    with unittest.mock.patch(
+        "server.api.crud.Files.delete_artifact_data"
+    ) as delete_artifact_data:
+        # checking metadata-only as default deletion_strategy
+        url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+        resp = unversioned_client.delete(url)
+        delete_artifact_data.assert_not_called()
+        delete_artifact_data.reset_mock()
+        assert resp.status_code == HTTPStatus.NO_CONTENT.value
 
 
 @pytest.mark.parametrize(

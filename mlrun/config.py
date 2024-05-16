@@ -767,7 +767,7 @@ class Config:
                         )
 
     def dump_yaml(self, stream=None):
-        return yaml.dump(self._cfg, stream, default_flow_style=False)
+        return yaml.safe_dump(self._cfg, stream, default_flow_style=False)
 
     @classmethod
     def from_dict(cls, dict_):

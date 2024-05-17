@@ -1692,8 +1692,8 @@ class SQLDB(DBInterface):
         name,
         updates: dict,
         project: str = None,
-        tag: str = None,
-        hash_key: str = None,
+        tag: str = "",
+        hash_key: str = "",
     ):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)

@@ -30,6 +30,7 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
+|ML-2223|Can now deploy a function when notebook names contain "." |
 |ML-3680|Function spec now gets updated when modifying it while running a workflow.|
 |ML-4248|You can now run a serving function with a large number of models.|
 |ML-5774|UI: Improved response time in the **Workflows | Pipelines** page.|
@@ -881,7 +882,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-2052|mlrun service default limits are not applied to the wait-container on pipeline jobs.|NA|v1.0.0|
 |ML-2030|Need a way to move artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
 |ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. |NA|v1.0.0|
-|ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)| Do not use "." in notebook name|v1.0.0 |
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.|v1.1.0    |
 |ML-2489|Cannot pickle a class inside an mlrun function.                       |Use cloudpickle instead of pickle.|v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error|Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                                    |v1.1.0    |

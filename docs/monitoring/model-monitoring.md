@@ -5,28 +5,6 @@ This page gives an overview of the model monitoring feature. See a complete exam
 ```{admonition} Note
 If you are using the CE version, see {ref}`legacy-model-monitoring`.
 ```
-## Architecture
-
-<img src="../_static/images/model-monitoring.png" width="1100" >
-
-The model monitoring process flow starts with collecting operational data from a function in the model serving pod. The model monitoring stream pod forwards data to a Parquet database. 
-The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. The stream function examines 
-the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
-The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 
-to the same target. You can use `get_offline_features` to read the data from that feature set. 
-
-
-
-
-In parallel, an MLRun job runs, reading the parquet files and 
-performing drift analysis. The drift analysis data is stored so 
-that the user can retrieve it in the Iguazio UI or in a Grafana dashboard.
-
-When you enable model monitoring, you effectively deploy three components:
-- application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The controller is a scheduled batch job whose frequency is determined by `base_period`. 
-- stream function: monitors the log of the data stream. It is triggered when a new log entry is detected. The monitored data is used to create real-time dashboards, detect drift, and analyze performance.
-- writer function: writes to the database and outputs alerts.
-
 ## APIs
 
 The model monitoring APIs are configured per project. The APIs are:
@@ -39,9 +17,7 @@ The model monitoring APIs are configured per project. The APIs are:
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Sets the Kafka or SQL credentials to be used by the project's model monitoring infrastructure functions. 
 - {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; disables the controller. 
 
-## Configuration flow
-
-### Enable model monitoring
+## Enable model monitoring
 
 Enable model monitoring for a project with {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
 The controller runs, by default, every 10 minutes, which is also the minimum interval. 
@@ -53,7 +29,7 @@ with the new `base_period` value.
 project.enable_model_monitoring(base_period=1)
 ```
 
-### Log the model with training data
+## Log the model with training data
 
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`.
 ```python
@@ -65,7 +41,7 @@ project.log_model(
     framework="sklearn",
 ```
 
-### Import, enable monitoring, and deploy the serving function
+## Import, enable monitoring, and deploy the serving function
 
 The result of this step is that the model-monitoring stream pod writes data to Parquet, by model endpoint. 
 Every base period, the controller checks for new data and if it finds, sends it to the relevant app.
@@ -95,7 +71,7 @@ serving_fn.spec.build.requirements = ["scikit-learn"]
 project.deploy_function(serving_fn)
 ```
 
-### Invoke the model
+## Invoke the model
 
 Invoke the model function with {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke`.
 
@@ -119,7 +95,7 @@ last prediction and average latency) in the **Models | Model Endpoints** page.
 
 You can also see the basic statistics in Grafana.
 
-### Register and deploy the model-monitoring function
+## Register and deploy the model-monitoring function
 The next step is to deploy the model-monitoring job to generate the full meta data. 
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
 Then, deploy the function using {py:meth}`~mlrun.projects.MlrunProject.deploy_function`.
@@ -138,7 +114,7 @@ project.deploy_function(my_app)
 You can use the MLRun built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) as an MLRun function and create MLRun artifacts.
 See the [Model monitoring and drift detection tutorial](../tutorials/05-model-monitoring).
 
-### Invoke the model again
+## Invoke the model again
 
 The controller checks for new datasets every `base_period` to send to the app. Invoking the model a second time ensures that the previous 
 window closed and therefore the data contains the full monitoring window. From this point on, the applications are triggered by the controller. 
@@ -161,15 +137,26 @@ for i in range(150):
 
 Now you can view the application results. 
 
-
 <img src="../tutorials/_static/images/mm-myapp.png" width="1000" >
 
-### View model monitoring artifacts and drift
- 
-- [Model monitoring in the platform UI](./monitoring-models.html#model-monitoring-in-the-platform-ui) to see the context and the artifacts.
-- [Model monitoring in the Grafana dashboards](./monitoring-models.html#model-monitoring-in-the-grafana-dashboards) to see full details on model monitoring.
+## Batch infer model-monitoring
 
-### See also
+When you call the {ref}`batch inference <batch_inference_overview>` function (stored in the [function hub](https://www.mlrun.org/hub/functions/master/batch_inference_2/)), 
+you can specify the endpoint_id &mdash; to apply the job to a specific existing model endpoint. 
+
+See more about [batch inference](../deployment/batch_inference.html).
+
+## View model monitoring artifacts and drift in Grafana
+ 
+Monitoring details:
+
+![grafana_dashboard_2](../tutorials/_static/images/grafana_dashboard_2.png)
+
+And drift and operational metrics over time:
+
+![grafana_dashboard_3](../tutorials/_static/images/grafana_dashboard_3.png)
+
+## See also
 
 - {ref}`monitoring-models`
 - {ref}`batch_inference_overview`

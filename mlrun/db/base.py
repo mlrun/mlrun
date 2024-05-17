@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.model_monitoring
 
@@ -63,7 +64,10 @@ class RunDBInterface(ABC):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,

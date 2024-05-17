@@ -547,10 +547,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                     "inputs",
                     "parameters",
                 ]:
-                    text += "\n  * **{}**: {}".format(
-                        property_name.capitalize(),
-                        self._markdown_print(value=property_value, tabs=2),
-                    )
+                    text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
         else:
             for property_name, property_value in self._extract_epoch_results().items():
                 text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
@@ -613,15 +610,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
 
         :return: The generated link.
         """
-        return (
-            '<a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank">{}</a>'.format(
-                config.resolve_ui_url(),
-                config.ui.projects_prefix,
-                context.project,
-                context.uid,
-                link_text,
-            )
-        )
+        return f'<a href="{config.resolve_ui_url()}/{config.ui.projects_prefix}/{context.project}/jobs/monitor/{context.uid}/overview" target="_blank">{link_text}</a>'
 
     @staticmethod
     def _extract_properties_from_context(context: mlrun.MLClientCtx) -> dict[str, Any]:

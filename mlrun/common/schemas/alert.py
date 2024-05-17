@@ -101,6 +101,18 @@ class ResetPolicy(StrEnum):
     AUTO = "auto"
 
 
+class AlertNotification(pydantic.BaseModel):
+    notification: Notification
+    cooldown_period: Annotated[
+        str,
+        pydantic.Field(
+            description="Period during which notifications "
+            "will not be sent after initial send. The format of this would be in time."
+            " e.g. 1d, 3h, 5m, 15s"
+        ),
+    ] = None
+
+
 class AlertConfig(pydantic.BaseModel):
     project: str
     id: int = None
@@ -121,9 +133,14 @@ class AlertConfig(pydantic.BaseModel):
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
     reset_policy: ResetPolicy = ResetPolicy.MANUAL
-    notifications: pydantic.conlist(Notification, min_items=1)
+    notifications: pydantic.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
+
+    def get_raw_notifications(self) -> list[Notification]:
+        return [
+            alert_notification.notification for alert_notification in self.notifications
+        ]
 
 
 class AlertsModes(StrEnum):

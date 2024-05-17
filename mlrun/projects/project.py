@@ -2962,8 +2962,12 @@ class MlrunProject(ModelObj):
             engine = "remote"
         # The default engine is kfp if not given:
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        if not inner_engine and engine == "remote":
-            inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
+        if not inner_engine and workflow_engine.engine == "remote":
+            # if inner engine is set to remote, assume kfp as the default inner engine with remote as the runner
+            engine_kind = (
+                workflow_spec.engine if workflow_spec.engine != "remote" else "kfp"
+            )
+            inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
 
         run = workflow_engine.run(
@@ -2991,7 +2995,7 @@ class MlrunProject(ModelObj):
             # run's engine gets replaced with inner engine if engine is remote,
             # so in that case we need to get the status from the remote engine manually
             # TODO: support watch for remote:local
-            if engine == "remote" and status_engine.engine != "local":
+            if workflow_engine.engine == "remote" and status_engine.engine != "local":
                 status_engine = _RemoteRunner
 
             status_engine.get_run_status(project=self, run=run, timeout=timeout)

@@ -482,7 +482,13 @@ class NotificationPusher(_NotificationPusherBase):
 
     @staticmethod
     def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
-        kfp_client = kfp.Client(namespace=mlrun.mlconf.namespace)
+        kfp_url = mlrun.mlconf.resolve_kfp_url(mlrun.mlconf.namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunNotFoundError(
+                "KubeFlow Pipelines is not configured"
+            )
+
+        kfp_client = kfp.Client(host=kfp_url)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

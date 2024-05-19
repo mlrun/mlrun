@@ -743,7 +743,7 @@ class _RemoteRunner(_PipelineRunner):
     engine = "remote"
 
     def __init__(self):
-        self.inner_runner: typing.Type[_PipelineRunner] = _KFPRunner
+        self.inner_runner: type[_PipelineRunner] = _KFPRunner
 
     @classmethod
     def run(
@@ -884,7 +884,7 @@ class _RemoteRunner(_PipelineRunner):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-        inner_runner: typing.Type[_PipelineRunner] = None,
+        inner_runner: type[_PipelineRunner] = None,
     ):
         inner_runner = inner_runner or _KFPRunner
         if inner_runner.engine == _KFPRunner.engine:

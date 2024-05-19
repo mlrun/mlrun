@@ -35,6 +35,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import server.api.utils.helpers
 import server.api.utils.projects.remotes.leader as project_leader
 from mlrun.utils import get_in, logger
 
@@ -192,22 +193,17 @@ class Client(
                 SessionPlanes.data,
                 SessionPlanes.control,
             ]
-        body = {
-            "data": {
-                "type": "access_key",
-                "attributes": {"label": "MLRun", "planes": planes},
-            }
-        }
-        response = self._send_request_to_api(
-            "POST",
-            "self/get_or_create_access_key",
-            "Failed getting or creating iguazio access key",
-            session,
-            json=body,
+        planes = [
+            igz_mgmt.constants.SessionPlanes(plane)
+            for plane in planes
+            if plane in igz_mgmt.constants.SessionPlanes.all()
+        ]
+        access_key = igz_mgmt.AccessKey.get_or_create(
+            self._get_igz_client(session),
+            planes=planes,
+            label="MLRun",
         )
-        if response.status_code == http.HTTPStatus.CREATED.value:
-            self._logger.debug("Created access key in Iguazio", planes=planes)
-        return response.json()["data"]["id"]
+        return access_key.id
 
     def create_project(
         self,
@@ -345,6 +341,7 @@ class Client(
         """
         return True
 
+    @server.api.utils.helpers.lru_cache_with_ttl(maxsize=1, ttl_seconds=60 * 2)
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL
@@ -381,9 +378,7 @@ class Client(
         Emit a manual event to Iguazio
         """
         client = self._get_igz_client(access_key)
-        igz_mgmt.ManualEvents.emit(
-            http_client=client, event=event, audit_tenant_id=client.tenant_id
-        )
+        event.emit(client)
 
     def _get_igz_client(self, access_key: str) -> igz_mgmt.Client:
         if not self._igz_clients.get(access_key):
@@ -561,13 +556,24 @@ class Client(
         params = {"include": "owner"}
         if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
-        return self._send_request_to_api(
-            "GET",
-            f"projects/__name__/{name}",
-            "Failed getting project from Iguazio",
-            session,
-            params=params,
-        )
+        try:
+            return self._send_request_to_api(
+                "GET",
+                f"projects/__name__/{name}",
+                "Failed getting project from Iguazio",
+                session,
+                params=params,
+            )
+        except requests.HTTPError as exc:
+            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                raise
+            self._logger.debug(
+                "Project not found in Iguazio",
+                name=name,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                "Project not found in Iguazio"
+            ) from exc
 
     def _get_project_from_iguazio(
         self, session: str, name: str, include_owner_session: bool = False
@@ -617,7 +623,7 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         response = self._session.request(
-            method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs
+            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
             try:
@@ -744,6 +750,13 @@ class Client(
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
+
+        if project.spec.default_function_node_selector is not None:
+            body["data"]["attributes"]["default_function_node_selector"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.spec.default_function_node_selector
+                )
+            )
         return body
 
     @staticmethod
@@ -820,6 +833,13 @@ class Client(
             )
         if iguazio_project["attributes"].get("owner_username"):
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
+
+        if iguazio_project["attributes"].get("default_function_node_selector"):
+            mlrun_project.spec.default_function_node_selector = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["default_function_node_selector"]
+                )
+            )
         return mlrun_project
 
     def _prepare_request_kwargs(self, session, path, *, kwargs):

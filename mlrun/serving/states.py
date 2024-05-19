@@ -14,19 +14,21 @@
 
 __all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 
-import asyncio
 import os
 import pathlib
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Union
+from typing import Any, Union
 
 import mlrun
 
 from ..config import config
 from ..datastore import get_stream_pusher
-from ..datastore.utils import parse_kafka_url
+from ..datastore.utils import (
+    get_kafka_brokers_from_dict,
+    parse_kafka_url,
+)
 from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
@@ -325,7 +327,7 @@ class BaseStep(ModelObj):
             parent = self._parent
         else:
             raise GraphError(
-                f"step {self.name} parent is not set or its not part of a graph"
+                f"step {self.name} parent is not set or it's not part of a graph"
             )
 
         name, step = params_to_step(
@@ -346,6 +348,36 @@ class BaseStep(ModelObj):
             step.after_step(self.name)
         parent._last_added = step
         return step
+
+    def set_flow(
+        self,
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
+        force: bool = False,
+    ):
+        """set list of steps as downstream from this step, in the order specified. This will overwrite any existing
+        downstream steps.
+
+        :param steps: list of steps to follow this one
+        :param force: whether to overwrite existing downstream steps. If False, this method will fail if any downstream
+        steps have already been defined. Defaults to False.
+        :return: the last step added to the flow
+
+        example:
+            The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
+            single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
+            Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
+            graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
+            are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
+
+            step1.set_flow(
+                [
+                    dict(name="step2", handler="step2_handler"),
+                    dict(name="step3", class_name="Step3Class"),
+                ],
+                force=True,
+            ).to(dict(name="step4", class_name="Step4Class"))
+        """
+        raise NotImplementedError("set_flow() can only be called on a FlowStep")
 
 
 class TaskStep(BaseStep):
@@ -1161,19 +1193,11 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            if self.context.is_mock:
-                resp = self._controller.emit(
-                    event, return_awaitable_result=self._wait_for_result
-                )
-                if self._wait_for_result and resp:
-                    return resp.await_result()
-            else:
-                resp_awaitable = self._controller.emit(
-                    event, await_result=self._wait_for_result
-                )
-                if self._wait_for_result:
-                    return resp_awaitable
-                return self._await_and_return_id(resp_awaitable, event)
+            resp = self._controller.emit(
+                event, return_awaitable_result=self._wait_for_result
+            )
+            if self._wait_for_result and resp:
+                return resp.await_result()
             event = copy(event)
             event.body = {"id": event.id}
             return event
@@ -1213,18 +1237,9 @@ class FlowStep(BaseStep):
         """wait for completion of run in async flows"""
 
         if self._controller:
-            if asyncio.iscoroutinefunction(self._controller.await_termination):
-
-                async def terminate_and_await_termination():
-                    if hasattr(self._controller, "terminate"):
-                        await self._controller.terminate()
-                    return await self._controller.await_termination()
-
-                return terminate_and_await_termination()
-            else:
-                if hasattr(self._controller, "terminate"):
-                    self._controller.terminate()
-                return self._controller.await_termination()
+            if hasattr(self._controller, "terminate"):
+                self._controller.terminate()
+            return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz
@@ -1272,6 +1287,27 @@ class FlowStep(BaseStep):
                     f"cant set before, there is no step named {step_name}"
                 )
             self[step_name].after_step(name)
+
+    def set_flow(
+        self,
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
+        force: bool = False,
+    ):
+        if not force and self.steps:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "set_flow() called on a step that already has downstream steps. "
+                "If you want to overwrite existing steps, set force=True."
+            )
+
+        self.steps = None
+        step = self
+        for next_step in steps:
+            if isinstance(next_step, dict):
+                step = step.to(**next_step)
+            else:
+                step = step.to(next_step)
+
+        return step
 
 
 class RootFlowStep(FlowStep):
@@ -1512,13 +1548,11 @@ def _init_async_objects(context, steps):
                     endpoint = None
                     options = {}
                     options.update(step.options)
-                    kafka_bootstrap_servers = options.pop(
-                        "kafka_bootstrap_servers", None
-                    )
-                    if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
-                        topic, bootstrap_servers = parse_kafka_url(
-                            stream_path, kafka_bootstrap_servers
-                        )
+
+                    kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
+
+                    if stream_path.startswith("kafka://") or kafka_brokers:
+                        topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
                         kafka_producer_options = options.pop(
                             "kafka_producer_options", None
@@ -1526,7 +1560,7 @@ def _init_async_objects(context, steps):
 
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
-                            bootstrap_servers=bootstrap_servers,
+                            brokers=brokers,
                             producer_options=kafka_producer_options,
                             context=context,
                             **options,
@@ -1568,12 +1602,8 @@ def _init_async_objects(context, steps):
     source_args = context.get_param("source_args", {})
     explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
 
-    if context.is_mock:
-        source_class = storey.SyncEmitSource
-    else:
-        source_class = storey.AsyncEmitSource
-
-    default_source = source_class(
+    # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
+    default_source = storey.SyncEmitSource(
         context=context,
         explicit_ack=explicit_ack,
         **source_args,

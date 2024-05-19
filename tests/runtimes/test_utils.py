@@ -87,7 +87,7 @@ def test_add_code_metadata_stale_remote(repo):
         ),
         (
             {"a": "A", "b": "B"},
-            {mlrun.runtimes.constants.RunLabels.owner},
+            {mlrun.common.runtimes.constants.RunLabels.owner},
             {"a": "A", "b": "B", "owner": "v3io_user"},
             None,
         ),

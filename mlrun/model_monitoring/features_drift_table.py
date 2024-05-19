@@ -21,9 +21,34 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 import mlrun.common.schemas.model_monitoring
+from mlrun.artifacts import PlotlyArtifact
 
 # A type for representing a drift result, a tuple of the status and the drift mean:
-DriftResultType = tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
+DriftResultType = tuple[
+    mlrun.common.schemas.model_monitoring.constants.ResultStatusApp, float
+]
+
+
+class _PlotlyTableArtifact(PlotlyArtifact):
+    """A custom class for plotly table artifacts"""
+
+    @staticmethod
+    def _disable_table_dragging(figure_html: str) -> str:
+        """
+        Disable the table columns dragging by adding the following
+        JavaScript code
+        """
+        start, end = figure_html.rsplit(";", 1)
+        middle = (
+            ';for (const element of document.getElementsByClassName("table")) '
+            '{element.style.pointerEvents = "none";}'
+        )
+        figure_html = start + middle + end
+        return figure_html
+
+    def get_body(self) -> str:
+        """Get the adjusted HTML representation of the figure"""
+        return self._disable_table_dragging(super().get_body())
 
 
 class FeaturesDriftTablePlot:
@@ -62,9 +87,9 @@ class FeaturesDriftTablePlot:
 
     # Status configurations:
     _STATUS_COLORS = {
-        mlrun.common.schemas.model_monitoring.DriftStatus.NO_DRIFT: "rgb(0,176,80)",  # Green
-        mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT: "rgb(255,192,0)",  # Orange
-        mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED: "rgb(208,0,106)",  # Magenta
+        mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.no_detection: "rgb(0,176,80)",  # Green
+        mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.potential_detection: "rgb(255,192,0)",  # Orange
+        mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.detected: "rgb(208,0,106)",  # Magenta
     }
 
     # Font configurations:
@@ -97,7 +122,7 @@ class FeaturesDriftTablePlot:
         inputs_statistics: dict,
         metrics: dict[str, Union[dict, float]],
         drift_results: dict[str, DriftResultType],
-    ) -> str:
+    ) -> _PlotlyTableArtifact:
         """
         Produce the html code of the table plot with the given information and the stored configurations in the class.
 
@@ -106,9 +131,8 @@ class FeaturesDriftTablePlot:
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.
         :param drift_results:         The drift results per feature according to the rules of the monitor.
 
-        :return: The full path to the html file of the plot.
+        :return: The drift table as a plotly artifact.
         """
-        # Plot the drift table:
         figure = self._plot(
             features=list(inputs_statistics.keys()),
             sample_set_statistics=sample_set_statistics,
@@ -116,19 +140,7 @@ class FeaturesDriftTablePlot:
             metrics=metrics,
             drift_results=drift_results,
         )
-
-        # Get its HTML representation:
-        figure_html = figure.to_html()
-
-        # Turn off the table columns dragging by injecting the following JavaScript code:
-        start, end = figure_html.rsplit(";", 1)
-        middle = (
-            ';for (const element of document.getElementsByClassName("table")) '
-            '{element.style.pointerEvents = "none";}'
-        )
-        figure_html = start + middle + end
-
-        return figure_html
+        return _PlotlyTableArtifact(figure=figure, key="drift_table_plot")
 
     def _read_columns_names(self, statistics_dictionary: dict, drift_metrics: dict):
         """
@@ -366,10 +378,10 @@ class FeaturesDriftTablePlot:
             bins = np.array(bins)
             if bins[0] == -sys.float_info.max:
                 bins[0] = bins[1] - (bins[2] - bins[1])
-                hovertext[0] = f"(-∞, {bins[1]})"
+                hovertext[0] = f"(-inf, {bins[1]})"
             if bins[-1] == sys.float_info.max:
                 bins[-1] = bins[-2] + (bins[-2] - bins[-3])
-                hovertext[-1] = f"({bins[-2]}, ∞)"
+                hovertext[-1] = f"({bins[-2]}, inf)"
             # Center the bins (leave the first one):
             bins = 0.5 * (bins[:-1] + bins[1:])
             # Plot the histogram as a line with filled background below it:

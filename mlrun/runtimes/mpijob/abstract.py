@@ -223,14 +223,14 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         ```
         # Define the wanted MPI arguments
         mpi_args = []
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_DEBUG=INFO')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_SOCKET_NTHREADS=2')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_NSOCKS_PERTHREAD=8')
-        mpi_args.append('-x')
-        mpi_args.append('NCCL_MIN_NCHANNELS=4')
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_DEBUG=INFO")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_SOCKET_NTHREADS=2")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_NSOCKS_PERTHREAD=8")
+        mpi_args.append("-x")
+        mpi_args.append("NCCL_MIN_NCHANNELS=4")
 
         # Set the MPI arguments in the function
         fn.set_mpi_args(mpi_args)

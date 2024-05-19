@@ -90,7 +90,7 @@ def test_custom_packagers(
     :param is_mandatory:    If the packager is mandatory for the run or not. Mandatory packagers will always raise
                             exception if they couldn't be collected.
     """
-    project = mlrun.get_or_create_project(name="default")
+    project = mlrun.get_or_create_project(name="default", allow_cross_project=True)
     project.add_custom_packager(
         packager=packager,
         is_mandatory=is_mandatory,

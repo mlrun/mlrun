@@ -38,7 +38,7 @@ on:
         type: choice
         options: [ 'bump-rc', 'stable' ]
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,models,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,jupyter,test'
         required: false
         default: ''
       skip_publish_pypi:
@@ -228,7 +228,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r automation/requirements.txt -r dev-requirements.txt && pip install -e .
+          pip install -r automation/requirements.txt
       - name: Generate release notes
         id: release-notes
         run: |
@@ -264,7 +264,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Create tutorials tar
         run: |
-          tar -cvf mlrun-tutorials.tar docs/tutorials
+          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/welcome.ipynb -P docs
+          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/README.md -P docs
+          tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
+          rm -rf docs/welcome.ipynb docs/README.md
       - name: Add tutorials tar to release
         uses: ncipollo/release-action@v1
         with:
@@ -272,4 +275,25 @@ jobs:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
+          
+  update-demos:
+    name: Bundle demos
+    needs: [ prepare-inputs, create-releases ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: install prerequisits
+        run: |
+          pip install gitpython
+      - name: Create mlrun demos tar
+        run: |
+          python automation/scripts/bundle_demos.py
+      - name: Add mlrun-demos tar to release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: mlrun-demos.tar
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

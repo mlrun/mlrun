@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import getpass
 import glob
@@ -30,21 +31,29 @@ from typing import Callable, Optional, Union
 import dotenv
 import git
 import git.exc
-import kfp
-import nuclio
+import mlrun_pipelines.common.models
+import mlrun_pipelines.mounts
+import nuclio.utils
 import requests
 import yaml
+from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
+import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
+import mlrun.serving
 import mlrun.utils.regex
+from mlrun.alerts.alert import AlertConfig
+from mlrun.common.schemas.alert import AlertTemplate
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 
@@ -53,15 +62,10 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
-from ..model_monitoring.application import (
-    ModelMonitoringApplicationBase,
-    PushToMonitoringWriter,
-)
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
-    is_legacy_artifact,
     is_relative_path,
     is_yaml_path,
     logger,
@@ -128,6 +132,7 @@ def new_project(
     save: bool = True,
     overwrite: bool = False,
     parameters: dict = None,
+    default_function_node_selector: dict = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -138,11 +143,15 @@ def new_project(
     example::
 
         # create a project with local and hub functions, a workflow, and an artifact
-        project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
-        project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://auto-trainer', 'train')
-        project.set_artifact('data', Artifact(target_path=data_url))
-        project.set_workflow('main', "./myflow.py")
+        project = mlrun.new_project(
+            "myproj", "./", init_git=True, description="my new project"
+        )
+        project.set_function(
+            "prep_data.py", "prep-data", image="mlrun/mlrun", handler="prep_data"
+        )
+        project.set_function("hub://auto-trainer", "train")
+        project.set_artifact("data", Artifact(target_path=data_url))
+        project.set_workflow("main", "./myflow.py")
         project.save()
 
         # run the "main" workflow (watch=True to wait for run completion)
@@ -152,19 +161,25 @@ def new_project(
 
         # create a new project from a zip template (can also use yaml/git templates)
         # initialize a local git, and register the git remote path
-        project = mlrun.new_project("myproj", "./", init_git=True,
-                                    remote="git://github.com/mlrun/project-demo.git",
-                                    from_template="http://mysite/proj.zip")
+        project = mlrun.new_project(
+            "myproj",
+            "./",
+            init_git=True,
+            remote="git://github.com/mlrun/project-demo.git",
+            from_template="http://mysite/proj.zip",
+        )
         project.run("main", watch=True)
 
 
     example using project_setup.py to init the project objects::
 
             def setup(project):
-                project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-                project.set_function('hub://auto-trainer', 'train')
-                project.set_artifact('data', Artifact(target_path=data_url))
-                project.set_workflow('main', "./myflow.py")
+                project.set_function(
+                    "prep_data.py", "prep-data", image="mlrun/mlrun", handler="prep_data"
+                )
+                project.set_function("hub://auto-trainer", "train")
+                project.set_artifact("data", Artifact(target_path=data_url))
+                project.set_workflow("main", "./myflow.py")
                 return project
 
 
@@ -181,6 +196,7 @@ def new_project(
     :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
                          if project with name exists
     :param parameters:   key/value pairs to add to the project.spec.params
+    :param default_function_node_selector: defines the default node selector for scheduling functions within the project
 
     :returns: project object
     """
@@ -193,14 +209,16 @@ def new_project(
                 "Unsupported option, cannot use subpath argument with project templates"
             )
         if from_template.endswith(".yaml"):
-            project = _load_project_file(from_template, name, secrets)
+            project = _load_project_file(
+                from_template, name, secrets, allow_cross_project=True
+            )
         elif from_template.startswith("git://"):
             clone_git(from_template, context, secrets, clone=True)
             shutil.rmtree(path.join(context, ".git"))
-            project = _load_project_dir(context, name)
+            project = _load_project_dir(context, name, allow_cross_project=True)
         elif from_template.endswith(".zip"):
             clone_zip(from_template, context, secrets)
-            project = _load_project_dir(context, name)
+            project = _load_project_dir(context, name, allow_cross_project=True)
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
@@ -227,6 +245,11 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
+
+    if default_function_node_selector:
+        for key, val in default_function_node_selector.items():
+            project.spec.default_function_node_selector[key] = val
+
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
         for key, val in parameters.items():
@@ -277,6 +300,7 @@ def load_project(
     save: bool = True,
     sync_functions: bool = False,
     parameters: dict = None,
+    allow_cross_project: bool = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -290,7 +314,7 @@ def load_project(
         # When using git as the url source the context directory must be an empty or
         # non-existent folder as the git repo will be cloned there
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
-        project.run("main", arguments={'data': data_url})
+        project.run("main", arguments={"data": data_url})
 
 
     project_setup.py example::
@@ -323,6 +347,8 @@ def load_project(
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
     :param parameters:      key/value pairs to add to the project.spec.params
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
@@ -338,7 +364,7 @@ def load_project(
     if url:
         url = str(url)  # to support path objects
         if is_yaml_path(url):
-            project = _load_project_file(url, name, secrets)
+            project = _load_project_file(url, name, secrets, allow_cross_project)
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
@@ -365,7 +391,7 @@ def load_project(
         repo, url = init_repo(context, url, init_git)
 
     if not project:
-        project = _load_project_dir(context, name, subpath)
+        project = _load_project_dir(context, name, subpath, allow_cross_project)
 
     if not project.metadata.name:
         raise ValueError("Project name must be specified")
@@ -419,6 +445,7 @@ def get_or_create_project(
     from_template: str = None,
     save: bool = True,
     parameters: dict = None,
+    allow_cross_project: bool = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist
 
@@ -429,9 +456,11 @@ def get_or_create_project(
     Usage example::
 
         # load project from the DB (if exist) or the source repo
-        project = get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
+        project = get_or_create_project(
+            "myproj", "./", "git://github.com/mlrun/demo-xgb-project.git"
+        )
         project.pull("development")  # pull the latest code from git
-        project.run("main", arguments={'data': data_url})  # run the workflow "main"
+        project.run("main", arguments={"data": data_url})  # run the workflow "main"
 
 
     project_setup.py example::
@@ -461,12 +490,12 @@ def get_or_create_project(
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :param parameters:   key/value pairs to add to the project.spec.params
+    :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
+                                loading an existing project yaml as a baseline for a new project with a different name
 
     :returns: project object
     """
     context = context or "./"
-    spec_path = path.join(context, subpath or "", "project.yaml")
-    load_from_path = url or path.isfile(spec_path)
     try:
         # load project from the DB.
         # use `name` as `url` as we load the project from the DB
@@ -482,13 +511,15 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
             parameters=parameters,
+            allow_cross_project=allow_cross_project,
         )
         logger.info("Project loaded successfully", project_name=name)
         return project
-
     except mlrun.errors.MLRunNotFoundError:
         logger.debug("Project not found in db", project_name=name)
 
+    spec_path = path.join(context, subpath or "", "project.yaml")
+    load_from_path = url or path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
@@ -504,6 +535,7 @@ def get_or_create_project(
             user_project=user_project,
             save=save,
             parameters=parameters,
+            allow_cross_project=allow_cross_project,
         )
 
         logger.info(
@@ -578,7 +610,7 @@ def _run_project_setup(
     return project
 
 
-def _load_project_dir(context, name="", subpath=""):
+def _load_project_dir(context, name="", subpath="", allow_cross_project=None):
     subpath_str = subpath or ""
 
     # support both .yaml and .yml file extensions
@@ -592,7 +624,7 @@ def _load_project_dir(context, name="", subpath=""):
         with open(project_file_path) as fp:
             data = fp.read()
             struct = yaml.load(data, Loader=yaml.FullLoader)
-            project = _project_instance_from_struct(struct, name)
+            project = _project_instance_from_struct(struct, name, allow_cross_project)
             project.spec.context = context
     elif function_files := glob.glob(function_file_path):
         function_path = function_files[0]
@@ -665,19 +697,41 @@ def _delete_project_from_db(project_name, secrets, deletion_strategy):
     return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
-def _load_project_file(url, name="", secrets=None):
+def _load_project_file(url, name="", secrets=None, allow_cross_project=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"cant find project file at {url}") from exc
     struct = yaml.load(obj, Loader=yaml.FullLoader)
-    return _project_instance_from_struct(struct, name)
+    return _project_instance_from_struct(struct, name, allow_cross_project)
 
 
-def _project_instance_from_struct(struct, name):
-    struct.setdefault("metadata", {})["name"] = name or struct.get("metadata", {}).get(
-        "name", ""
-    )
+def _project_instance_from_struct(struct, name, allow_cross_project):
+    name_from_struct = struct.get("metadata", {}).get("name", "")
+    if name and name_from_struct and name_from_struct != name:
+        error_message = (
+            f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
+            "1. Set the `allow_cross_project=True` when loading the project.\n"
+            f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
+            "3. Use different project context dir."
+        )
+
+        if allow_cross_project is None:
+            # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
+            logger.warn(
+                "Project name is different than specified on its project yaml."
+                "You should fix it until version 1.9.0",
+                description=error_message,
+            )
+        elif allow_cross_project:
+            logger.warn(
+                "Project name is different than specified on its project yaml. Overriding.",
+                existing_name=name_from_struct,
+                overriding_name=name,
+            )
+        else:
+            raise ValueError(error_message)
+    struct.setdefault("metadata", {})["name"] = name or name_from_struct
     return MlrunProject.from_dict(struct)
 
 
@@ -760,6 +814,7 @@ class ProjectSpec(ModelObj):
         default_image=None,
         build=None,
         custom_packagers: list[tuple[str, bool]] = None,
+        default_function_node_selector=None,
     ):
         self.repo = None
 
@@ -799,6 +854,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
+        self.default_function_node_selector = default_function_node_selector or {}
 
     @property
     def source(self) -> str:
@@ -937,13 +993,9 @@ class ProjectSpec(ModelObj):
             if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
                 raise ValueError("artifacts must be a dict or class")
             if isinstance(artifact, dict):
-                # Support legacy artifacts
-                if is_legacy_artifact(artifact) or _is_imported_artifact(artifact):
-                    key = artifact.get("key")
-                else:
-                    key = artifact.get("metadata").get("key", "")
+                key = artifact.get("metadata", {}).get("key", "")
                 if not key:
-                    raise ValueError('artifacts "key" must be specified')
+                    raise ValueError('artifacts "metadata.key" must be specified')
             else:
                 key = artifact.key
                 artifact = artifact.to_dict()
@@ -1334,13 +1386,15 @@ class MlrunProject(ModelObj):
         example::
 
             # register a simple file artifact
-            project.set_artifact('data', target_path=data_url)
+            project.set_artifact("data", target_path=data_url)
             # register a model artifact
-            project.set_artifact('model', ModelArtifact(model_file="model.pkl"), target_path=model_dir_url)
+            project.set_artifact(
+                "model", ModelArtifact(model_file="model.pkl"), target_path=model_dir_url
+            )
 
             # register a path to artifact package (will be imported on project load)
             # to generate such package use `artifact.export(target_path)`
-            project.set_artifact('model', 'https://mystuff.com/models/mymodel.zip')
+            project.set_artifact("model", "https://mystuff.com/models/mymodel.zip")
 
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object/dict (or its subclasses) or path to artifact
@@ -1375,14 +1429,7 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
-        # TODO: To correctly maintain the list of artifacts from an exported project,
-        #  we need to maintain the different trees that generated them
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        project_tag = self._get_project_tag()
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
                 import_from = artifact_dict["import_from"]
@@ -1402,8 +1449,23 @@ class MlrunProject(ModelObj):
                     artifact.src_path = path.join(
                         self.spec.get_code_path(), artifact.src_path
                     )
+                producer, is_retained_producer = self._resolve_artifact_producer(
+                    artifact, project_tag
+                )
+                # log the artifact only if it doesn't already exist
+                if (
+                    producer.name != self.metadata.name
+                    and self._resolve_existing_artifact(
+                        artifact,
+                    )
+                ):
+                    continue
                 artifact_manager.log_artifact(
-                    producer, artifact, artifact_path=artifact_path
+                    producer,
+                    artifact,
+                    artifact_path=artifact_path,
+                    project=self.metadata.name,
+                    is_retained_producer=is_retained_producer,
                 )
 
     def _get_artifact_manager(self):
@@ -1498,12 +1560,20 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.template_artifact_path(
             artifact_path, self.metadata.name
         )
-        producer = ArtifactProducer(
-            "project",
-            self.metadata.name,
-            self.metadata.name,
-            tag=self._get_hexsha() or str(uuid.uuid4()),
-        )
+        producer, is_retained_producer = self._resolve_artifact_producer(item)
+        if producer.name != self.metadata.name:
+            # the artifact producer is retained, log it only if it doesn't already exist
+            if existing_artifact := self._resolve_existing_artifact(
+                item,
+                tag,
+            ):
+                artifact_key = item if isinstance(item, str) else item.key
+                logger.info(
+                    "Artifact already exists, skipping logging",
+                    key=artifact_key,
+                    tag=tag,
+                )
+                return existing_artifact
         item = am.log_artifact(
             producer,
             item,
@@ -1515,9 +1585,28 @@ class MlrunProject(ModelObj):
             upload=upload,
             labels=labels,
             target_path=target_path,
+            project=self.metadata.name,
+            is_retained_producer=is_retained_producer,
             **kwargs,
         )
         return item
+
+    def delete_artifact(
+        self,
+        item: Artifact,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
+        """Delete an artifact object in the DB and optionally delete the artifact data
+
+        :param item: Artifact object (can be any type, such as dataset, model, feature store).
+        :param deletion_strategy: The artifact deletion strategy types.
+        :param secrets: Credentials needed to access the artifact data.
+        """
+        am = self._get_artifact_manager()
+        am.delete_artifact(item, deletion_strategy, secrets)
 
     def log_dataset(
         self,
@@ -1549,7 +1638,9 @@ class MlrunProject(ModelObj):
                 "age": [42, 52, 36, 24, 73],
                 "testScore": [25, 94, 57, 62, 70],
             }
-            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            df = pd.DataFrame(
+                raw_data, columns=["first_name", "last_name", "age", "testScore"]
+            )
             project.log_dataset("mydf", df=df, stats=True)
 
         :param key:           artifact key
@@ -1623,13 +1714,16 @@ class MlrunProject(ModelObj):
 
         example::
 
-            project.log_model("model", body=dumps(model),
-                              model_file="model.pkl",
-                              metrics=context.results,
-                              training_set=training_df,
-                              label_column='label',
-                              feature_vector=feature_vector_uri,
-                              labels={"app": "fraud"})
+            project.log_model(
+                "model",
+                body=dumps(model),
+                model_file="model.pkl",
+                metrics=context.results,
+                training_set=training_df,
+                label_column="label",
+                feature_vector=feature_vector_uri,
+                labels={"app": "fraud"},
+            )
 
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
@@ -1739,14 +1833,16 @@ class MlrunProject(ModelObj):
                 artifact = get_artifact(spec)
                 with open(f"{temp_dir}/_body", "rb") as fp:
                     artifact.spec._body = fp.read()
-                artifact.target_path = ""
 
                 # if the dataitem is not a file, it means we downloaded it from a remote source to a temp file,
                 # so we need to remove it after we're done with it
                 dataitem.remove_local()
 
                 return self.log_artifact(
-                    artifact, local_path=temp_dir, artifact_path=artifact_path
+                    artifact,
+                    local_path=temp_dir,
+                    artifact_path=artifact_path,
+                    upload=True,
                 )
 
         else:
@@ -1764,10 +1860,18 @@ class MlrunProject(ModelObj):
         """
         context = context or self.spec.context
         if context:
-            project = _load_project_dir(context, self.metadata.name, self.spec.subpath)
+            project = _load_project_dir(
+                context,
+                self.metadata.name,
+                self.spec.subpath,
+                allow_cross_project=False,
+            )
         else:
             project = _load_project_file(
-                self.spec.origin_url, self.metadata.name, self._secrets
+                self.spec.origin_url,
+                self.metadata.name,
+                self._secrets,
+                allow_cross_project=None,
             )
         project.spec.source = self.spec.source
         project.spec.repo = self.spec.repo
@@ -1796,7 +1900,11 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1834,11 +1942,6 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         """
 
-        if name in mm_constants.MonitoringFunctionNames.all():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Application name can not be on of the following name : "
-                f"{mm_constants.MonitoringFunctionNames.all()}"
-            )
         function_object: RemoteRuntime = None
         (
             resolved_function_name,
@@ -1856,16 +1959,6 @@ class MlrunProject(ModelObj):
             requirements_file,
             **application_kwargs,
         )
-        models_names = "all"
-        function_object.set_label(
-            mm_constants.ModelMonitoringAppLabel.KEY,
-            mm_constants.ModelMonitoringAppLabel.VAL,
-        )
-        function_object.set_label("models", models_names)
-
-        if not mlrun.mlconf.is_ce_mode():
-            function_object.apply(mlrun.mount_v3io())
-
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
 
@@ -1874,7 +1967,11 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+        ] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -1888,8 +1985,9 @@ class MlrunProject(ModelObj):
         Create a monitoring function object without setting it to the project
 
         examples::
-            project.create_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun", name="myApp")
+            project.create_model_monitoring_function(
+                application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
+            )
 
         :param func:                    Code url, None refers to current Notebook
         :param name:                    Name of the function, can be specified with a tag to support
@@ -1924,49 +2022,41 @@ class MlrunProject(ModelObj):
 
     def _instantiate_model_monitoring_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
-        name: str = None,
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
+        application_class: typing.Union[
+            str,
+            mm_app.ModelMonitoringApplicationBase,
+            mm_app.ModelMonitoringApplicationBaseV2,
+            None,
+        ] = None,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
+        handler: typing.Optional[str] = None,
+        with_repo: typing.Optional[bool] = None,
+        tag: typing.Optional[str] = None,
+        requirements: typing.Union[str, list[str], None] = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.BaseRuntime, dict]:
+        import mlrun.model_monitoring.api
+
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
-            kind = "serving"
-            if func is None:
-                func = ""
-            func = mlrun.code_to_function(
-                filename=func,
+            kind = mlrun.run.RuntimeKinds.serving
+            func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+                project=self.name,
+                func=func,
+                application_class=application_class,
                 name=name,
-                project=self.metadata.name,
-                tag=tag,
-                kind=kind,
                 image=image,
+                tag=tag,
                 requirements=requirements,
                 requirements_file=requirements_file,
+                **application_kwargs,
             )
-            graph = func.set_topology("flow")
-            if isinstance(application_class, str):
-                first_step = graph.to(
-                    class_name=application_class, **application_kwargs
-                )
-            else:
-                first_step = graph.to(class_name=application_class)
-            first_step.to(
-                class_name=PushToMonitoringWriter(
-                    project=self.metadata.name,
-                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-                    stream_uri=None,
-                ),
-            ).respond()
         elif isinstance(func, str) and isinstance(handler, str):
-            kind = "nuclio"
+            kind = mlrun.run.RuntimeKinds.nuclio
 
         (
             resolved_function_name,
@@ -1984,24 +2074,34 @@ class MlrunProject(ModelObj):
             requirements,
             requirements_file,
         )
-        models_names = "all"
         function_object.set_label(
             mm_constants.ModelMonitoringAppLabel.KEY,
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
-        function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
             function_object.apply(mlrun.mount_v3io())
 
         return resolved_function_name, function_object, func
 
+    def _wait_for_functions_deployment(self, function_names: list[str]) -> None:
+        """
+        Wait for the deployment of functions on the backend.
+
+        :param function_names: A list of function names.
+        """
+        for fn_name in function_names:
+            fn = typing.cast(RemoteRuntime, self.get_function(key=fn_name))
+            fn._wait_for_function_deployment(db=fn._get_db())
+
     def enable_model_monitoring(
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        *,
         deploy_histogram_data_drift_app: bool = True,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2011,7 +2111,6 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-
         :param default_controller_image:        Deprecated.
         :param base_period:                     The time period in minutes in which the model monitoring controller
                                                 function is triggered. By default, the base period is 10 minutes.
@@ -2019,8 +2118,9 @@ class MlrunProject(ModelObj):
                                                 stream & histogram data drift functions, which are real time nuclio
                                                 functions. By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-
-        :returns: model monitoring controller job as a dictionary.
+        :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
+                                                Otherwise, deploy the model monitoring infrastructure on the
+                                                background, including the histogram data drift app if selected.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2035,34 +2135,58 @@ class MlrunProject(ModelObj):
             project=self.name,
             image=image,
             base_period=base_period,
+            deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         )
-        if deploy_histogram_data_drift_app:
-            fn = self.set_model_monitoring_function(
-                func=str(
-                    pathlib.Path(__file__).parent.parent
-                    / "model_monitoring/applications/histogram_data_drift.py"
-                ),
-                name=mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
-                application_class="HistogramDataDriftApplication",
-                image=image,
+
+        if wait_for_deployment:
+            deployment_functions = mm_constants.MonitoringFunctionNames.list()
+            if deploy_histogram_data_drift_app:
+                deployment_functions.append(
+                    mm_constants.HistogramDataDriftApplicationConstants.NAME
+                )
+            self._wait_for_functions_deployment(deployment_functions)
+
+    def deploy_histogram_data_drift_app(
+        self,
+        *,
+        image: str = "mlrun/mlrun",
+        db: Optional[mlrun.db.RunDBInterface] = None,
+        wait_for_deployment: bool = False,
+    ) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param image:               The image on which the application will run.
+        :param db:                  An optional DB object.
+        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
+                                    Otherwise, deploy the application on the background.
+        """
+        if db is None:
+            db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.deploy_histogram_data_drift_app(project=self.name, image=image)
+
+        if wait_for_deployment:
+            self._wait_for_functions_deployment(
+                [mm_constants.HistogramDataDriftApplicationConstants.NAME]
             )
-            fn.deploy()
 
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
+        *,
+        wait_for_deployment: bool = False,
     ) -> None:
         """
         Redeploy model monitoring application controller functions.
 
-
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         is triggered. By default, the base period is 10 minutes.
-        :param image:                    The image of the model monitoring controller, writer & monitoring
-                                         stream functions, which are real time nuclio functions.
-                                         By default, the image is mlrun/mlrun.
-        :returns: model monitoring controller job as a dictionary.
+        :param base_period:         The time period in minutes in which the model monitoring controller function
+                                    is triggered. By default, the base period is 10 minutes.
+        :param image:               The image of the model monitoring controller, writer & monitoring
+                                    stream functions, which are real time nuclio functions.
+                                    By default, the image is mlrun/mlrun.
+        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
+                                    Otherwise, deploy the controller on the background.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(
@@ -2071,26 +2195,34 @@ class MlrunProject(ModelObj):
             image=image,
         )
 
-    def disable_model_monitoring(self):
+        if wait_for_deployment:
+            self._wait_for_functions_deployment(
+                [mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER]
+            )
+
+    def disable_model_monitoring(
+        self, *, delete_histogram_data_drift_app: bool = True
+    ) -> None:
+        """
+        Note: This method is currently not advised for use. See ML-3432.
+        Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
+
+        :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.WRITER,
-        )
-        db.delete_function(
-            project=self.name,
-            name=mm_constants.MonitoringFunctionNames.STREAM,
-        )
+        for fn_name in mm_constants.MonitoringFunctionNames.list():
+            db.delete_function(project=self.name, name=fn_name)
+        if delete_histogram_data_drift_app:
+            db.delete_function(
+                project=self.name,
+                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            )
 
     def set_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
-        kind: str = "",
+        kind: str = "job",
         image: str = None,
         handler: str = None,
         with_repo: bool = None,
@@ -2110,19 +2242,20 @@ class MlrunProject(ModelObj):
         examples::
 
             proj.set_function(func_object)
-            proj.set_function('./src/mycode.py', 'ingest',
-                              image='myrepo/ing:latest', with_repo=True)
-            proj.set_function('http://.../mynb.ipynb', 'train')
-            proj.set_function('./func.yaml')
-            proj.set_function('hub://get_toy_data', 'getdata')
+            proj.set_function(
+                "./src/mycode.py", "ingest", image="myrepo/ing:latest", with_repo=True
+            )
+            proj.set_function("http://.../mynb.ipynb", "train")
+            proj.set_function("./func.yaml")
+            proj.set_function("hub://get_toy_data", "getdata")
 
             # set function requirements
 
             # by providing a list of packages
-            proj.set_function('my.py', requirements=["requests", "pandas"])
+            proj.set_function("my.py", requirements=["requests", "pandas"])
 
             # by providing a path to a pip requirements file
-            proj.set_function('my.py', requirements="requirements.txt")
+            proj.set_function("my.py", requirements="requirements.txt")
 
         :param func:                Function object or spec/code url, None refers to current Notebook
         :param name:                Name of the function (under the project), can be specified with a tag to support
@@ -2177,16 +2310,13 @@ class MlrunProject(ModelObj):
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if not is_ipython:
-                raise ValueError(
-                    "Function path or module must be specified (when not running inside a Notebook)"
-                )
-            from IPython import get_ipython
+            if is_ipython:
+                from IPython import get_ipython
 
-            kernel = get_ipython()
-            func = nuclio.utils.notebook_file_name(kernel)
-            if func.startswith(path.abspath(self.spec.context)):
-                func = path.relpath(func, self.spec.context)
+                kernel = get_ipython()
+                func = nuclio.utils.notebook_file_name(kernel)
+                if func.startswith(path.abspath(self.spec.context)):
+                    func = path.relpath(func, self.spec.context)
 
         func = func or ""
 
@@ -2403,13 +2533,47 @@ class MlrunProject(ModelObj):
             clone_zip(url, self.spec.context, self._secrets)
 
     def create_remote(self, url, name="origin", branch=None):
-        """create remote for the project git
+        """Create remote for the project git
+
+         This method creates a new remote repository associated with the project's Git repository.
+         If a remote with the specified name already exists, it will not be overwritten.
+
+         If you wish to update the URL of an existing remote, use the `set_remote` method instead.
 
         :param url:    remote git url
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
+        self.set_remote(url, name=name, branch=branch, overwrite=False)
+
+    def set_remote(self, url, name="origin", branch=None, overwrite=True):
+        """Create or update a remote for the project git repository.
+
+        This method allows you to manage remote repositories associated with the project.
+        It checks if a remote with the specified name already exists.
+
+        If a remote with the same name does not exist, it will be created.
+        If a remote with the same name already exists,
+        the behavior depends on the value of the 'overwrite' flag.
+
+        :param url: remote git url
+        :param name: name for the remote (default is 'origin')
+        :param branch: Git branch to use as source
+        :param overwrite: if True (default), updates the existing remote with the given URL if it already exists.
+                          if False, raises an error when attempting to create a remote with a name that already exists.
+        :raises MLRunConflictError: If a remote with the same name already exists and overwrite
+                                     is set to False.
+        """
         self._ensure_git_repo()
+        if self._remote_exists(name):
+            if overwrite:
+                self.spec.repo.delete_remote(name)
+            else:
+                raise mlrun.errors.MLRunConflictError(
+                    f"Remote '{name}' already exists in the project, "
+                    f"each remote in the project must have a unique name."
+                    "Use 'set_remote' with 'override=True' inorder to update the remote, or choose a different name."
+                )
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:
@@ -2421,6 +2585,22 @@ class MlrunProject(ModelObj):
             url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
+
+    def remove_remote(self, name):
+        """Remove a remote from the project's Git repository.
+
+        This method removes the remote repository associated with the specified name from the project's Git repository.
+
+        :param name: Name of the remote to remove.
+        """
+        if self._remote_exists(name):
+            self.spec.repo.delete_remote(name)
+        else:
+            logger.warning(f"The remote '{name}' does not exist. Nothing to remove.")
+
+    def _remote_exists(self, name):
+        """Check if a remote with the given name already exists"""
+        return any(remote.name == name for remote in self.spec.repo.remotes)
 
     def _ensure_git_repo(self):
         if self.spec.repo:
@@ -2553,9 +2733,9 @@ class MlrunProject(ModelObj):
 
         read secrets from a source provider to be used in workflows, example::
 
-            proj.with_secrets('file', 'file.txt')
-            proj.with_secrets('inline', {'key': 'val'})
-            proj.with_secrets('env', 'ENV1,ENV2', prefix='PFX_')
+            proj.with_secrets("file", "file.txt")
+            proj.with_secrets("inline", {"key": "val"})
+            proj.with_secrets("env", "ENV1,ENV2", prefix="PFX_")
 
         Vault secret source has several options::
 
@@ -2566,7 +2746,7 @@ class MlrunProject(ModelObj):
         The 2nd option uses the current project name as context.
         Can also use empty secret list::
 
-            proj.with_secrets('vault', [])
+            proj.with_secrets("vault", [])
 
         This will enable access to all secrets in vault registered to the current project.
 
@@ -2597,17 +2777,20 @@ class MlrunProject(ModelObj):
         file_path: str = None,
         provider: typing.Union[str, mlrun.common.schemas.SecretProviderName] = None,
     ):
-        """set project secrets from dict or secrets env file
+        """
+        Set project secrets from dict or secrets env file
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
         V3IO paths/credentials and MLrun service API address are dropped from the secrets
 
-        example secrets file::
+        example secrets file:
+
+        .. code-block:: shell
 
             # this is an env file
-            AWS_ACCESS_KEY_ID-XXXX
+            AWS_ACCESS_KEY_ID=XXXX
             AWS_SECRET_ACCESS_KEY=YYYY
 
-        usage::
+        usage:
 
             # read env vars from dict or file and set as project secrets
             project.set_secrets({"SECRET1": "value"})
@@ -2687,40 +2870,42 @@ class MlrunProject(ModelObj):
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
-        """run a workflow using kubeflow pipelines
+        """Run a workflow using kubeflow pipelines
 
-        :param name:      name of the workflow
-        :param workflow_path:
-                          url to a workflow file, if not a project workflow
-        :param arguments:
-                          kubeflow pipelines arguments (parameters)
-        :param artifact_path:
-                          target path/url for workflow artifacts, the string
-                          '{{workflow.uid}}' will be replaced by workflow id
-        :param workflow_handler:
-                          workflow function handler (for running workflow function directly)
-        :param namespace: kubernetes namespace if other than default
-        :param sync:      force functions sync before run
-        :param watch:     wait for pipeline completion
-        :param dirty:     allow running the workflow when the git repo is dirty
-        :param engine:    workflow engine running the workflow.
-                          supported values are 'kfp' (default), 'local' or 'remote'.
-                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
-        :param local:     run local pipeline with local functions (set local=True in function.run())
+        :param name:                Name of the workflow
+        :param workflow_path:       URL to a workflow file, if not a project workflow
+        :param arguments:           Kubeflow pipelines arguments (parameters)
+        :param artifact_path:       Target path/URL for workflow artifacts, the string '{{workflow.uid}}' will be
+                                    replaced by workflow id.
+        :param workflow_handler:    Workflow function handler (for running workflow function directly)
+        :param namespace: Kubernetes namespace if other than default
+        :param sync:      Force functions sync before run
+        :param watch:     Wait for pipeline completion
+        :param dirty:     Allow running the workflow when the git repo is dirty
+        :param engine:    Workflow engine running the workflow.
+                          Supported values are 'kfp' (default), 'local' or 'remote'.
+                          For setting engine for remote running use 'remote:local' or 'remote:kfp'.
+        :param local:     Run local pipeline with local functions (set local=True in function.run())
         :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-                          for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          for other engines the source is to validate that the code is up-to-date
+                          For using the pre-defined workflow's schedule, set `schedule=True`
+        :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          Can be a one of:
+                            1. Remote URL which is loaded dynamically to the workflow runner.
+                            2. A path to the project's context on the workflow runner's image.
+                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                          (enriched when building a project image with source, see `MlrunProject.build_image`).
+                          For other engines the source is used to validate that the code is up-to-date.
         :param cleanup_ttl:
-                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)
         :param notifications:
-                          list of notifications to send for workflow completion
-        :returns: run id
+                          List of notifications to send for workflow completion
+
+        :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
         arguments = arguments or {}
@@ -2737,12 +2922,14 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        self.sync_functions(always=sync)
-        if not self.spec._function_objects:
-            raise ValueError(
-                "There are no functions in the project."
-                " Make sure you've set your functions with project.set_function()."
-            )
+        if engine not in ["remote"]:
+            # for remote runs we don't require the functions to be synced as they can be loaded dynamically during run
+            self.sync_functions(always=sync)
+            if not self.spec._function_objects:
+                raise ValueError(
+                    "There are no functions in the project."
+                    " Make sure you've set your functions with project.set_function()."
+                )
 
         if not name and not workflow_path and not workflow_handler:
             raise ValueError("Workflow name, path, or handler must be specified")
@@ -2776,8 +2963,12 @@ class MlrunProject(ModelObj):
             engine = "remote"
         # The default engine is kfp if not given:
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        if not inner_engine and engine == "remote":
-            inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
+        if not inner_engine and workflow_engine.engine == "remote":
+            # if inner engine is set to remote, assume kfp as the default inner engine with remote as the runner
+            engine_kind = (
+                workflow_spec.engine if workflow_spec.engine != "remote" else "kfp"
+            )
+            inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
 
         run = workflow_engine.run(
@@ -2792,7 +2983,7 @@ class MlrunProject(ModelObj):
             notifications=notifications,
         )
         # run is None when scheduling
-        if run and run.state == mlrun.run.RunStatuses.failed:
+        if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
             return run
         if not workflow_spec.schedule:
             # Failure and schedule messages already logged
@@ -2805,7 +2996,7 @@ class MlrunProject(ModelObj):
             # run's engine gets replaced with inner engine if engine is remote,
             # so in that case we need to get the status from the remote engine manually
             # TODO: support watch for remote:local
-            if engine == "remote" and status_engine.engine != "local":
+            if workflow_engine.engine == "remote" and status_engine.engine != "local":
                 status_engine = _RemoteRunner
 
             status_engine.get_run_status(project=self, run=run, timeout=timeout)
@@ -2969,7 +3160,7 @@ class MlrunProject(ModelObj):
         notifications: list[mlrun.model.Notification] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
-    ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+    ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
         example (use with project)::
@@ -2981,8 +3172,11 @@ class MlrunProject(ModelObj):
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})
-            run2 = project.run_function("train", params={"label_columns": LABELS},
-                                                 inputs={"dataset":run1.outputs["data"]})
+            run2 = project.run_function(
+                "train",
+                params={"label_columns": LABELS},
+                inputs={"dataset": run1.outputs["data"]},
+            )
 
         :param function:        name of the function (in the project) or function object
         :param handler:         name of the function handler
@@ -3022,7 +3216,7 @@ class MlrunProject(ModelObj):
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :return: MLRun RunObject or KubeFlow containerOp
+        :return: MLRun RunObject or PipelineNodeWrapper
         """
         return run_function(
             function,
@@ -3065,7 +3259,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         force_build: bool = False,
-    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+    ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """deploy ML function, build container with its dependencies
 
         :param function:            name of the function (in the project) or function object
@@ -3119,6 +3313,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         builder_env: dict = None,
         extra_args: str = None,
+        source_code_target_dir: str = None,
     ):
         """specify builder configuration for the project
 
@@ -3139,6 +3334,8 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param source_code_target_dir: Path on the image where source code would be extracted
+            (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
             # TODO: change overwrite_build_params default to True in 1.8.0
@@ -3162,6 +3359,7 @@ class MlrunProject(ModelObj):
             overwrite=overwrite_build_params,
             builder_env=builder_env,
             extra_args=extra_args,
+            source_code_target_dir=source_code_target_dir,
         )
 
         if set_as_default and image != self.default_image:
@@ -3172,7 +3370,6 @@ class MlrunProject(ModelObj):
         image: str = None,
         set_as_default: bool = True,
         with_mlrun: bool = None,
-        skip_deployed: bool = False,
         base_image: str = None,
         commands: list = None,
         secret_name: str = None,
@@ -3183,7 +3380,7 @@ class MlrunProject(ModelObj):
         requirements_file: str = None,
         extra_args: str = None,
         target_dir: str = None,
-    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+    ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
         If the project has a source configured and pull_at_runtime is not configured, this source will be cloned to the
@@ -3193,7 +3390,6 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it) defaults to
                                 mlrun.mlconf.default_base_image
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
@@ -3208,7 +3404,7 @@ class MlrunProject(ModelObj):
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
         """
         if not base_image:
@@ -3216,14 +3412,6 @@ class MlrunProject(ModelObj):
             logger.info(
                 "Base image not specified, using default base image",
                 base_image=base_image,
-            )
-
-        if skip_deployed:
-            warnings.warn(
-                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
-                "This parameter is ignored.",
-                # TODO: remove in 1.7.0
-                FutureWarning,
             )
 
         if not overwrite_build_params:
@@ -3276,6 +3464,11 @@ class MlrunProject(ModelObj):
                 force_build=True,
             )
 
+            # Get the enriched target dir from the function
+            self.spec.build.source_code_target_dir = (
+                function.spec.build.source_code_target_dir
+            )
+
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(
                 name=function.metadata.name
@@ -3284,7 +3477,7 @@ class MlrunProject(ModelObj):
             logger.warning(
                 f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
                 " To remove the function, attempt to manually delete it.",
-                exc=repr(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
 
         return result
@@ -3298,7 +3491,7 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         builder_env: dict = None,
         mock: bool = None,
-    ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
+    ) -> typing.Union[DeployStatus, PipelineNodeWrapper]:
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object
@@ -3333,7 +3526,12 @@ class MlrunProject(ModelObj):
         artifact = db.read_artifact(
             key, tag, iter=iter, project=self.metadata.name, tree=tree
         )
-        return dict_to_artifact(artifact)
+
+        # in tests, if an artifact is not found, the db returns None
+        # in real usage, the db should raise an exception
+        if artifact:
+            return dict_to_artifact(artifact)
+        return None
 
     def list_artifacts(
         self,
@@ -3356,9 +3554,9 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all artifacts in project
-            latest_artifacts = project.list_artifacts('', tag='latest')
+            latest_artifacts = project.list_artifacts("", tag="latest")
             # check different artifact versions for a specific artifact, return as objects list
-            result_versions = project.list_artifacts('results', tag='*').to_objects()
+            result_versions = project.list_artifacts("results", tag="*").to_objects()
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
             case-sensitive. This means that querying for ``~name`` may return artifacts named
@@ -3408,7 +3606,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all models in project
-            latest_models = project.list_models('', tag='latest')
+            latest_models = project.list_models("", tag="latest")
 
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
@@ -3478,9 +3676,7 @@ class MlrunProject(ModelObj):
         :returns: List of function objects.
         """
 
-        model_monitoring_labels_list = [
-            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-        ]
+        model_monitoring_labels_list = [str(mm_constants.ModelMonitoringAppLabel())]
         if labels:
             model_monitoring_labels_list += labels
         return self.list_functions(
@@ -3494,7 +3690,10 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -3513,14 +3712,14 @@ class MlrunProject(ModelObj):
         Example::
 
             # return a list of runs matching the name and label and compare
-            runs = project.list_runs(name='download', labels='owner=admin')
+            runs = project.list_runs(name="download", labels="owner=admin")
             runs.compare()
 
             # multi-label filter can also be provided
-            runs = project.list_runs(name='download', labels=["kind=job", "owner=admin"])
+            runs = project.list_runs(name="download", labels=["kind=job", "owner=admin"])
 
             # If running in Jupyter, can use the .show() function to display the results
-            project.list_runs(name='').show()
+            project.list_runs(name="").show()
 
 
         :param name: Name of the run to retrieve.
@@ -3529,6 +3728,7 @@ class MlrunProject(ModelObj):
                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                 key (i.e. "key").
         :param state: List only runs whose state is specified.
+        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used (will be removed in 1.8.0).
@@ -3545,7 +3745,9 @@ class MlrunProject(ModelObj):
             uid,
             self.metadata.name,
             labels=labels,
-            state=state,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -3627,7 +3829,10 @@ class MlrunProject(ModelObj):
         self.spec.remove_custom_packager(packager=packager)
 
     def store_api_gateway(
-        self, api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway
+        self,
+        api_gateway: mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        wait_for_readiness=True,
+        max_wait_time=90,
     ) -> mlrun.runtimes.nuclio.api_gateway.APIGateway:
         """
         Creates or updates a Nuclio API Gateway using the provided APIGateway object.
@@ -3638,7 +3843,11 @@ class MlrunProject(ModelObj):
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
         :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
-        of the API Gateway to be created
+        of the API Gateway to be created or updated.
+        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
+            after creation or update (default is True)
+        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
+
 
         @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
         information retrieved from the Nuclio API
@@ -3654,6 +3863,9 @@ class MlrunProject(ModelObj):
             api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(
                 api_gateway_json
             )
+            if wait_for_readiness:
+                api_gateway.wait_for_readiness(max_wait_time=max_wait_time)
+
         return api_gateway
 
     def list_api_gateways(self) -> list[mlrun.runtimes.nuclio.api_gateway.APIGateway]:
@@ -3682,7 +3894,106 @@ class MlrunProject(ModelObj):
             mlrun.runtimes.nuclio.APIGateway: An instance of APIGateway.
         """
 
-        return mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+        gateway = mlrun.db.get_run_db().get_api_gateway(name=name, project=self.name)
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(gateway)
+
+    def delete_api_gateway(
+        self,
+        name: str,
+    ):
+        """
+        Deletes an API gateway by name.
+
+        :param name: The name of the API gateway to delete.
+        """
+
+        mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
+
+    def store_alert_config(
+        self, alert_data: AlertConfig, alert_name=None
+    ) -> AlertConfig:
+        """
+        Create/modify an alert.
+        :param alert_data: The data of the alert.
+        :param alert_name: The name of the alert.
+        :return: the created/modified alert.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        if alert_name is None:
+            alert_name = alert_data.name
+        return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
+
+    def get_alert_config(self, alert_name: str) -> AlertConfig:
+        """
+        Retrieve an alert.
+        :param alert_name: The name of the alert to retrieve.
+        :return: The alert object.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_alert_config(alert_name, self.metadata.name)
+
+    def list_alerts_configs(self) -> list[AlertConfig]:
+        """
+        Retrieve list of alerts of a project.
+        :return: All the alerts objects of the project.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_alerts_configs(self.metadata.name)
+
+    def delete_alert_config(
+        self, alert_data: AlertConfig = None, alert_name: str = None
+    ):
+        """
+        Delete an alert.
+        :param alert_data: The data of the alert.
+        :param alert_name: The name of the alert to delete.
+        """
+        if alert_data is None and alert_name is None:
+            raise ValueError(
+                "At least one of alert_data or alert_name must be provided"
+            )
+        if alert_data and alert_name and alert_data.name != alert_name:
+            raise ValueError("Alert_data name does not match the provided alert_name")
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        if alert_data:
+            alert_name = alert_data.name
+        db.delete_alert_config(alert_name, self.metadata.name)
+
+    def reset_alert_config(
+        self, alert_data: AlertConfig = None, alert_name: str = None
+    ):
+        """
+        Reset an alert.
+        :param alert_data: The data of the alert.
+        :param alert_name: The name of the alert to reset.
+        """
+        if alert_data is None and alert_name is None:
+            raise ValueError(
+                "At least one of alert_data or alert_name must be provided"
+            )
+        if alert_data and alert_name and alert_data.name != alert_name:
+            raise ValueError("Alert_data name does not match the provided alert_name")
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        if alert_data:
+            alert_name = alert_data.name
+        db.reset_alert_config(alert_name, self.metadata.name)
+
+    def get_alert_template(self, template_name: str) -> AlertTemplate:
+        """
+        Retrieve a specific alert template.
+        :param template_name: The name of the template to retrieve.
+        :return: The template object.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_alert_template(template_name)
+
+    def list_alert_templates(self) -> list[AlertTemplate]:
+        """
+        Retrieve list of all alert templates.
+        :return: All the alert template objects in the database.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_alert_templates()
 
     def _run_authenticated_git_action(
         self,
@@ -3761,6 +4072,83 @@ class MlrunProject(ModelObj):
                 f"<project.spec.get_code_path()>/<{param_name}>)."
             )
 
+    def _resolve_artifact_producer(
+        self,
+        artifact: typing.Union[str, Artifact],
+        project_producer_tag: str = None,
+    ) -> tuple[ArtifactProducer, bool]:
+        """
+        Resolve the artifact producer of the given artifact.
+        If the artifact's producer is a run, the artifact is registered with the original producer.
+        Otherwise, the artifact is registered with the current project as the producer.
+
+        :param artifact:                The artifact to resolve its producer.
+        :param project_producer_tag:    The tag to use for the project as the producer. If not provided, a tag will be
+        generated for the project.
+        :return:                        A tuple of the resolved producer and whether it is retained or not.
+        """
+
+        if not isinstance(artifact, str) and artifact.spec.producer:
+            # if the artifact was imported from a yaml file, the producer can be a dict
+            if isinstance(artifact.spec.producer, ArtifactProducer):
+                producer_dict = artifact.spec.producer.get_meta()
+            else:
+                producer_dict = artifact.spec.producer
+
+            if producer_dict.get("kind", "") == "run":
+                return ArtifactProducer(
+                    name=producer_dict.get("name", ""),
+                    kind=producer_dict.get("kind", ""),
+                    project=producer_dict.get("project", ""),
+                    tag=producer_dict.get("tag", ""),
+                ), True
+
+        # do not retain the artifact's producer, replace it with the project as the producer
+        project_producer_tag = project_producer_tag or self._get_project_tag()
+        return ArtifactProducer(
+            kind="project",
+            name=self.metadata.name,
+            project=self.metadata.name,
+            tag=project_producer_tag,
+        ), False
+
+    def _resolve_existing_artifact(
+        self,
+        item: typing.Union[str, Artifact],
+        tag: str = None,
+    ) -> typing.Optional[Artifact]:
+        """
+        Check if there is and existing artifact with the given item and tag.
+        If there is, return the existing artifact. Otherwise, return None.
+
+        :param item:    The item (or key) to check if there is an existing artifact for.
+        :param tag:     The tag to check if there is an existing artifact for.
+        :return:        The existing artifact if there is one, otherwise None.
+        """
+        try:
+            if isinstance(item, str):
+                existing_artifact = self.get_artifact(key=item, tag=tag)
+            else:
+                existing_artifact = self.get_artifact(
+                    key=item.key,
+                    tag=item.tag,
+                    iter=item.iter,
+                    tree=item.tree,
+                )
+            if existing_artifact is not None:
+                return existing_artifact.from_dict(existing_artifact)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "No existing artifact was found",
+                key=item if isinstance(item, str) else item.key,
+                tag=tag if isinstance(item, str) else item.tag,
+                tree=None if isinstance(item, str) else item.tree,
+            )
+            return None
+
+    def _get_project_tag(self):
+        return self._get_hexsha() or str(uuid.uuid4())
+
 
 def _set_as_current_default_project(project: MlrunProject):
     mlrun.mlconf.default_project = project.metadata.name
@@ -3783,10 +4171,6 @@ def _init_function_from_dict(
     tag = f.get("tag", None)
 
     has_module = _has_module(handler, kind)
-    if not url and "spec" not in f and not has_module:
-        # function must point to a file or a module or have a spec
-        raise ValueError("Function missing a url or a spec or a module")
-
     relative_url = url
     url, in_context = project.get_item_absolute_path(url)
 
@@ -3846,6 +4230,18 @@ def _init_function_from_dict(
                 tag=tag,
             )
 
+    elif kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        func = new_function(
+            name,
+            command=relative_url,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        if image and kind != mlrun.runtimes.RuntimeKinds.application:
+            logger.info("Function code not specified, setting entry point to image")
+            func.from_image(image)
     else:
         raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 from pathlib import Path
 
 import numpy as np
@@ -19,11 +19,13 @@ import pandas as pd
 import pytest
 
 import mlrun
-from mlrun.artifacts import Artifact
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.applications.context as mm_context
+import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
+import mlrun.utils
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.data_types.infer import DFDataInfer, default_num_bins
-from mlrun.model_monitoring.batch import VirtualDrift, calculate_inputs_statistics
-from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
+from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 
 
 def generate_data(
@@ -62,53 +64,56 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
     # Calculate statistics:
-    sample_data_statistics = DFDataInfer.get_stats(
-        df=sample_data,
-        options=mlrun.data_types.infer.InferOptions.Histogram,
+    sample_data_statistics = FeatureStats(
+        DFDataInfer.get_stats(
+            df=sample_data,
+            options=mlrun.data_types.infer.InferOptions.Histogram,
+        )
     )
-    pad_features_hist(FeatureStats(sample_data_statistics))
-    inputs_statistics = calculate_inputs_statistics(
-        sample_set_statistics=sample_data_statistics,
-        inputs=inputs,
+    pad_features_hist(sample_data_statistics)
+    inputs_statistics = FeatureStats(
+        calculate_inputs_statistics(
+            sample_set_statistics=sample_data_statistics,
+            inputs=inputs,
+        )
     )
-
-    # Calculate drift:
-    virtual_drift = VirtualDrift(inf_capping=10)
-    metrics = virtual_drift.compute_drift_from_histograms(
-        feature_stats=sample_data_statistics,
-        current_stats=inputs_statistics,
+    context.__class__ = mm_context.MonitoringApplicationContext
+    monitoring_context = mm_context.MonitoringApplicationContext().from_dict(
+        {
+            mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(inputs_statistics),
+            mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(
+                sample_data_statistics
+            ),
+        },
+        context=context,
+        model_endpoint_dict={},
     )
-    drift_results = virtual_drift.check_for_drift_per_feature(
-        metrics_results_dictionary=metrics
+    # Initialize the app
+    application = histogram_data_drift.HistogramDataDriftApplication()
+    # Calculate drift
+    metrics_per_feature = application._compute_metrics_per_feature(
+        monitoring_context=monitoring_context,
     )
-
-    # Plot:
-    html_plot = FeaturesDriftTablePlot().produce(
-        sample_set_statistics=sample_data_statistics,
-        inputs_statistics=inputs_statistics,
-        metrics=metrics,
-        drift_results=drift_results,
-    )
-
-    # Log:
-    context.log_artifact(
-        Artifact(body=html_plot, format="html", key="drift_table_plot")
+    application._log_drift_artifacts(
+        monitoring_context=monitoring_context,
+        metrics_per_feature=metrics_per_feature,
+        log_json_artifact=False,
     )
 
 
 def test_plot_produce(tmp_path: Path) -> None:
     # Run the plot production and logging:
-    train_run = mlrun.new_function().run(
+    app_plot_run = mlrun.new_function().run(
         artifact_path=str(tmp_path),
         handler=plot_produce,
     )
 
     # Validate the artifact was logged:
-    assert len(train_run.status.artifacts) == 1
+    assert len(app_plot_run.status.artifacts) == 1
 
     # Check the plot was saved properly (only the drift table plot should appear):
     artifact_directory_content = list(
-        Path(train_run.status.artifacts[0]["spec"]["target_path"]).parent.glob("*")
+        Path(app_plot_run.status.artifacts[0]["spec"]["target_path"]).parent.glob("*")
     )
     assert len(artifact_directory_content) == 1
     assert artifact_directory_content[0].name == "drift_table_plot.html"

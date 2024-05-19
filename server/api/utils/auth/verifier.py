@@ -249,7 +249,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(
-                "Access key is currently supported only for iguazio authentication mode"
+                "Access key is currently supported only for Iguazio authentication mode"
             )
         return server.api.utils.clients.iguazio.Client().get_or_create_access_key(
             session, planes

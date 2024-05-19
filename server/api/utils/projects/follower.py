@@ -74,8 +74,9 @@ class Member(
         if self._is_chief:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
-                # chief-worker model.
-                # TODO: remove full_sync=True in 1.7.0 if no issues arise
+                # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
+                # we don't necessarily need to archive projects that are not in the leader.
+                # TODO: Discuss maybe removing full_sync=True in 1.8.0
                 self._sync_projects(full_sync=True)
             except Exception as exc:
                 logger.warning(
@@ -150,7 +151,9 @@ class Member(
                 )
             else:
                 self._leader_client.update_project(leader_session, name, project)
-                return self.get_project(db_session, name, leader_session), False
+                return server.api.db.session.run_function_with_new_db_session(
+                    self.get_project, name, leader_session
+                ), False
 
     def patch_project(
         self,
@@ -212,8 +215,21 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
+        from_leader: bool = False,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
     ) -> mlrun.common.schemas.Project:
-        return server.api.crud.Projects().get_project(db_session, name)
+        # by default, get project will use mlrun db to get/list the project.
+        # from leader is relevant for cases where we want to get the project from the leader
+        if from_leader:
+            return self._leader_client.get_project(leader_session, name)
+
+        # format_ is relevant for cases where we want to get the project from mlrun db
+        projects = self.list_projects(
+            db_session, format_=format_, leader_session=leader_session, names=[name]
+        ).projects
+        if not projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+        return projects[0]
 
     def get_project_owner(
         self,

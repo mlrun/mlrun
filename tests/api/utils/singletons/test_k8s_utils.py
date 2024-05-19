@@ -36,7 +36,7 @@ def test_get_logger_pods_label_selector(
     monkeypatch.setattr(
         server.api.runtime_handlers.mpijob,
         "cached_mpijob_crd_version",
-        mpi_version or mlrun.runtimes.constants.MPIJobCRDVersions.default(),
+        mpi_version or mlrun.common.runtimes.constants.MPIJobCRDVersions.default(),
     )
     uid = "test-uid"
     project = "test-project"

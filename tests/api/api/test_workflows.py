@@ -52,6 +52,37 @@ def test_bad_schedule_format(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
+def test_get_workflow_fail_fast(db: Session, client: TestClient):
+    _create_proj_with_workflow(client)
+
+    right_id = "".join(random.choices("0123456789abcdef", k=40))
+    data = {
+        "metadata": {
+            "name": "run-name",
+            "labels": {
+                "job-type": "workflow-runner",
+            },
+        },
+        "spec": {
+            "parameters": {"workflow_name": "main"},
+        },
+        "status": {
+            "state": "failed",
+            "error": "some dummy error",
+            # workflow id is empty to simulate a failed remote runner
+            "results": {"workflow_id": None},
+        },
+    }
+    server.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
+    resp = client.get(
+        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}"
+    )
+
+    # remote runner has failed, so the run should be failed
+    assert resp.status_code == HTTPStatus.PRECONDITION_FAILED
+    assert "some dummy error" in resp.json()["detail"]
+
+
 def test_get_workflow_bad_id(db: Session, client: TestClient):
     _create_proj_with_workflow(client)
 

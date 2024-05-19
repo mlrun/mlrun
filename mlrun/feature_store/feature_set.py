@@ -337,7 +337,10 @@ class FeatureSet(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
-            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
             ticks.ingest(df)
 
         :param name:          name of the feature set
@@ -625,12 +628,12 @@ class FeatureSet(ModelObj):
 
             import mlrun.feature_store as fstore
 
-            ticks = fstore.FeatureSet("ticks",
-                            entities=["stock"],
-                            timestamp_key="timestamp")
-            ticks.add_entity("country",
-                            mlrun.data_types.ValueType.STRING,
-                            description="stock country")
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
+            ticks.add_entity(
+                "country", mlrun.data_types.ValueType.STRING, description="stock country"
+            )
             ticks.add_entity("year", mlrun.data_types.ValueType.INT16)
             ticks.save()
 
@@ -650,13 +653,23 @@ class FeatureSet(ModelObj):
             import mlrun.feature_store as fstore
             from mlrun.features import Feature
 
-            ticks = fstore.FeatureSet("ticks",
-                            entities=["stock"],
-                            timestamp_key="timestamp")
-            ticks.add_feature(Feature(value_type=mlrun.data_types.ValueType.STRING,
-                            description="client consistency"),"ABC01")
-            ticks.add_feature(Feature(value_type=mlrun.data_types.ValueType.FLOAT,
-                            description="client volatility"),"SAB")
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
+            ticks.add_feature(
+                Feature(
+                    value_type=mlrun.data_types.ValueType.STRING,
+                    description="client consistency",
+                ),
+                "ABC01",
+            )
+            ticks.add_feature(
+                Feature(
+                    value_type=mlrun.data_types.ValueType.FLOAT,
+                    description="client volatility",
+                ),
+                "SAB",
+            )
             ticks.save()
 
         :param feature:         setting of Feature
@@ -860,15 +873,18 @@ class FeatureSet(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
+
             ...
-            ticks = fstore.FeatureSet("ticks",
-                            entities=["stock"],
-                            timestamp_key="timestamp")
-            ticks.add_aggregation(name='priceN',
-                                column='price',
-                                operations=['avg'],
-                                windows=['1d'],
-                                period='1h')
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
+            ticks.add_aggregation(
+                name="priceN",
+                column="price",
+                operations=["avg"],
+                windows=["1d"],
+                period="1h",
+            )
             ticks.plot(rankdir="LR", with_targets=True)
 
         :param filename:     target filepath for the graph image (None for the notebook)
@@ -901,6 +917,7 @@ class FeatureSet(ModelObj):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return featureset (offline) data as dataframe
@@ -912,6 +929,12 @@ class FeatureSet(ModelObj):
         :param end_time:     filter by end time
         :param time_column:  specify the time column name in the file
         :param kwargs:       additional reader (csv, parquet, ..) args
+        :param additional_filters: List of additional_filter conditions as tuples.
+                                    Each tuple should be in the format (column_name, operator, value).
+                                    Supported operators: "=", ">=", "<=", ">", "<".
+                                    Example: [("Product", "=", "Computer")]
+                                    For all supported filters, please see:
+                                    https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
         :return: DataFrame
         """
         entities = list(self.spec.entities.keys())
@@ -930,6 +953,7 @@ class FeatureSet(ModelObj):
                 start_time=start_time,
                 end_time=end_time,
                 time_field=time_column,
+                additional_filters=additional_filters,
                 **kwargs,
             )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
@@ -949,6 +973,7 @@ class FeatureSet(ModelObj):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            additional_filters=additional_filters,
             **kwargs,
         )
         return result
@@ -1005,7 +1030,7 @@ class FeatureSet(ModelObj):
             df = stocks_set.ingest(stocks, infer_options=fstore.InferOptions.default())
 
             # for running as remote job
-            config = RunConfig(image='mlrun/mlrun')
+            config = RunConfig(image="mlrun/mlrun")
             df = ingest(stocks_set, stocks, run_config=config)
 
             # specify source and targets

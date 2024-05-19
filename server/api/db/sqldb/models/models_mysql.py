@@ -425,6 +425,7 @@ with warnings.catch_warnings():
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         users = relationship(User, secondary=project_users)
 
@@ -613,6 +614,107 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         type = Column(String(255, collation=SQLCollationUtil.collation()))
         _full_object = Column("object", JSON)
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
+
+    class PaginationCache(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "pagination_cache"
+
+        key = Column(
+            String(255, collation=SQLCollationUtil.collation()), primary_key=True
+        )
+        user = Column(String(255, collation=SQLCollationUtil.collation()))
+        function = Column(String(255, collation=SQLCollationUtil.collation()))
+        current_page = Column(Integer)
+        page_size = Column(Integer)
+        kwargs = Column(JSON)
+        last_accessed = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+
+    class AlertState(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_states"
+        __table_args__ = (UniqueConstraint("id", "parent_id", name="alert_states_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        count = Column(Integer)
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        last_updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=None,
+        )
+        active = Column(BOOLEAN, default=False)
+
+        parent_id = Column(Integer, ForeignKey("alert_configs.id"))
+
+        _full_object = Column("object", JSON)
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
+
+    class AlertConfig(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_configs"
+        __table_args__ = (
+            UniqueConstraint("project", "name", name="_alert_configs_uc"),
+        )
+
+        Notification = make_notification(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        project = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
+        notifications = relationship(Notification, cascade="all, delete-orphan")
+        alerts = relationship(AlertState, cascade="all, delete-orphan")
+
+        _full_object = Column("object", JSON)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
+
+    class AlertTemplate(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_templates"
+        __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
+        _full_object = Column("object", JSON)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
 
         @property
         def full_object(self):

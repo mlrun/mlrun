@@ -87,10 +87,12 @@ class Functions(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str = mlrun.mlconf.default_project,
-        name: str = "",
-        tag: str = "",
+        name: str = None,
+        tag: str = None,
         labels: list[str] = None,
-        hash_key: str = "",
+        hash_key: str = None,
+        page: int = None,
+        page_size: int = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -102,6 +104,8 @@ class Functions(
             tag=tag,
             labels=labels,
             hash_key=hash_key,
+            page=page,
+            page_size=page_size,
         )
 
     def get_function_status(
@@ -130,3 +134,19 @@ class Functions(
             client_python_version=client_python_version,
         )
         function.save(versioned=False)
+
+    def update_function(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function,
+        project,
+        updates: dict,
+    ):
+        return server.api.utils.singletons.db.get_db().update_function(
+            session=db_session,
+            name=function["metadata"]["name"],
+            tag=function["metadata"]["tag"],
+            hash_key=function.get("metadata", {}).get("hash"),
+            project=project,
+            updates=updates,
+        )

@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import fsspec
+import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pyarrow
@@ -1700,7 +1701,9 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set.ingest(
             source,
             overwrite=True,
-            run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            run_config=fstore.RunConfig(local=False).apply(
+                mlrun_pipelines.mounts.mount_v3io()
+            ),
             targets=targets,
         )
 
@@ -2558,7 +2561,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
@@ -2875,7 +2878,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=v3io_source,
@@ -3094,7 +3097,7 @@ class TestFeatureStore(TestMLRunSystem):
         function.spec.default_content_type = "application/json"
         function.spec.image_pull_policy = "Always"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=source, run_config=run_config, targets=targets
@@ -3154,7 +3157,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -3321,7 +3324,7 @@ class TestFeatureStore(TestMLRunSystem):
     )
     def test_kafka_target_datastore_profile(self, kafka_consumer):
         profile = DatastoreProfileKafkaTarget(
-            name="dskafkatarget", bootstrap_servers=kafka_brokers, topic=kafka_topic
+            name="dskafkatarget", brokers=kafka_brokers, topic=kafka_topic
         )
         register_temporary_client_datastore_profile(profile)
 
@@ -3368,7 +3371,7 @@ class TestFeatureStore(TestMLRunSystem):
         target = KafkaTarget(
             "kafka",
             path=kafka_topic,
-            bootstrap_servers=kafka_brokers,
+            brokers=kafka_brokers,
         )
         stocks_set.ingest(stocks, [target])
 
@@ -3402,7 +3405,7 @@ class TestFeatureStore(TestMLRunSystem):
         target = KafkaTarget(
             "kafka",
             path=kafka_topic,
-            bootstrap_servers=kafka_brokers,
+            brokers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
         try:
@@ -3727,7 +3730,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4084,7 +4087,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4206,7 +4209,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4504,7 +4507,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -4570,7 +4573,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -4813,6 +4816,70 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
+    @staticmethod
+    def _sort_df(df: pd.DataFrame, sort_column: str):
+        return (
+            df.reindex(sorted(df.columns), axis=1)
+            .sort_values(by=sort_column)
+            .reset_index(drop=True)
+        )
+
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_parquet_filters(self, engine):
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+        filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_source_{run_uuid}.parquet"
+        v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/df_parquet_filtered_target_{run_uuid}"
+        df.to_parquet(v3io_parquet_source_path)
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path=v3io_parquet_source_path,
+            additional_filters=[
+                ("department", "=", "01e9fe31-76de-45f0-9aed-0f94cc97bca0")
+            ],
+        )
+        result = parquet_source.to_dataframe()
+        assert_frame_equal(
+            result.sort_values(by="patient_id").reset_index(drop=True),
+            filtered_df.sort_values(by="patient_id").reset_index(drop=True),
+        )
+        feature_set = fstore.FeatureSet(
+            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
+        )
+
+        target = ParquetTarget(
+            name="department_based_target",
+            path=v3io_parquet_target_path,
+            partitioned=True,
+            partition_cols=["department"],
+        )
+        feature_set.ingest(source=parquet_source, targets=[target])
+        result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
+        # We want to include patient_id in the comparison,
+        # sort the columns alphabetically, and sort the rows by patient_id values.
+        result = self._sort_df(result, "patient_id")
+        expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
+        # the content of category column is still checked:
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        vec = fstore.FeatureVector(
+            name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        result = (
+            fstore.get_offline_features(
+                feature_vector=vec,
+                additional_filters=[("bad", "=", 95)],
+                with_indexes=True,
+                engine=engine,
+            )
+            .to_dataframe()
+            .reset_index()
+        )
+        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = self._sort_df(result, "patient_id")
+        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
@@ -4825,7 +4892,7 @@ def verify_purge(fset, targets):
     for target in fset.status.targets:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            store, target_path = driver._get_store_and_path()
+            store, target_path, _ = driver._get_store_and_path()
             filesystem = store.filesystem
             if filesystem is not None:
                 assert filesystem.exists(target_path)
@@ -4838,7 +4905,7 @@ def verify_purge(fset, targets):
     for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            store, target_path = driver._get_store_and_path()
+            store, target_path, _ = driver._get_store_and_path()
             filesystem = store.filesystem
             if filesystem is not None:
                 assert not filesystem.exists(target_path)

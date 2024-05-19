@@ -84,11 +84,13 @@ class MLRunPatcher:
                     self.Consts.log_collector_container, built_log_collector_image
                 )
 
-            self._rollout_deployment()
-            self._wait_deployment_ready()
             if self._reset_db:
                 self._reset_mlrun_db()
-                self._wait_deployment_ready()
+            else:
+                self._rollout_deployment()
+
+            self._wait_deployment_ready()
+
         finally:
             out = self._exec_remote(
                 [
@@ -309,17 +311,21 @@ class MLRunPatcher:
         )
 
     def _reset_mlrun_db(self):
-        curr_worker_replicas = self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "get",
-                "deployment",
-                "mlrun-api-worker",
-                "-o=jsonpath='{.spec.replicas}'",
-            ]
-        ).strip()
+        curr_worker_replicas = (
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "get",
+                    "deployment",
+                    "mlrun-api-worker",
+                    "-o=jsonpath='{.spec.replicas}'",
+                ]
+            )
+            .strip()
+            .strip("'")
+        )
         logger.info("Detected current worker replicas: %s", curr_worker_replicas)
 
         logger.info("Scaling down mlrun-api-chief")
@@ -392,6 +398,8 @@ class MLRunPatcher:
                 "exec",
                 "-it",
                 mlrun_db_pod,
+                "-c",
+                "mlrun-db",
                 "--",
                 "mysql",
                 "-u",
@@ -399,7 +407,7 @@ class MLRunPatcher:
                 "-S",
                 "/var/run/mysqld/mysql.sock",
                 "-e",
-                "'DROP DATABASE mlrun; CREATE DATABASE mlrun'",
+                "DROP DATABASE mlrun; CREATE DATABASE mlrun",
             ],
             live=True,
         )

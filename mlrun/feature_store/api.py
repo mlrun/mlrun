@@ -113,6 +113,7 @@ def get_offline_features(
     order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    additional_filters: list = None,
 ):
     """retrieve offline feature vector results
 
@@ -136,7 +137,10 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+            vector,
+            entity_rows=trades,
+            entity_timestamp_column="time",
+            query="ticker in ['GOOG'] and bid>100",
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -172,6 +176,13 @@ def get_offline_features(
                                     By default, the filter executes on the timestamp_key of each feature set.
                                     Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
+    :param additional_filters: List of additional_filter conditions as tuples.
+                                Each tuple should be in the format (column_name, operator, value).
+                                Supported operators: "=", ">=", "<=", ">", "<".
+                                Example: [("Product", "=", "Computer")]
+                                For all supported filters, please see:
+                                https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
+
 
     """
     return _get_offline_features(
@@ -191,6 +202,7 @@ def get_offline_features(
         order_by,
         spark_service,
         timestamp_for_filtering,
+        additional_filters,
     )
 
 
@@ -211,6 +223,7 @@ def _get_offline_features(
     order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    additional_filters=None,
 ) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -249,6 +262,7 @@ def _get_offline_features(
             start_time=start_time,
             end_time=end_time,
             timestamp_for_filtering=timestamp_for_filtering,
+            additional_filters=additional_filters,
         )
 
     merger = merger_engine(feature_vector, **(engine_args or {}))
@@ -264,6 +278,7 @@ def _get_offline_features(
         update_stats=update_stats,
         query=query,
         order_by=order_by,
+        additional_filters=additional_filters,
     )
 
 
@@ -307,7 +322,7 @@ def get_online_feature_service(
 
             Example::
 
-                svc = get_online_feature_service(vector_uri, entity_keys=['ticker'])
+                svc = get_online_feature_service(vector_uri, entity_keys=["ticker"])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)
@@ -456,7 +471,7 @@ def ingest(
         df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         # for running as remote job
-        config = RunConfig(image='mlrun/mlrun')
+        config = RunConfig(image="mlrun/mlrun")
         df = ingest(stocks_set, stocks, run_config=config)
 
         # specify source and targets
@@ -1002,53 +1017,6 @@ def _deploy_ingestion_service_v2(
     return function.deploy(), function
 
 
-@deprecated(
-    version="1.5.0",
-    reason="'deploy_ingestion_service' will be removed in 1.7.0, use 'deploy_ingestion_service_v2' instead",
-    category=FutureWarning,
-)
-def deploy_ingestion_service(
-    featureset: Union[FeatureSet, str],
-    source: DataSource = None,
-    targets: list[DataTargetBase] = None,
-    name: str = None,
-    run_config: RunConfig = None,
-    verbose=False,
-) -> str:
-    """Start real-time ingestion service using nuclio function
-
-    Deploy a real-time function implementing feature ingestion pipeline
-    the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
-
-    the `run_config` parameter allow specifying the function and job configuration,
-    see: :py:class:`~mlrun.feature_store.RunConfig`
-
-    example::
-
-        source = HTTPSource()
-        func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
-        config = RunConfig(function=func)
-        my_set.deploy_ingestion_service(source, run_config=config)
-
-    :param featureset:    feature set object or uri
-    :param source:        data source object describing the online or offline source
-    :param targets:       list of data target objects
-    :param name:          name for the job/function
-    :param run_config:    service runtime configuration (function object/uri, resources, etc..)
-    :param verbose:       verbose log
-
-    :return: URL to access the deployed ingestion service
-    """
-    endpoint, _ = featureset.deploy_ingestion_service(
-        source=source,
-        targets=targets,
-        name=name,
-        run_config=run_config,
-        verbose=verbose,
-    )
-    return endpoint
-
-
 def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
@@ -1121,9 +1089,10 @@ def _ingest_with_spark(
             df_to_write = target.prepare_spark_df(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
+            write_format = spark_options.pop("format", None)
             if overwrite:
                 write_spark_dataframe_with_options(
-                    spark_options, df_to_write, "overwrite"
+                    spark_options, df_to_write, "overwrite", write_format=write_format
                 )
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
@@ -1131,7 +1100,7 @@ def _ingest_with_spark(
                 df_to_write.persist()
                 if df_to_write.count() > 0:
                     write_spark_dataframe_with_options(
-                        spark_options, df_to_write, "append"
+                        spark_options, df_to_write, "append", write_format=write_format
                     )
             target.update_resource_status("ready")
 

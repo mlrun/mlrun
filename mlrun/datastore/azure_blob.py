@@ -158,18 +158,17 @@ class AzureBlobStore(DataStore):
                     st[key] = parsed_value
 
         account_name = st.get("account_name")
-        if not account_name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Property 'account_name' is absent both in storage settings and connection string"
-            )
         if primary_url:
             if primary_url.startswith("http://"):
                 primary_url = primary_url[len("http://") :]
             if primary_url.startswith("https://"):
                 primary_url = primary_url[len("https://") :]
             host = primary_url
-        else:
+        elif account_name:
             host = f"{account_name}.{service}.core.windows.net"
+        else:
+            return res
+
         if "account_key" in st:
             res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]
 

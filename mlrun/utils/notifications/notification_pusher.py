@@ -14,11 +14,17 @@
 
 import asyncio
 import datetime
+import json
 import os
+import re
 import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
+import kfp
+import mlrun_pipelines.common.ops
+
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
@@ -238,20 +244,7 @@ class NotificationPusher(_NotificationPusherBase):
             custom_message = (
                 f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )
-            db = mlrun.get_run_db()
-
-            workflow_id = run.status.results.get("workflow_id", None)
-            if workflow_id:
-                workflow_runs = db.list_runs(
-                    project=run.metadata.project,
-                    labels=f"workflow={workflow_id}",
-                )
-                logger.debug(
-                    "Found workflow runs, extending notification runs",
-                    workflow_id=workflow_id,
-                    workflow_runs_amount=len(workflow_runs),
-                )
-                runs.extend(workflow_runs)
+            runs.extend(self.get_workflow_steps(run))
 
         message = (
             self.messages.get(run.state(), "").format(resource=resource)
@@ -394,6 +387,139 @@ class NotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
+
+    def get_workflow_steps(self, run: mlrun.model.RunObject) -> list:
+        steps = []
+        db = mlrun.get_run_db()
+
+        def _add_run_step(_node_name, _node_template, _step_kind):
+            _run = db.list_runs(
+                project=run.metadata.project,
+                labels=f"mlrun/runner-pod={_node_name}",
+            )[0]
+            _run["step_kind"] = _step_kind
+            steps.append(_run)
+
+        def _add_deploy_function_step(_, _node_template, _step_kind):
+            project, name, hash_key = self._extract_function_uri(
+                _node_template["metadata"]["annotations"]["mlrun/function-uri"]
+            )
+            if name:
+                try:
+                    function = db.get_function(
+                        project=project, name=name, hash_key=hash_key
+                    )
+                except mlrun.errors.MLRunNotFoundError:
+                    # If the function is not found (if build failed for example), we will create a dummy
+                    # function object for the notification to display the function name
+                    function = {
+                        "metadata": {
+                            "name": name,
+                            "project": project,
+                            "hash_key": hash_key,
+                        },
+                    }
+                function["status"] = {
+                    "state": mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                        node["phase"]
+                    ),
+                }
+                if isinstance(function["metadata"].get("updated"), datetime.datetime):
+                    function["metadata"]["updated"] = function["metadata"][
+                        "updated"
+                    ].isoformat()
+                function["step_kind"] = _step_kind
+                steps.append(function)
+
+        step_methods = {
+            mlrun_pipelines.common.ops.PipelineRunType.run: _add_run_step,
+            mlrun_pipelines.common.ops.PipelineRunType.build: _add_deploy_function_step,
+            mlrun_pipelines.common.ops.PipelineRunType.deploy: _add_deploy_function_step,
+        }
+
+        workflow_id = run.status.results.get("workflow_id", None)
+        if not workflow_id:
+            return steps
+
+        workflow_manifest = self._get_workflow_manifest(workflow_id)
+        if not workflow_manifest:
+            return steps
+
+        try:
+            workflow_nodes = sorted(
+                workflow_manifest["status"]["nodes"].items(),
+                key=lambda _node: _node[1]["finishedAt"],
+            )
+            for node_name, node in workflow_nodes:
+                if node["type"] != "Pod":
+                    # Skip the parent DAG node
+                    continue
+
+                node_template = next(
+                    template
+                    for template in workflow_manifest["spec"]["templates"]
+                    if template["name"] == node["templateName"]
+                )
+                step_type = node_template["metadata"]["annotations"].get(
+                    "mlrun/pipeline-step-type"
+                )
+                step_method = step_methods.get(step_type)
+                if step_method:
+                    step_method(node_name, node_template, step_type)
+            return steps
+        except Exception:
+            # If we fail to read the pipeline steps, we will return the list of runs that have the same workflow id
+            logger.warning(
+                "Failed to extract workflow steps from workflow manifest, "
+                "returning all runs with the workflow id label",
+                workflow_id=workflow_id,
+                traceback=traceback.format_exc(),
+            )
+            return db.list_runs(
+                project=run.metadata.project,
+                labels=f"workflow={workflow_id}",
+            )
+
+    @staticmethod
+    def _get_workflow_manifest(workflow_id: str) -> typing.Optional[dict]:
+        kfp_url = mlrun.mlconf.resolve_kfp_url(mlrun.mlconf.namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunNotFoundError(
+                "KubeFlow Pipelines is not configured"
+            )
+
+        kfp_client = kfp.Client(host=kfp_url)
+
+        # arbitrary timeout of 5 seconds, the workflow should be done by now
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        if not kfp_run:
+            return None
+
+        kfp_run = kfp_run.to_dict()
+        try:
+            return json.loads(kfp_run["pipeline_runtime"]["workflow_manifest"])
+        except Exception:
+            return None
+
+    def _extract_function_uri(self, function_uri: str) -> tuple[str, str, str]:
+        """
+        Extract the project, name, and hash key from a function uri.
+        Examples:
+            - "project/name@hash_key" returns project, name, hash_key
+            - "project/name returns" project, name, ""
+        """
+        project, name, hash_key = None, None, None
+        hashed_pattern = r"^(.+)/(.+)@(.+)$"
+        pattern = r"^(.+)/(.+)$"
+        match = re.match(hashed_pattern, function_uri)
+        if match:
+            project, name, hash_key = match.groups()
+        else:
+            match = re.match(pattern, function_uri)
+            if match:
+                project, name = match.groups()
+                hash_key = ""
+        return project, name, hash_key
 
 
 class CustomNotificationPusher(_NotificationPusherBase):

@@ -44,6 +44,7 @@ from .constants import (
 )
 from .grafana import (
     GrafanaColumn,
+    GrafanaColumnType,
     GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,

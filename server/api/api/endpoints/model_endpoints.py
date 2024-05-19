@@ -340,7 +340,7 @@ async def get_model_endpoint_monitoring_metrics(
     :param type:        The type of the metrics to return. "all" means "results"
                         and "metrics".
 
-    :returns:           A list of the application results for this model endpoint.
+    :returns:           A list of the application metrics or/and results for this model endpoint.
     """
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info

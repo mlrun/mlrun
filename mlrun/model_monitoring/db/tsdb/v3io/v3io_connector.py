@@ -92,10 +92,10 @@ class V3IOTSDBConnector(TSDBConnector):
             monitoring_application_full_path
         )
         self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS] = (
-            monitoring_application_path + mm_schemas.MonitoringTSDBTables.APP_RESULTS
+            monitoring_application_path + mm_schemas.V3IOTSDBTables.APP_RESULTS
         )
         self.tables[mm_schemas.V3IOTSDBTables.METRICS] = (
-            monitoring_application_path + mm_schemas.MonitoringTSDBTables.METRICS
+            monitoring_application_path + mm_schemas.V3IOTSDBTables.METRICS
         )
 
         monitoring_predictions_full_path = (

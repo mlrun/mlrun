@@ -201,8 +201,8 @@ class TestTSDB:
             tsdb_connector._get_v3io_frames_client(V3IO_TABLE_CONTAINER)
         )
         tsdb_connector.tables = {
-            mm_schemas.V3IOTSDBTables.APP_RESULTS: mm_schemas.MonitoringTSDBTables.APP_RESULTS,
-            mm_schemas.V3IOTSDBTables.METRICS: mm_schemas.MonitoringTSDBTables.METRICS,
+            mm_schemas.V3IOTSDBTables.APP_RESULTS: mm_schemas.V3IOTSDBTables.APP_RESULTS,
+            mm_schemas.V3IOTSDBTables.METRICS: mm_schemas.V3IOTSDBTables.METRICS,
         }
         tsdb_connector.create_tables()
 

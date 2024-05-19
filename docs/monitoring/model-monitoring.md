@@ -31,7 +31,9 @@ project.enable_model_monitoring(base_period=1)
 
 ## Log the model with training data
 
-See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`.
+See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
+
+
 ```python
 model_name = "RandomForestClassifier"
 project.log_model(
@@ -43,15 +45,17 @@ project.log_model(
 
 ## Import, enable monitoring, and deploy the serving function
 
-The result of this step is that the model-monitoring stream pod writes data to Parquet, by model endpoint. 
-Every base period, the controller checks for new data and if it finds, sends it to the relevant app.
-
 Use the [v2_model_server serving](https://www.mlrun.org/hub/functions/master/v2-model-server/) function 
 from the MLRun function hub.
 
 Add the model to the serving function's routing spec ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`), 
 enable monitoring on the serving function ({py:meth}`~mlrun.runtimes.ServingRuntime.set_tracking`),
 and then deploy the function ({py:meth}`~mlrun.projects.MlrunProject.deploy_function`).
+
+The result of this step is that the model-monitoring stream pod writes data to Parquet, by model endpoint. 
+Every base period, the controller checks for new data and if it finds, sends it to the relevant app.
+
+
 ```python
 # Import the serving function
 serving_fn = import_function(
@@ -139,13 +143,6 @@ Now you can view the application results.
 
 <img src="../tutorials/_static/images/mm-myapp.png" width="1000" >
 
-## Batch infer model-monitoring
-
-When you call the {ref}`batch inference <batch_inference_overview>` function (stored in the [function hub](https://www.mlrun.org/hub/functions/master/batch_inference_2/)), 
-you can specify the endpoint_id &mdash; to apply the job to a specific existing model endpoint. 
-
-See more about [batch inference](../deployment/batch_inference.html).
-
 ## View model monitoring artifacts and drift in Grafana
  
 Monitoring details:
@@ -155,6 +152,15 @@ Monitoring details:
 And drift and operational metrics over time:
 
 ![grafana_dashboard_3](../tutorials/_static/images/grafana_dashboard_3.png)
+
+All of the Grafana dashboards are described in {ref}`monitoring-models`.
+
+## Batch infer model-monitoring
+
+You can use the batch function (stored in the [function hub](https://www.mlrun.org/hub/functions/master/batch_inference_2/))
+to evaluate data against your logged model **without disturbing the model**, for example a one-time evaluation of new data.  
+
+See more in the [model monitoring tutorial](../tutorials/05-model-monitoring.html#batch-infer-model-monitoring).
 
 ## See also
 

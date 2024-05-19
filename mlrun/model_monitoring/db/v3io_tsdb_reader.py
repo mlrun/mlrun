@@ -139,8 +139,8 @@ def read_predictions(
     *,
     project: str,
     endpoint_id: str,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
     aggregation_window: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> Union[
@@ -160,6 +160,7 @@ def read_predictions(
     df: pd.DataFrame = client.read(
         backend=_TSDB_BE,
         table=f"pipelines/{project}/model-endpoints/predictions",
+        columns="latency",
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,
         end=end,
@@ -169,7 +170,9 @@ def read_predictions(
 
     full_name = (
         mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-            project=project, app="mlrun-infra", name="invocations"
+            project=project,
+            app="mlrun-infra",
+            name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
         )
     )
 
@@ -180,15 +183,14 @@ def read_predictions(
         )
 
     rows = df.reset_index().to_dict(orient="records")
-    values = []
-    for row in rows:
-        values.append(
-            [
-                row["time"],
-                row["count(latency)"],
-                mm_constants.ResultStatusApp.irrelevant,
-            ]
-        )
+    values = [
+        [
+            row["time"],
+            row["count(latency)"],
+            mm_constants.ResultStatusApp.irrelevant,
+        ]
+        for row in rows
+    ]
     return ModelEndpointMonitoringResultValues(
         full_name=full_name,
         type=ModelEndpointMonitoringMetricType.RESULT,
@@ -205,15 +207,17 @@ def prediction_metric_for_endpoint(
     predictions = read_predictions(
         project=project,
         endpoint_id=endpoint_id,
-        limit=1,
+        limit=1,  # Read just one record, because we just want to check if there is any data for this endpoint_id
     )
     if predictions:
         return ModelEndpointMonitoringMetric(
             project=project,
             app="mlrun-infra",
             type=ModelEndpointMonitoringMetricType.METRIC,
-            name="invocations",
+            name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
             full_name=mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-                project=project, app="mlrun-infra", name="invocations"
+                project=project,
+                app="mlrun-infra",
+                name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
             ),
         )

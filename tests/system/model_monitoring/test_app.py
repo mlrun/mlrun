@@ -148,6 +148,7 @@ class _V3IORecordsChecker:
                     set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
+    def _test_predictions_table(cls, ep_id: str) -> None:
         predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
             table=mm_constants.FileTargetKind.PREDICTIONS,
         )
@@ -186,6 +187,7 @@ class _V3IORecordsChecker:
         cls._test_apps_parquet(ep_id, inputs, outputs)
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
+        cls._test_predictions_table(ep_id)
 
     @classmethod
     def _test_api_get_results(

@@ -389,7 +389,6 @@ class _MetricsValuesParams:
     ]
     start: datetime
     end: datetime
-    aggregation_window: Optional[str]
 
 
 async def _get_metrics_values_data(
@@ -403,7 +402,6 @@ async def _get_metrics_values_data(
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
-    aggregation_window: Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         server.api.api.deps.authenticate_request
     ),
@@ -416,10 +414,9 @@ async def _get_metrics_values_data(
     :param name:               The full names of the requested results. At least one is required.
     :param start:              Start and end times are optional, and must be timezone aware.
     :param end:                See the `start` parameter.
-    :param aggregation_window: Time window to group the results by.
     :param auth_info:          The auth info of the request.
 
-    :return: _MetricsValuesData object with the validated data.
+    :return: _MetricsValuesParams object with the validated data.
     """
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
@@ -452,7 +449,6 @@ async def _get_metrics_values_data(
         metrics=metrics,
         start=start,
         end=end,
-        aggregation_window=aggregation_window,
     )
 
 
@@ -488,16 +484,22 @@ async def get_model_endpoint_monitoring_metrics_values(
         end=params.end,
     )
 
-    if any([metric.name == "invocations" for metric in params.metrics]):
+    if any(
+        [
+            metric.name
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS
+            for metric in params.metrics
+        ]
+    ):
         data, predictions = asyncio.gather(
             read_data_coroutine,
             run_in_threadpool(
                 mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
                 project=params.project,
                 endpoint_id=params.endpoint_id,
-                start=str(params.start.timestamp()),
-                end=str(params.end.timestamp()),
-                aggregation_window=params.aggregation_window or "1m",
+                start=params.start,
+                end=params.end,
+                aggregation_window=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
             ),
         )
         data = data + predictions

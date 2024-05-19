@@ -264,7 +264,7 @@ def tsdb_df() -> pd.DataFrame:
     return pd.DataFrame.from_records(
         [
             (
-                pd.Timestamp("2024-04-02 18:00:28+0000", tz="UTC"),
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
                 "histogram-data-drift",
                 "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
                 0,
@@ -274,7 +274,7 @@ def tsdb_df() -> pd.DataFrame:
                 "2024-04-02 17:59:28.000000+00:00",
             ),
             (
-                pd.Timestamp("2024-04-02 18:00:28+0000", tz="UTC"),
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
                 "histogram-data-drift",
                 "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
                 0,
@@ -303,10 +303,10 @@ def predictions_df() -> pd.DataFrame:
     return pd.DataFrame.from_records(
         [
             (
-                pd.Timestamp("2024-04-02 18:00:00+0000", tz="UTC"),
+                pd.Timestamp("2024-04-02 18:00:00", tz="UTC"),
                 5,
             ),
-            (pd.Timestamp("2024-04-02 18:01:00+0000", tz="UTC"), 10),
+            (pd.Timestamp("2024-04-02 18:01:00", tz="UTC"), 10),
         ],
         index="time",
         columns=[
@@ -380,19 +380,19 @@ def test_read_predictions() -> None:
     result = read_predictions(
         project="fictitious-one",
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
-        start="0",
-        end="now",
+        start=datetime.fromtimestamp(0),
+        end=datetime.now(),
         aggregation_window="1m",
     )
     assert result.full_name == "fictitious-one.mlrun-infra.result.invocations"
     assert result.values == [
         _ResultPoint(
-            timestamp=pd.Timestamp("2024-04-02 18:00:00+0000", tz="UTC"),
+            timestamp=pd.Timestamp("2024-04-02 18:00:00", tz="UTC"),
             value=5,
             status=ResultStatusApp.irrelevant,
         ),
         _ResultPoint(
-            timestamp=pd.Timestamp("2024-04-02 18:01:00+0000", tz="UTC"),
+            timestamp=pd.Timestamp("2024-04-02 18:01:00", tz="UTC"),
             value=10,
             status=ResultStatusApp.irrelevant,
         ),

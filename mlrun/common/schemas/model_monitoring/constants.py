@@ -234,6 +234,7 @@ class MonitoringTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"
+    INVOCATIONS = "invocations"
 
 
 @dataclass
@@ -348,3 +349,7 @@ class TSDBTarget:
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
+
+
+class PredictionsQueryConstants:
+    DEFAULT_AGGREGATION_GRANULARITY = "10m"

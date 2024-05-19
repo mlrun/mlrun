@@ -370,12 +370,10 @@ class ParquetSource(BaseSourceDriver):
     ):
         import storey
 
-        attributes = self.attributes.copy() or {}
-        print(f"attributes1: {attributes}")
+        attributes = deepcopy(self.attributes)
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
-        print(f"attributes2: {attributes}")
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         return storey.ParquetSource(

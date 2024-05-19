@@ -154,7 +154,7 @@ class AppResultTable(TDEngineSchema):
         mm_constants.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
         mm_constants.ResultData.RESULT_VALUE: _TDEngineColumn.FLOAT,
         mm_constants.ResultData.RESULT_STATUS: _TDEngineColumn.INT,
-        mm_constants.ResultData.RESULT_EXTRA_DATA: _TDEngineColumn.BINARY_10000,
+        mm_constants.ResultData.CURRENT_STATS: _TDEngineColumn.BINARY_10000,
     }
 
     tags = {

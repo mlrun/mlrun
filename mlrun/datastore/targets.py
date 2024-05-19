@@ -501,7 +501,7 @@ class BaseStoreTarget(DataTargetBase):
         chunk_id=0,
         **kwargs,
     ) -> Optional[int]:
-        if hasattr(df, "rdd"):
+        if "rdd" in dir(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
@@ -541,9 +541,9 @@ class BaseStoreTarget(DataTargetBase):
                 or isinstance(file_system.protocol, (tuple, list))
                 and "file" in file_system.protocol
             ):
-                dir = os.path.dirname(target_path)
-                if dir:
-                    os.makedirs(dir, exist_ok=True)
+                directory = os.path.dirname(target_path)
+                if directory:
+                    os.makedirs(directory, exist_ok=True)
             target_df = df
             partition_cols = None  # single parquet file
             if not target_path.endswith(".parquet") and not target_path.endswith(
@@ -1326,7 +1326,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
-        if hasattr(df, "rdd"):
+        if "rdd" in dir(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
@@ -2079,7 +2079,7 @@ class SQLTarget(BaseStoreTarget):
 
         self._create_sql_table()
 
-        if hasattr(df, "rdd"):
+        if "rdd" in dir(df):
             raise ValueError("Spark is not supported")
         else:
             (

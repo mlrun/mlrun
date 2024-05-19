@@ -13,8 +13,6 @@
 # limitations under the License.
 #
 
-_TABLE_COLUMN = "table_column"
-
 import json
 
 import mlrun.feature_store.steps
@@ -22,6 +20,8 @@ from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
 )
+
+_TABLE_COLUMN = "table_column"
 
 
 class ProcessBeforeTDEngine(mlrun.feature_store.steps.MapClass):

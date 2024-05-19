@@ -30,6 +30,7 @@ import semver
 from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
@@ -752,7 +753,10 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -791,6 +795,7 @@ class HTTPRunDB(RunDBInterface):
             of a label (i.e. list("key=value")) or by looking for the existence of a given
             key (i.e. "key").
         :param state: List only runs whose state is specified.
+        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used (will be removed in 1.8.0).
@@ -831,6 +836,7 @@ class HTTPRunDB(RunDBInterface):
             and not uid
             and not labels
             and not state
+            and not states
             and not last
             and not start_time_from
             and not start_time_to
@@ -849,7 +855,9 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels or [],
-            "state": state,
+            "state": mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),

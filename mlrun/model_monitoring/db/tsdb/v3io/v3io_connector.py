@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import datetime
 
 import pandas as pd
@@ -61,7 +60,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self._init_tables_path()
 
         if create_table:
-            self.create_tsdb_application_tables()
+            self.create_tables()
 
     def _init_tables_path(self):
         self.tables = {}
@@ -77,7 +76,7 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             events_table_full_path
         )
-        self.tables[mm_constants.MonitoringTSDBTables.EVENTS] = events_path
+        self.tables[mm_constants.V3IOTSDBTables.EVENTS] = events_path
 
         monitoring_application_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -92,11 +91,11 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_application_full_path
         )
-        self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS] = (
-            monitoring_application_path + mm_constants.MonitoringTSDBTables.APP_RESULTS
+        self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS] = (
+            monitoring_application_path + mm_constants.V3IOTSDBTables.APP_RESULTS
         )
-        self.tables[mm_constants.MonitoringTSDBTables.METRICS] = (
-            monitoring_application_path + mm_constants.MonitoringTSDBTables.METRICS
+        self.tables[mm_constants.V3IOTSDBTables.METRICS] = (
+            monitoring_application_path + mm_constants.V3IOTSDBTables.METRICS
         )
 
         monitoring_predictions_full_path = (
@@ -116,15 +115,16 @@ class V3IOTSDBConnector(TSDBConnector):
             monitoring_predictions_path
         )
 
-    def create_tsdb_application_tables(self):
+    def create_tables(self):
         """
-        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
+        Create the tables using the TSDB connector. The tables are being created in the V3IO TSDB and include:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a single numeric metric.
+        Note that the predictions table is automatically created by the model monitoring stream pod.
         """
         application_tables = [
-            mm_constants.MonitoringTSDBTables.APP_RESULTS,
-            mm_constants.MonitoringTSDBTables.METRICS,
+            mm_constants.V3IOTSDBTables.APP_RESULTS,
+            mm_constants.V3IOTSDBTables.METRICS,
         ]
         for table in application_tables:
             logger.info("Creating table in V3IO TSDB", table=table)
@@ -198,7 +198,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 "storey.TSDBTarget",
                 name=name,
                 after=after,
-                path=f"{self.container}/{self.tables[mm_constants.MonitoringTSDBTables.EVENTS]}",
+                path=f"{self.container}/{self.tables[mm_constants.V3IOTSDBTables.EVENTS]}",
                 rate="10/m",
                 time_col=mm_constants.EventFieldType.TIMESTAMP,
                 container=self.container,
@@ -266,7 +266,7 @@ class V3IOTSDBConnector(TSDBConnector):
         try:
             self._frames_client.write(
                 backend=_TSDB_BE,
-                table=self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS],
+                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
                 dfs=pd.DataFrame.from_records([event]),
                 index_cols=[
                     mm_constants.WriterEvent.END_INFER_TIME,
@@ -277,13 +277,13 @@ class V3IOTSDBConnector(TSDBConnector):
             )
             logger.info(
                 "Updated V3IO TSDB successfully",
-                table=self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS],
+                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
             )
         except v3io_frames.errors.Error as err:
             logger.warn(
                 "Could not write drift measures to TSDB",
                 err=err,
-                table=self.tables[mm_constants.MonitoringTSDBTables.APP_RESULTS],
+                table=self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS],
                 event=event,
             )
 
@@ -297,7 +297,7 @@ class V3IOTSDBConnector(TSDBConnector):
             tables = [table]
         else:
             # Delete all tables
-            tables = mm_constants.MonitoringTSDBTables.list()
+            tables = mm_constants.V3IOTSDBTables.list()
         for table in tables:
             try:
                 self._frames_client.delete(
@@ -350,7 +350,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         try:
             data = self.get_records(
-                table=mm_constants.MonitoringTSDBTables.EVENTS,
+                table=mm_constants.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,

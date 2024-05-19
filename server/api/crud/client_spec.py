@@ -113,6 +113,9 @@ class ClientSpec(
             model_endpoint_monitoring_endpoint_store_connection=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.endpoint_store_connection"
             ),
+            model_monitoring_tsdb_connection=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.tsdb_connection"
+            ),
             packagers=self._get_config_value_if_not_default("packagers"),
             alerts_mode=self._get_config_value_if_not_default("alerts.mode"),
         )

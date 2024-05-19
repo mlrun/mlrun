@@ -101,7 +101,7 @@ class ModelMonitoringWriter(StepToDict):
 
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(self, project: str) -> None:
+    def __init__(self, project: str, tsdb_secret_provider=None) -> None:
         self.project = project
         self.name = project  # required for the deployment process
 
@@ -113,7 +113,7 @@ class ModelMonitoringWriter(StepToDict):
             project=self.project
         )
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project,
+            project=self.project, secret_provider=tsdb_secret_provider
         )
         self._endpoints_records = {}
 
@@ -179,12 +179,12 @@ class ModelMonitoringWriter(StepToDict):
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
-
         self._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
         self._app_result_store.write_application_event(event=event.copy(), kind=kind)
-        logger.info("Completed event DB writes")
 
-        _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
+        logger.info("Completed event DB writes")
+        if kind == WriterEventKind.RESULT:
+            _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled

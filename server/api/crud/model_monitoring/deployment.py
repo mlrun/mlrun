@@ -109,6 +109,8 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_stream_processing(stream_image=image)
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
+        # Create tsdb tables that will be used for storing the model monitoring data
+        self._create_tsdb_tables(project=self.project)
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
@@ -242,8 +244,6 @@ class MonitoringDeployment:
                 writer_data=fn.to_dict(),
                 writer_ready=ready,
             )
-            # Create tsdb table for model monitoring application results
-            self._create_tsdb_application_tables(project=fn.metadata.project)
 
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
@@ -355,7 +355,12 @@ class MonitoringDeployment:
         )
 
         # Create monitoring serving graph
-        stream_processor.apply_monitoring_serving_graph(function)
+        stream_processor.apply_monitoring_serving_graph(
+            function,
+            tsdb_service_provider=server.api.crud.secrets.get_project_secret_provider(
+                project=self.project
+            ),
+        )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -465,9 +470,17 @@ class MonitoringDeployment:
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
+
         # Create writer monitoring serving graph
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer
+        graph.to(
+            ModelMonitoringWriter(
+                project=self.project,
+                tsdb_secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=self.project
+                ),
+            )
+        ).respond()  # writer
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -590,17 +603,22 @@ class MonitoringDeployment:
         return True
 
     @staticmethod
-    def _create_tsdb_application_tables(project: str):
-        """Each project writer service writes the application results into a single TSDB table and therefore the
-        target table is created during the writer deployment"""
+    def _create_tsdb_tables(project: str):
+        """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
+        - app_results: a detailed result that includes status, kind, extra data, etc.
+        - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction."""
 
         tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
             mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
+                secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
             )
         )
 
-        tsdb_connector.create_tsdb_application_tables()
+        tsdb_connector.create_tables()
 
 
 def get_endpoint_features(

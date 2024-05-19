@@ -39,7 +39,7 @@ from mlrun.utils import logger
 def _get_sql_query(endpoint_id: str, names: list[tuple[str, str]]) -> str:
     with StringIO() as query:
         query.write(
-            f"SELECT * FROM '{mm_constants.MonitoringTSDBTables.APP_RESULTS}' "
+            f"SELECT * FROM '{mm_constants.V3IOTSDBTables.APP_RESULTS}' "
             f"WHERE {mm_writer.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
         )
         if names:

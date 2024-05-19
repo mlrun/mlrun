@@ -522,6 +522,7 @@ default_config = {
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
         "tsdb_connector_type": "v3io-tsdb",
+        "tsdb_connection": "",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

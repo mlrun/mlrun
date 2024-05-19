@@ -3102,14 +3102,15 @@ class MlrunProject(ModelObj):
         access_key: str = None,
         endpoint_store_connection: str = None,
         stream_path: str = None,
+        tsdb_connection: str = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
         :param access_key:                Model Monitoring access key for managing user permissions
-        :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream
+        :param tsdb_connection:           Connection string to the time series database
         """
 
         secrets_dict = {}
@@ -3131,6 +3132,11 @@ class MlrunProject(ModelObj):
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
+
+        if tsdb_connection:
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ] = tsdb_connection
 
         self.set_secrets(
             secrets=secrets_dict,

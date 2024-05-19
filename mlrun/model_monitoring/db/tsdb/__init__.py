@@ -25,8 +25,11 @@ class ObjectTSDBFactory(enum.Enum):
     """Enum class to handle the different TSDB connector type values for storing real time metrics"""
 
     v3io_tsdb = "v3io-tsdb"
+    tdengine = "tdengine"
 
-    def to_tsdb_connector(self, project: str, **kwargs) -> TSDBConnector:
+    def to_tsdb_connector(
+        self, project: str, secret_provider: typing.Callable = None, **kwargs
+    ) -> TSDBConnector:
         """
         Return a TSDBConnector object based on the provided enum value.
         :param project: The name of the project.
@@ -43,6 +46,16 @@ class ObjectTSDBFactory(enum.Enum):
 
             return V3IOTSDBConnector(project=project, **kwargs)
 
+        # Assuming TDEngine connector if connector type is not V3IO TSDB.
+        # Update these lines once there are more than two connector types.
+
+        from .tdengine.tdengine_connector import TDEngineConnector
+
+        return TDEngineConnector(
+            project=project,
+            secret_provider=secret_provider,
+        )
+
     @classmethod
     def _missing_(cls, value: typing.Any):
         """A lookup function to handle an invalid value.
@@ -54,7 +67,9 @@ class ObjectTSDBFactory(enum.Enum):
         )
 
 
-def get_tsdb_connector(project: str, **kwargs) -> TSDBConnector:
+def get_tsdb_connector(
+    project: str, secret_provider: typing.Callable = None, **kwargs
+) -> TSDBConnector:
     """
     Get the TSDB connector type based on mlrun.config.model_endpoint_monitoring.tsdb_connector_type.
     :param project: The name of the project.
@@ -68,4 +83,6 @@ def get_tsdb_connector(project: str, **kwargs) -> TSDBConnector:
     )
 
     # Convert into TSDB connector object
-    return tsdb_connector_type.to_tsdb_connector(project=project, **kwargs)
+    return tsdb_connector_type.to_tsdb_connector(
+        project=project, secret_provider=secret_provider, **kwargs
+    )

@@ -201,10 +201,10 @@ class TestTSDB:
             tsdb_connector._get_v3io_frames_client(V3IO_TABLE_CONTAINER)
         )
         tsdb_connector.tables = {
-            mm_constants.MonitoringTSDBTables.APP_RESULTS: mm_constants.MonitoringTSDBTables.APP_RESULTS,
-            mm_constants.MonitoringTSDBTables.METRICS: mm_constants.MonitoringTSDBTables.METRICS,
+            mm_constants.V3IOTSDBTables.APP_RESULTS: mm_constants.V3IOTSDBTables.APP_RESULTS,
+            mm_constants.V3IOTSDBTables.METRICS: mm_constants.V3IOTSDBTables.METRICS,
         }
-        tsdb_connector.create_tsdb_application_tables()
+        tsdb_connector.create_tables()
 
         return tsdb_connector
 
@@ -235,7 +235,7 @@ class TestTSDB:
         event, kind = ModelMonitoringWriter._reconstruct_event(event)
         writer._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
         record_from_tsdb = writer._tsdb_connector.get_records(
-            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
+            table=mm_constants.V3IOTSDBTables.APP_RESULTS,
             filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
             start="now-1d",
             end="now+1d",
@@ -260,7 +260,7 @@ class TestTSDB:
 
         with pytest.raises(v3io_frames.errors.ReadError):
             writer._tsdb_connector.get_records(
-                table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
+                table=mm_constants.V3IOTSDBTables.APP_RESULTS,
                 filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
                 start="now-1d",
                 end="now+1d",

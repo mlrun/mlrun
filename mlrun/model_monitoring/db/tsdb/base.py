@@ -126,10 +126,11 @@ class TSDBConnector(ABC):
         """
         pass
 
-    def create_tsdb_application_tables(self):
+    def create_tables(self):
         """
-        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
+        Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction.
         """
         pass

@@ -34,11 +34,13 @@ def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Sess
         db, name=function_name, project=project, tag=function_tag
     )
 
-    result = server.api.crud.Functions().set_function_deletion_task_id(
+    result = server.api.crud.Functions().update_function(
         db_session=db,
         function=function,
         project=project,
-        deletion_task_id=deletion_task_id,
+        updates={
+            "status.deletion_task_id": deletion_task_id,
+        },
     )
 
     assert result["status"]["deletion_task_id"] == deletion_task_id

@@ -473,7 +473,7 @@ class ParquetSource(BaseSourceDriver):
                         if op.lower() == "in":
                             new_filter = col(col_name).isNull()
                             if filter_nan:
-                                new_filter = new_filter & isnan(col(col_name))
+                                new_filter = new_filter | isnan(col(col_name))
                         else:
                             new_filter = ~col(col_name).isNull()
                             if filter_nan:

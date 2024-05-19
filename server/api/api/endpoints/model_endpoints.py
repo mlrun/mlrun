@@ -23,6 +23,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
 import mlrun.model_monitoring.db.v3io_tsdb_reader
@@ -499,7 +500,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 endpoint_id=params.endpoint_id,
                 start=params.start,
                 end=params.end,
-                aggregation_window=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
+                aggregation_window=mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
             ),
         )
         data = data + predictions

@@ -186,7 +186,7 @@ def read_predictions(
     values = [
         [
             row["time"],
-            row["count(latency)"],
+            row["count(latency)"],  # event count for the time window
             mm_constants.ResultStatusApp.irrelevant,
         ]
         for row in rows
@@ -199,7 +199,7 @@ def read_predictions(
     )
 
 
-def prediction_metric_for_endpoint(
+def read_prediction_metric_for_endpoint_if_exists(
     *,
     project: str,
     endpoint_id: str,

@@ -368,7 +368,7 @@ async def get_model_endpoint_monitoring_metrics(
             endpoint_id=endpoint_id,
         ),
         run_in_threadpool(
-            mlrun.model_monitoring.db.v3io_tsdb_reader.prediction_metric_for_endpoint,
+            mlrun.model_monitoring.db.v3io_tsdb_reader.read_prediction_metric_for_endpoint_if_exists,
             project=project,
             endpoint_id=endpoint_id,
         ),

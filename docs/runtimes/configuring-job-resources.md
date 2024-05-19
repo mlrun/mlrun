@@ -99,10 +99,10 @@ that the number of GPUs is equal to the number of workers (or manage the GPU con
 You can change the number of workers after you create the trigger (function object), then you need to 
 redeploy the function. Examples of changing the number of workers:
 
-Using {py:meth}`~mlrun.runtimes.KubeResource.with_http`:</br>
+using `with_http`:</br>
 `serve.with_http(workers=8, worker_timeout=10)`
 
-Using {py:meth}`~mlrun.runtimes.KubeResource.add_v3io_stream_trigger`:</br>
+using `add_v3io_stream_trigger`:</br>
 `serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
 
 ## Volumes

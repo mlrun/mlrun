@@ -316,6 +316,6 @@ class SparkFeatureMerger(BaseMerger):
         )
 
     def _convert_entity_rows_to_engine_df(self, entity_rows):
-        if entity_rows is not None and not hasattr(entity_rows, "rdd"):
+        if entity_rows is not None and "rdd" not in dir(entity_rows):
             return self.spark.createDataFrame(entity_rows)
         return entity_rows

@@ -57,13 +57,12 @@ class TSDBConnector(ABC):
         self,
         event: dict,
         kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a single application or metric to TSDB.
 
         :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
         """
-        pass
 
     def delete_tsdb_resources(self):
         """
@@ -126,11 +125,10 @@ class TSDBConnector(ABC):
         """
         pass
 
-    def create_tables(self):
+    def create_tables(self) -> None:
         """
         Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction.
         """
-        pass

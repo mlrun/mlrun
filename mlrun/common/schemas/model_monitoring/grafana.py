@@ -11,11 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 from typing import Optional, Union
 
 from pydantic import BaseModel
+
+import mlrun.common.types
+
+
+class GrafanaColumnType(mlrun.common.types.StrEnum):
+    NUMBER = "number"
+    STRING = "string"
 
 
 class GrafanaColumn(BaseModel):
@@ -24,13 +30,11 @@ class GrafanaColumn(BaseModel):
 
 
 class GrafanaNumberColumn(GrafanaColumn):
-    text: str
-    type: str = "number"
+    type: str = GrafanaColumnType.NUMBER
 
 
 class GrafanaStringColumn(GrafanaColumn):
-    text: str
-    type: str = "string"
+    type: str = GrafanaColumnType.STRING
 
 
 class GrafanaTable(BaseModel):

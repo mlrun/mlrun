@@ -23,7 +23,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
@@ -33,8 +32,6 @@ import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.functions
-import server.api.utils.scheduler
-import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
@@ -233,7 +230,7 @@ class MonitoringDeployment:
             )
 
             # Adding label to the function - will be used to identify the writer pod
-            fn.metadata.labels = {"type": "model-monitoring-writer"}
+            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.WRITER}
 
             fn, ready = server.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
@@ -286,7 +283,7 @@ class MonitoringDeployment:
                         stream_args = (
                             config.model_endpoint_monitoring.serving_stream_args
                         )
-                        access_key = os.environ.get("V3IO_ACCESS_KEY")
+                        access_key = os.getenv("V3IO_ACCESS_KEY")
                         kwargs = {}
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"

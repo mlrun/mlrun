@@ -292,7 +292,7 @@ class WorkflowRunners(
                 and state.casefold()
                 == mlrun_pipelines.common.models.RunStatuses.running.casefold()
             ):
-                workflow_id = ""
+                workflow_id = run_object.metadata.uid
             else:
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Workflow id of run {project}:{uid} not found"

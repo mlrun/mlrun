@@ -371,7 +371,7 @@ class _PipelineRunStatus:
         engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
-        state: str = "",
+        state: mlrun_pipelines.common.models.RunStatuses = "",
         exc: Exception = None,
     ):
         """
@@ -742,6 +742,9 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
+    def __init__(self):
+        self.inner_runner: typing.Type[_PipelineRunner] = _KFPRunner
+
     @classmethod
     def run(
         cls,
@@ -881,20 +884,34 @@ class _RemoteRunner(_PipelineRunner):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        inner_runner: typing.Type[_PipelineRunner] = None,
     ):
-        # ignore notifiers, as they are handled by the remote pipeline notifications,
-        # so overriding with CustomNotificationPusher with empty list of notifiers
-        state, had_errors, text = _KFPRunner.get_run_status(
-            project,
-            run,
-            timeout,
-            expected_statuses,
-            notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
-        )
+        inner_runner = inner_runner or _KFPRunner
+        if inner_runner.engine == _KFPRunner.engine:
+            # ignore notifiers, as they are handled by the remote pipeline notifications,
+            # so overriding with CustomNotificationPusher with empty list of notifiers
+            state, had_errors, text = inner_runner.get_run_status(
+                project,
+                run,
+                timeout,
+                expected_statuses,
+                notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
+            )
 
-        # indicate the pipeline status since we don't push the notifications in the remote runner
-        logger.info(text)
-        return state, had_errors, text
+            # indicate the pipeline status since we don't push the notifications in the remote runner
+            logger.info(text)
+            return state, had_errors, text
+
+        elif inner_runner.engine == _LocalRunner.engine:
+            mldb = mlrun.db.get_run_db(secrets=project._secrets)
+            run = mldb.read_run(run.run_id, project=project.name)
+            run = mlrun.run.RunObject.from_dict(run)
+            run.logs(db=mldb)
+
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported inner runner engine: {inner_runner.engine}"
+            )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

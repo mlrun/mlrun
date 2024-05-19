@@ -148,6 +148,14 @@ class _V3IORecordsChecker:
                     set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
+        predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+            table=mm_constants.FileTargetKind.PREDICTIONS,
+        )
+        assert not predictions_df.empty, "No TSDB predictions data"
+        assert (
+            predictions_df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
+
     @classmethod
     def _test_apps_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]

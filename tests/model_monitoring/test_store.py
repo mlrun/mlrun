@@ -14,22 +14,19 @@
 
 import string
 import time
-import typing
 import unittest.mock
+from collections.abc import Iterator
 from pathlib import Path
 from random import choice, randint
-from typing import Optional
+from typing import Optional, cast
 
 import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores.sqldb.sql_store
 from mlrun.common.schemas.model_monitoring import ResultData, WriterEvent
-from mlrun.model_monitoring.db.stores import StoreBase
+from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
 from mlrun.model_monitoring.writer import _AppResultEvent
-
-SQLStoreBase = typing.TypeVar("SQLStoreBase", bound="StoreBase")
 
 
 class TestSQLStore:
@@ -110,15 +107,16 @@ class TestSQLStore:
 
     @classmethod
     @pytest.fixture
-    def new_sql_store(cls, store_connection: str) -> SQLStoreBase:
+    def new_sql_store(cls, store_connection: str) -> Iterator[SQLStoreBase]:
         # Generate store object target
         store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
             return_value=store_connection,
         ):
-            sql_store: SQLStoreBase = store_type_object.to_object_store(
-                project=cls._TEST_PROJECT
+            sql_store = cast(
+                SQLStoreBase,
+                store_type_object.to_object_store(project=cls._TEST_PROJECT),
             )
             yield sql_store
             sql_store.delete_model_endpoints_resources()

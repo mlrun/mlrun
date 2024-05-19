@@ -85,6 +85,8 @@ class MonitoringDeployment:
         self.model_monitoring_access_key = model_monitoring_access_key
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+        self._image_manifest = {}
+        self._read_image_manifest()
 
     def deploy_monitoring_functions(
         self,
@@ -102,6 +104,7 @@ class MonitoringDeployment:
                             By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         """
+        extra_functions = []
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
@@ -109,6 +112,11 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_stream_processing(stream_image=image)
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
+            extra_functions.append(
+                mm_constants.HistogramDataDriftApplicationConstants.NAME
+            )
+
+        self._update_image_manifest(base_image=image, extra_functions=extra_functions)
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
@@ -350,6 +358,15 @@ class MonitoringDeployment:
                 image=stream_image,
             ),
         )
+
+        # Get existing image of the controller function
+        nuclio_image = self._get_existing_nuclio_image(
+            name=mm_constants.MonitoringFunctionNames.STREAM,
+            base_image=stream_image,
+        )
+        if nuclio_image:
+            function.set_config("spec.image", nuclio_image)
+
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
@@ -387,6 +404,15 @@ class MonitoringDeployment:
             image=image,
             handler="handler",
         )
+
+        # Get existing image of the controller function
+        nuclio_image = self._get_existing_nuclio_image(
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            base_image=image,
+        )
+        if nuclio_image:
+            function.set_config("spec.image", nuclio_image)
+
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
@@ -462,9 +488,19 @@ class MonitoringDeployment:
             kind=mlrun.run.RuntimeKinds.serving,
             image=writer_image,
         )
+
+        # Get existing image of the controller function
+        nuclio_image = self._get_existing_nuclio_image(
+            name=mm_constants.MonitoringFunctionNames.WRITER,
+            base_image=writer_image,
+        )
+        if nuclio_image:
+            function.set_config("spec.image", nuclio_image)
+
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
+
         # Create writer monitoring serving graph
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer
@@ -534,6 +570,14 @@ class MonitoringDeployment:
             image=image,
         )
 
+        # Get existing image of the controller function
+        nuclio_image = self._get_existing_nuclio_image(
+            name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            base_image=image,
+        )
+        if nuclio_image:
+            func.set_config("spec.image", nuclio_image)
+
         if not mlrun.mlconf.is_ce_mode():
             logger.info("Setting the access key for the histogram data drift function")
             func.metadata.credentials.access_key = self.model_monitoring_access_key
@@ -601,6 +645,100 @@ class MonitoringDeployment:
         )
 
         tsdb_connector.create_tsdb_application_tables()
+
+    def _read_image_manifest(self):
+        """Read the image manifest file that contains the information about the deployed model monitoring
+        functions images"""
+        if os.path.exists(config.model_endpoint_monitoring.image_manifest_path):
+            with open(config.model_endpoint_monitoring.image_manifest_path) as f:
+                self._image_manifest = json.load(f)
+
+    @staticmethod
+    def _get_version_hash_key():
+        """Get the version hash key that will be used to store the model monitoring functions images in the manifest,
+        the key is a combination of the mlrun version and the nuclio version"""
+        return f"{config.version}-{config.nuclio_version}".encode().hex()
+
+    def _get_existing_nuclio_image(self, name: str, base_image: str):
+        """Get the nuclio image that was built with the same base image for the given function name"""
+        version_hash_key = self._get_version_hash_key()
+
+        # if the image manifest is empty, read the image manifest as it might be updated
+        if version_hash_key not in self._image_manifest:
+            self._read_image_manifest()
+
+        function_image_info = self._image_manifest.get(version_hash_key, {}).get(name)
+        if function_image_info:
+            # we want to get the nuclio image that was built with the same base image
+            if base_image == function_image_info.get("base_image"):
+                return function_image_info.get("nuclio_image")
+
+        return None
+
+    def _update_image_manifest(
+        self, base_image: str, extra_functions: list[str] = None
+    ):
+        """Update the image manifest file that contains the information about the deployed model monitoring"""
+        extra_functions = extra_functions or []
+        functions = mm_constants.MonitoringFunctionNames.list() + extra_functions
+        version_hash_key = self._get_version_hash_key()
+        save = False
+
+        for function_name in functions:
+            # if the function is already in the manifest, skip it
+            if function_name in self._image_manifest.get(version_hash_key, {}):
+                continue
+
+            def _get_function_status():
+                state, _, _, _, _, function_status = (
+                    mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                        name=function_name,
+                        project=self.project,
+                        tag="",
+                        auth_info=self.auth_info,
+                    )
+                )
+
+                if state != "ready":
+                    raise Exception(f"Function {function_name} is not ready yet")
+
+                return function_status
+
+            try:
+                status = mlrun.utils.helpers.retry_until_successful(
+                    5,
+                    60 * 5,  # 5 minutes, to allow the images to be built
+                    logger,
+                    True,
+                    _get_function_status,
+                )
+            except Exception as exc:
+                # we don't want to fail the entire process if one of the functions is not ready yet
+                logger.error(
+                    f"Failed to get the status of the function {function_name}",
+                    exc=str(exc),
+                )
+                continue
+
+            if "containerImage" not in status:
+                logger.error(
+                    f"Failed to get the container image of the function {function_name}",
+                )
+                continue
+
+            if version_hash_key not in self._image_manifest:
+                self._image_manifest[version_hash_key] = {}
+
+            self._image_manifest[version_hash_key][function_name] = {
+                "base_image": base_image,
+                "nuclio_image": status["containerImage"],
+            }
+            save = True
+
+        # write the updated image manifest
+        if save:
+            with open(config.model_endpoint_monitoring.image_manifest_path, "w") as f:
+                json.dump(self._image_manifest, f)
 
 
 def get_endpoint_features(

@@ -31,7 +31,8 @@ project.enable_model_monitoring(base_period=1)
 
 ## Log the model with training data
 
-See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
+See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. 
+This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
 
 
 ```python
@@ -99,11 +100,12 @@ last prediction and average latency) in the **Models | Model Endpoints** page.
 
 You can also see the basic statistics in Grafana.
 
-## Register and deploy the model-monitoring function
+## Register and deploy the model-monitoring app
 The next step is to deploy the model-monitoring job to generate the full meta data. 
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
 Then, deploy the function using {py:meth}`~mlrun.projects.MlrunProject.deploy_function`.
 
+First download the {download}`demo_app <../tutorials/_static/demo_app.py>`.
 
 ```
 my_app = project.set_model_monitoring_function(

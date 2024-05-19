@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import string
 import time
 import typing
 import unittest.mock
+from pathlib import Path
 from random import choice, randint
 from typing import Optional
 
@@ -25,9 +26,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores.sqldb.sql_store
 from mlrun.common.schemas.model_monitoring import ResultData, WriterEvent
-from mlrun.model_monitoring.db.stores import (  # noqa: F401
-    StoreBase,
-)
+from mlrun.model_monitoring.db.stores import StoreBase
 from mlrun.model_monitoring.writer import _AppResultEvent
 
 SQLStoreBase = typing.TypeVar("SQLStoreBase", bound="StoreBase")
@@ -36,7 +35,11 @@ SQLStoreBase = typing.TypeVar("SQLStoreBase", bound="StoreBase")
 class TestSQLStore:
     _TEST_PROJECT = "test_model_endpoints"
     _MODEL_ENDPOINT_ID = "some-ep-id"
-    _STORE_CONNECTION = "sqlite:///test.db"
+
+    @staticmethod
+    @pytest.fixture
+    def store_connection(tmp_path: Path) -> str:
+        return f"sqlite:///{tmp_path / 'test.db'}"
 
     @pytest.fixture()
     def _mock_random_endpoint(
@@ -107,12 +110,12 @@ class TestSQLStore:
 
     @classmethod
     @pytest.fixture
-    def new_sql_store(cls) -> SQLStoreBase:
+    def new_sql_store(cls, store_connection: str) -> SQLStoreBase:
         # Generate store object target
         store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
-            return_value=cls._STORE_CONNECTION,
+            return_value=store_connection,
         ):
             sql_store: SQLStoreBase = store_type_object.to_object_store(
                 project=cls._TEST_PROJECT

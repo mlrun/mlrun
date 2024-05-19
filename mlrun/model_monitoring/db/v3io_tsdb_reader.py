@@ -102,6 +102,11 @@ def read_metrics_data(
         ],
     ],
 ]:
+    """
+    Read metrics OR results from the TSDB and return as a list.
+    Note: the type must match the actual metrics in the `metrics` parameter.
+    If the type is "results", pass only results in the `metrics` parameter.
+    """
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
         container=KVStoreBase.get_v3io_monitoring_apps_container(project),
@@ -146,6 +151,11 @@ def df_to_results_values(
 ) -> list[
     Union[ModelEndpointMonitoringResultValues, ModelEndpointMonitoringMetricNoData]
 ]:
+    """
+    Parse a time-indexed data-frame of results from the TSDB into a list of
+    results values per distinct results.
+    When a result is not found in the data-frame, it is represented in no-data object.
+    """
     metrics_without_data = {metric.full_name: metric for metric in metrics}
 
     metrics_values: list[
@@ -193,6 +203,11 @@ def df_to_metrics_values(
 ) -> list[
     Union[ModelEndpointMonitoringMetricValues, ModelEndpointMonitoringMetricNoData]
 ]:
+    """
+    Parse a time-indexed data-frame of metrics from the TSDB into a list of
+    metrics values per distinct results.
+    When a metric is not found in the data-frame, it is represented in no-data object.
+    """
     metrics_without_data = {metric.full_name: metric for metric in metrics}
 
     metrics_values: list[

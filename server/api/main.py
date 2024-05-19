@@ -776,14 +776,16 @@ def _generate_event_on_failed_runs(
 
     for run in runs:
         project = run["metadata"]["project"]
-        uid = run["metadata"]["uid"]
-        entity = {
-            "kind": alert_objects.EventEntityKind.JOB,
-            "project": project,
-            "ids": [uid],
-        }
+        run_uid = run["metadata"]["uid"]
+        run_name = run["metadata"]["name"]
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_objects.EventEntityKind.JOB,
+            project=project,
+            ids=[run_name],
+        )
+        event_value = {"uid": run_uid}
         event_data = mlrun.common.schemas.Event(
-            kind=alert_objects.EventKind.FAILED, entity=entity
+            kind=alert_objects.EventKind.FAILED, entity=entity, value_dict=event_value
         )
         mlrun.get_run_db().generate_event(alert_objects.EventKind.FAILED, event_data)
 

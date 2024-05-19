@@ -203,7 +203,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # test modifiers on the alert config
         entities = alert_objects.EventEntities(
-            kind=alert_objects.EventEntityKind.MODEL, project=project_name, ids=["*"]
+            kind=alert_objects.EventEntityKind.MODEL, project=project_name, ids=[1234]
         )
         alert_from_template.with_entities(entities=entities)
 
@@ -641,7 +641,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=name,
             summary=summary,
             severity=severity,
-            entities={"kind": entity_kind, "project": entity_project, "ids": ["*"]},
+            entities={"kind": entity_kind, "project": entity_project, "ids": [1234]},
             trigger={"events": [event_name]},
             criteria=criteria,
             notifications=notifications,

@@ -42,6 +42,8 @@ class SlackNotification(NotificationBase):
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
+        alert: mlrun.common.schemas.AlertConfig = None,
+        event_data: mlrun.common.schemas.Event = None,
     ):
         webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env(
             "SLACK_WEBHOOK"
@@ -53,7 +55,7 @@ class SlackNotification(NotificationBase):
             )
             return
 
-        data = self._generate_slack_data(message, severity, runs)
+        data = self._generate_slack_data(message, severity, runs, alert, event_data)
 
         async with aiohttp.ClientSession() as session:
             async with session.post(webhook, json=data) as response:
@@ -66,57 +68,115 @@ class SlackNotification(NotificationBase):
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
+        alert: mlrun.common.schemas.AlertConfig = None,
+        event_data: mlrun.common.schemas.Event = None,
     ) -> dict:
         data = {
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": self._get_slack_row(f"[{severity}] {message}"),
-                },
-            ]
+            "blocks": self._generate_slack_header_blocks(severity, message),
         }
         if self.name:
             data["blocks"].append(
                 {"type": "section", "text": self._get_slack_row(self.name)}
             )
 
-        if not runs:
-            return data
+        if alert:
+            fields = self._get_alert_fields(alert, event_data)
 
-        if isinstance(runs, list):
-            runs = mlrun.lists.RunList(runs)
+            for i in range(len(fields)):
+                data["blocks"].append({"type": "section", "text": fields[i]})
+        else:
+            if not runs:
+                return data
 
-        fields = [self._get_slack_row("*Runs*"), self._get_slack_row("*Results*")]
-        for run in runs:
-            fields.append(self._get_run_line(run))
-            fields.append(self._get_run_result(run))
+            if isinstance(runs, list):
+                runs = mlrun.lists.RunList(runs)
 
-        for i in range(0, len(fields), 8):
-            data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
+            fields = [self._get_slack_row("*Runs*"), self._get_slack_row("*Results*")]
+            for run in runs:
+                fields.append(self._get_run_line(run))
+                fields.append(self._get_run_result(run))
+
+            for i in range(0, len(fields), 8):
+                data["blocks"].append({"type": "section", "fields": fields[i : i + 8]})
 
         return data
+
+    def _generate_slack_header_blocks(self, severity: str, message: str):
+        header_text = block_text = f"[{severity}] {message}"
+        section_text = None
+
+        # Slack doesn't allow headers to be longer than 150 characters
+        # If there's a comma in the message, split the message at the comma
+        # Otherwise, split the message at 150 characters
+        if len(block_text) > 150:
+            if ", " in block_text and block_text.index(", ") < 149:
+                header_text = block_text.split(",")[0]
+                section_text = block_text[len(header_text) + 2 :]
+            else:
+                header_text = block_text[:150]
+                section_text = block_text[150:]
+        blocks = [
+            {"type": "header", "text": {"type": "plain_text", "text": header_text}}
+        ]
+        if section_text:
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": self._get_slack_row(section_text),
+                }
+            )
+        return blocks
+
+    def _get_alert_fields(
+        self,
+        alert: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+    ) -> list:
+        line = [
+            self._get_slack_row(f":bell: {alert.name} alert has occurred"),
+            self._get_slack_row(f"*Project:*\n{alert.project}"),
+            self._get_slack_row(f"*UID:*\n{event_data.entity.ids[0]}"),
+        ]
+        if event_data.value_dict:
+            data_lines = []
+            for key, value in event_data.value_dict.items():
+                data_lines.append(f"{key}: {value}")
+            data_text = "\n".join(data_lines)
+            line.append(self._get_slack_row(f"*Event data:*\n{data_text}"))
+
+        if url := mlrun.utils.helpers.get_ui_url(
+            alert.project, event_data.entity.ids[0]
+        ):
+            line.append(self._get_slack_row(f"*Overview:*\n<{url}|*Job overview*>"))
+
+        return line
 
     def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
-        if url:
+
+        # Only show the URL if the run is not a function (serving or mlrun function)
+        kind = run.get("step_kind")
+        if url and not kind or kind == "run":
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")
         state = run["status"].get("state", "")
+        if kind:
+            line = f'{line} *({run.get("step_kind", run.get("kind", ""))})*'
         line = f'{self.emojis.get(state, ":question:")}  {line}'
         return self._get_slack_row(line)
 
     def _get_run_result(self, run: dict) -> dict:
         state = run["status"].get("state", "")
         if state == "error":
-            error_status = run["status"].get("error", "")
+            error_status = run["status"].get("error", "") or state
             result = f"*{error_status}*"
         else:
             result = mlrun.utils.helpers.dict_to_str(
                 run["status"].get("results", {}), ", "
             )
-        return self._get_slack_row(result or "None")
+        return self._get_slack_row(result or state)
 
     @staticmethod
     def _get_slack_row(text: str) -> dict:

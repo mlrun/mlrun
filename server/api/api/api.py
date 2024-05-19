@@ -16,6 +16,8 @@ from fastapi import APIRouter, Depends
 
 from server.api.api import deps
 from server.api.api.endpoints import (
+    alert_template,
+    alerts,
     artifacts,
     artifacts_v2,
     auth,
@@ -23,10 +25,12 @@ from server.api.api.endpoints import (
     client_spec,
     clusterization_spec,
     datastore_profile,
+    events,
     feature_store,
     files,
     frontend_spec,
     functions,
+    functions_v2,
     grafana_proxy,
     healthz,
     hub,
@@ -154,6 +158,21 @@ api_router.include_router(
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(
+    events.router,
+    tags=["events"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    alerts.router,
+    tags=["alerts"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    alert_template.router,
+    tags=["alert-templates"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
     workflows.router,
     tags=["workflows"],
     dependencies=[Depends(deps.authenticate_request)],
@@ -184,5 +203,10 @@ api_v2_router.include_router(
 api_v2_router.include_router(
     projects_v2.router,
     tags=["projects"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_v2_router.include_router(
+    functions_v2.router,
+    tags=["functions"],
     dependencies=[Depends(deps.authenticate_request)],
 )

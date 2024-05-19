@@ -18,13 +18,13 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import mlrun_pipelines.common.ops
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
 import yaml
 
-import mlrun.kfpops
 from mlrun import new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
@@ -87,8 +87,10 @@ def kfp_dirs(monkeypatch):
             artifacts_dir=artifacts_dir,
             output_dir=output_dir,
         )
-        monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
-        monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
+        monkeypatch.setattr(mlrun_pipelines.common.ops, "KFPMETA_DIR", str(meta_dir))
+        monkeypatch.setattr(
+            mlrun_pipelines.common.ops, "KFP_ARTIFACTS_DIR", str(artifacts_dir)
+        )
         yield str(meta_dir), str(artifacts_dir), str(output_dir)
 
 
@@ -133,7 +135,7 @@ def _assert_output_dir(output_dir, name, iterations=1):
         with open(iteration_results_file) as file:
             count = 0
             for row in csv.DictReader(file):
-                print(yaml.dump(row))
+                print(yaml.safe_dump(row))
                 count += 1
         assert count == 3, "didnt see expected iterations file output"
 

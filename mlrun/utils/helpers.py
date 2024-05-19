@@ -39,7 +39,7 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
-from deprecated import deprecated
+from mlrun_pipelines.models import PipelineRun
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -76,19 +76,6 @@ class OverwriteBuildParamsWarning(FutureWarning):
     pass
 
 
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'parse_versioned_object_uri' will be removed from this file in 1.7.0, use "
-    "'mlrun.common.helpers.parse_versioned_object_uri' instead",
-    category=FutureWarning,
-)
-def parse_versioned_object_uri(uri: str, default_project: str = ""):
-    return mlrun.common.helpers.parse_versioned_object_uri(
-        uri=uri, default_project=default_project
-    )
-
-
 class StorePrefix:
     """map mlrun store objects to prefixes"""
 
@@ -119,14 +106,9 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    if is_legacy_artifact(item):
-        db_key = item.get("db_key")
-        project_str = project or item.get("project")
-        tree = item.get("tree")
-    else:
-        db_key = item["spec"].get("db_key")
-        project_str = project or item["metadata"].get("project")
-        tree = item["metadata"].get("tree")
+    db_key = item["spec"].get("db_key")
+    project_str = project or item["metadata"].get("project")
+    tree = item["metadata"].get("tree")
 
     kind = item.get("kind")
     if kind in ["dataset", "model", "artifact"] and db_key:
@@ -135,11 +117,15 @@ def get_artifact_target(item: dict, project=None):
             target = f"{target}@{tree}"
         return target
 
-    return (
-        item.get("target_path")
-        if is_legacy_artifact(item)
-        else item["spec"].get("target_path")
-    )
+    return item["spec"].get("target_path")
+
+
+# TODO: left for migrations testing purposes. Remove in 1.8.0.
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -437,7 +423,7 @@ class LogBatchWriter:
 
 def get_in(obj, keys, default=None):
     """
-    >>> get_in({'a': {'b': 1}}, 'a.b')
+    >>> get_in({"a": {"b": 1}}, "a.b")
     1
     """
     if isinstance(keys, str):
@@ -801,34 +787,6 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
-):
-    from kfp.dsl import PipelineConf
-
-    def _set_artifact_path(task):
-        from kubernetes import client as k8s_client
-
-        task.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_ARTIFACT_PATH", value=artifact_path)
-        )
-        return task
-
-    conf = PipelineConf()
-    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
-
-    if cleanup_ttl:
-        conf.set_ttl_seconds_after_finished(cleanup_ttl)
-    if artifact_path:
-        conf.add_op_transformer(_set_artifact_path)
-    if op_transformers:
-        for op_transformer in op_transformers:
-            conf.add_op_transformer(op_transformer)
-    return conf
-
-
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
@@ -1018,12 +976,15 @@ def get_ui_url(project, uid=None):
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
-        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/jobs/monitor-workflows/workflow/{id}"
+        url = (
+            f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}"
+            f"/{project}/jobs/monitor-workflows/workflow/{id}"
+        )
     return url
 
 
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=list[str]
+    exception: Exception, strings_list: list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1289,13 +1250,6 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     return Timestamp(time_str)
 
 
-def is_legacy_artifact(artifact):
-    if isinstance(artifact, dict):
-        return "metadata" not in artifact
-    else:
-        return not hasattr(artifact, "metadata")
-
-
 def is_link_artifact(artifact):
     if isinstance(artifact, dict):
         return (
@@ -1305,7 +1259,7 @@ def is_link_artifact(artifact):
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
-def format_run(run: dict, with_project=False) -> dict:
+def format_run(run: PipelineRun, with_project=False) -> dict:
     fields = [
         "id",
         "name",
@@ -1342,17 +1296,17 @@ def format_run(run: dict, with_project=False) -> dict:
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
-    if run["status"] is None:
-        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
+    if run.get("status", None) is None:
+        run["status"] = inflection.titleize(
+            mlrun.common.runtimes.constants.RunStates.unknown
+        )
 
     return run
 
 
 def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
     """artifact can be dict or Artifact object"""
-    if is_legacy_artifact(artifact):
-        return artifact.get(key, default)
-    elif key == "kind":
+    if key == "kind":
         return artifact.get(key, default)
     else:
         for block in ["metadata", "spec", "status"]:
@@ -1403,6 +1357,18 @@ def as_number(field_name, field_value):
 
 
 def filter_warnings(action, category):
+    """
+    Decorator to filter warnings
+
+    Example::
+        @filter_warnings("ignore", FutureWarning)
+        def my_function():
+            pass
+
+    :param action:      one of "error", "ignore", "always", "default", "module", or "once"
+    :param category:    a class that the warning must be a subclass of
+    """
+
     def decorator(function):
         def wrapper(*args, **kwargs):
             # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.
@@ -1560,3 +1526,80 @@ def is_safe_path(base, filepath, is_symlink=False):
         os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)
     )
     return base == os.path.commonpath((base, resolved_filepath))
+
+
+def get_serving_spec():
+    data = None
+
+    # we will have the serving spec in either mounted config map
+    # or env depending on the size of the spec and configuration
+
+    try:
+        with open(mlrun.common.constants.MLRUN_SERVING_SPEC_PATH) as f:
+            data = f.read()
+    except FileNotFoundError:
+        pass
+
+    if data is None:
+        data = os.environ.get("SERVING_SPEC_ENV", "")
+        if not data:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Failed to find serving spec in env var or config file"
+            )
+    spec = json.loads(data)
+    return spec
+
+
+def additional_filters_warning(additional_filters, class_name):
+    if additional_filters and any(additional_filters):
+        mlrun.utils.logger.warn(
+            f"additional_filters parameter is not supported in {class_name},"
+            f" parameter has been ignored."
+        )
+
+
+def validate_component_version_compatibility(
+    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+):
+    """
+    :param component_name: Name of the component to validate compatibility for.
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
+    parsed_current_version = None
+    component_current_version = None
+    try:
+        if component_name == "iguazio":
+            component_current_version = mlrun.mlconf.igz_version
+            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+
+            # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+            # major, minor, and patch versions
+            parsed_current_version = semver.VersionInfo.parse(
+                f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+            )
+        if component_name == "nuclio":
+            component_current_version = mlrun.mlconf.nuclio_version
+            parsed_current_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
+        if not parsed_current_version:
+            return True
+    except ValueError:
+        # only log when version is set but invalid
+        if component_current_version:
+            logger.warning(
+                "Unable to parse current version, assuming compatibility",
+                component_name=component_name,
+                current_version=component_current_version,
+                min_versions=min_versions,
+            )
+        return True
+
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if parsed_current_version < parsed_min_version:
+            return False
+    return True

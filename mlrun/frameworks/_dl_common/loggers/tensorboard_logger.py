@@ -547,7 +547,10 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                     "inputs",
                     "parameters",
                 ]:
-                    text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
+                    text += (
+                        f"\n  * **{property_name.capitalize()}**: "
+                        f"{self._markdown_print(value=property_value, tabs=2)}"
+                    )
         else:
             for property_name, property_value in self._extract_epoch_results().items():
                 text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
@@ -610,7 +613,10 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
 
         :return: The generated link.
         """
-        return f'<a href="{config.resolve_ui_url()}/{config.ui.projects_prefix}/{context.project}/jobs/monitor/{context.uid}/overview" target="_blank">{link_text}</a>'
+        return (
+            f'<a href="{config.resolve_ui_url()}/{config.ui.projects_prefix}/{context.project}'
+            f'/jobs/monitor/{context.uid}/overview" target="_blank">{link_text}</a>'
+        )
 
     @staticmethod
     def _extract_properties_from_context(context: mlrun.MLClientCtx) -> dict[str, Any]:
@@ -642,13 +648,13 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         if isinstance(value, list):
             if len(value) == 0:
                 return ""
-            text = "\n" + yaml.dump(value)
+            text = "\n" + yaml.safe_dump(value)
             text = "  \n".join(["  " * tabs + line for line in text.splitlines()])
             return text
         if isinstance(value, dict):
             if len(value) == 0:
                 return ""
-            text = yaml.dump(value)
+            text = yaml.safe_dump(value)
             text = "  \n".join(
                 ["  " * tabs + "- " + line for line in text.splitlines()]
             )

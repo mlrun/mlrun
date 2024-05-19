@@ -23,6 +23,7 @@ import mlrun.common.types
 class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
     basic = "basicAuth"
     none = "none"
+    access_key = "accessKey"
 
     @classmethod
     def from_str(cls, authentication_mode: str):
@@ -30,10 +31,19 @@ class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
             return cls.none
         elif authentication_mode == "basicAuth":
             return cls.basic
+        elif authentication_mode == "accessKey":
+            return cls.access_key
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Authentication mode `{authentication_mode}` is not supported",
             )
+
+
+class APIGatewayState(mlrun.common.types.StrEnum):
+    none = ""
+    ready = "ready"
+    error = "error"
+    waiting_for_provisioning = "waitingForProvisioning"
 
 
 class _APIGatewayBaseModel(pydantic.BaseModel):
@@ -56,6 +66,7 @@ class APIGatewayUpstream(_APIGatewayBaseModel):
     kind: Optional[str] = "nucliofunction"
     nucliofunction: dict[str, str]
     percentage: Optional[int] = 0
+    port: Optional[int] = 0
 
 
 class APIGatewaySpec(_APIGatewayBaseModel):
@@ -72,7 +83,7 @@ class APIGatewaySpec(_APIGatewayBaseModel):
 
 class APIGatewayStatus(_APIGatewayBaseModel):
     name: Optional[str]
-    state: Optional[str]
+    state: Optional[APIGatewayState]
 
 
 class APIGateway(_APIGatewayBaseModel):

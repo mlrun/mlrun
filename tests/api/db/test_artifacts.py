@@ -29,7 +29,7 @@ import server.api.initial_data
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
-from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
+from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
 from server.api.db.base import DBInterface
 
@@ -105,7 +105,7 @@ class TestArtifacts:
 
     def test_list_artifact_kind_filter(self, db: DBInterface, db_session: Session):
         artifact_name_1 = "artifact_name_1"
-        artifact_kind_1 = ChartArtifact.kind
+        artifact_kind_1 = PlotlyArtifact.kind
         artifact_name_2 = "artifact_name_2"
         artifact_kind_2 = PlotArtifact.kind
         tree = "artifact_tree"
@@ -139,7 +139,7 @@ class TestArtifacts:
 
     def test_list_artifact_category_filter(self, db: DBInterface, db_session: Session):
         artifact_name_1 = "artifact_name_1"
-        artifact_kind_1 = ChartArtifact.kind
+        artifact_kind_1 = PlotlyArtifact.kind
         artifact_name_2 = "artifact_name_2"
         artifact_kind_2 = PlotArtifact.kind
         artifact_name_3 = "artifact_name_3"
@@ -242,7 +242,7 @@ class TestArtifacts:
         artifact_1_tree = "artifact_tree"
         artifact_1_tag = "artifact_tag_1"
         artifact_1_body = self._generate_artifact(artifact_1_key, tree=artifact_1_tree)
-        artifact_1_kind = ChartArtifact.kind
+        artifact_1_kind = PlotlyArtifact.kind
         artifact_1_with_kind_tree = "artifact_tree_2"
         artifact_2_tag = "artifact_tag_2"
         artifact_1_with_kind_body = self._generate_artifact(
@@ -1486,7 +1486,7 @@ class TestArtifacts:
     def _run_artifacts_v2_migration(db: DBInterface, db_session: Session):
         with tempfile.TemporaryDirectory() as temp_dir:
             # change the state file path to the temp directory for the test only
-            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+            mlrun.mlconf.artifacts.artifact_migration_state_file_path = (
                 temp_dir + "/_artifact_migration_state.json"
             )
 

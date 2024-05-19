@@ -458,6 +458,7 @@ def build_image(
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
+            source_dir_to_mount = path.normpath(source_dir_to_mount)
 
         # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
         # in the image, however, it is recommended to use `workdir` instead in such cases
@@ -644,12 +645,10 @@ def build_runtime(
         build.base_image or runtime.spec.image or config.default_base_image
     )
     if base_image:
-        # TODO: ml-models was removed in 1.5.0. remove it from here in 1.7.0.
         mlrun_images = [
             "mlrun/mlrun",
             "mlrun/mlrun-gpu",
             "mlrun/ml-base",
-            "mlrun/ml-models",
         ]
         if any([image in base_image for image in mlrun_images]):
             # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
@@ -774,6 +773,19 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def resolve_and_enrich_image_target(
+    image_target: str,
+    registry: str = None,
+    client_version: str = None,
+    client_python_version: str = None,
+) -> str:
+    image_target = resolve_image_target(image_target, registry)
+    image_target = mlrun.utils.enrich_image_url(
+        image_target, client_version, client_python_version
+    )
+    return image_target
 
 
 def resolve_image_target(image_target: str, registry: str = None) -> str:

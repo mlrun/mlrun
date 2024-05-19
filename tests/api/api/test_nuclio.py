@@ -70,11 +70,19 @@ def test_list_api_gateways(
     assert response.json() == {
         "api_gateways": {
             "new-gw": {
-                "metadata": {"name": "new-gw"},
+                "metadata": {"name": "new-gw", "labels": {}},
                 "spec": {
                     "name": "new-gw",
                     "path": "/",
-                    "upstreams": [{"nucliofunction": {"name": "test-func"}}],
+                    "authenticationMode": "none",
+                    "upstreams": [
+                        {
+                            "kind": "nucliofunction",
+                            "nucliofunction": {"name": "test-func"},
+                            "percentage": 0,
+                            "port": 0,
+                        }
+                    ],
                     "host": "http://my-api-gateway.com",
                 },
             }

@@ -72,7 +72,7 @@ def create_project(
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def store_project(
+async def store_project(
     project: mlrun.common.schemas.Project,
     name: str,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
@@ -85,7 +85,8 @@ def store_project(
         server.api.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().store_project(
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().store_project,
         db_session,
         name,
         project,
@@ -136,9 +137,12 @@ def patch_project(
     return project
 
 
-@router.get("/projects/{name}", response_model=mlrun.common.schemas.Project)
+@router.get("/projects/{name}", response_model=mlrun.common.schemas.ProjectOutput)
 async def get_project(
     name: str,
+    format_: mlrun.common.schemas.ProjectsFormat = fastapi.Query(
+        mlrun.common.schemas.ProjectsFormat.full, alias="format"
+    ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         server.api.api.deps.get_db_session
     ),
@@ -147,7 +151,11 @@ async def get_project(
     ),
 ):
     project = await run_in_threadpool(
-        get_project_member().get_project, db_session, name, auth_info.session
+        get_project_member().get_project,
+        db_session,
+        name,
+        auth_info.session,
+        format_=format_,
     )
     # skip permission check if it's the leader
     if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
@@ -184,6 +192,15 @@ async def delete_project(
         server.api.api.deps.get_db_session
     ),
 ):
+    # check if project exists
+    try:
+        project = await run_in_threadpool(
+            get_project_member().get_project, db_session, name, auth_info.session
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        logger.info("Project not found, nothing to delete", project=name)
+        return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
     if (
@@ -218,7 +235,7 @@ async def delete_project(
         # wait for this background task to complete before marking the task as done.
         task, _ = await run_in_threadpool(
             server.api.api.utils.get_or_create_project_deletion_background_task,
-            name,
+            project,
             deletion_strategy,
             db_session,
             auth_info,
@@ -227,16 +244,46 @@ async def delete_project(
             background_tasks.add_task(task)
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
-    is_running_in_background = await run_in_threadpool(
-        get_project_member().delete_project,
-        db_session,
-        name,
-        deletion_strategy,
-        auth_info.projects_role,
-        auth_info,
-        wait_for_completion=wait_for_completion,
-    )
-    if is_running_in_background:
+    is_running_in_background = False
+    force_delete = False
+    try:
+        is_running_in_background = await run_in_threadpool(
+            get_project_member().delete_project,
+            db_session,
+            name,
+            deletion_strategy,
+            auth_info.projects_role,
+            auth_info,
+            wait_for_completion=wait_for_completion,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
+        if server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+            raise exc
+
+        if project.status.state != mlrun.common.schemas.ProjectState.archived:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Failed to delete project {name}. Project not found in leader, but it is not in archived state."
+            )
+
+        logger.warning(
+            "Project not found in leader, ensuring project deleted in mlrun",
+            project_name=name,
+            err=mlrun.errors.err_to_str(exc),
+        )
+        force_delete = True
+
+    if force_delete:
+        # In this case the wrapper delete project request is the one deleting the project because it
+        # doesn't exist in the leader.
+        await run_in_threadpool(
+            server.api.crud.Projects().delete_project,
+            db_session,
+            name,
+            deletion_strategy,
+            auth_info,
+        )
+
+    elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     else:
@@ -247,6 +294,8 @@ async def delete_project(
         )
 
     await get_project_member().post_delete_project(name)
+    if force_delete:
+        return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 

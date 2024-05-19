@@ -51,11 +51,14 @@ def test_client_spec(
     feature_store_data_prefix_default = "feature-store-data-prefix-default"
     feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
     feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
+    feature_store_data_prefix_dsnosql = "feature-store-data-prefix-dsnosql"
     mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
     mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
+    mlrun.mlconf.feature_store.data_prefixes.dsnosql = feature_store_data_prefix_dsnosql
     mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
         feature_store_data_prefix_redisnosql
     )
+
     mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         mlrun.common.schemas.SecurityContextEnrichmentModes.override
     )
@@ -97,6 +100,9 @@ def test_client_spec(
         "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
     }
     server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    mlrun.mlconf.alerts.mode = "disabled"
+
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -128,11 +134,16 @@ def test_client_spec(
     assert response_body["feature_store_data_prefixes"]["redisnosql"] == (
         feature_store_data_prefix_redisnosql
     )
+    assert response_body["feature_store_data_prefixes"]["dsnosql"] == (
+        feature_store_data_prefix_dsnosql
+    )
     assert response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
     assert response_body["function"]["spec"]["security_context"]["enrichment_mode"] == (
         mlrun.common.schemas.SecurityContextEnrichmentModes.override
     )
+
+    assert response_body["alerts_mode"] == "disabled"
 
 
 def test_client_spec_response_based_on_client_version(

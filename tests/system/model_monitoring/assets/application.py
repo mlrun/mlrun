@@ -14,13 +14,16 @@
 
 import pandas as pd
 
-import mlrun
+import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.applications.context as mm_context
+import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.model_monitoring.application import (
+from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationBaseV2,
     ModelMonitoringApplicationResult,
 )
 
@@ -54,6 +57,39 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
         if self.check_num_events:
             assert len(sample_df) == EXPECTED_EVENTS_COUNT
         self.context.logger.info("Asserted sample_df length")
+        return [
+            ModelMonitoringApplicationResult(
+                name="data_drift_test",
+                value=2.15,
+                kind=ResultKindApp.data_drift,
+                status=ResultStatusApp.detected,
+            ),
+            ModelMonitoringApplicationResult(
+                name="model_perf",
+                value=80,
+                kind=ResultKindApp.model_performance,
+                status=ResultStatusApp.no_detection,
+            ),
+        ]
+
+
+class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
+    NAME = "monitoring-test-v2"
+    check_num_events = True
+
+    # noinspection PyMethodOverriding
+    def __init_subclass__(cls, check_num_events: bool) -> None:
+        super().__init_subclass__()
+        cls.check_num_events = check_num_events
+
+    def do_tracking(
+        self,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> list[mm_results.ModelMonitoringApplicationResult]:
+        monitoring_context.logger.info("Running demo app")
+        if self.check_num_events:
+            assert len(monitoring_context.sample_df) == EXPECTED_EVENTS_COUNT
+        monitoring_context.logger.info("Asserted sample_df length")
         return [
             ModelMonitoringApplicationResult(
                 name="data_drift_test",

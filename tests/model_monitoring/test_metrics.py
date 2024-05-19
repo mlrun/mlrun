@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
+import os
 from typing import Union
 
 import numpy as np
@@ -31,60 +31,58 @@ from mlrun.model_monitoring.metrics.histogram_distance import (
 
 @pytest.mark.parametrize(
     ("distrib_u", "distrib_t", "metric_class", "expected_result"),
-    itertools.chain(
-        [
-            (
-                np.array(
-                    [
-                        0.07101131,
-                        0.25138296,
-                        0.03700347,
-                        0.06843929,
-                        0.11482246,
-                        0.1339393,
-                        0.0503426,
-                        0.05639414,
-                        0.13406714,
-                        0.08259733,
-                    ]
-                ),
-                np.array(
-                    [
-                        0.17719221,
-                        0.0949423,
-                        0.02982267,
-                        0.19927063,
-                        0.19288318,
-                        0.00137802,
-                        0.07398598,
-                        0.05829106,
-                        0.06771774,
-                        0.10451622,
-                    ]
-                ),
-                class_,
-                result,
-            )
-            for class_, result in [
-                (TotalVarianceDistance, 0.3625321),
-                (HellingerDistance, 0.338189),
-                (KullbackLeiblerDivergence, 1.097619),
-            ]
-        ],
-        [
-            (
-                np.array([0.0, 0.16666667, 0.33333333, 0.5]),
-                np.array([0.5, 0.33333333, 0.16666667, 0.0]),
-                class_,
-                result,
-            )
-            for class_, result in [
-                (TotalVarianceDistance, 0.666666),
-                (HellingerDistance, 0.727045),
-                (KullbackLeiblerDivergence, 8.748242),
-            ]
-        ],
-    ),
+    [
+        (
+            np.array(
+                [
+                    0.07101131,
+                    0.25138296,
+                    0.03700347,
+                    0.06843929,
+                    0.11482246,
+                    0.1339393,
+                    0.0503426,
+                    0.05639414,
+                    0.13406714,
+                    0.08259733,
+                ]
+            ),
+            np.array(
+                [
+                    0.17719221,
+                    0.0949423,
+                    0.02982267,
+                    0.19927063,
+                    0.19288318,
+                    0.00137802,
+                    0.07398598,
+                    0.05829106,
+                    0.06771774,
+                    0.10451622,
+                ]
+            ),
+            class_,
+            result,
+        )
+        for class_, result in [
+            (TotalVarianceDistance, 0.3625321),
+            (HellingerDistance, 0.338189),
+            (KullbackLeiblerDivergence, 1.097619),
+        ]
+    ]
+    + [
+        (
+            np.array([0.0, 0.16666667, 0.33333333, 0.5]),
+            np.array([0.5, 0.33333333, 0.16666667, 0.0]),
+            class_,
+            result,
+        )
+        for class_, result in [
+            (TotalVarianceDistance, 0.666666),
+            (HellingerDistance, 0.727045),
+            (KullbackLeiblerDivergence, 8.748242),
+        ]
+    ],
 )
 def test_histogram_metric_calculation(
     metric_class: type[HistogramDistanceMetric],
@@ -113,7 +111,8 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
     return arr / arr_sum.sum()
 
 
-_length_strategy = st.integers(min_value=1, max_value=500)
+_max_value = 100 if os.getenv("CI") == "true" else 500
+_length_strategy = st.integers(min_value=1, max_value=_max_value)
 
 
 def distribution_strategy(

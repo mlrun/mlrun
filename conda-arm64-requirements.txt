@@ -2,8 +2,8 @@
 # conda which supports different architecture environments on the same machine
 lightgbm>=3.0
 
-# required for v3io client, see docs/requirments.txt for the contraint
+# required for v3io client, see docs/requirements.txt for the constraint
 protobuf>=3.20.3, <4
 
-# see requirements.txt for the contraint
+# see requirements.txt for the constraint
 pyyaml>=5.4.1, <6

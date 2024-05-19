@@ -15,12 +15,11 @@
 import uvicorn
 
 
-def _get_uvicorn_log_config():
+def _get_uvicorn_log_config(formatter_class):
     base_log_config = uvicorn.config.LOGGING_CONFIG
+
     base_log_config["handlers"]["default"]["stream"] = "ext://sys.stdout"
-    base_log_config["formatters"]["default"] = {
-        "()": "mlrun.utils.HumanReadableFormatter"
-    }
+    base_log_config["formatters"]["default"] = {"()": formatter_class}
     return base_log_config
 
 
@@ -36,5 +35,7 @@ def run(logger, httpdb_config):
         port=httpdb_config.port,
         access_log=False,
         timeout_keep_alive=httpdb_config.http_connection_timeout_keep_alive,
-        log_config=_get_uvicorn_log_config(),
+        log_config=_get_uvicorn_log_config(
+            logger._logger.handlers[0].formatter.__class__
+        ),
     )

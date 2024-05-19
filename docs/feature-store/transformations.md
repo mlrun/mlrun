@@ -101,7 +101,9 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
    
    Sliding windows are fixed-size, overlapping, windows (defined by `windows`) that are evaluated at a sliding
    interval (defined by `period`).  
-   The period size must be an integral divisor of the window size. 
+   The period size must be an integral divisor of the window size. In general, for best performance, use the highest interval 
+   that you can, and which gives the output you desire. The lower limit is technically 1s, but going that low can be inefficient, 
+   depending on the window size, data, and the engine used.
       
    The following figure illustrates sliding windows of size 20 seconds, and periods of 10 seconds. Since the period is less than the 
    window size, the windows contain overlapping data. In this example, events E4-E6 are in Windows 1 and 2. When Window 2 is evaluated 
@@ -215,7 +217,7 @@ steps. When implementing custom transformations, the code has to support all eng
 
 ```{admonition} Note
 The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
-[here](../serving/available-steps.html#data-transformations).
+[here](../serving/available-steps.html#data-transformation-steps).
 ```
 
 The following are the main differences between transformation steps executing on different engines:

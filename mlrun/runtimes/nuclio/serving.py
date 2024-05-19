@@ -14,17 +14,17 @@
 
 import json
 import os
+import warnings
 from copy import deepcopy
-from typing import Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
-from mlrun.datastore import parse_kafka_url
+from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
-from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
 from mlrun.serving.server import GraphServer, create_graph_server
@@ -42,6 +42,10 @@ from mlrun.utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 
 serving_subkind = "serving_v2"
+
+if TYPE_CHECKING:
+    # remove this block in 1.9.0
+    from mlrun.model_monitoring import TrackingPolicy
 
 
 def new_v2_model_server(
@@ -303,12 +307,12 @@ class ServingRuntime(RemoteRuntime):
 
     def set_tracking(
         self,
-        stream_path: str = None,
-        batch: int = None,
-        sample: int = None,
-        stream_args: dict = None,
-        tracking_policy: Union[TrackingPolicy, dict] = None,
-    ):
+        stream_path: Optional[str] = None,
+        batch: Optional[int] = None,
+        sample: Optional[int] = None,
+        stream_args: Optional[dict] = None,
+        tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
+    ) -> None:
         """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
            and analyze performance.
 
@@ -317,31 +321,17 @@ class ServingRuntime(RemoteRuntime):
         :param batch:           Micro batch size (send micro batches of N records at a time).
         :param sample:          Sample size (send only one of N records).
         :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param tracking_policy: Tracking policy object or a dictionary that will be converted into a tracking policy
-                                object. By using TrackingPolicy, the user can apply his model monitoring requirements,
-                                such as setting the scheduling policy of the model monitoring batch job or changing
-                                the image of the model monitoring stream.
 
                                 example::
 
                                     # initialize a new serving function
                                     serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
-                                    # apply model monitoring and set monitoring batch job to run every 3 hours
-                                    tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
-                                    serving_fn.set_tracking(tracking_policy=tracking_policy)
+                                    # apply model monitoring
+                                    serving_fn.set_tracking()
 
         """
-
         # Applying model monitoring configurations
         self.spec.track_models = True
-        self.spec.tracking_policy = None
-        if tracking_policy:
-            if isinstance(tracking_policy, dict):
-                # Convert tracking policy dictionary into `model_monitoring.TrackingPolicy` object
-                self.spec.tracking_policy = TrackingPolicy.from_dict(tracking_policy)
-            else:
-                # Tracking_policy is already a `model_monitoring.TrackingPolicy` object
-                self.spec.tracking_policy = tracking_policy
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
@@ -351,6 +341,14 @@ class ServingRuntime(RemoteRuntime):
             self.spec.parameters["log_stream_sample"] = sample
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
+        if tracking_policy is not None:
+            warnings.warn(
+                "The `tracking_policy` argument is deprecated from version 1.7.0 "
+                "and has no effect. It will be removed in 1.9.0.\n"
+                "To set the desired model monitoring time window and schedule, use "
+                "the `base_period` argument in `project.enable_model_monitoring()`.",
+                FutureWarning,
+            )
 
     def add_model(
         self,
@@ -367,8 +365,8 @@ class ServingRuntime(RemoteRuntime):
 
         Example, create a function (from the notebook), add a model class, and deploy::
 
-            fn = code_to_function(kind='serving')
-            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
+            fn = code_to_function(kind="serving")
+            fn.add_model("boost", model_path, model_class="MyClass", my_arg=5)
             fn.deploy()
 
         only works with router topology, for nested topologies (model under router under flow)
@@ -450,7 +448,7 @@ class ServingRuntime(RemoteRuntime):
 
         example::
 
-            fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
+            fn.add_child_function("enrich", "./enrich.ipynb", "mlrun/mlrun")
 
         :param name:   child function name
         :param url:    function/code url, support .py, .ipynb, .yaml extensions
@@ -489,11 +487,8 @@ class ServingRuntime(RemoteRuntime):
                         "worker_allocation_mode", "static"
                     )
 
-                if (
-                    stream.path.startswith("kafka://")
-                    or "kafka_bootstrap_servers" in stream.options
-                ):
-                    brokers = stream.options.get("kafka_bootstrap_servers")
+                brokers = get_kafka_brokers_from_dict(stream.options)
+                if stream.path.startswith("kafka://") or brokers:
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
@@ -644,8 +639,7 @@ class ServingRuntime(RemoteRuntime):
             force_build=force_build,
         )
 
-    def _get_runtime_env(self):
-        env = super()._get_runtime_env()
+    def _get_serving_spec(self):
         function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
 
         serving_spec = {
@@ -658,9 +652,7 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
-            "tracking_policy": self.spec.tracking_policy.to_dict()
-            if self.spec.tracking_policy
-            else None,
+            "tracking_policy": None,
             "default_content_type": self.spec.default_content_type,
         }
 
@@ -668,8 +660,7 @@ class ServingRuntime(RemoteRuntime):
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             serving_spec["secret_sources"] = self._secrets.to_serial()
 
-        env["SERVING_SPEC_ENV"] = json.dumps(serving_spec)
-        return env
+        return json.dumps(serving_spec)
 
     def to_mock_server(
         self,
@@ -735,8 +726,11 @@ class ServingRuntime(RemoteRuntime):
         example::
 
             serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
-            serving_fn.add_model('my-classifier',model_path=model_path,
-                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.add_model(
+                "my-classifier",
+                model_path=model_path,
+                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+            )
             serving_fn.plot(rankdir="LR")
 
         :param filename:  target filepath for the image (None for the notebook)

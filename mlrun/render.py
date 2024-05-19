@@ -121,16 +121,8 @@ def artifacts_html(
     html = ""
 
     for artifact in artifacts:
-        # TODO: remove this in 1.7.0 once we no longer support legacy format
-        if mlrun.utils.is_legacy_artifact(artifact):
-            attribute_value = artifact.get(attribute_name)
-        else:
-            attribute_value = artifact["spec"].get(attribute_name)
-
-        if mlrun.utils.is_legacy_artifact(artifact):
-            key = artifact["key"]
-        else:
-            key = artifact["metadata"]["key"]
+        attribute_value = artifact["spec"].get(attribute_name)
+        key = artifact["metadata"]["key"]
 
         if not attribute_value:
             mlrun.utils.logger.warning(
@@ -404,12 +396,18 @@ def runs_to_html(
         df.drop("labels", axis=1, inplace=True)
         df.drop("inputs", axis=1, inplace=True)
         df.drop("artifacts", axis=1, inplace=True)
+        df.drop("artifact_uris", axis=1, inplace=True)
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = df["artifacts"].apply(
-            lambda artifacts: artifacts_html(artifacts, "target_path"),
-        )
+        if df["artifact_uris"][0]:
+            df["artifact_uris"] = df["artifact_uris"].apply(dict_html)
+            df.drop("artifacts", axis=1, inplace=True)
+        else:
+            df["artifacts"] = df["artifacts"].apply(
+                lambda artifacts: artifacts_html(artifacts, "target_path"),
+            )
+            df.drop("artifact_uris", axis=1, inplace=True)
 
     def expand_error(x):
         if x["state"] == "error":

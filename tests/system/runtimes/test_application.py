@@ -53,4 +53,4 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False)
 
-        assert function.invoke("/")
+        assert function.invoke("/", verify=False)

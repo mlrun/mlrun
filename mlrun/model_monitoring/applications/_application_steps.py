@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import typing
 from typing import Optional
@@ -138,7 +137,7 @@ class _PrepareMonitoringEvent(StepToDict):
         if not event.get("mlrun_context"):
             application_context = MonitoringApplicationContext().from_dict(
                 event,
-                context=copy.deepcopy(self.context),
+                context=self.context,
                 model_endpoint_dict=self.model_endpoints,
             )
         else:

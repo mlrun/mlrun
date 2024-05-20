@@ -113,7 +113,7 @@ class MonitoringApplicationContext(MLClientCtx):
             attrs.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
         )
         self._sample_df_stats = json.loads(
-            attrs.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
+            attrs.get(mm_constants.ApplicationEvent.CURRENT_STATS, "{}")
         )
 
         self.endpoint_id = attrs.get(mm_constants.ApplicationEvent.ENDPOINT_ID)

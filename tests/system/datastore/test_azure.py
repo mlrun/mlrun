@@ -88,7 +88,7 @@ class TestAzureBlobSystem(TestMLRunSystem):
         if use_datastore_profile:
             kwargs = {"connection_string": self.connection_string}
             profile = DatastoreProfileAzureBlob(
-                name=self.profile_name, bucket=self._bucket_name, **kwargs
+                name=self.profile_name, container=self._bucket_name, **kwargs
             )
             register_temporary_client_datastore_profile(profile)
             os.environ.pop("AZURE_STORAGE_CONNECTION_STRING", None)

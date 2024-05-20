@@ -928,7 +928,7 @@ async def test_format_as_leader_project(
 ):
     project = _generate_project()
     with unittest.mock.patch(
-        "mlrun.utils.helpers.is_igz_version_sufficient",
+        "mlrun.utils.helpers.validate_component_version_compatibility",
         return_value=True,
     ):
         iguazio_project = await maybe_coroutine(

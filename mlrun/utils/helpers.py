@@ -983,12 +983,6 @@ def get_workflow_url(project, id=None):
     return url
 
 
-def is_igz_version_sufficient(required_version):
-    """Check if the installed Iguazio version is sufficient for the specified purpose."""
-    igz_version = mlrun.mlconf.get_parsed_igz_version()
-    return igz_version and igz_version >= semver.VersionInfo.parse(required_version)
-
-
 def are_strings_in_exception_chain_messages(
     exception: Exception, strings_list: list[str]
 ) -> bool:

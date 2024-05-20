@@ -1069,6 +1069,26 @@ def _ingest_with_spark(
                 df.status_code, df.body.split(": ")[1]
             )
 
+        if df.isStreaming:
+
+            class MyBatchProcessor:
+                def __init__(self):
+                    self.df = None
+
+                def __call__(self, df, epoch_id):
+                    self.df = df
+
+            batchProcessor = MyBatchProcessor()
+
+            query = (
+                df.writeStream.outputMode("update")
+                .trigger(once=True)
+                .foreachBatch(batchProcessor)
+                .start()
+            )
+            query.awaitTermination()
+            df = batchProcessor.df
+
         df.persist()
 
         _infer_from_static_df(df, featureset, options=infer_options)

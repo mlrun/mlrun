@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import argparse
 import json
 import logging
-import os.path
+import os
 import pathlib
 import re
 import subprocess
@@ -24,12 +23,11 @@ import typing
 
 import packaging.version
 
-# NOTE
-# this script is being used in all build flows before building to add version information to the code
-# therefore it needs to be runnable in several environments - GH action, Jenkins, etc...
-# therefore this script should be kept python 2 and 3 compatible, and should not require external dependencies
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("version_file")
+logger.setLevel(os.getenv("LOG_LEVEL", logging.INFO))
+ch = logging.StreamHandler()
+ch.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+logger.addHandler(ch)
 
 
 def main():
@@ -40,7 +38,7 @@ def main():
         "ensure", help="ensure the version file is up to date"
     )
     ensure_parser.add_argument(
-        "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
+        "--mlrun-version", type=str, required=False, default="unstable"
     )
 
     subparsers.add_parser(
@@ -84,12 +82,11 @@ def main():
         print(next_version)
 
     elif args.command == "ensure":
-        repo_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        repo_root = pathlib.Path(__file__).parents[2]
+        version_file_path = str(
+            (repo_root / "mlrun/utils/version/version.json").absolute()
         )
-        version_file_path = os.path.join(
-            repo_root, "mlrun", "utils", "version", "version.json"
-        )
+        logger.debug(f"{args.mlrun_version = }")
         create_or_update_version_file(args.mlrun_version, version_file_path)
 
     elif args.command == "is-stable":
@@ -273,13 +270,14 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
 
     # Enrich the version with the feature name (unless version is unstable)
     if (
-        "+unstable" not in mlrun_version
+        "unstable" not in mlrun_version
         and git_branch
         and git_branch.startswith("feature/")
     ):
         feature_name = resolve_feature_name(git_branch)
         if not mlrun_version.endswith(feature_name):
             mlrun_version = f"{mlrun_version}+{feature_name}"
+            logger.debug(f"With feature_name: {mlrun_version = }")
 
     # Check if the provided version is a semver and followed by a "-"
     semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"  # e.g. 0.6.0-
@@ -303,7 +301,9 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         "git_commit": git_commit,
     }
 
-    logger.info(f"Writing version info to file: {str(version_info)}")
+    logger.info(
+        f"Writing version info to file: {str(version_info)}, {version_file_path = }"
+    )
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 

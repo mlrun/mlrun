@@ -17,6 +17,7 @@ import datetime
 from typing import Optional, Union
 
 import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -80,7 +81,10 @@ class NopDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -520,8 +524,11 @@ class NopDB(RunDBInterface):
 
     def store_api_gateway(
         self,
-        project: str,
-        api_gateway: mlrun.runtimes.nuclio.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
+        project: str = None,
     ) -> mlrun.common.schemas.APIGateway:
         pass
 

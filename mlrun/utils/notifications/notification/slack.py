@@ -135,7 +135,7 @@ class SlackNotification(NotificationBase):
         line = [
             self._get_slack_row(f":bell: {alert.name} alert has occurred"),
             self._get_slack_row(f"*Project:*\n{alert.project}"),
-            self._get_slack_row(f"*UID:*\n{event_data.entity.id}"),
+            self._get_slack_row(f"*UID:*\n{event_data.entity.ids[0]}"),
         ]
         if event_data.value_dict:
             data_lines = []
@@ -144,7 +144,9 @@ class SlackNotification(NotificationBase):
             data_text = "\n".join(data_lines)
             line.append(self._get_slack_row(f"*Event data:*\n{data_text}"))
 
-        if url := mlrun.utils.helpers.get_ui_url(alert.project, event_data.entity.id):
+        if url := mlrun.utils.helpers.get_ui_url(
+            alert.project, event_data.entity.ids[0]
+        ):
             line.append(self._get_slack_row(f"*Overview:*\n<{url}|*Job overview*>"))
 
         return line

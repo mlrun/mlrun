@@ -35,6 +35,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import server.api.utils.helpers
 import server.api.utils.projects.remotes.leader as project_leader
 from mlrun.utils import get_in, logger
 
@@ -340,6 +341,7 @@ class Client(
         """
         return True
 
+    @server.api.utils.helpers.lru_cache_with_ttl(maxsize=1, ttl_seconds=60 * 2)
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL

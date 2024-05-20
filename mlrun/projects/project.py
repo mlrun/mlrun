@@ -39,6 +39,7 @@ import yaml
 from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -2973,8 +2974,12 @@ class MlrunProject(ModelObj):
             engine = "remote"
         # The default engine is kfp if not given:
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        if not inner_engine and engine == "remote":
-            inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
+        if not inner_engine and workflow_engine.engine == "remote":
+            # if inner engine is set to remote, assume kfp as the default inner engine with remote as the runner
+            engine_kind = (
+                workflow_spec.engine if workflow_spec.engine != "remote" else "kfp"
+            )
+            inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
 
         run = workflow_engine.run(
@@ -3002,7 +3007,7 @@ class MlrunProject(ModelObj):
             # run's engine gets replaced with inner engine if engine is remote,
             # so in that case we need to get the status from the remote engine manually
             # TODO: support watch for remote:local
-            if engine == "remote" and status_engine.engine != "local":
+            if workflow_engine.engine == "remote" and status_engine.engine != "local":
                 status_engine = _RemoteRunner
 
             status_engine.get_run_status(project=self, run=run, timeout=timeout)
@@ -3696,7 +3701,10 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -3731,6 +3739,7 @@ class MlrunProject(ModelObj):
                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                 key (i.e. "key").
         :param state: List only runs whose state is specified.
+        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used (will be removed in 1.8.0).
@@ -3747,7 +3756,9 @@ class MlrunProject(ModelObj):
             uid,
             self.metadata.name,
             labels=labels,
-            state=state,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,

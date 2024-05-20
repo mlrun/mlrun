@@ -19,6 +19,7 @@ from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.db.factory
@@ -113,7 +114,8 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -137,7 +139,9 @@ class SQLRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state) if state is not None else None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -812,7 +816,10 @@ class SQLRunDB(RunDBInterface):
     def store_api_gateway(
         self,
         project: str,
-        api_gateway: mlrun.common.schemas.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
     ):
         raise NotImplementedError()
 

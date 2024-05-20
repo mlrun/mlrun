@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import concurrent
 import concurrent.futures
 import json
 import pickle
 import time
 import typing
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -107,10 +105,12 @@ class _V3IORecordsChecker:
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
     @classmethod
-    def _test_kv_record(cls, ep_id: str) -> None:
+    def _test_results_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
             app_name = app_data.class_.NAME
-            cls._logger.debug("Checking the KV record of app", app_name=app_name)
+            cls._logger.debug(
+                "Checking the results KV record of app", app_name=app_name
+            )
 
             resp = cls._kv_storage.client.kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
@@ -124,10 +124,34 @@ class _V3IORecordsChecker:
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
+    def _test_metrics_kv_record(cls, ep_id: str) -> None:
+        for app_data in cls.apps_data:
+            if not app_data.metrics:
+                return
+
+            app_name = app_data.class_.NAME
+            table_path = f"{ep_id}_metrics"
+
+            for metric in app_data.metrics:
+                cls._logger.debug(
+                    "Checking a metric KV record of app",
+                    app_name=app_name,
+                    metric=metric,
+                )
+                resp = cls._kv_storage.client.kv.get(
+                    container=cls._v3io_container,
+                    table_path=table_path,
+                    key=f"{app_name}.{metric}",
+                )
+                assert (
+                    resp.output.item
+                ), f"V3IO KV app data is empty for app {app_name} and metric {metric}"
+
+    @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
         df: pd.DataFrame = cls._tsdb_storage.get_records(
             table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
-            start=f"now-{5 * cls.app_interval}m",
+            start=f"now-{10 * cls.app_interval}m",
             end="now",
         )
         assert not df.empty, "No TSDB data"
@@ -176,17 +200,22 @@ class _V3IORecordsChecker:
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:
         cls._test_apps_parquet(ep_id, inputs, outputs)
-        cls._test_kv_record(ep_id)
+        cls._test_results_kv_record(ep_id)
+        cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
 
     @classmethod
-    def _test_api_get_results(
-        cls, ep_id: str, app_data: _AppData, run_db: mlrun.db.httpdb.HTTPRunDB
+    def _test_api_get_metrics(
+        cls,
+        ep_id: str,
+        app_data: _AppData,
+        run_db: mlrun.db.httpdb.HTTPRunDB,
+        type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
-        cls._logger.debug("Checking GET /metrics API")
+        cls._logger.debug("Checking GET /metrics API", type=type)
         response = run_db.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type=results",
+            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type={type}",
         )
         get_app_results: set[str] = set()
         app_results_full_names: list[str] = []
@@ -195,8 +224,8 @@ class _V3IORecordsChecker:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert app_data.results == get_app_results
-        assert app_results_full_names, "No results"
+        assert getattr(app_data, type) == get_app_results
+        assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
     @classmethod
@@ -224,11 +253,16 @@ class _V3IORecordsChecker:
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
-        results_full_names = cls._test_api_get_results(
-            ep_id=ep_id, app_data=app_data, run_db=run_db
+        metrics_full_names = cls._test_api_get_metrics(
+            ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
+        )
+        results_full_names = cls._test_api_get_metrics(
+            ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
         cls._test_api_get_values(
-            ep_id=ep_id, results_full_names=results_full_names, run_db=run_db
+            ep_id=ep_id,
+            results_full_names=metrics_full_names + results_full_names,
+            run_db=run_db,
         )
 
 
@@ -278,6 +312,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             ),
         ]
 
+        cls.run_db = mlrun.get_run_db()
+
         _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(
@@ -290,7 +326,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for app_data in self.apps_data:
                 if app_data.deploy:
                     fn = self.project.set_model_monitoring_function(
@@ -366,9 +402,31 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     @classmethod
     def _get_model_endpoint_id(cls) -> str:
-        endpoints = mlrun.get_run_db().list_model_endpoints(project=cls.project_name)
+        endpoints = cls.run_db.list_model_endpoints(project=cls.project_name)
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
+
+    @classmethod
+    def _test_model_endpoint_stats(cls, ep_id: str) -> None:
+        cls._logger.debug("Checking model endpoint", ep_id=ep_id)
+        ep = cls.run_db.get_model_endpoint(project=cls.project_name, endpoint_id=ep_id)
+        assert (
+            ep.status.current_stats.keys()
+            == ep.status.feature_stats.keys()
+            == set(ep.spec.feature_names)
+        ), "The endpoint current stats keys are not the same as feature stats and feature names"
+        assert ep.status.drift_status, "The general drift status is empty"
+        assert ep.status.drift_measures, "The drift measures are empty"
+
+        drift_table = pd.DataFrame.from_dict(ep.status.drift_measures, orient="index")
+        assert set(drift_table.columns) == {
+            "hellinger",
+            "kld",
+            "tvd",
+        }, "The drift metrics are not as expected"
+        assert set(drift_table.index) == set(
+            ep.spec.feature_names
+        ), "The feature names are not as expected"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
@@ -383,7 +441,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
                 deploy_histogram_data_drift_app=_DefaultDataDriftAppData
@@ -412,6 +470,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         if with_training_set:
             self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
+            self._test_model_endpoint_stats(ep_id=ep_id)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -548,7 +607,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def test_inference_feature_set(self) -> None:
         self._log_model()
 
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
@@ -751,7 +810,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             deploy_histogram_data_drift_app=False,
         )
         futures = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for model_name, model_dict in self.models.items():
                 self._log_model(
                     model_name,
@@ -765,7 +824,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             future.result()
 
         futures_2 = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
             endpoints = self.db.list_model_endpoints()
             for endpoint in endpoints:

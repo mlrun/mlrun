@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import importlib.util as imputil
 import inspect
 import io
@@ -382,6 +383,8 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
+        if spec.name in sys.modules:
+            importlib.reload(module)
         spec.loader.exec_module(module)
 
     class_args = {}

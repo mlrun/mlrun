@@ -318,6 +318,7 @@ class ParquetSource(BaseSourceDriver):
         if additional_filters:
             attributes = deepcopy(attributes) or {}
             attributes["additional_filters"] = additional_filters
+            self.validate_additional_filters(additional_filters)
         super().__init__(
             name,
             path,
@@ -357,6 +358,25 @@ class ParquetSource(BaseSourceDriver):
             return datetime.fromisoformat(time)
         else:
             return time
+
+    @staticmethod
+    def validate_additional_filters(additional_filters):
+        if not additional_filters:
+            return
+        for filter_tuple in additional_filters:
+            if not filter_tuple:
+                continue
+            col_name, op, value = filter_tuple
+            if isinstance(value, float) and math.isnan(value):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "using nan in additional_filters is not supported"
+                )
+            elif isinstance(value, (list, tuple, set)):
+                for sub_value in value:
+                    if isinstance(sub_value, float) and math.isnan(sub_value):
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "using nan in additional_filters is not supported"
+                        )
 
     def to_step(
         self,
@@ -444,9 +464,7 @@ class ParquetSource(BaseSourceDriver):
                 none_exists = False
                 value = list(value)
                 for sub_value in value:
-                    if sub_value is None or (
-                        isinstance(sub_value, float) and math.isnan(sub_value)
-                    ):
+                    if sub_value is None:
                         value.remove(sub_value)
                         none_exists = True
                 if none_exists:

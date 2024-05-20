@@ -13,19 +13,23 @@
 # limitations under the License.
 #
 import os
+import pathlib
 import string
 import typing
+import unittest.mock
 from random import choice, randint
 from typing import Optional
 
 import deepdiff
 import pytest
+import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
+from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring.db.stores import (  # noqa: F401
     ObjectStoreFactory,
@@ -298,6 +302,48 @@ def test_generating_tsdb_paths():
 
     # Filtered path that should point to the events directory without container and schema
     assert filtered_path == full_path[-len(filtered_path) + 1 :] + "/"
+
+
+def test_image_manifest(db: sqlalchemy.orm.Session, tmp_path: pathlib.Path):
+    config.model_endpoint_monitoring.image_manifest_path = tmp_path.joinpath(
+        "image_manifest.json"
+    ).absolute()
+
+    monitoring_deployment = (
+        server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+            project=TEST_PROJECT,
+            auth_info=_get_auth_info(),
+            db_session=db,
+            model_monitoring_access_key=V3IO_ACCESS_KEY,
+        )
+    )
+
+    function_name = mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+    base_image = "some/image:tag"
+    expected_image = "some-controller-image:tag"
+
+    # Test with no manifest
+    image = monitoring_deployment._get_existing_nuclio_image(function_name, base_image)
+    assert image is None
+
+    with unittest.mock.patch(
+        "mlrun.runtimes.nuclio.function.get_nuclio_deploy_status",
+        return_value=(
+            "ready",  # status
+            None,  # address
+            None,  # name
+            None,  # last_log_timestamp
+            None,  # text
+            {
+                "state": "ready",
+                "containerImage": expected_image,
+            },  # function_status
+        ),
+    ):
+        monitoring_deployment._update_image_manifest(base_image=base_image)
+
+    image = monitoring_deployment._get_existing_nuclio_image(function_name, base_image)
+    assert image == expected_image
 
 
 def _get_auth_info() -> mlrun.common.schemas.AuthInfo:

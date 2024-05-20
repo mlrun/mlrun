@@ -685,7 +685,7 @@ class MonitoringDeployment:
         save = False
 
         for function_name in functions:
-            # if the function is already in the manifest, skip it
+            # if the function is already in the manifest, don't override it
             if function_name in self._image_manifest.get(version_hash_key, {}):
                 continue
 

@@ -348,6 +348,7 @@ class ControllerPolicy:
 
 class TSDBTarget:
     V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
     PROMETHEUS = "prometheus"
     APP_RESULTS_TABLE = "app-results"
     V3IO_BE = "tsdb"

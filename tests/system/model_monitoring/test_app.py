@@ -19,7 +19,7 @@ import time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -149,11 +149,26 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.V3IOTSDBTables.APP_RESULTS,
-            start=f"now-{10 * cls.app_interval}m",
-            end="now",
-        )
+        if (
+            mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
+            == mm_constants.TSDBTarget.V3IO_TSDB
+        ):
+            # V3IO TSDB
+            df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.V3IOTSDBTables.APP_RESULTS,
+                start=f"now-{10 * cls.app_interval}m",
+                end="now",
+            )
+        else:
+            # TDEngine
+            df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.TDEngineSuperTables.APP_RESULTS,
+                start=datetime.now().astimezone()
+                - timedelta(minutes=10 * cls.app_interval),
+                end=datetime.now().astimezone(),
+                timestamp_column=mm_constants.WriterEvent.END_INFER_TIME,
+            )
+
         assert not df.empty, "No TSDB data"
         assert (
             df.endpoint_id == ep_id
@@ -228,6 +243,11 @@ class _V3IORecordsChecker:
         assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
+    @pytest.mark.skipif(
+        mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
+        == mm_constants.TSDBTarget.TDEngine,
+        reason="TDEngine connector does not support the GET /metrics-values API yet",
+    )
     @classmethod
     def _test_api_get_values(
         cls,

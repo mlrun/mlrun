@@ -46,3 +46,4 @@ databricks-sdk~=0.13.0
 sqlalchemy~=1.4
 dask~=2023.9.0
 distributed~=2023.9.0
+taospy[ws]>=2,<3

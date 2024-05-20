@@ -31,6 +31,7 @@ import mlrun.common.runtimes.constants
 from mlrun.config import config
 from mlrun.utils import get_in
 
+# Disable the warning about reusing components
 dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 

@@ -72,5 +72,9 @@ class Events(
                     session, project, name, event_data
                 )
         except KeyError:
-            logger.warn("Received unknown event", project=project, name=event_name)
+            logger.debug(
+                "Received event has no associated alert",
+                project=project,
+                name=event_name,
+            )
             return

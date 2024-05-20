@@ -21,6 +21,7 @@ import fsspec
 import pandas as pd
 import pytest
 import yaml
+from botocore.exceptions import ClientError
 
 import mlrun
 import mlrun.errors
@@ -144,6 +145,10 @@ class TestAwsS3:
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
         assert response.decode() == self.test_string
+        upload_data_item.delete()
+        with pytest.raises(ClientError) as client_exception:
+            upload_data_item.stat()
+        assert client_exception.value.response["Error"]["Code"] == "404"
 
         # Verify as_df() creates a proper DF. Note that the AWS case as_df() works through the fsspec interface, that's
         # why it's important to test it as well.

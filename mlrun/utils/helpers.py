@@ -1575,11 +1575,12 @@ def validate_component_version_compatibility(
             component_current_version = mlrun.mlconf.igz_version
             parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
 
-            # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
-            # major, minor, and patch versions
-            parsed_current_version = semver.VersionInfo.parse(
-                f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
-            )
+            if parsed_current_version:
+                # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+                # major, minor, and patch versions
+                parsed_current_version = semver.VersionInfo.parse(
+                    f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+                )
         if component_name == "nuclio":
             component_current_version = mlrun.mlconf.nuclio_version
             parsed_current_version = semver.VersionInfo.parse(

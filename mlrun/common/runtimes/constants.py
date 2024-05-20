@@ -26,12 +26,14 @@ class PodPhases:
     pending = "Pending"
     running = "Running"
     unknown = "Unknown"
+    skipped = "Skipped"
 
     @staticmethod
     def terminal_phases():
         return [
             PodPhases.succeeded,
             PodPhases.failed,
+            PodPhases.skipped,
         ]
 
     @staticmethod
@@ -42,6 +44,7 @@ class PodPhases:
             PodPhases.pending,
             PodPhases.running,
             PodPhases.unknown,
+            PodPhases.skipped,
         ]
 
     @staticmethod
@@ -54,6 +57,7 @@ class PodPhases:
             PodPhases.pending: RunStates.pending,
             PodPhases.running: RunStates.running,
             PodPhases.unknown: RunStates.unknown,
+            PodPhases.skipped: RunStates.skipped,
         }[pod_phase]
 
 
@@ -136,6 +140,7 @@ class RunStates:
     unknown = "unknown"
     aborted = "aborted"
     aborting = "aborting"
+    skipped = "skipped"
 
     @staticmethod
     def all():
@@ -148,6 +153,7 @@ class RunStates:
             RunStates.unknown,
             RunStates.aborted,
             RunStates.aborting,
+            RunStates.skipped,
         ]
 
     @staticmethod
@@ -156,6 +162,7 @@ class RunStates:
             RunStates.completed,
             RunStates.error,
             RunStates.aborted,
+            RunStates.skipped,
         ]
 
     @staticmethod

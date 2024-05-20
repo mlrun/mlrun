@@ -392,7 +392,7 @@ class NotificationPusher(_NotificationPusherBase):
         steps = []
         db = mlrun.get_run_db()
 
-        def _add_run_step(_step):
+        def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
             try:
                 _run = db.list_runs(
                     project=run.metadata.project,
@@ -407,10 +407,12 @@ class NotificationPusher(_NotificationPusherBase):
                 }
             _run["step_kind"] = _step.step_type
             if _step.skipped:
-                _run.setdefault("status", {})["state"] = "skipped"
+                _run.setdefault("status", {})["state"] = (
+                    mlrun.common.runtimes.constants.RunStates.skipped
+                )
             steps.append(_run)
 
-        def _add_deploy_function_step(_step):
+        def _add_deploy_function_step(_step: mlrun_pipelines.models.PipelineStep):
             project, name, hash_key = self._extract_function_uri(
                 _step.get_annotation("mlrun/function-uri")
             )
@@ -429,12 +431,14 @@ class NotificationPusher(_NotificationPusherBase):
                             "hash_key": hash_key,
                         },
                     }
+                pod_phase = _step.phase
                 if _step.skipped:
-                    state = "skipped"
-                else:
-                    state = mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
-                        _step.phase
+                    pod_phase = mlrun.common.runtimes.constants.PodPhases.skipped
+                state = (
+                    mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                        pod_phase
                     )
+                )
                 function["status"] = {"state": state}
                 if isinstance(function["metadata"].get("updated"), datetime.datetime):
                     function["metadata"]["updated"] = function["metadata"][

@@ -198,6 +198,7 @@ default_config = {
                 "abort_grace_period": "10",
                 "delete_project": "900",
                 "delete_function": "900",
+                "update_model_monitoring_manifest": "600",
             },
             "runtimes": {"dask": "600"},
         },

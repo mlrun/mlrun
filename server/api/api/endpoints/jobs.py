@@ -34,6 +34,7 @@ router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
     "use /projects/{project}/model-monitoring/enable-model-monitoring instead",
 )
 async def create_model_monitoring_controller(
+    background_tasks: fastapi.BackgroundTasks,
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         deps.authenticate_request
@@ -81,6 +82,8 @@ async def create_model_monitoring_controller(
         db_session=db_session,
         model_monitoring_access_key=model_monitoring_access_key,
     ).deploy_monitoring_functions(
+        background_tasks=background_tasks,
+        db_session=db_session,
         image=default_controller_image,
         base_period=base_period,
         deploy_histogram_data_drift_app=False,  # mlrun client < 1.7.0

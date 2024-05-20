@@ -15,7 +15,7 @@
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -85,10 +85,12 @@ async def _common_parameters(
 
 @router.post("/enable-model-monitoring")
 async def enable_model_monitoring(
+    background_tasks: BackgroundTasks,
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
+    db_session: Session = Depends(deps.get_db_session),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -98,6 +100,7 @@ async def enable_model_monitoring(
     And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
     is detected. It processes the new events into statistics that are then written to statistics databases.
 
+    :param background_tasks: The background tasks.
     :param commons:     The common parameters of the request.
     :param base_period: The time period in minutes in which the model monitoring controller function
                         triggers. By default, the base period is 10 minutes.
@@ -105,6 +108,7 @@ async def enable_model_monitoring(
                         stream functions, which are real time nuclio functions.
                         By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+    :param db_session:  A session that manages the current dialog with the database.
     """
     MonitoringDeployment(
         project=commons.project,
@@ -112,6 +116,8 @@ async def enable_model_monitoring(
         db_session=commons.db_session,
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).deploy_monitoring_functions(
+        background_tasks=background_tasks,
+        db_session=db_session,
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,

@@ -17,6 +17,7 @@ import os
 import typing
 from pathlib import Path
 
+import fastapi
 import nuclio
 import sqlalchemy.orm
 
@@ -32,6 +33,7 @@ import mlrun.serving.states
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
+import server.api.utils.background_tasks
 import server.api.utils.functions
 import server.api.utils.scheduler
 import server.api.utils.singletons.db
@@ -90,6 +92,8 @@ class MonitoringDeployment:
 
     def deploy_monitoring_functions(
         self,
+        background_tasks: fastapi.BackgroundTasks,
+        db_session: sqlalchemy.orm.Session,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
@@ -97,11 +101,13 @@ class MonitoringDeployment:
         """
         Deploy model monitoring application controller, writer and stream functions.
 
-        :param base_period: The time period in minutes in which the model monitoring controller function
-                            triggers. By default, the base period is 10 minutes.
-        :param image:       The image of the model monitoring controller, writer & monitoring
-                            stream functions, which are real time nuclio functino.
-                            By default, the image is mlrun/mlrun.
+        :param background_tasks: Background task manager.
+        :param db_session:       A session that manages the current dialog with the database.
+        :param base_period:      The time period in minutes in which the model monitoring controller function
+                                 triggers. By default, the base period is 10 minutes.
+        :param image:            The image of the model monitoring controller, writer & monitoring
+                                 stream functions, which are real time nuclio functino.
+                                 By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
         """
         extra_functions = []
@@ -116,7 +122,18 @@ class MonitoringDeployment:
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
 
-        self._update_image_manifest(base_image=image, extra_functions=extra_functions)
+        # Update the image manifest in a background task, so the invoking client will not wait for it
+        server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+            db_session,
+            self.project,
+            background_tasks,
+            self._update_image_manifest,
+            config.background_tasks.default_timeouts.operations.update_model_monitoring_manifest,
+            None,
+            # args for _update_image_manifest
+            image,
+            extra_functions,
+        )
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False

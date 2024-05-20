@@ -485,14 +485,15 @@ async def get_model_endpoint_monitoring_metrics_values(
         end=params.end,
     )
 
-    if any(
-        [
-            metric.name
-            == mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS
-            for metric in params.metrics
-        ]
-    ):
-        data, predictions = asyncio.gather(
+    invocations_full_name = mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+        project=params.project,
+        app="mlrun-infra",
+        name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
+        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
+    )
+
+    if any([metric.full_name == invocations_full_name for metric in params.metrics]):
+        data, predictions = await asyncio.gather(
             read_data_coroutine,
             run_in_threadpool(
                 mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,

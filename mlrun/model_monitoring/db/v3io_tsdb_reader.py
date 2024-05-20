@@ -160,7 +160,7 @@ def read_predictions(
     df: pd.DataFrame = client.read(
         backend=_TSDB_BE,
         table=f"pipelines/{project}/model-endpoints/predictions",
-        columns="latency",
+        columns=["latency"],
         filter=f"endpoint_id=='{endpoint_id}'",
         start=start,
         end=end,
@@ -193,7 +193,7 @@ def read_predictions(
     ]
     return ModelEndpointMonitoringResultValues(
         full_name=full_name,
-        type=ModelEndpointMonitoringMetricType.RESULT,
+        type=ModelEndpointMonitoringMetricType.METRIC,
         result_kind=mm_constants.ResultKindApp.system_performance,
         values=values,
     )

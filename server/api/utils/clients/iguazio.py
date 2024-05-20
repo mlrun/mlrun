@@ -762,10 +762,10 @@ class Client(
                     )
                 )
             else:
-                logger.warning(
-                    "User attempted to use a feature requiring project-level default_function_node_selector,"
-                    " but the installed version of Iguazio is not compatible. "
-                    "Project created without the field in Iguazio."
+                logger.debug(
+                    "Omitting project-level default function node selector from Iguazio project as Iguazio version is insufficient", 
+                    igz_version=mlconf.igz_version,
+                    project_name= project.metadata.name
                 )
 
         return body

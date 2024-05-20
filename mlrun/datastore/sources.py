@@ -435,7 +435,6 @@ class ParquetSource(BaseSourceDriver):
             "!=": operator.ne,
         }
 
-        none_values = [None, np.nan, float("nan")]
         spark_filter = None
         new_filter = lit(True)
         for filter_tuple in self.additional_filters:
@@ -445,12 +444,8 @@ class ParquetSource(BaseSourceDriver):
             if op.lower() in ("in", "not in") and isinstance(value, (list, tuple, set)):
                 none_exists = False
                 value = list(value)
-                for none_value in none_values:
-                    if none_value in value:
-                        value.remove(none_value)
-                        none_exists = True
                 for sub_value in value:
-                    if isinstance(sub_value, float) and math.isnan(sub_value):
+                    if sub_value is None or (isinstance(sub_value, float) and math.isnan(sub_value)):
                         value.remove(sub_value)
                         none_exists = True
                 if none_exists:

@@ -146,6 +146,6 @@ For example:
 artifact = project.get_artifact("name")
 project.delete_artifact(artifact, deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force, secrets={"secret1": "user-secret"})
 ```
-Be sure to include `secrets` if credentials are needed to access the artifact data. 
+Be sure to include `secrets` if additional credentials are needed to access the artifact data beyond those already specified as project secrets. 
 
 [Back to top](#top)

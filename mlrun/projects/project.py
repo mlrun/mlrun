@@ -39,6 +39,7 @@ import yaml
 from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -3689,7 +3690,10 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -3724,6 +3728,7 @@ class MlrunProject(ModelObj):
                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                 key (i.e. "key").
         :param state: List only runs whose state is specified.
+        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used (will be removed in 1.8.0).
@@ -3740,7 +3745,9 @@ class MlrunProject(ModelObj):
             uid,
             self.metadata.name,
             labels=labels,
-            state=state,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,

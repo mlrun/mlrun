@@ -138,7 +138,7 @@ class ModelMonitoringWriter(StepToDict):
         mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
-    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, str]:
+    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
         """
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
@@ -184,7 +184,8 @@ class ModelMonitoringWriter(StepToDict):
         self._app_result_store.write_application_event(event=event.copy(), kind=kind)
         logger.info("Completed event DB writes")
 
-        _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
+        if kind == WriterEventKind.RESULT:
+            _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled

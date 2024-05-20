@@ -10,7 +10,7 @@ A project is a container for all the assets, configuration, and code of a partic
 - [Adding functions, artifacts, workflow, and config](#add-elements)
 - [Pushing the project content into git or an archive](#push)
 - [Get a project from DB or create it](#get-or-create)
-- Deleting a project](#deleting-a-project)
+- [Deleting a project](#deleting-a-project)
 
 <a id="create"></a>
 ## Creating a project

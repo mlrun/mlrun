@@ -35,7 +35,8 @@ _TAG_TEST = {"tag1": _TDEngineColumn.INT, "tag2": _TDEngineColumn.BINARY_64}
 
 
 class TestTDEngineSchema:
-    """Tests for the TDEngineSchema class, including the methods to create, insert, delete and query data from TDengine."""
+    """Tests for the TDEngineSchema class, including the methods to create, insert, delete and query data
+    from TDengine."""
 
     @staticmethod
     @pytest.fixture
@@ -75,7 +76,8 @@ class TestTDEngineSchema:
     ):
         assert (
             super_table._create_subtable_query(subtable=subtable, values=values)
-            == f"CREATE TABLE if NOT EXISTS {_MODEL_MONITORING_DATABASE}.{subtable} USING {super_table.super_table} TAGS ('{values['tag1']}', '{values['tag2']}');"
+            == f"CREATE TABLE if NOT EXISTS {_MODEL_MONITORING_DATABASE}.{subtable} "
+            f"USING {super_table.super_table} TAGS ('{values['tag1']}', '{values['tag2']}');"
         )
         if remove_tag:
             # test with missing tag
@@ -117,7 +119,8 @@ class TestTDEngineSchema:
     ):
         assert (
             super_table._delete_subtable_query(subtable=subtable, values=values)
-            == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
+            == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+            f"WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
         )
 
         if remove_tag:
@@ -151,7 +154,8 @@ class TestTDEngineSchema:
     ):
         assert (
             super_table._get_subtables_query(values=values)
-            == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
+            == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
+            f"WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
         )
 
         if remove_tag:
@@ -159,7 +163,8 @@ class TestTDEngineSchema:
             values.pop("tag1")
             assert (
                 super_table._get_subtables_query(values=values)
-                == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE tag2 like '{values['tag2']}';"
+                == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
+                f"WHERE tag2 like '{values['tag2']}';"
             )
 
             # test without tags
@@ -211,9 +216,16 @@ class TestTDEngineSchema:
             columns_to_select = "*"
 
         if filter_query:
-            expected_query = f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} where {filter_query} and {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}';"
+            expected_query = (
+                f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
+                f"where {filter_query} and {timestamp_column} >= '{start}' "
+                f"and {timestamp_column} <= '{end}';"
+            )
         else:
-            expected_query = f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}';"
+            expected_query = (
+                f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
+                f"where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}';"
+            )
         assert (
             super_table._get_records_query(
                 table=subtable,

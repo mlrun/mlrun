@@ -223,12 +223,9 @@ class StoreManager:
             subpath = url[len("memory://") :]
             return in_memory_store, subpath, url
 
-        elif schema == "":
+        elif schema in get_local_file_schema():
             # parse_url() will drop the windows drive-letter from the path for url like "c:\a\b".
             # As a workaround, we set subpath to the url.
-            subpath = url
-
-        elif schema == "file://":
             subpath = url.replace("file://", "", 1)
 
         if not schema and endpoint:

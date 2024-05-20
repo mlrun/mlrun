@@ -4335,7 +4335,7 @@ class TestFeatureStore(TestMLRunSystem):
             orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
         parquet_path = f"v3io:///projects/{self.project_name}/trfsinojud.parquet"
         orig_df.to_parquet(parquet_path)
-        gnrxRnIYSr = ParquetSource(path=parquet_path)
+        source = ParquetSource(path=parquet_path)
 
         if with_indexes:
             fset = fstore.FeatureSet(
@@ -4345,7 +4345,7 @@ class TestFeatureStore(TestMLRunSystem):
             )
         else:
             fset = fstore.FeatureSet("VIeHOGZgjv", engine="pandas")
-        df = fset.ingest(source=gnrxRnIYSr)
+        df = fset.ingest(source=source)
         assert df.equals(orig_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured

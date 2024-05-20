@@ -21,7 +21,6 @@ from copy import copy, deepcopy
 from datetime import datetime
 from typing import Optional, Union
 
-import numpy as np
 import pandas as pd
 import semver
 import v3io
@@ -445,7 +444,9 @@ class ParquetSource(BaseSourceDriver):
                 none_exists = False
                 value = list(value)
                 for sub_value in value:
-                    if sub_value is None or (isinstance(sub_value, float) and math.isnan(sub_value)):
+                    if sub_value is None or (
+                        isinstance(sub_value, float) and math.isnan(sub_value)
+                    ):
                         value.remove(sub_value)
                         none_exists = True
                 if none_exists:

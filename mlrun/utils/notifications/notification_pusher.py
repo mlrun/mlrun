@@ -433,12 +433,11 @@ class NotificationPusher(_NotificationPusherBase):
                     }
                 pod_phase = _step.phase
                 if _step.skipped:
-                    pod_phase = mlrun.common.runtimes.constants.PodPhases.skipped
-                state = (
-                    mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                    state = mlrun.common.schemas.FunctionState.skipped
+                else:
+                    state = mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
                         pod_phase
                     )
-                )
                 function["status"] = {"state": state}
                 if isinstance(function["metadata"].get("updated"), datetime.datetime):
                     function["metadata"]["updated"] = function["metadata"][

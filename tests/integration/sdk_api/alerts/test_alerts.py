@@ -193,11 +193,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # generate an alert from a template
         alert_name = "new_alert"
-        alert_summary = "Model is drifting"
         alert_from_template = mlrun.alerts.alert.AlertConfig(
             project=project_name,
             name=alert_name,
-            summary=alert_summary,
             template=drift_template,
         )
 
@@ -226,8 +224,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert_from_template,
             project_name=project_name,
             alert_name=alert_name,
-            alert_summary=alert_summary,
-            alert_description=drift_template.description,
+            alert_summary=drift_template.summary,
             alert_severity=drift_template.severity,
             alert_trigger=drift_template.trigger,
             alert_reset_policy=drift_template.reset_policy,

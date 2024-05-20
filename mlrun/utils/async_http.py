@@ -46,12 +46,21 @@ class AsyncClientWithRetry(RetryClient):
         *args,
         **kwargs,
     ):
+        # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
+        blacklisted_methods = (
+            blacklisted_methods
+            if blacklisted_methods is not None
+            else [
+                "POST",
+                "PUT",
+                "PATCH",
+            ]
+        )
         super().__init__(
             *args,
             retry_options=ExponentialRetryOverride(
                 retry_on_exception=retry_on_exception,
-                # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
-                blacklisted_methods=blacklisted_methods or ["POST", "PUT", "PATCH"],
+                blacklisted_methods=blacklisted_methods,
                 attempts=max_retries,
                 statuses=retry_on_status_codes,
                 factor=retry_backoff_factor,
@@ -61,6 +70,12 @@ class AsyncClientWithRetry(RetryClient):
             logger=logger or mlrun_logger,
             raise_for_status=raise_for_status,
             **kwargs,
+        )
+
+    def methods_blacklist_update_required(self, new_blacklist: str):
+        self._retry_options: ExponentialRetryOverride
+        return set(self._retry_options.blacklisted_methods).difference(
+            set(new_blacklist)
         )
 
     def _make_requests(

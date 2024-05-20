@@ -487,8 +487,7 @@ class ParquetSource(BaseSourceDriver):
                 new_filter = operators[op](col(col_name), value)
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"additional filter operator is not supported,"
-                    f"given Operator: {op} ."
+                    f"unsupported filter operator: {op}"
                 )
             if spark_filter is not None:
                 spark_filter = spark_filter & new_filter

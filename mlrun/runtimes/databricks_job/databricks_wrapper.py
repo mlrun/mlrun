@@ -99,7 +99,7 @@ def save_credentials(
         credentials["DATABRICKS_CLUSTER_ID"] = cluster_id
 
     with open(credentials_path, "w") as yaml_file:
-        yaml.dump(credentials, yaml_file, default_flow_style=False)
+        yaml.safe_dump(credentials, yaml_file, default_flow_style=False)
 
 
 def run_mlrun_databricks_job(

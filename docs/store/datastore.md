@@ -8,27 +8,25 @@ MLRun supports multiple data stores. Additional data stores, for example MongoDB
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
-* **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
-* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
+* **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
+* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
-* Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class. See [Adding a data store profile](#adding-a-data-store-profile)
 
 **In this section**
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
 - [Data store profiles](#data-store-profiles)
+- [Alibaba Cloud Object Storage Service (OSS)](#alibaba-cloud-object-storage-service-oss)
 - [Azure data store](#azure-data-store)
 - [Databricks file system](#databricks-file-system)
 - [Google cloud storage](#google-cloud-storage)
 - [HDFS](#hdfs)
 - [S3](#s3)
 - [V3IO](#v3io)
-- [OSS](#OSS)
-- [Adding a data store profile](#adding-a-data-store-profile)
 
 
 ## Storage credentials and parameters
@@ -128,6 +126,15 @@ See also:
 
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
 the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
+
+## Alibaba Cloud Object Storage Service (OSS)
+
+### Alibaba Cloud Object Storage Service credentials and parameters
+
+* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
+  parameters
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
+
 
 ## Azure data store
 
@@ -362,12 +369,6 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 - `name` &mdash; Name of the profile
 - `v3io_access_key` &mdash; Optional. Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
 
-## OSS
-### OSS credentials and parameters
-
-* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
-  parameters
-* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
 
 % ## Adding a data store profile Return to doc when there are personas
 

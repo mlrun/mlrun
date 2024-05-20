@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import datetime
 import typing
 
 import pandas as pd
@@ -184,10 +183,10 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
     def get_records(
         self,
         table: str,
+        start: str,
+        end: str,
         columns: list[str] = None,
         filter_query: str = "",
-        start: str = datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
-        end: str = datetime.datetime.now().astimezone(),
         timestamp_column: str = mm_constants.EventFieldType.TIME,
     ) -> pd.DataFrame:
         """

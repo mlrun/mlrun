@@ -375,17 +375,14 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_records(
         self,
         table: str,
+        start: str,
+        end: str,
         columns: list[str] = None,
         filter_query: str = "",
-        start: str = "now-1h",
-        end: str = "now",
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
         :param table:            Path to the collection to query.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
-                                 divided by ' AND '.
         :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
@@ -394,6 +391,9 @@ class V3IOTSDBConnector(TSDBConnector):
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
                                  `'s'` = seconds), or 0 for the earliest time.
+        :param columns:          Columns to include in the result.
+        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
+                                 divided by ' AND '.
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """

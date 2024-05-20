@@ -755,7 +755,9 @@ class Client(
             # This feature requires support for project-level default_function_node_selector,
             # which is available starting from version 3.5.5.
             # We are adding this validation to maintain backward compatibility with older versions of Iguazio.
-            if mlrun.utils.helpers.validate_component_version_compatibility("3.5.5"):
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", "3.5.5"
+            ):
                 body["data"]["attributes"]["default_function_node_selector"] = (
                     Client._transform_mlrun_labels_to_iguazio_labels(
                         project.spec.default_function_node_selector

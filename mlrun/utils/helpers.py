@@ -1418,6 +1418,12 @@ def is_file_path(filepath):
     return os.path.isfile(filepath) and ext
 
 
+def ensure_file_path_exists(filepath):
+    """Ensure the file path exists, if not create its parent directories."""
+    if not os.path.exists(filepath):
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+
 def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 

@@ -523,7 +523,11 @@ default_config = {
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
         "tsdb_connector_type": "v3io-tsdb",
-        "image_manifest_path": "./db/images/model_monitoring.json",
+        "image_manifest": {
+            "path": "images/model_monitoring.json",
+            "update_retry_interval": 10,
+            "update_retry_timeout": 400,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

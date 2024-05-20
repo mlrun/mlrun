@@ -666,8 +666,9 @@ class MonitoringDeployment:
     def _read_image_manifest(self):
         """Read the image manifest file that contains the information about the deployed model monitoring
         functions images"""
-        if os.path.exists(config.model_endpoint_monitoring.image_manifest_path):
-            with open(config.model_endpoint_monitoring.image_manifest_path) as f:
+        manifest_path = self._get_manifest_path()
+        if os.path.exists(manifest_path):
+            with open(manifest_path) as f:
                 self._image_manifest = json.load(f)
 
     @staticmethod
@@ -723,8 +724,8 @@ class MonitoringDeployment:
 
             try:
                 status = mlrun.utils.helpers.retry_until_successful(
-                    5,
-                    60 * 5,  # 5 minutes, to allow the images to be built
+                    config.model_endpoint_monitoring.image_manifest.update_retry_interval,
+                    config.model_endpoint_monitoring.image_manifest.update_retry_timeout,
                     logger,
                     True,
                     _get_function_status,
@@ -754,8 +755,16 @@ class MonitoringDeployment:
 
         # write the updated image manifest
         if save:
-            with open(config.model_endpoint_monitoring.image_manifest_path, "w") as f:
+            manifest_path = self._get_manifest_path()
+            mlrun.utils.ensure_file_path_exists(manifest_path)
+            with open(manifest_path, "w") as f:
                 json.dump(self._image_manifest, f)
+
+    @staticmethod
+    def _get_manifest_path():
+        return os.path.join(
+            config.httpdb.dirpath, config.model_endpoint_monitoring.image_manifest.path
+        )
 
 
 def get_endpoint_features(

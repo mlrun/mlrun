@@ -33,6 +33,9 @@ class Events(
         if event_data.entity.project != project:
             return False
 
+        if len(event_data.entity.ids) > 1:
+            return False
+
         return bool(event_data.is_valid())
 
     def add_event_configuration(self, project, name, alert_name):
@@ -69,5 +72,9 @@ class Events(
                     session, project, name, event_data
                 )
         except KeyError:
-            logger.warn("Received unknown event", project=project, name=event_name)
+            logger.debug(
+                "Received event has no associated alert",
+                project=project,
+                name=event_name,
+            )
             return

@@ -350,6 +350,9 @@ def enrich_dask_cluster(
     if spec.extra_pip:
         env.append(spec.extra_pip)
 
+    # remove duplicates by name
+    env = list({get_env_name(spec_env): spec_env for spec_env in env}.values())
+
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
 
     worker_args = ["dask", "worker"]

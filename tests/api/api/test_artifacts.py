@@ -14,6 +14,7 @@
 #
 import tempfile
 import unittest.mock
+import uuid
 from http import HTTPStatus
 
 import deepdiff
@@ -23,8 +24,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
-import server.api.api.endpoints.artifacts_v2
-import server.api.crud.files
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
@@ -41,27 +40,14 @@ DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}"
 # V2 endpoints
 V2_PREFIX = "v2/"
 DELETE_API_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_ARTIFACTS_PATH
+STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
+LIST_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
     resp = client.get(f"projects/{PROJECT}/artifact-tags")
     assert resp.status_code == HTTPStatus.OK.value, "status"
     assert resp.json()["project"] == PROJECT, "project"
-
-
-def _create_project(
-    client: TestClient, project_name: str = PROJECT, prefix: str = None
-):
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(
-            description="banana", source="source", goals="some goals"
-        ),
-    )
-    url = "projects" if prefix is None else f"{prefix}/projects"
-    resp = client.post(url, json=project.dict())
-    assert resp.status_code == HTTPStatus.CREATED.value
-    return resp
 
 
 def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
@@ -274,7 +260,7 @@ def test_fails_deleting_artifact_data(
 
     with unittest.mock.patch(
         "server.api.crud.files.Files.delete_artifact_data",
-        side_effect=Exception("some error"),
+        side_effect=mlrun.errors.MLRunInternalServerError("some error"),
     ):
         resp = unversioned_client.delete(
             url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)
@@ -285,14 +271,46 @@ def test_fails_deleting_artifact_data(
 def test_delete_artifact_data_default_deletion_strategy(
     db: Session, unversioned_client: TestClient
 ):
-    server.api.crud.Files.delete_artifact_data = unittest.mock.MagicMock()
+    with unittest.mock.patch(
+        "server.api.crud.Files.delete_artifact_data"
+    ) as delete_artifact_data:
+        # checking metadata-only as default deletion_strategy
+        url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+        resp = unversioned_client.delete(url)
+        delete_artifact_data.assert_not_called()
+        delete_artifact_data.reset_mock()
+        assert resp.status_code == HTTPStatus.NO_CONTENT.value
 
-    # checking metadata-only as default deletion_strategy
+
+@pytest.mark.parametrize(
+    "artifact_kind",
+    [
+        mlrun.artifacts.DatasetArtifact,
+        mlrun.artifacts.ModelArtifact,
+        mlrun.artifacts.DirArtifact,
+    ],
+)
+def test_fails_deleting_artifact_data_by_artifact_kind(
+    artifact_kind, db: Session, unversioned_client: TestClient
+):
+    _create_project(unversioned_client)
+    artifact = artifact_kind(key=KEY, body="123", target_path="dummy-path")
+
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
-    resp = unversioned_client.delete(url)
-    server.api.crud.Files.delete_artifact_data.assert_not_called()
-    server.api.crud.Files.delete_artifact_data.reset_mock()
-    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+    url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
+
+    resp = unversioned_client.delete(
+        url_with_deletion_strategy.format(
+            deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+        )
+    )
+    assert resp.status_code == HTTPStatus.NOT_IMPLEMENTED.value
 
 
 def test_list_artifacts(db: Session, client: TestClient) -> None:
@@ -331,6 +349,57 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         )
         == {}
     )
+
+
+def test_list_artifacts_with_producer_uri(
+    db: Session, unversioned_client: TestClient
+) -> None:
+    _create_project(unversioned_client, prefix="v1")
+    producer_uri_1 = f"{PROJECT}/abc"
+    producer_uri_2 = f"{PROJECT}/def"
+    producer_uris = [producer_uri_1, producer_uri_1, producer_uri_2, ""]
+    for producer_uri in producer_uris:
+        data = {
+            "kind": "artifact",
+            "metadata": {
+                "description": "",
+                "labels": {},
+                "key": KEY,
+                "project": PROJECT,
+                "tree": str(uuid.uuid4()),
+            },
+            "spec": {
+                "db_key": "some-key",
+                "producer": {"kind": "api", "uri": producer_uri},
+                "target_path": "s3://aaa/aaa",
+            },
+            "status": {},
+        }
+        resp = unversioned_client.post(
+            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+            json=data,
+        )
+        assert resp.status_code == HTTPStatus.CREATED.value
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(f"{artifact_path}?producer_uri={producer_uri_1}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2
+    for artifact in artifacts:
+        assert artifact["spec"]["producer"]["uri"] == producer_uri_1
+
+    resp = unversioned_client.get(f"{artifact_path}?producer_uri={producer_uri_2}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1
+    assert artifacts[0]["spec"]["producer"]["uri"] == producer_uri_2
+
+    # Get all artifacts
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 4
 
 
 def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
@@ -581,3 +650,18 @@ def test_store_oversized_artifact(
     )
 
     assert resp.status_code == expected_status_code
+
+
+def _create_project(
+    client: TestClient, project_name: str = PROJECT, prefix: str = None
+):
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana", source="source", goals="some goals"
+        ),
+    )
+    url = "projects" if prefix is None else f"{prefix}/projects"
+    resp = client.post(url, json=project.dict())
+    assert resp.status_code == HTTPStatus.CREATED.value
+    return resp

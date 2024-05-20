@@ -24,6 +24,9 @@ from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.platforms.iguazio import v3io_to_vol
 from mlrun.utils import logger
 
+# Disable the warning about reusing components
+kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+
 
 def v3io_cred(api="", user="", access_key=""):
     """

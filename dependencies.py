@@ -76,6 +76,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "distributed~=2023.9.0",
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
+        "taosws": ["taospy[ws]>=2,<3"],
     }
 
     # see above why we are excluding google-cloud

@@ -42,10 +42,6 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
                 secret_provider=secret_provider
             )
         )
-        print(
-            "[EYAL]: self._tdengine_connection_string:",
-            self._tdengine_connection_string,
-        )
         self.database = database
         self._connection = self._create_connection()
         self._init_super_tables()
@@ -89,14 +85,6 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
             f"{event[mm_constants.WriterEvent.ENDPOINT_ID]}_"
             f"{event[mm_constants.WriterEvent.APPLICATION_NAME]}_"
         )
-
-        # Adjust the time format and add the project name that will be used as a tag
-        # event[mm_constants.WriterEvent.END_INFER_TIME] = event[
-        #     mm_constants.WriterEvent.END_INFER_TIME
-        # ][:-6]
-        # event[mm_constants.WriterEvent.START_INFER_TIME] = event[
-        #     mm_constants.WriterEvent.START_INFER_TIME
-        # ][:-6]
         event[mm_constants.EventFieldType.PROJECT] = self.project
 
         if kind == mm_constants.WriterEventKind.RESULT:

@@ -1,28 +1,17 @@
+import pandas as pd
+
 import mlrun
-from mlrun.model_monitoring.application import (
-    ModelMonitoringApplicationBase,
-    ModelMonitoringApplicationResult,
+from mlrun.artifacts import (
+    TableArtifact,
 )
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.datastore.targets import ParquetTarget
-import typing
-import pandas as pd
-import json
-from mlrun.artifacts import (
-    Artifact,
-    DatasetArtifact,
-    PlotlyArtifact,
-    TableArtifact,
-    update_dataset_meta,
+from mlrun.model_monitoring.application import (
+    ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationResult,
 )
-import os
-
-from mlrun.artifacts.manager import ArtifactManager, extend_artifact_path
-
-from mlrun.datastore import store_manager
 
 
 class DemoMonitoringApp(ModelMonitoringApplicationBase):
@@ -42,7 +31,9 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
         output_stream_uri: str,
     ) -> list[ModelMonitoringApplicationResult]:
         self.context.logger.info("Running demo app")
-        self.context.log_artifact(TableArtifact(f"sample_df_{start_infer_time}", df=sample_df))
+        self.context.log_artifact(
+            TableArtifact(f"sample_df_{start_infer_time}", df=sample_df)
+        )
         return [
             ModelMonitoringApplicationResult(
                 name="data_drift_test",

@@ -909,7 +909,6 @@ async def test_format_as_leader_project(
             exclude_paths=[
                 "root['attributes']['updated_at']",
                 "root['attributes']['operational_status']",
-                # "root['attributes']['default_function_node_selector']"
             ],
         )
         == {}

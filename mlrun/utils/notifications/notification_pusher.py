@@ -393,11 +393,21 @@ class NotificationPusher(_NotificationPusherBase):
         db = mlrun.get_run_db()
 
         def _add_run_step(_step):
-            _run = db.list_runs(
-                project=run.metadata.project,
-                labels=f"mlrun/runner-pod={_step.node_name}",
-            )[0]
+            try:
+                _run = db.list_runs(
+                    project=run.metadata.project,
+                    labels=f"mlrun/runner-pod={_step.node_name}",
+                )[0]
+            except IndexError:
+                _run = {
+                    "metadata": {
+                        "name": _step.display_name,
+                        "project": run.metadata.project,
+                    },
+                }
             _run["step_kind"] = _step.step_type
+            if _step.skipped:
+                _run.setdefault("status", {})["state"] = "skipped"
             steps.append(_run)
 
         def _add_deploy_function_step(_step):
@@ -419,11 +429,13 @@ class NotificationPusher(_NotificationPusherBase):
                             "hash_key": hash_key,
                         },
                     }
-                function["status"] = {
-                    "state": mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                if _step.skipped:
+                    state = "skipped"
+                else:
+                    state = mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
                         _step.phase
-                    ),
-                }
+                    )
+                function["status"] = {"state": state}
                 if isinstance(function["metadata"].get("updated"), datetime.datetime):
                     function["metadata"]["updated"] = function["metadata"][
                         "updated"
@@ -481,7 +493,7 @@ class NotificationPusher(_NotificationPusherBase):
         if not kfp_run:
             return None
 
-        kfp_run = mlrun_pipelines.models.PipelineRun(kfp_run.to_dict())
+        kfp_run = mlrun_pipelines.models.PipelineRun(kfp_run)
         return kfp_run.workflow_manifest()
 
     def _extract_function_uri(self, function_uri: str) -> tuple[str, str, str]:

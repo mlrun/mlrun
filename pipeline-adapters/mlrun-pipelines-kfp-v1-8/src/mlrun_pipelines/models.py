@@ -51,6 +51,14 @@ class PipelineStep(FlexibleMapper):
     def phase(self):
         return self._external_data["node"]["phase"]
 
+    @property
+    def skipped(self):
+        return self._external_data["node"]["type"] == "Skipped"
+
+    @property
+    def display_name(self):
+        return self._external_data["node"]["displayName"]
+
     def get_annotation(self, annotation_name: str):
         return self._external_data["node_template"]["metadata"]["annotations"].get(
             annotation_name
@@ -65,7 +73,7 @@ class PipelineManifest(FlexibleMapper):
             main_manifest = json.loads(workflow_manifest)
         except TypeError:
             main_manifest = workflow_manifest
-        if pipeline_manifest:
+        if pipeline_manifest != "{}":
             pipeline_manifest = json.loads(pipeline_manifest)
             main_manifest["status"] = pipeline_manifest.get("status", {})
         super().__init__(main_manifest)
@@ -76,7 +84,7 @@ class PipelineManifest(FlexibleMapper):
             key=lambda _node: _node[1]["finishedAt"],
         )
         for node_name, node in nodes:
-            if node["type"] != "Pod":
+            if node["type"] == "DAG":
                 # Skip the parent DAG node
                 continue
 

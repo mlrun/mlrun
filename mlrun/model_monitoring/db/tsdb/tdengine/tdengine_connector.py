@@ -202,7 +202,7 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
         :param database:         The database name.
 
         :return: DataFrame with the provided attributes from the data collection.
-        :raise:  MLRunInvalidArgumentError if the provided table wasn't found.
+        :raise:  MLRunInvalidArgumentError if query the provided table failed.
         """
 
         filter_query += f" project = '{self.project}'"

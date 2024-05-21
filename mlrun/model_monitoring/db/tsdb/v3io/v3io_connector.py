@@ -36,6 +36,8 @@ class V3IOTSDBConnector(TSDBConnector):
     Client that provides API for executing commands on the V3IO TSDB table.
     """
 
+    type: str = mm_schemas.TSDBTarget.V3IO_TSDB
+
     def __init__(
         self,
         project: str,

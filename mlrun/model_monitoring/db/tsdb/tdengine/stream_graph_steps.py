@@ -30,7 +30,7 @@ class ProcessBeforeTDEngine(mlrun.feature_store.steps.MapClass):
         Process the data before writing to TDEngine. This step create the relevant keys for the TDEngine table,
         including project name, custom metrics, time column, and table name column.
 
-        :returns: Event as a dictionary which will written into the TDEngine Predictions table.
+        :returns: Event as a dictionary which will be written into the TDEngine Predictions table.
         """
         super().__init__(**kwargs)
 

@@ -12,35 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import pandas as pd
 import taosws
 
-import mlrun.common.schemas.model_monitoring as mm_constants
+import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
+from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
 
-class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
+class TDEngineConnector(TSDBConnector):
     """
     Handles the TSDB operations when the TSDB connector is of type TDEngine.
     """
 
+    type: str = mm_schemas.TSDBTarget.TDEngine
+
     def __init__(
         self,
         project: str,
-        secret_provider: typing.Callable = None,
         database: str = tdengine_schemas._MODEL_MONITORING_DATABASE,
+        **kwargs,
     ):
         super().__init__(project=project)
-        self._tdengine_connection_string = (
-            mlrun.model_monitoring.helpers.get_tsdb_connection_string(
-                secret_provider=secret_provider
+        if "connection_string" not in kwargs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "connection_string is a required parameter for TDEngineConnector."
             )
-        )
+        self._tdengine_connection_string = kwargs.get("connection_string")
         self.database = database
         self._connection = self._create_connection()
         self._init_super_tables()
@@ -59,9 +61,9 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
     def _init_super_tables(self):
         """Initialize the super tables for the TSDB."""
         self.tables = {
-            mm_constants.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(),
-            mm_constants.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(),
-            mm_constants.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(),
+            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(),
+            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(),
+            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(),
         }
 
     def create_tables(self):
@@ -73,7 +75,7 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
     def write_application_event(
         self,
         event: dict,
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
     ):
         """
         Write a single result or metric to TSDB.
@@ -81,23 +83,23 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
 
         table_name = (
             f"{self.project}_"
-            f"{event[mm_constants.WriterEvent.ENDPOINT_ID]}_"
-            f"{event[mm_constants.WriterEvent.APPLICATION_NAME]}_"
+            f"{event[mm_schemas.WriterEvent.ENDPOINT_ID]}_"
+            f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}_"
         )
-        event[mm_constants.EventFieldType.PROJECT] = self.project
+        event[mm_schemas.EventFieldType.PROJECT] = self.project
 
-        if kind == mm_constants.WriterEventKind.RESULT:
+        if kind == mm_schemas.WriterEventKind.RESULT:
             # Write a new result
-            table = self.tables[mm_constants.TDEngineSuperTables.APP_RESULTS]
+            table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS]
             table_name = (
-                f"{table_name}_" f"{event[mm_constants.ResultData.RESULT_NAME]}"
+                f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
 
         else:
             # Write a new metric
-            table = self.tables[mm_constants.TDEngineSuperTables.METRICS]
+            table = self.tables[mm_schemas.TDEngineSuperTables.METRICS]
             table_name = (
-                f"{table_name}_" f"{event[mm_constants.MetricData.METRIC_NAME]}"
+                f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
         create_table_query = table._create_subtable_query(
@@ -131,17 +133,17 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
                 name=name,
                 after=after,
                 url=self._tdengine_connection_string,
-                supertable=mm_constants.TDEngineSuperTables.PREDICTIONS,
-                table_col=mm_constants.EventFieldType.TABLE_COLUMN,
-                time_col=mm_constants.EventFieldType.TIME,
+                supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+                table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
+                time_col=mm_schemas.EventFieldType.TIME,
                 database=self.database,
                 columns=[
-                    mm_constants.EventFieldType.LATENCY,
-                    mm_constants.EventKeyMetrics.CUSTOM_METRICS,
+                    mm_schemas.EventFieldType.LATENCY,
+                    mm_schemas.EventKeyMetrics.CUSTOM_METRICS,
                 ],
                 tag_cols=[
-                    mm_constants.EventFieldType.PROJECT,
-                    mm_constants.EventFieldType.ENDPOINT_ID,
+                    mm_schemas.EventFieldType.PROJECT,
+                    mm_schemas.EventFieldType.ENDPOINT_ID,
                 ],
                 max_events=10,
             )
@@ -158,7 +160,7 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
         """
         for table in self.tables:
             get_subtable_names_query = self.tables[table]._get_subtables_query(
-                values={mm_constants.EventFieldType.PROJECT: self.project}
+                values={mm_schemas.EventFieldType.PROJECT: self.project}
             )
             subtables = self._connection.query(get_subtable_names_query)
             for subtable in subtables:
@@ -187,7 +189,7 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
         end: str,
         columns: list[str] = None,
         filter_query: str = "",
-        timestamp_column: str = mm_constants.EventFieldType.TIME,
+        timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.

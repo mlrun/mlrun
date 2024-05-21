@@ -149,10 +149,7 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
-        if (
-            mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
-            == mm_constants.TSDBTarget.V3IO_TSDB
-        ):
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             # V3IO TSDB
             df: pd.DataFrame = cls._tsdb_storage.get_records(
                 table=mm_constants.V3IOTSDBTables.APP_RESULTS,
@@ -243,11 +240,6 @@ class _V3IORecordsChecker:
         assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
-    @pytest.mark.skipif(
-        mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
-        == mm_constants.TSDBTarget.TDEngine,
-        reason="TDEngine connector does not support the GET /metrics-values API yet",
-    )
     @classmethod
     def _test_api_get_values(
         cls,
@@ -279,11 +271,14 @@ class _V3IORecordsChecker:
         results_full_names = cls._test_api_get_metrics(
             ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
-        cls._test_api_get_values(
-            ep_id=ep_id,
-            results_full_names=metrics_full_names + results_full_names,
-            run_db=run_db,
-        )
+
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            # TODO : implement for TDEngine once the API is supported
+            cls._test_api_get_values(
+                ep_id=ep_id,
+                results_full_names=metrics_full_names + results_full_names,
+                run_db=run_db,
+            )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

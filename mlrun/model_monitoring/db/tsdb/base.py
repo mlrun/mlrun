@@ -22,6 +22,8 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class TSDBConnector(ABC):
+    type: str = ""
+
     def __init__(self, project: str):
         """
         Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.

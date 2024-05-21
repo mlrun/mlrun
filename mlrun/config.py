@@ -232,6 +232,10 @@ default_config = {
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
         },
+        "application": {
+            "default_sidecar_internal_port": 8050,
+            "default_authentication_mode": "accessKey",
+        },
     },
     # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {
@@ -503,6 +507,7 @@ default_config = {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
             "stream": "",
+            "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
@@ -516,6 +521,7 @@ default_config = {
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
+        "tsdb_connector_type": "v3io-tsdb",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -1088,6 +1094,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
+        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1114,7 +1121,7 @@ class Config:
             )
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project)
+                return store_prefix_dict[kind].format(project=project, **kwargs)
 
             if (
                 function_name
@@ -1399,14 +1406,14 @@ def read_env(env=None, prefix=env_prefix):
     if log_formatter_name := config.get("log_formatter"):
         import mlrun.utils.logger
 
-        log_formatter = mlrun.utils.create_formatter_instance(
+        log_formatter = mlrun.utils.resolve_formatter_by_kind(
             mlrun.utils.FormatterKinds(log_formatter_name)
         )
         current_handler = mlrun.utils.logger.get_handler("default")
         current_formatter_name = current_handler.formatter.__class__.__name__
-        desired_formatter_name = log_formatter.__class__.__name__
+        desired_formatter_name = log_formatter.__name__
         if current_formatter_name != desired_formatter_name:
-            current_handler.setFormatter(log_formatter)
+            current_handler.setFormatter(log_formatter())
 
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.

@@ -29,7 +29,7 @@ import mergedeep
 import pytz
 from sqlalchemy import MetaData, and_, distinct, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -657,8 +657,9 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         project = project or config.default_project
 
@@ -681,6 +682,7 @@ class SQLDB(DBInterface):
             uid=uid,
             producer_id=producer_id,
             best_iteration=best_iteration,
+            producer_uri=producer_uri,
         )
         if as_records:
             return artifact_records
@@ -1247,6 +1249,7 @@ class SQLDB(DBInterface):
         producer_id=None,
         best_iteration=False,
         most_recent=False,
+        producer_uri=None,
     ):
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1294,6 +1297,18 @@ class SQLDB(DBInterface):
                 query = query.filter(ArtifactV2.kind.in_(kinds))
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
+
+        # Producer URI usually points to a run and is used to filter artifacts by the run that produced them when
+        # the artifact producer id is a workflow id (artifact was created as part of a workflow).
+        if producer_uri:
+            artifacts = []
+            for artifact in query:
+                artifact_struct = artifact.full_object
+                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
+                if artifact_struct["spec"]["producer"].get("uri") == producer_uri:
+                    artifacts.append(artifact)
+
+            return artifacts
 
         return query.all()
 
@@ -1663,23 +1678,39 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        project = project or config.default_project
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session, name=name, tag=tag, hash_key=hash_key, project=project
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        function = query.one_or_none()
+        if function:
+            struct = function.struct
+            for key, val in updates.items():
+                update_in(struct, key, val)
+            function.struct = struct
+            self._upsert(session, [function])
+            return function.struct
+
     def _get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
-        tag_function_uid = None
-        if not tag and hash_key:
-            uid = hash_key
-        else:
-            tag_function_uid = self._resolve_class_tag_uid(
-                session, Function, project, name, computed_tag
-            )
-            if tag_function_uid is None:
-                function_uri = generate_object_uri(project, name, tag)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Function tag not found {function_uri}"
-                )
-            uid = tag_function_uid
+        uid = self._get_function_uid(
+            session=session, name=name, tag=tag, hash_key=hash_key, project=project
+        )
+        tag_function_uid = None if not tag and hash_key else uid
         if uid:
             query = query.filter(Function.uid == uid)
         obj = query.one_or_none()
@@ -1701,6 +1732,23 @@ class SQLDB(DBInterface):
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
+
+    def _get_function_uid(
+        self, session, name: str, tag: str, hash_key: str, project: str
+    ):
+        computed_tag = tag or "latest"
+        if not tag and hash_key:
+            return hash_key
+        else:
+            tag_function_uid = self._resolve_class_tag_uid(
+                session, Function, project, name, computed_tag
+            )
+            if tag_function_uid is None:
+                function_uri = generate_object_uri(project, name, tag)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Function tag not found {function_uri}"
+                )
+            return tag_function_uid
 
     def _delete_functions(self, session: Session, project: str):
         for function_name in self._list_project_function_names(session, project):
@@ -2188,6 +2236,8 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -2213,7 +2263,11 @@ class SQLDB(DBInterface):
         )
         (
             project_to_files_count,
-            project_to_schedule_count,
+            (
+                project_to_schedule_count,
+                project_to_schedule_pending_jobs_count,
+                project_to_schedule_pending_workflows_count,
+            ),
             project_to_feature_set_count,
             project_to_models_count,
             (
@@ -2225,6 +2279,8 @@ class SQLDB(DBInterface):
         return (
             project_to_files_count,
             project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_completed_runs_count,
@@ -2243,7 +2299,9 @@ class SQLDB(DBInterface):
         }
         return project_to_function_count
 
-    def _calculate_schedules_counters(self, session) -> dict[str, int]:
+    def _calculate_schedules_counters(
+        self, session
+    ) -> [dict[str, int], dict[str, int], dict[str, int]]:
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
             .group_by(Schedule.project)
@@ -2252,7 +2310,32 @@ class SQLDB(DBInterface):
         project_to_schedule_count = {
             result[0]: result[1] for result in schedules_count_per_project
         }
-        return project_to_schedule_count
+
+        next_day = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        schedules_pending_count_per_project = (
+            session.query(Schedule.project, Schedule.name, Schedule.Label)
+            .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
+            .filter(Schedule.next_run_time < next_day)
+            .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
+            .filter(Schedule.Label.name.in_(["workflow", "kind"]))
+            .all()
+        )
+
+        project_to_schedule_pending_jobs_count = collections.defaultdict(int)
+        project_to_schedule_pending_workflows_count = collections.defaultdict(int)
+
+        for result in schedules_pending_count_per_project:
+            if result[2].to_dict()["name"] == "workflow":
+                project_to_schedule_pending_workflows_count[result[0]] += 1
+            elif result[2].to_dict()["value"] == "job":
+                project_to_schedule_pending_jobs_count[result[0]] += 1
+
+        return (
+            project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
+        )
 
     def _calculate_feature_sets_counters(self, session) -> dict[str, int]:
         feature_sets_count_per_project = (
@@ -2884,6 +2967,10 @@ class SQLDB(DBInterface):
             )
             .label("row_number")
         )
+
+        # Retrieve only the ID from the subquery to minimize the inner table,
+        # in the final step we inner join the inner table with the full table.
+        query = query.with_entities(cls.id).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
                 func.max(sort_by_field)
@@ -2896,18 +2983,15 @@ class SQLDB(DBInterface):
 
         # Need to generate a subquery so we can filter based on the row_number, since it
         # is a window function using over().
-        subquery = query.add_column(row_number_column).subquery()
-
+        subquery = query.subquery()
         if max_partitions == 0:
-            # If we don't query on max-partitions, we end here. Need to alias the subquery so that the ORM will
-            # be able to properly map it to objects.
-            result_query = session.query(aliased(cls, subquery)).filter(
-                subquery.c.row_number <= rows_per_partition
+            result_query = (
+                session.query(cls)
+                .join(subquery, cls.id == subquery.c.id)
+                .filter(subquery.c.row_number <= rows_per_partition)
             )
             return result_query
 
-        # Otherwise no need for an alias, as this is an internal query and will be wrapped by another one where
-        # alias will apply. We just apply the filter here.
         result_query = session.query(subquery).filter(
             subquery.c.row_number <= rows_per_partition
         )
@@ -2919,9 +3003,11 @@ class SQLDB(DBInterface):
             .over(order_by=subquery.c.max_partition_value.desc())
             .label("partition_rank")
         )
-        result_query = result_query.add_column(partition_rank).subquery()
-        result_query = session.query(aliased(cls, result_query)).filter(
-            result_query.c.partition_rank <= max_partitions
+        subquery = result_query.add_column(partition_rank).subquery()
+        result_query = (
+            session.query(cls)
+            .join(subquery, cls.id == subquery.c.id)
+            .filter(subquery.c.partition_rank <= max_partitions)
         )
         return result_query
 
@@ -4262,7 +4348,11 @@ class SQLDB(DBInterface):
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
         self._store_notifications(
-            session, AlertConfig, alert.notifications, alert_record.id, alert.project
+            session,
+            AlertConfig,
+            alert.get_raw_notifications(),
+            alert_record.id,
+            alert.project,
         )
 
         self._upsert(session, [alert_record, alert_state])
@@ -4279,7 +4369,11 @@ class SQLDB(DBInterface):
         )
 
         self._store_notifications(
-            session, AlertConfig, alert.notifications, alert_record.id, alert.project
+            session,
+            AlertConfig,
+            alert.get_raw_notifications(),
+            alert_record.id,
+            alert.project,
         )
 
         state = AlertState(count=0, parent_id=alert_record.id)
@@ -4334,13 +4428,24 @@ class SQLDB(DBInterface):
                 _notification["when"] = [_notification["when"]]
             return _notification
 
-        alert.notifications = [
+        notifications = [
             mlrun.common.schemas.notification.Notification(
                 **_enrich_notification(notification)
             )
             for notification in self._get_db_notifications(
                 session, AlertConfig, parent_id=alert.id
             )
+        ]
+
+        cooldowns = [
+            notification.cooldown_period for notification in alert.notifications
+        ]
+
+        alert.notifications = [
+            mlrun.common.schemas.alert.AlertNotification(
+                cooldown_period=cooldown, notification=notification
+            )
+            for cooldown, notification in zip(cooldowns, notifications)
         ]
 
     @staticmethod

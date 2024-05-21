@@ -30,6 +30,7 @@ import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring as mm_consts
+import mlrun.db.nopdb
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -1813,6 +1814,7 @@ def test_create_api_gateway_valid(
     upstreams,
     authentication_mode,
 ):
+    mlrun.mlconf.igz_version = "3.6.0"
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
@@ -1868,7 +1870,7 @@ def test_create_api_gateway_valid(
     ):
         api_gateway.with_access_key_auth()
 
-    gateway = project.store_api_gateway(api_gateway)
+    gateway = project.store_api_gateway(api_gateway=api_gateway)
 
     gateway_dict = gateway.to_dict()
     assert "metadata" in gateway_dict

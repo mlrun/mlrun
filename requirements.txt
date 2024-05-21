@@ -4,12 +4,9 @@ GitPython~=3.1, >=3.1.41
 aiohttp~=3.9
 aiohttp-retry~=2.8
 click~=8.1
-# 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
-# since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
-kfp~=1.8
 nest-asyncio~=1.0
 ipython~=8.10
-nuclio-jupyter~=0.9.16
+nuclio-jupyter~=0.9.17
 numpy>=1.16.5, <1.27.0
 # pandas 2.2 requires sqlalchemy 2
 pandas>=1.2, <2.2
@@ -42,3 +39,6 @@ setuptools~=69.1
 deprecated~=1.2
 jinja2~=3.1, >=3.1.3
 orjson>=3.9.15, <4
+# mlrun pipeline adapters
+mlrun-pipelines-kfp-common-experiment~=0.2.0
+mlrun-pipelines-kfp-v1-8-experiment~=0.2.0

@@ -156,7 +156,7 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesTarget:
+class TimeSeriesConnector:
     TSDB = "tsdb"
 
 
@@ -188,12 +188,14 @@ class SchedulingKeys:
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
+    PREDICTIONS = "predictions"
     STREAM = "stream"
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
     APP_RESULTS = "app_results"
     MONITORING_SCHEDULES = "monitoring_schedules"
+    MONITORING_APPLICATION = "monitoring_application"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -226,6 +228,12 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     WRITER = "model-monitoring-writer"
+
+
+class MonitoringTSDBTables(MonitoringStrEnum):
+    APP_RESULTS = "app-results"
+    METRICS = "metrics"
+    EVENTS = "events"
 
 
 @dataclass
@@ -327,6 +335,14 @@ class ModelMonitoringAppLabel:
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"
+
+
+class TSDBTarget:
+    V3IO_TSDB = "v3io-tsdb"
+    PROMETHEUS = "prometheus"
+    APP_RESULTS_TABLE = "app-results"
+    V3IO_BE = "tsdb"
+    V3IO_RATE = "1/s"
 
 
 class HistogramDataDriftApplicationConstants:

@@ -135,7 +135,7 @@ class SlackNotification(NotificationBase):
         line = [
             self._get_slack_row(f":bell: {alert.name} alert has occurred"),
             self._get_slack_row(f"*Project:*\n{alert.project}"),
-            self._get_slack_row(f"*UID:*\n{event_data.entity.id}"),
+            self._get_slack_row(f"*UID:*\n{event_data.entity.ids[0]}"),
         ]
         if event_data.value_dict:
             data_lines = []
@@ -144,7 +144,9 @@ class SlackNotification(NotificationBase):
             data_text = "\n".join(data_lines)
             line.append(self._get_slack_row(f"*Event data:*\n{data_text}"))
 
-        if url := mlrun.utils.helpers.get_ui_url(alert.project, event_data.entity.id):
+        if url := mlrun.utils.helpers.get_ui_url(
+            alert.project, event_data.entity.ids[0]
+        ):
             line.append(self._get_slack_row(f"*Overview:*\n<{url}|*Job overview*>"))
 
         return line
@@ -154,18 +156,21 @@ class SlackNotification(NotificationBase):
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
 
         # Only show the URL if the run is not a function (serving or mlrun function)
-        if run.get("kind") not in ["serving", None] and url:
+        kind = run.get("step_kind")
+        if url and not kind or kind == "run":
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")
         state = run["status"].get("state", "")
+        if kind:
+            line = f'{line} *({run.get("step_kind", run.get("kind", ""))})*'
         line = f'{self.emojis.get(state, ":question:")}  {line}'
         return self._get_slack_row(line)
 
     def _get_run_result(self, run: dict) -> dict:
         state = run["status"].get("state", "")
         if state == "error":
-            error_status = run["status"].get("error", "")
+            error_status = run["status"].get("error", "") or state
             result = f"*{error_status}*"
         else:
             result = mlrun.utils.helpers.dict_to_str(

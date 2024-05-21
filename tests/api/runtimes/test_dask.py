@@ -21,6 +21,7 @@ import unittest.mock
 from dask import distributed
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
+from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -28,7 +29,6 @@ import mlrun.common.schemas
 import server.api.api.endpoints.functions
 import server.api.runtime_handlers.daskjob
 from mlrun import mlconf
-from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
@@ -449,6 +449,8 @@ class TestDaskRuntime(TestRuntimeBase):
                 env=[
                     {"name": "MLRUN_NAMESPACE", "value": "other-namespace"},
                     k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+                    {"name": "TEST_DUP", "value": "A"},
+                    {"name": "TEST_DUP", "value": "B"},
                 ],
             ),
         )
@@ -472,6 +474,7 @@ class TestDaskRuntime(TestRuntimeBase):
             {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+            {"name": "TEST_DUP", "value": "A"},
         ]
         expected_labels = {
             "mlrun/project": "project",

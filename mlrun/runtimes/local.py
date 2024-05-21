@@ -383,8 +383,12 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
-        if spec.name in sys.modules:
+        try:
+        # if spec.name in sys.modules:
+            logger.warning("Reloading module - not all modules might reload again")
             importlib.reload(module)
+        except Exception as exc:
+            logger.warning(exc)
         spec.loader.exec_module(module)
 
     class_args = {}

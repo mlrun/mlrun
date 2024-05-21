@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import math
+import operator
 import os
 import warnings
 from base64 import b64encode
@@ -178,7 +180,7 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, list[int], list[str]] = None,
@@ -305,7 +307,7 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
@@ -313,6 +315,10 @@ class ParquetSource(BaseSourceDriver):
         end_time: Optional[Union[datetime, str]] = None,
         additional_filters: Optional[list[tuple]] = None,
     ):
+        if additional_filters:
+            attributes = copy(attributes) or {}
+            attributes["additional_filters"] = additional_filters
+            self.validate_additional_filters(additional_filters)
         super().__init__(
             name,
             path,
@@ -323,7 +329,6 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
-        self.additional_filters = additional_filters
 
     @property
     def start_time(self):
@@ -341,6 +346,10 @@ class ParquetSource(BaseSourceDriver):
     def end_time(self, end_time):
         self._end_time = self._convert_to_datetime(end_time)
 
+    @property
+    def additional_filters(self):
+        return self.attributes.get("additional_filters")
+
     @staticmethod
     def _convert_to_datetime(time):
         if time and isinstance(time, str):
@@ -349,6 +358,25 @@ class ParquetSource(BaseSourceDriver):
             return datetime.fromisoformat(time)
         else:
             return time
+
+    @staticmethod
+    def validate_additional_filters(additional_filters):
+        if not additional_filters:
+            return
+        for filter_tuple in additional_filters:
+            if not filter_tuple:
+                continue
+            col_name, op, value = filter_tuple
+            if isinstance(value, float) and math.isnan(value):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "using NaN in additional_filters is not supported"
+                )
+            elif isinstance(value, (list, tuple, set)):
+                for sub_value in value:
+                    if isinstance(sub_value, float) and math.isnan(sub_value):
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "using NaN in additional_filters is not supported"
+                        )
 
     def to_step(
         self,
@@ -361,13 +389,12 @@ class ParquetSource(BaseSourceDriver):
     ):
         import storey
 
-        attributes = self.attributes or {}
+        attributes = copy(self.attributes)
+        attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
-
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
-
         return storey.ParquetSource(
             paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
@@ -411,6 +438,84 @@ class ParquetSource(BaseSourceDriver):
             additional_filters=additional_filters or self.additional_filters,
             **reader_args,
         )
+
+    def _build_spark_additional_filters(self, column_types: dict):
+        if not self.additional_filters:
+            return None
+        from pyspark.sql.functions import col, isnan, lit
+
+        operators = {
+            "==": operator.eq,
+            "=": operator.eq,
+            ">": operator.gt,
+            "<": operator.lt,
+            ">=": operator.ge,
+            "<=": operator.le,
+            "!=": operator.ne,
+        }
+
+        spark_filter = None
+        new_filter = lit(True)
+        for filter_tuple in self.additional_filters:
+            if not filter_tuple:
+                continue
+            col_name, op, value = filter_tuple
+            if op.lower() in ("in", "not in") and isinstance(value, (list, tuple, set)):
+                none_exists = False
+                value = list(value)
+                for sub_value in value:
+                    if sub_value is None:
+                        value.remove(sub_value)
+                        none_exists = True
+                if none_exists:
+                    filter_nan = column_types[col_name] not in ("timestamp", "date")
+                    if value:
+                        if op.lower() == "in":
+                            new_filter = (
+                                col(col_name).isin(value) | col(col_name).isNull()
+                            )
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+
+                        else:
+                            new_filter = (
+                                ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            )
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
+                    else:
+                        if op.lower() == "in":
+                            new_filter = col(col_name).isNull()
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+                        else:
+                            new_filter = ~col(col_name).isNull()
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
+                else:
+                    if op.lower() == "in":
+                        new_filter = col(col_name).isin(value)
+                    elif op.lower() == "not in":
+                        new_filter = ~col(col_name).isin(value)
+            elif op in operators:
+                new_filter = operators[op](col(col_name), value)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"unsupported filter operator: {op}"
+                )
+            if spark_filter is not None:
+                spark_filter = spark_filter & new_filter
+            else:
+                spark_filter = new_filter
+        return spark_filter
+
+    def _filter_spark_df(self, df, time_field=None, columns=None):
+        spark_additional_filters = self._build_spark_additional_filters(
+            column_types=dict(df.dtypes)
+        )
+        if spark_additional_filters is not None:
+            df = df.filter(spark_additional_filters)
+        return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)
 
 
 class BigQuerySource(BaseSourceDriver):

@@ -1192,7 +1192,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def template_artifact_path(artifact_path, project, run_uid="project"):
+def template_artifact_path(artifact_path, project, run_uid=None):
     """
     Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
     If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
@@ -1200,6 +1200,7 @@ def template_artifact_path(artifact_path, project, run_uid="project"):
     """
     if not artifact_path:
         return artifact_path
+    run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
     return artifact_path
@@ -1612,3 +1613,12 @@ def validate_component_version_compatibility(
         if parsed_current_version < parsed_min_version:
             return False
     return True
+
+
+def format_alert_summary(
+    alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
+) -> str:
+    result = alert.summary.replace("{{project}}", alert.project)
+    result = result.replace("{{name}}", alert.name)
+    result = result.replace("{{entity}}", event_data.entity.ids[0])
+    return result

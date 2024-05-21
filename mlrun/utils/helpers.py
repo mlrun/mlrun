@@ -1015,13 +1015,11 @@ def create_function(pkg_func: str):
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
     cb_fname = splits[-1]
+    pkg_module_exists_in_modules = pkg_module in sys.modules
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
-    try:
-        # if spec.name in sys.modules:
+    if pkg_module_exists_in_modules:
         logger.warning("Reloading module - not all modules might reload again")
         reload(pkg_module)
-    except Exception as exc:
-        logger.warning("Failed to reload module", err=mlrun.errors.err_to_str(exc))
     function_ = getattr(pkg_module, cb_fname)
     return function_
 

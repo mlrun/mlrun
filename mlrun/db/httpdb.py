@@ -794,7 +794,7 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value
             of a label (i.e. list("key=value")) or by looking for the existence of a given
             key (i.e. "key").
-        :param state: List only runs whose state is specified.
+        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.8.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -828,6 +828,13 @@ class HTTPRunDB(RunDBInterface):
             # TODO: Remove this in 1.8.0
             warnings.warn(
                 "'last' is deprecated and will be removed in 1.8.0.",
+                FutureWarning,
+            )
+
+        if state:
+            # TODO: Remove this in 1.8.0
+            warnings.warn(
+                "'state' is deprecated and will be removed in 1.8.0. Use 'states' instead.",
                 FutureWarning,
             )
 

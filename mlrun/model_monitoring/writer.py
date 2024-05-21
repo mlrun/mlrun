@@ -29,7 +29,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
-from mlrun.model_monitoring.helpers import get_endpoint_record
+from mlrun.model_monitoring.helpers import get_endpoint_record, get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
@@ -119,13 +119,13 @@ class ModelMonitoringWriter(StepToDict):
 
     @staticmethod
     def _generate_event_on_drift(
-        model_endpoint: str, drift_status: str, event_value: dict, project_name: str
+        entity_id: str, drift_status: str, event_value: dict, project_name: str
     ) -> None:
         logger.info("Sending an alert")
         entity = mlrun.common.schemas.alert.EventEntities(
-            kind=alert_objects.EventEntityKind.MODEL,
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,
-            ids=[model_endpoint],
+            ids=[entity_id],
         )
         event_kind = (
             alert_objects.EventKind.DRIFT_DETECTED
@@ -209,7 +209,11 @@ class ModelMonitoringWriter(StepToDict):
                 "result_value": event[ResultData.RESULT_VALUE],
             }
             self._generate_event_on_drift(
-                event[WriterEvent.ENDPOINT_ID],
+                get_result_instance_fqn(
+                    event[WriterEvent.ENDPOINT_ID],
+                    event[WriterEvent.APPLICATION_NAME],
+                    event[ResultData.RESULT_NAME],
+                ),
                 event[ResultData.RESULT_STATUS],
                 event_value,
                 self.project,

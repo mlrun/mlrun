@@ -1249,7 +1249,7 @@ def _create_resources_of_all_kinds(
         summary="oops",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
         entities={
-            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
             "project": project,
             "ids": [1234],
         },

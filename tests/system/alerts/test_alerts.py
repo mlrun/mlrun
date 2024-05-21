@@ -25,7 +25,10 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
 import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.datastore import get_stream_pusher
-from mlrun.model_monitoring.helpers import get_stream_path
+from mlrun.model_monitoring.helpers import (
+    get_default_result_instance_fqn,
+    get_stream_path,
+)
 from tests.system.base import TestMLRunSystem
 
 
@@ -99,8 +102,8 @@ class TestAlerts(TestMLRunSystem):
         self._create_alert_config(
             self.project_name,
             alert_name,
-            alert_objects.EventEntityKind.MODEL,
-            endpoint_id,
+            alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            get_default_result_instance_fqn(endpoint_id),
             alert_summary,
             alert_objects.EventKind.DRIFT_DETECTED,
             notifications,
@@ -125,6 +128,9 @@ class TestAlerts(TestMLRunSystem):
             stream_uri,
         )
 
+        result_name = (
+            mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+        )
         data = {
             mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
@@ -133,7 +139,7 @@ class TestAlerts(TestMLRunSystem):
             mm_constants.WriterEvent.EVENT_KIND: "result",
             mm_constants.WriterEvent.DATA: json.dumps(
                 {
-                    mm_constants.ResultData.RESULT_NAME: "data_drift_test",
+                    mm_constants.ResultData.RESULT_NAME: result_name,
                     mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.data_drift.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.5,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,

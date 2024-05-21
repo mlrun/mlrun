@@ -61,7 +61,7 @@ def test_summary_formatter(summary, project, alert_name, entity_id, expected_str
     )
 
     event_kind = alert_objects.EventKind.DRIFT_SUSPECTED
-    entity_kind = alert_objects.EventEntityKind.MODEL
+    entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
 
     project = "my-project" if project is None else project
     alert_name = "my-alert" if alert_name is None else alert_name

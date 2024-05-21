@@ -22,7 +22,7 @@ from mlrun.common.types import StrEnum
 
 
 class EventEntityKind(StrEnum):
-    MODEL = "model"
+    MODEL_ENDPOINT_RESULT = "model-endpoint-result"
     JOB = "job"
 
 
@@ -39,8 +39,8 @@ class EventKind(StrEnum):
 
 
 _event_kind_entity_map = {
-    EventKind.DRIFT_SUSPECTED: [EventEntityKind.MODEL],
-    EventKind.DRIFT_DETECTED: [EventEntityKind.MODEL],
+    EventKind.DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.FAILED: [EventEntityKind.JOB],
 }
 

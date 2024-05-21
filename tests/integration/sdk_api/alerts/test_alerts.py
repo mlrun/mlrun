@@ -33,7 +33,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert1 = {
             "name": "drift",
             "entity": {
-                "kind": alert_objects.EventEntityKind.MODEL,
+                "kind": alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
                 "project": project_name,
             },
             "summary": "Model {{project}}/{{entity}} is drifting.",
@@ -146,7 +146,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         event_name = alert_objects.EventKind.DRIFT_DETECTED
         alert_name = "drift"
         alert_summary = "Model {{project}}/{{entity}} is drifting."
-        alert_entity_kind = alert_objects.EventEntityKind.MODEL
+        alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
         alert_entity_project = project_name
 
         mlrun.new_project(alert_entity_project)
@@ -201,7 +201,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # test modifiers on the alert config
         entities = alert_objects.EventEntities(
-            kind=alert_objects.EventEntityKind.MODEL, project=project_name, ids=[1234]
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            project=project_name,
+            ids=[1234],
         )
         alert_from_template.with_entities(entities=entities)
 

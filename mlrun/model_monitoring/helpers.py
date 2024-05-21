@@ -260,3 +260,17 @@ def get_endpoint_record(project: str, endpoint_id: str):
         project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
+
+
+def get_result_instance_fqn(
+    model_endpoint_id: str, app_name: str, result_name: str
+) -> str:
+    return f"{model_endpoint_id}.{app_name}.result.{result_name}"
+
+
+def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
+    return get_result_instance_fqn(
+        model_endpoint_id,
+        mm_constants.HistogramDataDriftApplicationConstants.NAME,
+        mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
+    )
